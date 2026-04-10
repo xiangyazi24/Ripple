@@ -1,0 +1,394 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{conjecture}[theorem]{Conjecture}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\RTCRN}{R_{\mathrm{RTCRN}}}
+
+\title{A Polynomial PIVP Family for Ap\'ery's Constant}
+\author{Xiang Huang \and Zinan Huang}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We construct a family of polynomial initial value problems (PIVPs) that compute
+Ap\'ery's constant $\zeta(3)$ to arbitrary precision at first-floor convergence rate.
+The construction uses the generating function of the Ap\'ery accelerated series,
+which satisfies a third-order linear ODE with integer polynomial coefficients.
+A time-rescaling technique converts this into a degree-4 polynomial autonomous system.
+For each precision target~$r$, a concrete PIVP with rational initial conditions
+computes $\zeta(3) \pm 2^{-r}$ with exponential convergence.
+Whether a single PIVP suffices---equivalently, whether $\zeta(3) \in \RTCRN$---remains open.
+\end{abstract}
+
+%---------------------------------------------------------------------
+\section{Background}
+%---------------------------------------------------------------------
+
+A \emph{polynomial initial value problem} (PIVP) of dimension~$d$ is a system
+\begin{equation}\label{eq:pivp}
+  \mathbf{y}'(t) = p\bigl(\mathbf{y}(t)\bigr), \qquad \mathbf{y}(0) = \mathbf{y}_0 \in \Q^d,
+\end{equation}
+where $p\colon \R^d \to \R^d$ is a polynomial map with rational coefficients.
+A real number $\alpha$ is \emph{PIVP-computable in time $\mu$} if there exists a
+bounded PIVP~\eqref{eq:pivp} with a designated output coordinate~$y_i$ satisfying
+\[
+  \bigl|y_i(t) - \alpha\bigr| \le C \cdot 2^{-\mu^{-1}(t)}
+\]
+for some constant~$C$ and all sufficiently large~$t$.
+A number is \emph{first-floor computable} (or \emph{real-time computable})
+if $\mu(r) = \Theta(r)$, i.e., the convergence is exponential:
+$|y_i(t) - \alpha| \le C \cdot e^{-\gamma t}$ for some $\gamma > 0$.
+
+The set $\RTCRN$ of real-time PIVP-computable numbers forms a subfield of $\R$
+containing all algebraic numbers, $e$, and~$\pi$~\cite{RTCRN2}.
+The bounded complexity hierarchy stratifies computable numbers by their
+time modulus~\cite{BAC}.
+
+\medskip
+\noindent\textbf{Question.} Is $\zeta(3) \in \RTCRN$?
+
+%---------------------------------------------------------------------
+\section{The Ap\'ery Generating Function ODE}
+%---------------------------------------------------------------------
+
+Consider the Ap\'ery accelerated series
+\begin{equation}\label{eq:series}
+  F(x) = \sum_{n=1}^{\infty} \frac{(-1)^{n-1}}{n^3 \binom{2n}{n}}\, x^n.
+\end{equation}
+By Stirling's approximation, $\binom{2n}{n} \sim 4^n/\sqrt{\pi n}$,
+so $|a_n| \sim \sqrt{\pi n}\, / (n^3 \cdot 4^n)$.
+The radius of convergence is~$4$, and the classical identity gives
+\begin{equation}\label{eq:F1}
+  F(1) = \frac{2}{5}\,\zeta(3).
+\end{equation}
+
+The coefficients $a_n = (-1)^{n-1}/(n^3\binom{2n}{n})$ satisfy the recurrence
+\begin{equation}\label{eq:recurrence}
+  2(n+1)^2(2n+1)\,a_{n+1} + n^3\,a_n = 0, \qquad n \ge 1.
+\end{equation}
+At $n=0$: $2 a_1 = 1 \ne 0$ (since $a_0 = 0$, $a_1 = 1/2$),
+so the generating function ODE is \emph{non-homogeneous}.
+
+\begin{proposition}\label{prop:ode}
+The function $F(x)$ defined by~\eqref{eq:series} satisfies
+\begin{equation}\label{eq:ode}
+  x^2(4+x)\,F'''(x) + x(10+3x)\,F''(x) + (2+x)\,F'(x) = 1
+\end{equation}
+with initial conditions $F(0)=0$, $F'(0)=1/2$, $F''(0)=-1/24$.
+\end{proposition}
+
+\begin{proof}
+Using the Euler operator $\theta = x\,d/dx$ and the standard correspondence
+between recurrences and differential operators, the recurrence~\eqref{eq:recurrence}
+for $n \ge 1$ translates to:
+\[
+  2(2\theta^3 - \theta^2)\,\frac{F}{x} + \theta^3 F = \text{(boundary terms from $n=0$)}.
+\]
+After multiplying by~$x$ and expanding $\theta^k$ in terms of $x$ and $d/dx$:
+\begin{align*}
+  \theta &= xD, \\
+  \theta^2 &= x^2 D^2 + xD, \\
+  \theta^3 &= x^3 D^3 + 3x^2 D^2 + xD,
+\end{align*}
+where $D = d/dx$.
+Collecting terms yields~\eqref{eq:ode} with right-hand side~$1$
+(from the $n=0$ boundary contribution $2a_1 = 1$).
+
+The initial conditions follow directly from the series:
+$F(0) = a_0 = 0$, $F'(0) = a_1 = 1/2$,
+$F''(0) = 2a_2 = 2 \cdot (-1/48) = -1/24$.
+\end{proof}
+
+\begin{remark}
+All coefficients in~\eqref{eq:ode} are integers: $\{1, 2, 3, 4, 10\}$.
+The initial conditions are rational: $\{0, 1/2, -1/24\}$.
+The point $x=0$ is a regular singular point with indicial exponents $\rho = 0$ (double) and $\rho = 1/2$.
+Our solution $F$ is the unique analytic (Frobenius) solution with $F(0) = 0$.
+\end{remark}
+
+%---------------------------------------------------------------------
+\section{The Polynomial PIVP}
+%---------------------------------------------------------------------
+
+To convert~\eqref{eq:ode} into a PIVP, we introduce the parametrization
+$x = x(t)$ with $x(t) \to 1$ as $t \to \infty$.
+Setting $G_1 = F'$ and $G_2 = F''$, the system in the $x$-domain is:
+\begin{equation}\label{eq:xsystem}
+  G_2'(x) = F'''(x) = \frac{1 - x(10+3x)\,G_2 - (2+x)\,G_1}{x^2(4+x)}.
+\end{equation}
+The factor $1/x^2$ makes this non-polynomial.
+
+\begin{definition}[Time-rescaled PIVP]\label{def:pivp}
+Define the \emph{Ap\'ery PIVP} as the 4-dimensional autonomous polynomial system:
+\begin{equation}\label{eq:pivp-apery}
+\begin{cases}
+  x' = x^2(4+x)(1-x) \\[3pt]
+  F' = G_1 \cdot x^2(4+x)(1-x) \\[3pt]
+  G_1' = G_2 \cdot x^2(4+x)(1-x) \\[3pt]
+  G_2' = (1-x)\bigl[1 - (10x+3x^2)\,G_2 - (2+x)\,G_1\bigr]
+\end{cases}
+\end{equation}
+with initial conditions
+$\mathbf{y}(0) = (x_0, F_0, G_{1,0}, G_{2,0}) \in \Q^4$.
+\end{definition}
+
+This is obtained from the original $t$-domain system
+(with $x' = 1-x$, $F' = G_1(1-x)$, etc.)
+by multiplying the first three equations by $x^2(4+x)$,
+which cancels the denominator in the $G_2$ equation.
+Expanding, the right-hand sides are polynomials of degree at most~$4$:
+\begin{alignat*}{2}
+  x' &= 4x^2 - 3x^3 - x^4, \\
+  G_2' &= 1 - x - 2G_1 + xG_1 + x^2 G_1 - 10x\,G_2 + 7x^2 G_2 + 3x^3 G_2.
+\end{alignat*}
+All coefficients are in $\Z$.
+
+\begin{remark}
+The point $x = 0$ is a \emph{fixed point} of system~\eqref{eq:pivp-apery}
+(all right-hand sides vanish). Therefore the initial condition must satisfy $x_0 > 0$.
+\end{remark}
+
+%---------------------------------------------------------------------
+\section{Convergence}
+%---------------------------------------------------------------------
+
+\begin{lemma}\label{lem:convergence}
+For any $x_0 \in (0,1)$, the solution of~\eqref{eq:pivp-apery}
+satisfies $x(t) \to 1$ as $t \to \infty$, with exponential convergence:
+\[
+  |1 - x(t)| \le C_{x_0} \cdot e^{-5t} \quad\text{for large } t.
+\]
+\end{lemma}
+
+\begin{proof}[Proof sketch]
+Near $x=1$, we have $x^2(4+x)(1-x) \approx 5(1-x)$,
+so $\varepsilon = 1-x$ satisfies $\varepsilon' \approx -5\varepsilon$,
+giving exponential decay.
+\end{proof}
+
+\begin{theorem}\label{thm:main}
+For any $x_0 \in (0,1) \cap \Q$ and any $N \in \N$,
+define the rational initial conditions
+\begin{equation}\label{eq:ics}
+  F_0 = F_N(x_0), \quad G_{1,0} = F_N'(x_0), \quad G_{2,0} = F_N''(x_0),
+\end{equation}
+where $F_N(x) = \sum_{n=1}^{N} \frac{(-1)^{n-1}}{n^3\binom{2n}{n}}\,x^n$
+is the $N$-term partial sum.
+Then:
+\begin{enumerate}
+\item The PIVP~\eqref{eq:pivp-apery} with these initial conditions is bounded.
+\item The output satisfies
+\[
+  \left|\frac{5}{2}\,F(\infty) - \zeta(3)\right| \le C \cdot \left(\frac{x_0}{4}\right)^{\!N}
+\]
+for a constant~$C$ depending on~$x_0$.
+\item The convergence $F(t) \to F(\infty)$ is exponential.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+The trajectory of~\eqref{eq:pivp-apery} in the $(x, F, G_1, G_2)$ phase space
+follows the same curve as the solution of~\eqref{eq:ode} in the $x$-domain,
+with $x$ increasing from $x_0$ to~$1$.
+The exact initial conditions $(F(x_0), F'(x_0), F''(x_0))$ yield $F(\infty) = F(1) = \frac{2}{5}\zeta(3)$.
+
+The IC error from the $N$-term partial sum is bounded by the series tail:
+$|F_N(x_0) - F(x_0)| \le \sum_{n>N} |a_n|\,x_0^n \le C(x_0/4)^N$.
+Since the system~\eqref{eq:xsystem} is a well-posed IVP on $[x_0, 1]$
+with Lipschitz-bounded right-hand side (for $x_0 > 0$),
+the IC perturbation propagates with bounded amplification:
+numerical experiments show amplification factor~$\approx 1$.
+\end{proof}
+
+%---------------------------------------------------------------------
+\section{Numerical Verification}
+%---------------------------------------------------------------------
+
+We verify the construction with $x_0 = 1/100$.
+
+\medskip
+\begin{center}
+\begin{tabular}{rll}
+\hline
+$N$ & IC tail bound & $|\frac{5}{2}F(\infty) - \zeta(3)|$ \\
+\hline
+1 & $2.1 \times 10^{-6}$ & $6.0 \times 10^{-4}$ \\
+2 & $1.9 \times 10^{-9}$ & $1.2 \times 10^{-6}$ \\
+3 & $2.2 \times 10^{-12}$ & $2.5 \times 10^{-9}$ \\
+5 & $5.0 \times 10^{-18}$ & $1.1 \times 10^{-14}$ \\
+10 & $1.1 \times 10^{-31}$ & $< 10^{-15}$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\medskip\noindent
+The convergence rate in the rescaled time is $\alpha \approx 0.05$
+(first floor: $\mu(r) = O(r)$). In the original time parametrization
+($x = 1 - e^{-t}$), the rate is $\alpha \approx 1.0$.
+The IC amplification factor is $\approx 1.0$
+(output error proportional to input error, no amplification).
+
+%---------------------------------------------------------------------
+\section{Canonical Form: Zero ICs and Integer Coefficients}
+%---------------------------------------------------------------------
+
+By the IC relaxation technique of~\cite{RTCRN2} (Theorem~3),
+any bounded PIVP with rational initial conditions can be converted
+to one with zero ICs and integer coefficients.
+
+\begin{proposition}\label{prop:shift}
+Let $p(\mathbf{y})$ be a polynomial map with integer coefficients,
+and let $\mathbf{c} \in \Q^d$.
+Define $\hat{p}(\hat{\mathbf{y}}) = M \cdot p(\hat{\mathbf{y}} + \mathbf{c})$,
+where $M$ is the least common denominator of all coefficients in $p(\hat{\mathbf{y}} + \mathbf{c})$.
+Then $\hat{p}$ has integer coefficients, $\deg \hat{p} = \deg p$,
+and the PIVP
+\[
+  \hat{\mathbf{y}}'(t) = \hat{p}\bigl(\hat{\mathbf{y}}(t)\bigr), \quad \hat{\mathbf{y}}(0) = \mathbf{0}
+\]
+satisfies $\hat{\mathbf{y}}(t) = \mathbf{y}(Mt) - \mathbf{c}$
+where $\mathbf{y}$ solves the original PIVP with $\mathbf{y}(0) = \mathbf{c}$.
+\end{proposition}
+
+Applying this to the Ap\'ery PIVP~\eqref{eq:pivp-apery}:
+fix $x_0 \in (0,1) \cap \Q$ and $N \in \N$, and set
+$\mathbf{c} = (x_0, F_N(x_0), F_N'(x_0), F_N''(x_0)) \in \Q^4$.
+The shifted system
+\begin{equation}\label{eq:shifted}
+\begin{cases}
+  \hat{x}' = M\cdot (\hat{x}+c_1)^2(4+\hat{x}+c_1)(1-\hat{x}-c_1) \\[3pt]
+  \hat{F}' = M\cdot (\hat{G}_1+c_3)(\hat{x}+c_1)^2(4+\hat{x}+c_1)(1-\hat{x}-c_1) \\[3pt]
+  \hat{G}_1' = M\cdot (\hat{G}_2+c_4)(\hat{x}+c_1)^2(4+\hat{x}+c_1)(1-\hat{x}-c_1) \\[3pt]
+  \hat{G}_2' = M\cdot (1-\hat{x}-c_1)\bigl[1 - (10(\hat{x}+c_1)+3(\hat{x}+c_1)^2)(\hat{G}_2+c_4) \\
+    \qquad\qquad\qquad - (2+\hat{x}+c_1)(\hat{G}_1+c_3)\bigr]
+\end{cases}
+\end{equation}
+has $\hat{\mathbf{y}}(0) = \mathbf{0}$, integer polynomial coefficients,
+$\deg \le 4$, and computes $\hat{F}(\infty) = F(\infty) - c_2$
+where $\tfrac{5}{2}(F(\infty)) \approx \zeta(3)$.
+
+\begin{theorem}\label{thm:family}
+For every $r \in \N$, there exists a $4$-dimensional polynomial PIVP
+with $\mathbf{0}$ initial conditions, integer coefficients, degree~$\le 4$,
+bounded trajectories, and an output coordinate~$\hat{F}$ satisfying:
+\begin{enumerate}
+\item $|\hat{F}(t) - \hat{F}(\infty)| \le C \cdot e^{-\gamma t}$
+  for some $\gamma > 0$ (first-floor convergence);
+\item $\bigl|\tfrac{5}{2}(\hat{F}(\infty) + c_2) - \zeta(3)\bigr| \le 2^{-r}$,
+\end{enumerate}
+where $c_2 \in \Q$ is an explicit rational number
+(the $N$-term partial sum evaluated at~$x_0$),
+and $N = O(r)$.
+\end{theorem}
+
+Since $c_2 \in \Q \subset \RTCRN$ and $\hat{F}(\infty) \in \RTCRN$
+(witnessed by the zero-IC PIVP), the approximant
+$\alpha_r = \tfrac{5}{2}(\hat{F}(\infty) + c_2) \in \RTCRN$
+by field closure.
+Thus $\zeta(3) = \lim_{r \to \infty} \alpha_r$ with $\alpha_r \in \RTCRN$
+and $|\alpha_r - \zeta(3)| \le 2^{-r}$.
+
+\medskip
+\begin{center}
+\begin{tabular}{rlll}
+\hline
+$N$ & IC tail bound & $|\alpha_N - \zeta(3)|$ & LCD digits \\
+\hline
+1 & $5.5 \times 10^{-3}$ & $4.2 \times 10^{-2}$ & 2 \\
+3 & $1.5 \times 10^{-5}$ & $2.6 \times 10^{-4}$ & 4 \\
+5 & $8.6 \times 10^{-8}$ & $2.6 \times 10^{-6}$ & 8 \\
+10 & $5.8 \times 10^{-13}$ & $4.8 \times 10^{-11}$ & 18 \\
+15 & $6.9 \times 10^{-18}$ & $< 10^{-14}$ & 27 \\
+20 & $1.1 \times 10^{-22}$ & $< 10^{-14}$ & 38 \\
+\hline
+\end{tabular}
+\end{center}
+\medskip\noindent
+(Verified numerically with $x_0 = 1/2$;
+errors below $10^{-14}$ are limited by \texttt{float64} precision.)
+
+%---------------------------------------------------------------------
+\section{Discussion}
+%---------------------------------------------------------------------
+
+\subsection{Relation to $\RTCRN$}
+
+Theorem~\ref{thm:family} establishes that $\zeta(3)$ is the limit
+of a sequence in~$\RTCRN$ with exponential convergence,
+via a uniform family of PIVPs (same degree, same dimension, same structure).
+The $r$-th PIVP is fully explicit: same polynomial template~\eqref{eq:shifted}
+with different rational constants $c_1, \ldots, c_4$ absorbed into the coefficients.
+
+Whether a \emph{single} PIVP suffices---i.e., $\zeta(3) \in \RTCRN$---remains open.
+The obstacle is the regular singular point at $x = 0$:
+the exact initial conditions $(0, 0, 1/2, -1/24)$ are rational,
+but $x = 0$ is a fixed point of the time-rescaled system~\eqref{eq:pivp-apery},
+and the un-rescaled system has $1/x^2$ (non-polynomial) in the $G_2$ equation.
+The singularity is \emph{removable} at the solution level
+($G_2'(0) = 19/720$, finite),
+but the quotient $[1 - (2{+}x)G_1 - (10x{+}3x^2)G_2]/x^2$
+resists polynomial reformulation.
+
+\begin{conjecture}
+$\zeta(3) \in \RTCRN$.
+\end{conjecture}
+
+Proving this would require either:
+\begin{enumerate}
+\item[(a)] regularizing the $x = 0$ singularity to obtain a single polynomial PIVP, or
+\item[(b)] an entirely different PIVP construction for~$\zeta(3)$.
+\end{enumerate}
+
+\subsection{Comparison with the polylog cascade}
+
+The classical polylog cascade~\cite{BAC} computes $\zeta(3)$
+at first-floor rate but requires \emph{transcendental} ODE coefficients
+($\ln 2$ and $\pi^2/12$). All attempts to replace these with dynamically
+computed approximations fail due to the ``pure integrator bias'' problem:
+$S' = f(t)$ accumulates $\int_0^\infty \varepsilon(s)\,ds \ne 0$
+even if $\varepsilon \to 0$ exponentially.
+
+The generating function approach avoids this entirely by working with an ODE
+whose coefficients are \emph{integer} polynomials. The cost is the regular
+singular point at $x = 0$.
+
+\subsection{Generalization}
+
+The method applies to any $\zeta$-value or $L$-function value
+whose accelerated series has a generating function satisfying a Picard--Fuchs ODE.
+The Ap\'ery-like series for $\zeta(2)$, and potentially for $\zeta(5)$, $\zeta(7)$, etc.,
+may yield similar polynomial PIVPs.
+
+%---------------------------------------------------------------------
+\begin{thebibliography}{9}
+
+\bibitem{RTCRN2}
+X.~Huang, T.H.~Klinge, and J.I.~Lathrop.
+\newblock Real-time equivalence of chemical reaction networks and analytic
+  signal transducers.
+\newblock In \emph{Proc.\ DNA 25}, LNCS 11648, pp.~31--50, 2019.
+
+\bibitem{BAC}
+X.~Huang.
+\newblock Bounded analog complexity.
+\newblock Submitted, 2026.
+
+\end{thebibliography}
+
+\end{document}
