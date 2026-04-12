@@ -21,7 +21,11 @@
 
 import Ripple.Core.BoundedTime
 import Mathlib.Analysis.SpecialFunctions.Exp
+import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.Analysis.SpecialFunctions.Log.Deriv
+import Mathlib.Analysis.Calculus.Deriv.Prod
+import Mathlib.Analysis.Calculus.Deriv.Inv
 
 namespace Ripple.Number
 
@@ -32,7 +36,7 @@ noncomputable def ln2PIVP : Ripple.PIVP 3 where
   field := fun y => ![
     y 1 * y 2,            -- f' = v·r
     - y 1,                -- v' = -v
-    y 1 * y 2 ^ 2         -- r' = v·r²
+    - y 1 * y 2 ^ 2       -- r' = -v·r²
   ]
   init := ![0, 1, 1]
   output := 0
@@ -146,7 +150,38 @@ theorem ln2_is_realtime : Ripple.IsRealTimeComputable (log 2) := by
       sol := {
         trajectory := ln2Solution
         init_cond := ln2_sol_init
-        is_solution := trivial
+        is_solution := fun t ht => by
+          have hfield : ln2PIVP.field (ln2Solution t) =
+              ![exp (-t) / (2 - exp (-t)), -exp (-t),
+                -(exp (-t) / (2 - exp (-t)) ^ 2)] := by
+            ext i; fin_cases i <;>
+              simp [ln2PIVP, ln2Solution, Matrix.cons_val_zero,
+                Matrix.cons_val_one]
+            · field_simp
+            · ring
+          rw [hfield, hasDerivAt_pi]
+          have h_neg : HasDerivAt (fun s : ℝ => -s) (-1 : ℝ) t := by
+            simpa [id] using (hasDerivAt_id t).neg
+          have h_exp_neg := h_neg.exp
+          -- h_exp_neg : HasDerivAt (fun s => exp(-s)) (exp(-t) * -1) t
+          have h_inner := (hasDerivAt_const t (2:ℝ)).sub h_exp_neg
+          -- h_inner : HasDerivAt (fun s => 2 - exp(-s)) (0 - exp(-t)*(-1)) t
+          have h2pos : (2 : ℝ) - exp (-t) ≠ 0 := ne_of_gt (two_sub_exp_pos ht)
+          intro i; fin_cases i
+          · -- d/dt log(2-exp(-t)) = exp(-t)/(2-exp(-t))
+            change HasDerivAt (fun s => log (2 - exp (-s)))
+              (exp (-t) / (2 - exp (-t))) t
+            convert h_inner.log h2pos using 1
+            simp [Pi.sub_apply]
+          · -- d/dt exp(-t) = -exp(-t)
+            change HasDerivAt (fun s => exp (-s)) (-exp (-t)) t
+            convert h_exp_neg using 1; ring
+          · -- d/dt 1/(2-exp(-t)) = -exp(-t)/(2-exp(-t))²
+            change HasDerivAt (fun s => 1 / (2 - exp (-s)))
+              (-(exp (-t) / (2 - exp (-t)) ^ 2)) t
+            have h_one := hasDerivAt_const t (1:ℝ)
+            convert h_one.div h_inner h2pos using 1
+            simp [Pi.sub_apply]; ring
       }
       modulus := fun r => ↑r + 1
       bounded := ln2_bounded

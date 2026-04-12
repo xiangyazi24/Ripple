@@ -42,10 +42,8 @@ structure PIVP.Solution (P : PIVP d) where
   trajectory : ℝ → Fin d → ℝ
   /-- Satisfies initial condition. -/
   init_cond : trajectory 0 = P.init
-  /-- Satisfies the ODE (pointwise). -/
-  -- For now, this is stated informally; rigorous ODE solution
-  -- will use Mathlib's ODE framework.
-  is_solution : True  -- placeholder
+  /-- Satisfies the ODE y'(t) = p(y(t)) for all t ≥ 0. -/
+  is_solution : ∀ t : ℝ, 0 ≤ t → HasDerivAt trajectory (P.field (trajectory t)) t
 
 /-- A PIVP computes a real number α if the output variable converges to α. -/
 def PIVP.Computes (P : PIVP d) (sol : PIVP.Solution P) (α : ℝ) : Prop :=

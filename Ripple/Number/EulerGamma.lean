@@ -32,6 +32,10 @@ import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.NumberTheory.Harmonic.GammaDeriv
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
+import Mathlib.Analysis.SpecialFunctions.ExpDeriv
+import Mathlib.Analysis.SpecialFunctions.Log.Deriv
+import Mathlib.Analysis.Calculus.Deriv.Inv
 import Mathlib.MeasureTheory.Integral.ExpDecay
 import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
 import Mathlib.MeasureTheory.Function.JacobianOneDim
@@ -503,6 +507,134 @@ theorem gammaG_tail_bound {t : ℝ} (ht : 0 ≤ t) :
             (le_of_lt (lt_of_le_of_lt ht (Set.mem_Ioi.mp hs))))
     _ = exp (-t) := integral_exp_neg_Ioi t
 
+/-! ## 8-component solution and ODE proof -/
+
+/-- The 8-component closed-form solution of gammaPIVP. -/
+noncomputable def gammaSolution : ℝ → Fin 8 → ℝ :=
+  fun t => ![gammaF t, gammaG t, gammaW t, gammaU t, exp (-t), gammaR t, gammaP t, gammaQ t]
+
+theorem gammaSolution_init : gammaSolution 0 = gammaPIVP.init := by
+  ext i; fin_cases i <;>
+    simp [gammaSolution, gammaPIVP, gammaF_init, gammaG_init, gammaW_init,
+      gammaU_init, exp_zero, gammaR_init, gammaP_init, gammaQ_init]
+
+/-- gammaW is continuous on all of ℝ (using x·log(x) → 0 continuity). -/
+private theorem gammaW_continuous : Continuous gammaW := by
+  have h : (fun t : ℝ => gammaW t) = fun t => exp (-t) * ((1 + t) * log (1 + t)) := by
+    ext t; unfold gammaW; ring
+  rw [h]
+  exact (continuous_exp.comp continuous_neg).mul
+    (continuous_mul_log.comp (continuous_const.add continuous_id))
+
+/-- The gammaG integrand (p·q·v) is continuous on all of ℝ. -/
+private theorem gammaG_integrand_continuous :
+    Continuous (fun s => gammaP s * gammaQ s * exp (-s)) := by
+  unfold gammaP gammaQ
+  exact ((continuous_exp.comp
+      (continuous_const.sub (continuous_exp.comp continuous_neg))).mul
+    (continuous_id.mul (continuous_exp.comp continuous_neg))).mul
+    (continuous_exp.comp continuous_neg)
+
+/-- exp(1) ≤ 4, for bounding gammaP in the solution. -/
+private theorem exp_one_le_four : exp (1:ℝ) ≤ 4 := by
+  have h12 : (1:ℝ)/2 ≤ exp ((-1:ℝ)/2) := by linarith [add_one_le_exp ((-1:ℝ)/2)]
+  have h14 : (1:ℝ)/4 ≤ exp (-1:ℝ) := by
+    calc (1:ℝ)/4 = (1/2) ^ 2 := by norm_num
+      _ ≤ exp ((-1:ℝ)/2) ^ 2 := pow_le_pow_left₀ (by norm_num) h12 2
+      _ = exp (-1:ℝ) := by rw [← exp_nat_mul]; norm_num
+  have h_prod : exp (1:ℝ) * exp (-1:ℝ) = 1 := by rw [← exp_add]; norm_num
+  nlinarith [exp_pos (1:ℝ)]
+
+/-- The 8-component solution satisfies the ODE for t ≥ 0. -/
+theorem gammaSolution_is_solution (t : ℝ) (ht : 0 ≤ t) :
+    HasDerivAt gammaSolution (gammaPIVP.field (gammaSolution t)) t := by
+  have hfield : gammaPIVP.field (gammaSolution t) =
+      ![gammaW t, -(gammaP t * gammaQ t * exp (-t)),
+        -gammaW t + gammaU t + exp (-t), -gammaU t + gammaR t * exp (-t),
+        -exp (-t), -gammaR t ^ 2,
+        gammaP t * exp (-t), exp (-t) - gammaQ t] := by
+    ext i; fin_cases i <;> simp [gammaPIVP, gammaSolution] <;> ring
+  rw [hfield, hasDerivAt_pi]
+  have h_neg : HasDerivAt (fun s : ℝ => -s) (-1 : ℝ) t := by
+    simpa [id] using (hasDerivAt_id t).neg
+  have h_exp_neg := h_neg.exp
+  have h1t_pos : (0:ℝ) < 1 + t := by linarith
+  have h1t_ne : (1:ℝ) + t ≠ 0 := ne_of_gt h1t_pos
+  have h_1t := (hasDerivAt_const t (1:ℝ)).add (hasDerivAt_id t)
+  have h_log := h_1t.log h1t_ne
+  intro i; fin_cases i
+  · -- Component 0: d/dt gammaF = gammaW (FTC)
+    change HasDerivAt (fun s => gammaF s) (gammaW t) t
+    unfold gammaF
+    exact integral_hasDerivAt_right
+      (gammaW_continuous.intervalIntegrable 0 t)
+      (gammaW_continuous.stronglyMeasurableAtFilter _ _)
+      gammaW_continuous.continuousAt
+  · -- Component 1: d/dt gammaG = -p·q·v (FTC + neg)
+    change HasDerivAt (fun s => gammaG s) (-(gammaP t * gammaQ t * exp (-t))) t
+    unfold gammaG
+    exact (integral_hasDerivAt_right
+      (gammaG_integrand_continuous.intervalIntegrable 0 t)
+      (gammaG_integrand_continuous.stronglyMeasurableAtFilter _ _)
+      gammaG_integrand_continuous.continuousAt).neg
+  · -- Component 2: d/dt gammaW = -w + u + v
+    change HasDerivAt (fun s => exp (-s) * (1 + s) * log (1 + s))
+      (-gammaW t + gammaU t + exp (-t)) t
+    convert (h_exp_neg.mul h_1t).mul h_log using 1
+    unfold gammaW gammaU; field_simp; ring
+  · -- Component 3: d/dt gammaU = -u + r·v
+    change HasDerivAt (fun s => exp (-s) * log (1 + s))
+      (-gammaU t + gammaR t * exp (-t)) t
+    convert h_exp_neg.mul h_log using 1
+    unfold gammaU gammaR; field_simp; ring
+  · -- Component 4: d/dt exp(-t) = -exp(-t)
+    change HasDerivAt (fun s => exp (-s)) (-exp (-t)) t
+    convert h_exp_neg using 1; ring
+  · -- Component 5: d/dt (1/(1+t)) = -(1/(1+t))²
+    change HasDerivAt (fun s => 1 / (1 + s)) (-gammaR t ^ 2) t
+    convert (hasDerivAt_const t (1:ℝ)).div h_1t h1t_ne using 1
+    unfold gammaR; field_simp; ring
+  · -- Component 6: d/dt exp(1-exp(-t)) = exp(1-exp(-t))·exp(-t)
+    change HasDerivAt (fun s => exp (1 - exp (-s))) (gammaP t * exp (-t)) t
+    convert ((hasDerivAt_const t (1:ℝ)).sub h_exp_neg).exp using 1
+    unfold gammaP; ring
+  · -- Component 7: d/dt (t·exp(-t)) = exp(-t) - t·exp(-t)
+    change HasDerivAt (fun s => s * exp (-s)) (exp (-t) - gammaQ t) t
+    convert (hasDerivAt_id t).mul h_exp_neg using 1
+    unfold gammaQ; ring
+
+/-- The 8-component solution is bounded (by 33). -/
+theorem gammaSolution_bounded : gammaPIVP.IsBounded gammaSolution := by
+  refine ⟨33, by norm_num, ?_⟩
+  intro t ht
+  rw [pi_norm_le_iff_of_nonneg (by norm_num : (0:ℝ) ≤ 33)]
+  intro i; fin_cases i
+  · change ‖gammaF t‖ ≤ 33
+    rw [norm_of_nonneg (gammaF_nonneg ht)]
+    linarith [gammaF_bounded ht]
+  · change ‖gammaG t‖ ≤ 33
+    rw [Real.norm_eq_abs, abs_of_nonpos (gammaG_nonpos ht)]
+    linarith [gammaG_tail_bound ht, exp_pos (-t)]
+  · change ‖gammaW t‖ ≤ 33
+    rw [norm_of_nonneg (gammaW_nonneg ht)]
+    linarith [gammaW_bounded ht]
+  · change ‖gammaU t‖ ≤ 33
+    rw [norm_of_nonneg (gammaU_nonneg ht)]
+    linarith [gammaU_bounded ht, exp_pos (-1 : ℝ)]
+  · change ‖exp (-t)‖ ≤ 33
+    rw [norm_of_nonneg (le_of_lt (exp_pos _))]
+    have : exp (-t) ≤ 1 := by rw [← exp_zero]; exact exp_le_exp.mpr (neg_nonpos.mpr ht)
+    linarith
+  · change ‖gammaR t‖ ≤ 33
+    rw [norm_of_nonneg (le_of_lt (gammaR_pos ht))]
+    linarith [gammaR_le_one ht]
+  · change ‖gammaP t‖ ≤ 33
+    rw [norm_of_nonneg (le_trans zero_le_one (gammaP_ge_one ht))]
+    linarith [gammaP_le_e, exp_one_le_four]
+  · change ‖gammaQ t‖ ≤ 33
+    rw [norm_of_nonneg (gammaQ_nonneg ht)]
+    linarith [gammaQ_le_inv_e ht, exp_pos (-1 : ℝ)]
+
 /-! ## Real-time computability via PIVP convergence -/
 
 /-- 32 ≤ e^5. Proof: 2 ≤ e (add_one_le_exp), so 2^5 = 32 ≤ e^5. -/
@@ -512,90 +644,51 @@ private theorem thirty_two_le_exp_five : (32 : ℝ) ≤ exp 5 := by
     _ ≤ exp 1 ^ 5 := pow_le_pow_left₀ (by norm_num) h2e 5
     _ = exp 5 := by rw [← exp_nat_mul]; norm_num
 
-/-- β is real-time computable via the PIVP for f(t) → β.
-  Time modulus: μ(r) = 2r + 10 (from 32·e^{-t/2} ≤ e^5·e^{-t/2} = e^{5-t/2} < e^{-r}). -/
+/-- β is real-time computable via the 8-variable PIVP (output 0 = gammaF → β).
+  Time modulus: μ(r) = 2r + 10. -/
 theorem gammaBeta_is_realtime : Ripple.IsRealTimeComputable gammaBeta := by
-  refine ⟨1, {
-    pivp := { field := fun _ => ![0],
-              init := ![gammaF 0],
-              output := 0 }
+  refine ⟨8, {
+    pivp := gammaPIVP
     sol := {
-      trajectory := fun t => ![gammaF (max t 0)]
-      init_cond := by ext i; fin_cases i; simp [gammaF_init]
-      is_solution := trivial }
+      trajectory := gammaSolution
+      init_cond := gammaSolution_init
+      is_solution := gammaSolution_is_solution }
     modulus := fun r => 2 * ↑r + 10
-    bounded := ⟨33, by norm_num, fun t ht => by
-      rw [pi_norm_le_iff_of_nonneg (by norm_num : (0:ℝ) ≤ 33)]
-      intro i; fin_cases i
-      change ‖gammaF (max t 0)‖ ≤ 33
-      rw [Real.norm_eq_abs, abs_le]
-      exact ⟨by linarith [gammaF_nonneg (le_max_right t 0)],
-             by linarith [gammaF_bounded (le_max_right t 0)]⟩⟩
+    bounded := gammaSolution_bounded
     convergence := ?_ }, 10, by norm_num, ?_⟩
-  -- convergence: |gammaF(max t 0) - β| < e^{-r} when t > 2r + 10
   · intro r t ht
     have hr0 : (0:ℝ) ≤ ↑r := Nat.cast_nonneg r
     have ht0 : 0 ≤ t := by linarith
-    have htmax : max t 0 = t := max_eq_left ht0
-    change |gammaF (max t 0) - gammaBeta| < exp (-(↑r : ℝ))
-    rw [htmax]
-    have htail := gammaF_tail_bound ht0
-    -- 32·e^{-t/2} ≤ e^5·e^{-t/2} = e^{5-t/2} < e^{-r} since t/2 > r+5
+    change |gammaF t - gammaBeta| < exp (-(↑r : ℝ))
     calc |gammaF t - gammaBeta|
-        ≤ 32 * exp (-(t / 2)) := htail
+        ≤ 32 * exp (-(t / 2)) := gammaF_tail_bound ht0
       _ ≤ exp 5 * exp (-(t / 2)) :=
           mul_le_mul_of_nonneg_right thirty_two_le_exp_five (le_of_lt (exp_pos _))
       _ = exp (5 - t / 2) := by rw [← exp_add]; ring_nf
-      _ < exp (-(↑r : ℝ)) := by
-          exact exp_strictMono (by linarith : 5 - t / 2 < -(↑r : ℝ))
-  -- modulus linearity: 2r + 10 ≤ 10(r+1)
+      _ < exp (-(↑r : ℝ)) := exp_strictMono (by linarith)
   · intro r
     have hr : (0:ℝ) ≤ ↑r := Nat.cast_nonneg r
     linarith
 
-/-- α is real-time computable via the PIVP for g(t) → α.
-  Time modulus: μ(r) = r + 2 (from exp(-t) < exp(-r) when t > r). -/
+/-- α is real-time computable via the 8-variable PIVP (output 1 = gammaG → α).
+  Time modulus: μ(r) = r + 2. -/
 theorem gammaAlpha_is_realtime : Ripple.IsRealTimeComputable gammaAlpha := by
-  refine ⟨1, {
-    pivp := { field := fun _ => ![0],
-              init := ![gammaG 0],
-              output := 0 }
+  refine ⟨8, {
+    pivp := { gammaPIVP with output := 1 }
     sol := {
-      trajectory := fun t => ![gammaG (max t 0)]
-      init_cond := by ext i; fin_cases i; simp [gammaG_init]
-      is_solution := trivial }
+      trajectory := gammaSolution
+      init_cond := gammaSolution_init
+      is_solution := gammaSolution_is_solution }
     modulus := fun r => ↑r + 2
-    bounded := ⟨3, by norm_num, fun t ht => by
-      rw [pi_norm_le_iff_of_nonneg (by norm_num : (0:ℝ) ≤ 3)]
-      intro i; fin_cases i
-      change ‖gammaG (max t 0)‖ ≤ 3
-      rw [Real.norm_eq_abs]
-      have hmax : 0 ≤ max t 0 := le_max_right t 0
-      have halpha : |gammaAlpha| ≤ 1 := by
-        have h0 := gammaG_tail_bound (le_refl (0:ℝ))
-        simp only [gammaG_init, zero_sub, abs_neg, neg_zero, exp_zero] at h0
-        exact h0
-      calc |gammaG (max t 0)|
-          = |(gammaG (max t 0) - gammaAlpha) + gammaAlpha| := by ring_nf
-        _ ≤ |gammaG (max t 0) - gammaAlpha| + |gammaAlpha| := abs_add_le _ _
-        _ ≤ exp (-(max t 0)) + 1 := by linarith [gammaG_tail_bound hmax]
-        _ ≤ 1 + 1 := by
-            have : exp (-(max t 0)) ≤ 1 := by
-              rw [← exp_zero]; exact exp_le_exp.mpr (by linarith)
-            linarith
-        _ ≤ 3 := by norm_num⟩
+    bounded := gammaSolution_bounded
     convergence := ?_ }, 2, by norm_num, ?_⟩
-  -- convergence: |gammaG(max t 0) - α| < e^{-r} when t > r + 2
   · intro r t ht
     have hr0 : (0:ℝ) ≤ ↑r := Nat.cast_nonneg r
     have ht0 : 0 ≤ t := by linarith
-    have htmax : max t 0 = t := max_eq_left ht0
-    change |gammaG (max t 0) - gammaAlpha| < exp (-(↑r : ℝ))
-    rw [htmax]
+    change |gammaG t - gammaAlpha| < exp (-(↑r : ℝ))
     calc |gammaG t - gammaAlpha|
         ≤ exp (-t) := gammaG_tail_bound ht0
       _ < exp (-(↑r : ℝ)) := exp_strictMono (by linarith)
-  -- modulus linearity: r + 2 ≤ 2(r+1)
   · intro r
     have hr : (0:ℝ) ≤ ↑r := Nat.cast_nonneg r
     linarith

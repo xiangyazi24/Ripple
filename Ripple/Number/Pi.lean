@@ -14,9 +14,13 @@
 import Ripple.Core.BoundedTime
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Arctan
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.ArctanDeriv
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 import Mathlib.Analysis.SpecialFunctions.Exp
+import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Analysis.Real.Pi.Bounds
+import Mathlib.Analysis.Calculus.Deriv.Prod
+import Mathlib.Analysis.Calculus.Deriv.Inv
 
 namespace Ripple.Number
 
@@ -156,7 +160,49 @@ theorem pi_quarter_is_realtime : Ripple.IsRealTimeComputable (π / 4) := by
       sol := {
         trajectory := piSolution
         init_cond := pi_sol_init
-        is_solution := trivial
+        is_solution := fun t _ => by
+          set u := 1 - exp (-t) with hu_def
+          have hfield : piPIVP.field (piSolution t) =
+              ![-exp (-t), -2 * exp (-t) * (1 / (u ^ 2 + 1)) * (u / (u ^ 2 + 1)),
+                exp (-t) * (1 / (u ^ 2 + 1)) ^ 2 - exp (-t) * (u / (u ^ 2 + 1)) ^ 2,
+                exp (-t) * (1 / (u ^ 2 + 1))] := by
+            ext i; fin_cases i <;>
+              simp [piPIVP, piSolution, Matrix.cons_val_zero, Matrix.cons_val_one,
+                hu_def]
+          rw [hfield, hasDerivAt_pi]
+          have h_neg : HasDerivAt (fun s : ℝ => -s) (-1 : ℝ) t := by
+            simpa [id] using (hasDerivAt_id t).neg
+          have h_exp := h_neg.exp  -- d/dt exp(-t) = exp(-t)*(-1)
+          have h_u := (hasDerivAt_const t (1:ℝ)).sub h_exp
+          -- h_u : HasDerivAt (fun s => 1 - exp(-s)) (0 - exp(-t)*(-1)) t
+          -- i.e., d/dt u = exp(-t)
+          have hu_sq_add := h_u.pow 2 |>.add (hasDerivAt_const t (1:ℝ))
+          -- d/dt (u^2 + 1)
+          have hu2_pos : u ^ 2 + 1 ≠ 0 := by positivity
+          intro i; fin_cases i
+          · -- component 0: d/dt exp(-t) = -exp(-t)
+            change HasDerivAt (fun s => exp (-s)) (-exp (-t)) t
+            convert h_exp using 1; ring
+          · -- component 1: d/dt 1/(u²+1) = -2u·exp(-t)/(u²+1)²
+            change HasDerivAt (fun s => 1 / ((1 - exp (-s)) ^ 2 + 1))
+              (-2 * exp (-t) * (1 / (u ^ 2 + 1)) * (u / (u ^ 2 + 1))) t
+            convert (hasDerivAt_const t (1:ℝ)).div (h_u.pow 2 |>.add (hasDerivAt_const t (1:ℝ)))
+              hu2_pos using 1
+            simp only [Pi.add_apply, Pi.pow_apply, Pi.sub_apply, hu_def]
+            field_simp; ring
+          · -- component 2: d/dt u/(u²+1) = exp(-t)·(1-u²)/(u²+1)²
+            change HasDerivAt (fun s => (1 - exp (-s)) / ((1 - exp (-s)) ^ 2 + 1))
+              (exp (-t) * (1 / (u ^ 2 + 1)) ^ 2 -
+               exp (-t) * (u / (u ^ 2 + 1)) ^ 2) t
+            convert h_u.div (h_u.pow 2 |>.add (hasDerivAt_const t (1:ℝ)))
+              hu2_pos using 1
+            simp only [Pi.add_apply, Pi.pow_apply, Pi.sub_apply, hu_def]
+            field_simp; ring
+          · -- component 3: d/dt arctan(u) = exp(-t)/(u²+1)
+            change HasDerivAt (fun s => arctan (1 - exp (-s)))
+              (exp (-t) * (1 / (u ^ 2 + 1))) t
+            convert h_u.arctan using 1
+            simp [Pi.sub_apply, hu_def]; ring
       }
       modulus := fun r => ↑r + 1
       bounded := pi_bounded

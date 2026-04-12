@@ -12,7 +12,9 @@
 
 import Ripple.Core.BoundedTime
 import Mathlib.Analysis.SpecialFunctions.Exp
+import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Topology.Order.Basic
 
 namespace Ripple.Number
@@ -32,7 +34,7 @@ open Real
 
 /-- The PIVP computing e: dimension 2, output = component 1. -/
 noncomputable def eulerPIVP : Ripple.PIVP 2 where
-  field := fun y => ![- y 0, - y 0 * y 1]
+  field := fun y => ![- y 0, y 0 * y 1]
   init := ![1, 1]
   output := 1
 
@@ -133,7 +135,24 @@ theorem euler_is_realtime : Ripple.IsRealTimeComputable (exp 1) := by
       sol := {
         trajectory := eulerSolution
         init_cond := euler_sol_init
-        is_solution := trivial
+        is_solution := fun t _ => by
+          have hfield : eulerPIVP.field (eulerSolution t) =
+              ![- exp (-t), exp (-t) * exp (1 - exp (-t))] := by
+            ext i; fin_cases i <;>
+              simp [eulerPIVP, eulerSolution, Matrix.cons_val_zero,
+                Matrix.cons_val_one]
+          rw [hfield, hasDerivAt_pi]
+          have h_neg : HasDerivAt (fun s : ℝ => -s) (-1 : ℝ) t := by
+            simpa [id] using (hasDerivAt_id t).neg
+          intro i; fin_cases i
+          · -- d/dt exp(-t) = -exp(-t)
+            change HasDerivAt (fun s => exp (-s)) (-exp (-t)) t
+            convert h_neg.exp using 1; ring
+          · -- d/dt exp(1-exp(-t)) = exp(-t)*exp(1-exp(-t))
+            change HasDerivAt (fun s => exp (1 - exp (-s)))
+              (exp (-t) * exp (1 - exp (-t))) t
+            convert ((hasDerivAt_const t (1:ℝ)).sub h_neg.exp).exp using 1
+            simp [Pi.sub_apply]; ring
       }
       -- Time modulus μ(r) = r + 2: for t > r+2, |y(t) - e| < e^{-r}
       modulus := fun r => ↑r + 2
