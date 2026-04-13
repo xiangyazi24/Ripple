@@ -1,0 +1,31 @@
+## 2026-04-12 handoff
+
+- Current proof target being actively worked on: `realtime_field_inv_pos` in `Ripple/Core/BoundedTime.lean`.
+- Actual unfinished live target in the repo is this reciprocal-closure proof, not the stale placeholders mentioned in older project memory.
+- A long proof script has already replaced the previous `sorry` in `realtime_field_inv_pos`.
+- Main debugging status:
+  - Added helper theorem `integral_exp_decay_le`.
+  - Added integrating-factor / restart decomposition proof skeleton for the reciprocal variable `x`.
+  - Patched several missing `intervalIntegral.integral_mono_on` hypotheses (`a ≤ b`, `IntervalIntegrable` witnesses).
+  - Patched one boundedness branch mismatch (`hx_pre` only gave `≤ B0`, goal was `≤ B0 + 2 / α`).
+  - Made a few `simp` / positivity steps more explicit around `hfac`, `herr_abs`, and `hcomb`.
+- Build environment issue:
+  - Lean setup metadata points to `/Users/huangx/.openclaw/workspace/projects/Ripple/...` while the live workspace is under `/Volumes/huangx/.openclaw/workspace/projects/Ripple`.
+  - A symlink was created so the stale absolute paths resolve:
+    `/Users/huangx/.openclaw/workspace/projects/Ripple -> /Volumes/huangx/.openclaw/workspace/projects/Ripple`
+- Compile/debug update:
+  - After fixing the stale path issue, full compilation of `Ripple/Core/BoundedTime.lean` still does not quickly return diagnostics.
+  - Current evidence suggests the bottleneck may be elaboration time inside the large proof script itself, not just ordinary type errors.
+  - If this persists, the next likely move is to split `realtime_field_inv_pos` into smaller helper theorems so Lean can elaborate/check them separately.
+  - A dedicated scratch file now exists at `experiments/InvPosDebug.lean`.
+  - The scratch file was first built by importing `Ripple.Core.BoundedTime`, then slimmed down to import only `Ripple.Core.PIVP` plus the needed mathlib modules, with `TimeModulus`, `BoundedTimeComputable`, and `IsRealTimeComputable` copied locally.
+  - Process sampling of the scratch compile shows Lean is still spending significant time in `Lean_importModulesCore` / module data loading before reaching theorem elaboration.
+- Likely remaining fragile spots if Lean still errors:
+  - `hx_hd` derivative normalization after rewriting the product rule.
+  - `hk_integral` / `hcomb` rewrites involving `intervalIntegral.integral_const_mul` and `intervalIntegral.integral_sub`.
+  - Some `simp` / `ring` / `field_simp` steps around exponentials and casts.
+  - Final convergence estimates in `hfirst`, `hsecond`, `hexp_two`.
+- Next action for resume:
+  - Run Lean on `Ripple/Core/BoundedTime.lean`.
+  - Fix the first reported type errors in `realtime_field_inv_pos`.
+  - Keep this note updated after each nontrivial proof change.
