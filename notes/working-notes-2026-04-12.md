@@ -29,3 +29,14 @@
   - Run Lean on `Ripple/Core/BoundedTime.lean`.
   - Fix the first reported type errors in `realtime_field_inv_pos`.
   - Keep this note updated after each nontrivial proof change.
+
+## 2026-04-13 resume
+
+- Attempted to compile `Ripple/Core/BoundedTime.lean` from `/Volumes/huangx/.openclaw/workspace/projects/Ripple`.
+- `lake` not on PATH; used `~/.elan/bin/lake`.
+- Command run: `~/.elan/bin/lake build Ripple.Core.BoundedTime`.
+  - No diagnostics returned after ~50s (continued to run with no output).
+- Also tried scratch file: `~/.elan/bin/lake env lean experiments/InvPosDebug.lean`.
+  - Likewise no diagnostics after ~20s; appears to spend time in module loading/elaboration before reaching errors.
+- Current blocker: cannot reach the next type error because both full build and scratch lean run are not returning diagnostics promptly. Suspect elaboration time in `realtime_field_inv_pos` or heavy imports.
+- Next steps if needed: split `realtime_field_inv_pos` into smaller lemmas or further slim `experiments/InvPosDebug.lean` imports to force faster feedback.
