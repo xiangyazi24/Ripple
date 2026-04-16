@@ -46,10 +46,13 @@ theorem crn_readout_preserves_complexity (d : ℕ) (α : ℝ) (_hα : 0 < α)
 /-- Exponentiation closure ([BAC] Thm 6.1):
   If α > 0 and β are bounded-GPAC computable,
   then α^β is also bounded-GPAC computable.
-  Note: uses realtime_const; when is_solution is real, this will need
-  the exp/ln PIVP composition from [BAC] §6. -/
+
+  This version already requires certified inputs, so the theorem is no longer
+  vacuous on the hypothesis side. The conclusion is still the older semantic
+  `IsCRNComputable`; replacing the placeholder proof by the actual exp/log
+  composition from [BAC] §6 is the next step. -/
 theorem closure_exponentiation {α β : ℝ} (_hα : 0 < α)
-    (_ha : IsCRNComputable α) (_hb : IsCRNComputable β) :
+    (_ha : IsCertifiedCRNComputable α) (_hb : IsCertifiedCRNComputable β) :
     IsCRNComputable (Real.rpow α β) := by
   obtain ⟨d, btc, _, _, _⟩ := realtime_const (Real.rpow α β)
   exact ⟨d, btc, trivial⟩
