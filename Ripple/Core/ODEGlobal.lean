@@ -132,6 +132,55 @@ lemma lipschitz_field_bound_on_closedBall {d : ℕ}
       rw [h_max_eq]
       exact mul_le_mul_of_nonneg_left hx hL0.le
   linarith [h_tri, h_diff, h_Lx_le]
+
+/-- The local-Lipschitz hypothesis implies continuity of `f` on all of
+`Fin d → ℝ`. At each point `x₀`, pick the Lipschitz ball of radius
+`‖x₀‖ + 1` around the origin; then `f` is Lipschitz on a neighborhood of
+`x₀`, hence continuous there. -/
+lemma locally_lipschitz_continuous {d : ℕ}
+    {f : (Fin d → ℝ) → Fin d → ℝ}
+    (h_lip : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin d → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R → ‖f x - f y‖ ≤ L * ‖x - y‖) :
+    Continuous f := by
+  rw [Metric.continuous_iff]
+  intro x₀ ε hε
+  set R := ‖x₀‖ + 2 with hR_def
+  have hR : 0 < R := by
+    have : 0 ≤ ‖x₀‖ := norm_nonneg _
+    linarith
+  obtain ⟨L, hL⟩ := h_lip R hR
+  -- Work with L' = max L 1 so that L' > 0 and the Lipschitz bound still holds.
+  set L' := max L 1 with hL'_def
+  have hL'_pos : 0 < L' := lt_of_lt_of_le one_pos (le_max_right _ _)
+  have hL'_ge : L ≤ L' := le_max_left _ _
+  refine ⟨min (ε / L') 1, by positivity, ?_⟩
+  intro x hx
+  -- hx : dist x x₀ < min (ε/L') 1
+  have hx_lt1 : dist x x₀ < 1 := lt_of_lt_of_le hx (min_le_right _ _)
+  have hx_ltε : dist x x₀ < ε / L' := lt_of_lt_of_le hx (min_le_left _ _)
+  -- Both x and x₀ lie in closedBall 0 R
+  have hx₀R : ‖x₀‖ ≤ R := by rw [hR_def]; linarith
+  have hxR : ‖x‖ ≤ R := by
+    have : ‖x‖ ≤ ‖x - x₀‖ + ‖x₀‖ := by
+      have h := norm_add_le (x - x₀) x₀
+      rw [sub_add_cancel] at h; exact h
+    have h_dist : ‖x - x₀‖ < 1 := by
+      rw [← dist_eq_norm]; exact hx_lt1
+    linarith
+  -- Apply Lipschitz bound
+  have h_lip_xy : ‖f x - f x₀‖ ≤ L * ‖x - x₀‖ := hL x x₀ hxR hx₀R
+  have h_lip_xy' : ‖f x - f x₀‖ ≤ L' * ‖x - x₀‖ := by
+    have h_nn : 0 ≤ ‖x - x₀‖ := norm_nonneg _
+    calc ‖f x - f x₀‖ ≤ L * ‖x - x₀‖ := h_lip_xy
+      _ ≤ L' * ‖x - x₀‖ := mul_le_mul_of_nonneg_right hL'_ge h_nn
+  rw [dist_eq_norm] at hx_ltε ⊢
+  have h_final : L' * ‖x - x₀‖ < ε := by
+    have h := mul_lt_mul_of_pos_left hx_ltε hL'_pos
+    have hne : L' ≠ 0 := ne_of_gt hL'_pos
+    rw [mul_div_cancel₀ _ hne] at h
+    exact h
+  linarith
+
 lemma conservative_local_sum_const {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (h_cons : IsConservative field) (T : ℝ) (_hT : 0 < T)
     (y : ℝ → Fin d → ℝ)
