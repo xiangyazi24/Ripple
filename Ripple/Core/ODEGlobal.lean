@@ -460,6 +460,92 @@ lemma iterate_one_step {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
   refine ⟨β, ?_, hβα, hβ_deriv⟩
   rw [hβα 0 ⟨le_refl _, hT_nn⟩, hα0]
 
+/-- Extend a right-sided ODE solution on `Icc 0 T` to a two-sided-differentiable
+function on ℝ by prolonging linearly on `t < 0` with slope `f y₀`. This produces
+a function where `HasDerivAt` (two-sided) holds at every `t ∈ Ico 0 T`, which is
+the hypothesis form that `h_invariant` consumes. -/
+lemma extend_left_linear_hasDerivAt {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
+    {α : ℝ → Fin d → ℝ} {y₀ : Fin d → ℝ} {T : ℝ} (hT : 0 < T)
+    (hα0 : α 0 = y₀)
+    (hα_deriv : ∀ t ∈ Icc (0 : ℝ) T, HasDerivWithinAt α (f (α t)) (Icc 0 T) t) :
+    ∃ α' : ℝ → Fin d → ℝ, α' 0 = y₀ ∧
+      (∀ t, 0 ≤ t → α' t = α t) ∧
+      ∀ t ∈ Ico (0 : ℝ) T, HasDerivAt α' (f (α' t)) t := by
+  classical
+  set α' : ℝ → Fin d → ℝ := fun t => if 0 ≤ t then α t else y₀ + t • f y₀ with hα'_def
+  have hα'_0 : α' 0 = y₀ := by simp [α', hα0]
+  have hα'_pos : ∀ t, 0 ≤ t → α' t = α t := fun t ht => by simp [α', ht]
+  refine ⟨α', hα'_0, hα'_pos, ?_⟩
+  intro t ht
+  rcases eq_or_lt_of_le ht.1 with ht_zero | ht_pos
+  · -- t = 0: glue left linear with right α using HasDerivWithinAt.union on Iic 0 ∪ Ici 0 = univ
+    subst ht_zero
+    -- Left piece: HasDerivWithinAt α' (f y₀) (Iic 0) 0. α' agrees with s ↦ y₀ + s • f y₀ on Iic 0.
+    have h_lin : HasDerivAt (fun s : ℝ => y₀ + s • f y₀) (f y₀) 0 := by
+      have h1 : HasDerivAt (fun s : ℝ => s • f y₀) (f y₀) 0 := by
+        simpa using (hasDerivAt_id (0 : ℝ)).smul_const (f y₀)
+      simpa using h1.const_add y₀
+    have h_lin_iic : HasDerivWithinAt (fun s : ℝ => y₀ + s • f y₀) (f y₀) (Iic 0) 0 :=
+      h_lin.hasDerivWithinAt
+    have h_left : HasDerivWithinAt α' (f y₀) (Iic 0) 0 := by
+      refine h_lin_iic.congr_of_eventuallyEq ?_ ?_
+      · -- α' = (s ↦ y₀ + s • f y₀) on 𝓝[Iic 0] 0
+        have : α' =ᶠ[𝓝[Iic 0] 0] fun s => y₀ + s • f y₀ := by
+          rw [eventuallyEq_nhdsWithin_iff]
+          filter_upwards with s hs
+          simp only [mem_Iic] at hs
+          by_cases hs0 : 0 ≤ s
+          · have hs_eq : s = 0 := le_antisymm hs hs0
+            simp [α', hs_eq, hα0]
+          · simp [α', hs0]
+        exact this
+      · simp [α', hα0]
+    -- Right piece: HasDerivWithinAt α' (f y₀) (Ici 0) 0. α' = α on Ici 0.
+    have hα_right : HasDerivWithinAt α (f (α 0)) (Icc 0 T) 0 :=
+      hα_deriv 0 ⟨le_refl _, hT.le⟩
+    -- HasDerivWithinAt on Icc 0 T at 0 ⇒ HasDerivWithinAt on Ici 0 at 0 (same nhdsWithin for T > 0)
+    have hα_ici : HasDerivWithinAt α (f (α 0)) (Ici 0) 0 := by
+      apply hα_right.mono_of_mem_nhdsWithin
+      rw [mem_nhdsWithin_iff_exists_mem_nhds_inter]
+      refine ⟨Iio T, Iio_mem_nhds hT, ?_⟩
+      intro y hy
+      exact ⟨hy.2, le_of_lt hy.1⟩
+    have h_right : HasDerivWithinAt α' (f y₀) (Ici 0) 0 := by
+      have hf_eq : f (α 0) = f y₀ := by rw [hα0]
+      rw [← hf_eq]
+      refine hα_ici.congr_of_eventuallyEq ?_ ?_
+      · rw [eventuallyEq_nhdsWithin_iff]
+        filter_upwards with s hs
+        simp only [mem_Ici] at hs
+        simp [α', hs]
+      · simp [α']
+    -- Union: HasDerivWithinAt α' (f y₀) (Iic 0 ∪ Ici 0) 0 = HasDerivWithinAt on univ = HasDerivAt
+    have h_union := h_left.union h_right
+    have h_univ : (Iic 0 ∪ Ici 0 : Set ℝ) = univ := by
+      ext x
+      simp only [mem_union, mem_Iic, mem_Ici, mem_univ, iff_true]
+      exact le_total x 0
+    rw [h_univ] at h_union
+    rw [hα'_0]
+    exact h_union.hasDerivAt Filter.univ_mem
+  · -- t > 0: α' = α locally (Ioi 0 is a nhds of t), and HasDerivWithinAt on Icc 0 T at t is
+    -- HasDerivAt since Icc 0 T is a nhds of t for t ∈ Ioo 0 T.
+    have ht_lt : t < T := ht.2
+    have hα_deriv_t : HasDerivWithinAt α (f (α t)) (Icc 0 T) t :=
+      hα_deriv t ⟨ht.1, le_of_lt ht_lt⟩
+    have h_icc_nhds : Icc 0 T ∈ 𝓝 t := by
+      rw [mem_nhds_iff]
+      exact ⟨Ioo 0 T, Ioo_subset_Icc_self, isOpen_Ioo, ⟨ht_pos, ht_lt⟩⟩
+    have hα_at : HasDerivAt α (f (α t)) t := hα_deriv_t.hasDerivAt h_icc_nhds
+    have hα'_α : α' =ᶠ[𝓝 t] α := by
+      filter_upwards [Ioi_mem_nhds ht_pos] with s hs
+      simp only [mem_Ioi] at hs
+      simp [α', le_of_lt hs]
+    have hα'_t : α' t = α t := by simp [α', ht.1]
+    have hf_eq : f (α' t) = f (α t) := by rw [hα'_t]
+    rw [hf_eq]
+    exact hα_at.congr_of_eventuallyEq hα'_α
+
 lemma conservative_local_sum_const {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (h_cons : IsConservative field) (T : ℝ) (_hT : 0 < T)
     (y : ℝ → Fin d → ℝ)
