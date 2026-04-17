@@ -20,6 +20,7 @@ import Ripple.LPP.Syntactic
 import Ripple.Core.BoundedTime
 import Ripple.LPP.VVariable
 import Ripple.LPP.Product
+import Ripple.Core.ODEGlobal
 import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Calculus.MeanValue
 import Mathlib.Analysis.ODE.Gronwall
@@ -1800,29 +1801,26 @@ private theorem crn_nonneg_invariance {d : ℕ} {P : PIVP d}
     nlinarith [sq_nonneg (min (x t i) 0)]
   linarith [min_le_left (x t i) (0 : ℝ)]
 
-/-- Axiom: Global ODE solution existence for CRN-implementable conservative
-systems on the simplex with locally Lipschitz field.
+/-- Global ODE solution existence for CRN-implementable conservative systems
+on the simplex with locally Lipschitz field.
 
-This is a standard result from ODE theory (Picard-Lindelöf + extension):
-1. Locally Lipschitz → Picard-Lindelöf gives local existence on [0, T]
-2. CRN structure + non-negative init → solution stays non-negative
-   (by `crn_nonneg_invariance` applied to local solutions)
-3. Conservation → ∑xᵢ constant = 1 (simplex invariant)
-4. Non-negative + simplex → each xᵢ ∈ [0,1] → bounded
-5. Bounded solution + locally Lipschitz → can restart Picard-Lindelöf at T
-6. Repeat → global solution on [0, ∞)
+Proved in `Ripple.Core.ODEGlobal` by combining:
+- `locally_lipschitz_bounded_global_ode` (narrow Mathlib-gap axiom: local Picard
+  + a priori bound ⇒ global)
+- `crn_local_nonneg` (CRN non-negativity on half-open intervals, proved)
+- `conservative_local_sum_const` (conservation pins the sum, proved)
+- `simplex_norm_le_one` (non-negativity + sum = 1 ⇒ sup-norm ≤ 1, proved)
 
-Mathlib has Picard-Lindelöf for local existence
-(`IsPicardLindelof.exists_eq_forall_mem_Icc_hasDerivWithinAt`) but not
-the extension-to-global step. This axiom captures the combined result. -/
-axiom crn_simplex_global_ode_solution {d : ℕ} (P : PIVP d)
+Formerly an axiom; now a theorem delegating to `crn_simplex_global_ode_solution'`. -/
+noncomputable def crn_simplex_global_ode_solution {d : ℕ} (P : PIVP d)
     (h_crn : IsCRNImplementable d P.field)
     (h_cons : IsConservative P.field)
     (h_lip : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin d → ℝ,
       ‖x‖ ≤ R → ‖y‖ ≤ R → ‖P.field x - P.field y‖ ≤ L * ‖x - y‖)
     (h_init_nn : ∀ i, 0 ≤ P.init i)
     (h_init_simplex : ∑ i, P.init i = 1)
-    : PIVP.Solution P
+    : PIVP.Solution P :=
+  crn_simplex_global_ode_solution' P h_crn h_cons h_lip h_init_nn h_init_simplex
 
 /-- Axiom: Stage 2 ODE convergence.
 
