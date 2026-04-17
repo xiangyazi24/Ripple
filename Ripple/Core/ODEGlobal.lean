@@ -65,8 +65,73 @@ lemma simplex_norm_le_one {d : ℕ} (x : Fin d → ℝ)
     _ = 1 := h_sum
 
 /-!
-## Conservation gives constant total for local solutions.
+## Field bounded on closed balls.
+
+A continuous field on `Fin d → ℝ` (with sup norm) is bounded on every closed
+ball. This is a prerequisite for iterated local Picard: to set uniform step
+size, we need both a Lipschitz constant AND a field bound on the working
+ball of radius `M + 1`.
+
+This lemma is pure compactness (`IsCompact.exists_bound_of_continuousOn`),
+independent of the CRN setup, and intended to feed into a future proof of
+`locally_lipschitz_bounded_global_ode`.
 -/
+lemma field_bound_on_closedBall {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
+    (hf : Continuous f) (R : ℝ) :
+    ∃ B : ℝ, ∀ x : Fin d → ℝ, ‖x‖ ≤ R → ‖f x‖ ≤ B := by
+  by_cases hR : R ≤ 0
+  · refine ⟨‖f 0‖, ?_⟩
+    intro x hx
+    have hnx0 : ‖x‖ = 0 :=
+      le_antisymm (le_trans hx hR) (norm_nonneg x)
+    have hx0 : x = 0 := norm_eq_zero.mp hnx0
+    rw [hx0]
+  · have h_compact : IsCompact (Metric.closedBall (0 : Fin d → ℝ) R) :=
+      isCompact_closedBall _ _
+    obtain ⟨B, hB⟩ :=
+      h_compact.exists_bound_of_continuousOn hf.continuousOn
+    refine ⟨B, fun x hx => hB x ?_⟩
+    rw [Metric.mem_closedBall, dist_zero_right]
+    exact hx
+
+/-- Corollary: a field satisfying the local-Lipschitz hypothesis of
+`locally_lipschitz_bounded_global_ode` is bounded on every closed ball.
+
+Proof: pick a Lipschitz constant `L` on the ball of radius `R`. Then for
+any `x` with `‖x‖ ≤ R`, `‖f x - f 0‖ ≤ L · ‖x‖`, so
+`‖f x‖ ≤ ‖f 0‖ + max L 0 · R`. The `max` handles the degenerate case of
+a (spurious) negative Lipschitz constant. -/
+lemma lipschitz_field_bound_on_closedBall {d : ℕ}
+    {f : (Fin d → ℝ) → Fin d → ℝ}
+    (h_lip : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin d → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R → ‖f x - f y‖ ≤ L * ‖x - y‖)
+    (R : ℝ) (hR : 0 < R) :
+    ∃ B : ℝ, ∀ x : Fin d → ℝ, ‖x‖ ≤ R → ‖f x‖ ≤ B := by
+  obtain ⟨L, hL⟩ := h_lip R hR
+  refine ⟨‖f 0‖ + max L 0 * R, ?_⟩
+  intro x hx
+  have h0R : ‖(0 : Fin d → ℝ)‖ ≤ R := by rw [norm_zero]; exact hR.le
+  have h_diff : ‖f x - f 0‖ ≤ L * ‖x - 0‖ := hL x 0 hx h0R
+  rw [sub_zero] at h_diff
+  -- Triangle: ‖f x‖ ≤ ‖f 0‖ + ‖f x - f 0‖
+  have h_tri : ‖f x‖ ≤ ‖f 0‖ + ‖f x - f 0‖ := by
+    have h := norm_add_le (f 0) (f x - f 0)
+    rw [add_sub_cancel] at h
+    linarith
+  -- Combine with Lipschitz and monotonicity via max
+  have h_Lx_le : L * ‖x‖ ≤ max L 0 * R := by
+    by_cases hL0 : L ≤ 0
+    · have : L * ‖x‖ ≤ 0 :=
+        mul_nonpos_of_nonpos_of_nonneg hL0 (norm_nonneg x)
+      have h_max : max L 0 * R ≥ 0 := by
+        have : max L 0 ≥ 0 := le_max_right _ _
+        exact mul_nonneg this hR.le
+      linarith
+    · push Not at hL0
+      have h_max_eq : max L 0 = L := max_eq_left hL0.le
+      rw [h_max_eq]
+      exact mul_le_mul_of_nonneg_left hx hL0.le
+  linarith [h_tri, h_diff, h_Lx_le]
 lemma conservative_local_sum_const {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (h_cons : IsConservative field) (T : ℝ) (_hT : 0 < T)
     (y : ℝ → Fin d → ℝ)
