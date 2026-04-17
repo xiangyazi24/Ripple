@@ -324,6 +324,116 @@ lemma single_step_solution {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
   intro t ht
   exact hα t ht
 
+/-- Extending a `HasDerivWithinAt` on `Icc a b` at an interior point `x < b` to
+`Icc a b'`. Works because the two intervals agree locally on the nhds basis
+`Iio b` of `x`. -/
+lemma hasDerivWithinAt_Icc_extend_right {d : ℕ}
+    {f : ℝ → Fin d → ℝ} {f' : Fin d → ℝ} {a b b' : ℝ} {x : ℝ}
+    (h : HasDerivWithinAt f f' (Icc a b) x) (hxb : x < b) :
+    HasDerivWithinAt f f' (Icc a b') x := by
+  apply h.mono_of_mem_nhdsWithin
+  rw [mem_nhdsWithin_iff_exists_mem_nhds_inter]
+  refine ⟨Iio b, Iio_mem_nhds hxb, ?_⟩
+  intro y hy
+  obtain ⟨hy_iio, hy_icc⟩ := hy
+  exact ⟨hy_icc.1, le_of_lt hy_iio⟩
+
+/-- Symmetric extension on the left. -/
+lemma hasDerivWithinAt_Icc_extend_left {d : ℕ}
+    {f : ℝ → Fin d → ℝ} {f' : Fin d → ℝ} {a a' b : ℝ} {x : ℝ}
+    (h : HasDerivWithinAt f f' (Icc a b) x) (hxa : a < x) :
+    HasDerivWithinAt f f' (Icc a' b) x := by
+  apply h.mono_of_mem_nhdsWithin
+  rw [mem_nhdsWithin_iff_exists_mem_nhds_inter]
+  refine ⟨Ioi a, Ioi_mem_nhds hxa, ?_⟩
+  intro y hy
+  obtain ⟨hy_ioi, hy_icc⟩ := hy
+  exact ⟨le_of_lt hy_ioi, hy_icc.2⟩
+
+/-- Glue two adjacent ODE solutions on `Icc a T` and `Icc T T'` into a single
+solution on `Icc a T'`. Requires matching values at the seam `T`. -/
+lemma glue_two_Icc_solutions {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
+    {α γ : ℝ → Fin d → ℝ} {a T T' : ℝ}
+    (haT : a ≤ T) (hTT' : T ≤ T')
+    (hα : ∀ t ∈ Icc a T, HasDerivWithinAt α (f (α t)) (Icc a T) t)
+    (hγ : ∀ t ∈ Icc T T', HasDerivWithinAt γ (f (γ t)) (Icc T T') t)
+    (h_match : α T = γ T) :
+    ∃ β : ℝ → Fin d → ℝ,
+      (∀ t ∈ Icc a T, β t = α t) ∧
+      (∀ t ∈ Icc T T', β t = γ t) ∧
+      ∀ t ∈ Icc a T', HasDerivWithinAt β (f (β t)) (Icc a T') t := by
+  classical
+  -- Piecewise: β t = α t if t ≤ T else γ t. At t = T, α T = γ T so consistent.
+  set β : ℝ → Fin d → ℝ := fun t => if t ≤ T then α t else γ t with hβ_def
+  refine ⟨β, ?_, ?_, ?_⟩
+  · -- β = α on Icc a T
+    intro t ⟨_, ht_T⟩
+    simp [β, ht_T]
+  · -- β = γ on Icc T T'
+    intro t ⟨hT_t, _⟩
+    by_cases h : t ≤ T
+    · have h_eq : t = T := le_antisymm h hT_t
+      simp [β, h, h_eq, h_match]
+    · simp [β, h]
+  · -- HasDerivWithinAt β (f (β t)) (Icc a T') t
+    -- Three cases by comparing t with T: t < T, t = T, t > T.
+    intro t ht
+    rcases lt_trichotomy t T with ht_T | ht_T | ht_T
+    · -- t < T: β = α locally on Iio T (a nhds of t).
+      have hα_deriv : HasDerivWithinAt α (f (α t)) (Icc a T) t :=
+        hα t ⟨ht.1, le_of_lt ht_T⟩
+      have hβ_t : β t = α t := by simp [β, le_of_lt ht_T]
+      have hf_eq : f (β t) = f (α t) := by rw [hβ_t]
+      rw [hf_eq]
+      have h_ext : HasDerivWithinAt α (f (α t)) (Icc a T') t :=
+        hasDerivWithinAt_Icc_extend_right hα_deriv ht_T
+      have hβα_nhds : β =ᶠ[𝓝 t] α := by
+        filter_upwards [Iio_mem_nhds ht_T] with s hs
+        have hsT : s ≤ T := le_of_lt hs
+        simp [β, hsT]
+      have hβα : β =ᶠ[𝓝[Icc a T'] t] α :=
+        hβα_nhds.filter_mono nhdsWithin_le_nhds
+      exact h_ext.congr_of_eventuallyEq hβα hβ_t
+    · -- t = T: glue via HasDerivWithinAt.union on Icc a T ∪ Icc T T' = Icc a T'.
+      rw [ht_T]
+      have hβ_T : β T = α T := by simp [β]
+      have hf_eq : f (β T) = f (α T) := by rw [hβ_T]
+      rw [hf_eq]
+      have h_left : HasDerivWithinAt β (f (α T)) (Icc a T) T := by
+        have hα_deriv : HasDerivWithinAt α (f (α T)) (Icc a T) T := hα T ⟨haT, le_refl _⟩
+        refine hα_deriv.congr_mono (t := Icc a T)
+          (fun s hs => ?_) ?_ (le_refl _)
+        · simp [β, hs.2]
+        · simp [β]
+      have h_right : HasDerivWithinAt β (f (α T)) (Icc T T') T := by
+        have hγ_deriv : HasDerivWithinAt γ (f (γ T)) (Icc T T') T := hγ T ⟨le_refl _, hTT'⟩
+        rw [show f (α T) = f (γ T) from by rw [h_match]]
+        refine hγ_deriv.congr_mono (t := Icc T T')
+          (fun s hs => ?_) ?_ (le_refl _)
+        · by_cases h : s ≤ T
+          · have h_eq : s = T := le_antisymm h hs.1
+            simp [β, h_eq, h_match]
+          · simp [β, h]
+        · simp [β, h_match]
+      have h_union := h_left.union h_right
+      rw [Icc_union_Icc_eq_Icc haT hTT'] at h_union
+      exact h_union
+    · -- t > T: β = γ locally on Ioi T (a nhds of t).
+      have hγ_deriv : HasDerivWithinAt γ (f (γ t)) (Icc T T') t :=
+        hγ t ⟨le_of_lt ht_T, ht.2⟩
+      have hβ_t : β t = γ t := by simp [β, not_le.mpr ht_T]
+      have hf_eq : f (β t) = f (γ t) := by rw [hβ_t]
+      rw [hf_eq]
+      have h_ext : HasDerivWithinAt γ (f (γ t)) (Icc a T') t :=
+        hasDerivWithinAt_Icc_extend_left hγ_deriv ht_T
+      have hβγ_nhds : β =ᶠ[𝓝 t] γ := by
+        filter_upwards [Ioi_mem_nhds ht_T] with s hs
+        have hsT : ¬ s ≤ T := not_le.mpr hs
+        simp [β, hsT]
+      have hβγ : β =ᶠ[𝓝[Icc a T'] t] γ :=
+        hβγ_nhds.filter_mono nhdsWithin_le_nhds
+      exact h_ext.congr_of_eventuallyEq hβγ hβ_t
+
 lemma conservative_local_sum_const {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (h_cons : IsConservative field) (T : ℝ) (_hT : 0 < T)
     (y : ℝ → Fin d → ℝ)
