@@ -434,6 +434,32 @@ lemma glue_two_Icc_solutions {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
         hβγ_nhds.filter_mono nhdsWithin_le_nhds
       exact h_ext.congr_of_eventuallyEq hβγ hβ_t
 
+/-- One iteration: given a local ODE solution on `Icc 0 T` whose endpoint has
+norm `≤ M`, extend by one uniform Picard step to a solution on `Icc 0 (T + ε)`,
+agreeing with the original on `Icc 0 T`. -/
+lemma iterate_one_step {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
+    {ε M : ℝ} {K : NNReal} {B : ℝ}
+    (hε : 0 < ε) (hB_nn : 0 ≤ B) (h_side : B * ε ≤ 1 / 2)
+    (h_lip_ball : ∀ p : Fin d → ℝ, ‖p‖ ≤ M →
+      LipschitzOnWith K f (Metric.closedBall p 1))
+    (h_bound_ball : ∀ p : Fin d → ℝ, ‖p‖ ≤ M →
+      ∀ x ∈ Metric.closedBall p 1, ‖f x‖ ≤ B)
+    (T : ℝ) (hT_nn : 0 ≤ T)
+    (α : ℝ → Fin d → ℝ)
+    (hα_deriv : ∀ t ∈ Icc (0 : ℝ) T, HasDerivWithinAt α (f (α t)) (Icc 0 T) t)
+    (hαT : ‖α T‖ ≤ M) (y₀ : Fin d → ℝ) (hα0 : α 0 = y₀) :
+    ∃ β : ℝ → Fin d → ℝ, β 0 = y₀ ∧
+      (∀ t ∈ Icc (0 : ℝ) T, β t = α t) ∧
+      ∀ t ∈ Icc (0 : ℝ) (T + ε),
+        HasDerivWithinAt β (f (β t)) (Icc 0 (T + ε)) t := by
+  obtain ⟨γ, hγ0, hγ_deriv⟩ :=
+    single_step_solution hε hB_nn h_side h_lip_ball h_bound_ball (α T) hαT T
+  obtain ⟨β, hβα, _, hβ_deriv⟩ :=
+    glue_two_Icc_solutions (f := f) hT_nn (by linarith : T ≤ T + ε)
+      hα_deriv hγ_deriv hγ0.symm
+  refine ⟨β, ?_, hβα, hβ_deriv⟩
+  rw [hβα 0 ⟨le_refl _, hT_nn⟩, hα0]
+
 lemma conservative_local_sum_const {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (h_cons : IsConservative field) (T : ℝ) (_hT : 0 < T)
     (y : ℝ → Fin d → ℝ)
