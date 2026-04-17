@@ -1,4 +1,4 @@
-# Ripple CHECKPOINT — 2026-04-17 (updated, session 27)
+# Ripple CHECKPOINT — 2026-04-17 (updated, session 28)
 
 ## Current State
 
@@ -93,7 +93,7 @@
     - Convergence transfer (v_{e_output}(t) = x_{output}(t))
 
 ### Theorem Statements with axioms (no sorry remaining)
-- **LPP/Stages.lean**: Four-stage GPAC→PP construction (**0 sorry, 2 axioms** as of session 27; Core/ODEGlobal.lean holds the 3rd remaining axiom)
+- **LPP/Stages.lean**: Four-stage GPAC→PP construction (**0 sorry, 2 axioms** as of session 28; Core/ODEGlobal.lean now 0 axiom, was 1 in session 27)
   - `crn_simplex_global_ode_solution` — **NOW A THEOREM** (session 27): delegates to `crn_simplex_global_ode_solution'` in `Core/ODEGlobal.lean`; the underlying Mathlib-gap is now the narrow axiom `locally_lipschitz_bounded_global_ode` (pure ODE extension, no CRN content)
   - `stage2_convergence_axiom` — Stage 2 output converges to α with same modulus (time dilation argument)
   - `stage2_ode_axiom` — **FULLY PROVED THEOREM** (was axiom → theorem): derives from the two axioms above
@@ -246,25 +246,34 @@ Ripple/
    - `stage2_output_hasDerivAt` — output derivative extraction
 3. **Stage 1**: `stage1_core_axiom` ✓ (THEOREM, calls `stage1_vvariable`)
 4. **Unimolecular → rational** (Lemma 10): **FULLY PROVED**
-5. **Remaining axioms** (3 total, session 27):
-   - `locally_lipschitz_bounded_global_ode` (in `Core/ODEGlobal.lean`) — narrow Mathlib gap: local Picard + a priori bound ⇒ global solution (pure ODE, no CRN content)
+5. **Remaining axioms** (2 total, session 28):
    - `stage2_convergence_axiom` — convergence under time dilation ([LPP] Remark 14)
    - `algebraic_is_certified_crn` — Newton's method as PolyPIVP ([RTCRN1] Theorem 3.4)
+   - **ELIMINATED** (session 28): `locally_lipschitz_bounded_global_ode` — proved as theorem via iterated Picard + ODE uniqueness (see Session 28 log)
    - **ELIMINATED** (session 26): `lpp_computable_mul_certified` — replaced by direct proof via `lpp_product` in `LPP/Product.lean`
 6. **Placeholder proofs in Core/**: bounded_compilation, closure_exponentiation, crn_readout
 
 ## Session Log (2026-04-17, session 28)
-- **ODEGlobal infrastructure build-up** (targeting `locally_lipschitz_bounded_global_ode` axiom):
-  - `field_bound_on_closedBall`: continuous f on sup-norm closedBall bounded (compactness).
-  - `lipschitz_field_bound_on_closedBall`: local-Lip hypothesis ⇒ bound on closedBall 0 R (handles negative L via `max L 0`).
-  - `locally_lipschitz_continuous`: local-Lip hypothesis ⇒ Continuous f (via `Metric.continuous_iff` with L' = max L 1).
-  - `lipschitzOnWith_shifted_ball`: uniform K such that f is K-LipschitzOnWith on every unit closedBall around p with ‖p‖ ≤ M. Uses `Real.toNNReal L` + `Real.le_coe_toNNReal`.
-  - `field_bound_shifted_ball`: companion uniform B on each unit closedBall around such p.
-  - `picard_uniform_step`: packages ε, K, B with B·ε ≤ 1/2, ready to feed Mathlib's `IsPicardLindelof.of_time_independent`.
-  - `single_step_solution`: one local Picard step — given p with ‖p‖ ≤ M and t₀, produce α with α t₀ = p and HasDerivWithinAt on Icc t₀ (t₀+ε). Signature fixed to match `picard_uniform_step` scope (‖p‖ ≤ M rather than universal).
-- **Still open**: gluing iterated steps into global y on [0,∞); derive ‖y₀‖ ≤ M from h_invariant + local Picard; closing the axiom itself.
-- **Result**: 0 sorry, 3 axioms (unchanged — infrastructure expansion, no new axioms/sorries).
-- Commits: 36d849c, 3c7d3c8, 86d5fb1, cbba685, bc46ce5, 47d6cfa.
+- **`locally_lipschitz_bounded_global_ode`: axiom → THEOREM** (main achievement):
+  - ODEGlobal infrastructure (parts 1-5):
+    - `field_bound_on_closedBall`, `lipschitz_field_bound_on_closedBall`, `locally_lipschitz_continuous` — local-Lip ⇒ continuity/boundedness machinery.
+    - `lipschitzOnWith_shifted_ball`, `field_bound_shifted_ball`, `picard_uniform_step` — uniform (ε, K, B) with B·ε ≤ 1/2 feeding `IsPicardLindelof.of_time_independent`.
+    - `single_step_solution` — one Picard step on Icc t₀ (t₀+ε).
+  - Gluing infrastructure (part 6):
+    - `hasDerivWithinAt_Icc_extend_right/left` — interval extension via `mono_of_mem_nhdsWithin`.
+    - `glue_two_Icc_solutions` — piecewise β on Icc a T ∪ Icc T T' via `HasDerivWithinAt.union` at seam.
+    - `iterate_one_step` — extend partial solution on [0, T] by one ε-step.
+    - `extend_left_linear_hasDerivAt` — linearly prolong to t < 0 (slope f y₀) to get two-sided HasDerivAt on Ico 0 T.
+    - `solution_bounded_of_invariant` — lift h_invariant bound from Ico to Icc via continuity + `IsClosed.mem_of_tendsto` + `right_nhdsWithin_Ico_neBot`.
+    - `y0_norm_le_M` — initial bound ‖y₀‖ ≤ M from local Picard + h_invariant.
+    - `exists_solution_on_step_Icc` — Nat induction yielding α_n on Icc 0 (n·ε) with α_n(0) = y₀ and ‖α_n(n·ε)‖ ≤ M.
+  - Closing step (part 7):
+    - `hasDerivWithinAt_Icc_to_Ici` — convert Icc HDW to Ici HDW (needed for Mathlib uniqueness signature).
+    - `solutions_agree_on_Icc` — ODE uniqueness via `ODE_solution_unique_of_mem_Icc_right` on closedBall 0 M.
+    - `locally_lipschitz_bounded_global_ode_proved` — THEOREM replacing the axiom. Uses `Classical.choose` on `exists_solution_on_step_Icc` to get family α : ℕ → ℝ → Fin d → ℝ; uniqueness-based consistency α_n = α_m on overlap; define y via n_of t = ⌈t/ε⌉+1 plus linear left extension. Two-sided HasDerivAt at t = 0 via `HasDerivWithinAt.union` on Iic 0 ∪ Ici 0 = univ.
+  - Axiom deleted; call site `crn_simplex_global_ode_solution'` rerouted to theorem.
+- **Result**: **0 sorry, 2 axioms** (down from 3). Both remaining are research-content axioms, not Mathlib gaps.
+- Commits: 36d849c, 3c7d3c8, 86d5fb1, cbba685, bc46ce5, 47d6cfa, 2513451, e6691da, 1206f5a, d50e52b, 0ff5eec, a2812ce.
 
 ## Session Log (2026-04-17, session 27)
 - **Axiom 1 narrowed**: old monolithic `crn_simplex_global_ode_solution` axiom (composite of ODE extension + CRN invariance + conservation + simplex bound) replaced by:
