@@ -19,6 +19,7 @@ import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Calculus.Deriv.Add
 import Mathlib.Analysis.Calculus.Deriv.Pow
 import Mathlib.Analysis.ODE.Gronwall
+import Mathlib.Analysis.ODE.PicardLindelof
 
 open Set Filter Topology
 
@@ -270,6 +271,58 @@ lemma picard_uniform_step {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
     have hB1_pos : 0 < B + 1 := by linarith
     rw [mul_one_div, div_le_div_iff₀ (by linarith : (0:ℝ) < 2 * (B + 1)) (by norm_num : (0:ℝ) < 2)]
     nlinarith
+
+/-- A single local-Picard step starting at any `p ∈ closedBall 0 M`.
+
+Given the uniform parameters from `picard_uniform_step`, this produces a
+solution to the ODE on `[t₀, t₀+ε]` starting at `p`, via Mathlib's
+`IsPicardLindelof.of_time_independent` + `exists_eq_forall_mem_Icc_hasDerivWithinAt`.
+
+This is the inner iteration step for the global existence proof: each step
+advances time by the same ε, starting from wherever the previous step ended. -/
+lemma single_step_solution {d : ℕ} {f : (Fin d → ℝ) → Fin d → ℝ}
+    {ε : ℝ} {K : NNReal} {B : ℝ}
+    (hε : 0 < ε) (hB_nn : 0 ≤ B) (h_side : B * ε ≤ 1 / 2)
+    (h_lip_ball : ∀ p : Fin d → ℝ,
+      LipschitzOnWith K f (Metric.closedBall p 1))
+    (h_bound_ball : ∀ p : Fin d → ℝ,
+      ∀ x ∈ Metric.closedBall p 1, ‖f x‖ ≤ B)
+    (p : Fin d → ℝ) (t₀ : ℝ) :
+    ∃ α : ℝ → Fin d → ℝ, α t₀ = p ∧
+      ∀ t ∈ Icc t₀ (t₀ + ε),
+        HasDerivWithinAt α (f (α t)) (Icc t₀ (t₀ + ε)) t := by
+  -- Build the IsPicardLindelof structure on [t₀, t₀+ε] with
+  --   a = 1, r = 1/2, L = Real.toNNReal B, K = K
+  set B' : NNReal := Real.toNNReal B with hB'_def
+  have hB'_coe : (B' : ℝ) = B := Real.coe_toNNReal B hB_nn
+  set t₀_bundled : Icc t₀ (t₀ + ε) := ⟨t₀, by simp [hε.le]⟩
+  have hpl : IsPicardLindelof
+      (fun _ : ℝ ↦ f)
+      (tmin := t₀) (tmax := t₀ + ε)
+      t₀_bundled p (1 : NNReal) ((1 : NNReal) / 2) B' K := by
+    apply IsPicardLindelof.of_time_independent (hb := ?_) (hl := ?_) (hm := ?_)
+    · intro x hx
+      rw [hB'_coe]
+      exact h_bound_ball p x hx
+    · exact h_lip_ball p
+    · -- B' * max (t₀+ε - t₀) (t₀ - t₀) ≤ 1 - 1/2
+      simp only [t₀_bundled]
+      have h_max : max (t₀ + ε - t₀) (t₀ - t₀) = ε := by
+        rw [sub_self, add_sub_cancel_left]
+        exact max_eq_left hε.le
+      rw [h_max]
+      -- Goal is (B' : ℝ) * ε ≤ ↑1 - ((1/2 : NNReal) : ℝ)
+      rw [hB'_coe]
+      push_cast
+      linarith [h_side]
+  -- Apply existence with x = p (p is in closedBall p (1/2) trivially)
+  have hp_in : p ∈ Metric.closedBall p ((1 : NNReal) / 2 : ℝ) := by
+    simp [Metric.mem_closedBall]
+  obtain ⟨α, hα0, hα⟩ :=
+    hpl.exists_eq_forall_mem_Icc_hasDerivWithinAt hp_in
+  refine ⟨α, hα0, ?_⟩
+  intro t ht
+  exact hα t ht
 
 lemma conservative_local_sum_const {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (h_cons : IsConservative field) (T : ℝ) (_hT : 0 < T)
