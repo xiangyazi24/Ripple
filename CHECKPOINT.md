@@ -1,4 +1,4 @@
-# Ripple CHECKPOINT — 2026-04-17 (updated, session 26)
+# Ripple CHECKPOINT — 2026-04-17 (updated, session 27)
 
 ## Current State
 
@@ -93,8 +93,8 @@
     - Convergence transfer (v_{e_output}(t) = x_{output}(t))
 
 ### Theorem Statements with axioms (no sorry remaining)
-- **LPP/Stages.lean**: Four-stage GPAC→PP construction (**0 sorry, 4 axioms**)
-  - `crn_simplex_global_ode_solution` — global ODE existence for CRN + conservative + simplex (Picard-Lindelöf + extension)
+- **LPP/Stages.lean**: Four-stage GPAC→PP construction (**0 sorry, 2 axioms** as of session 27; Core/ODEGlobal.lean holds the 3rd remaining axiom)
+  - `crn_simplex_global_ode_solution` — **NOW A THEOREM** (session 27): delegates to `crn_simplex_global_ode_solution'` in `Core/ODEGlobal.lean`; the underlying Mathlib-gap is now the narrow axiom `locally_lipschitz_bounded_global_ode` (pure ODE extension, no CRN content)
   - `stage2_convergence_axiom` — Stage 2 output converges to α with same modulus (time dilation argument)
   - `stage2_ode_axiom` — **FULLY PROVED THEOREM** (was axiom → theorem): derives from the two axioms above
     - Locally Lipschitz via `stage2_field_cubicForm` + `cubicForm_locally_lipschitz` (requires explicit A, B coefficients)
@@ -246,12 +246,28 @@ Ripple/
    - `stage2_output_hasDerivAt` — output derivative extraction
 3. **Stage 1**: `stage1_core_axiom` ✓ (THEOREM, calls `stage1_vvariable`)
 4. **Unimolecular → rational** (Lemma 10): **FULLY PROVED**
-5. **Remaining axioms** (4 total):
-   - `crn_simplex_global_ode_solution` — global ODE existence (standard, Mathlib gap)
-   - `stage2_convergence_axiom` — convergence under time dilation
-   - `algebraic_is_certified_crn` — Newton's method as PolyPIVP
-   - `lpp_computable_mul_certified` — product closure with certificates
+5. **Remaining axioms** (3 total, session 27):
+   - `locally_lipschitz_bounded_global_ode` (in `Core/ODEGlobal.lean`) — narrow Mathlib gap: local Picard + a priori bound ⇒ global solution (pure ODE, no CRN content)
+   - `stage2_convergence_axiom` — convergence under time dilation ([LPP] Remark 14)
+   - `algebraic_is_certified_crn` — Newton's method as PolyPIVP ([RTCRN1] Theorem 3.4)
+   - **ELIMINATED** (session 26): `lpp_computable_mul_certified` — replaced by direct proof via `lpp_product` in `LPP/Product.lean`
 6. **Placeholder proofs in Core/**: bounded_compilation, closure_exponentiation, crn_readout
+
+## Session Log (2026-04-17, session 27)
+- **Axiom 1 narrowed**: old monolithic `crn_simplex_global_ode_solution` axiom (composite of ODE extension + CRN invariance + conservation + simplex bound) replaced by:
+  - New file `Core/ODEGlobal.lean` (~330 lines, 0 sorry, 1 axiom):
+    - `axiom locally_lipschitz_bounded_global_ode`: pure Mathlib-gap statement. Given locally Lipschitz `f` and a priori bound `M` on every local solution, global solution exists. No CRN, no simplex, no conservation — clean ODE extension step.
+    - `simplex_norm_le_one` (proved): non-negative + sum=1 ⇒ sup-norm ≤ 1.
+    - `conservative_local_sum_const` (proved): conservation + ODE ⇒ ∑ y(t) = ∑ y(0) on `Ico 0 T`, via `HasDerivAt.fun_sum` + `constant_of_has_deriv_right_zero`.
+    - `crn_local_nonneg` (proved, ~170 lines): CRN + locally Lipschitz ⇒ non-negativity preserved, local Ico version of `crn_nonneg_invariance` via squared-negative-mass + Grönwall.
+    - `crn_simplex_global_ode_solution'` (noncomputable def): combines all pieces with M=1, uses `Classical.choose` to extract the trajectory from the Prop existential axiom.
+  - `LPP/Stages.lean`: `axiom crn_simplex_global_ode_solution` replaced with `noncomputable def` delegating to the above.
+- **Result**: **0 sorry, 3 axioms** (was 0 sorry, 3 axioms — same axiom count, but the CRN-specific one is now cleanly a Mathlib gap rather than a composite CRN+ODE statement). All CRN/conservation/simplex content is proved.
+- Commit: `19298d4`
+- **Next targets** (in no particular order, per 爸爸's directive "挨个推就好"):
+  - `stage2_convergence_axiom` — time-dilation convergence from [LPP] Remark 14.
+  - `algebraic_is_certified_crn` — Newton's method as PolyPIVP ([RTCRN1] Theorem 3.4).
+  - `locally_lipschitz_bounded_global_ode` — iterated local Picard with uniform step size (substantial classical ODE proof).
 
 ## Session Log (2026-04-17, night — session 26)
 - **`stage2_ode_axiom`: axiom → THEOREM** (main achievement):
