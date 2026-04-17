@@ -50,6 +50,65 @@ structure IsCRNImplementable (n : ℕ) (field : (Fin n → ℝ) → Fin n → �
   field_eq : ∀ x : Fin n → ℝ, ∀ i : Fin n,
     field x i = prod i x - degr i x * x i
 
+/-- Syntactic CRN decomposition of a `PolyPIVP`: each field polynomial
+decomposes as `prod_i - degr_i * X_i` where `prod_i` and `degr_i` are
+multivariate polynomials with non-negative rational coefficients.
+
+This is the paper-level notion of "positive polynomial" from mass-action
+kinetics: each reaction contributes a monomial with non-negative rate constant,
+and the sign separation into production vs. degradation is exact.
+
+The semantic `IsCRNImplementable` (which uses `IsPositivePoly` = non-negative
+*values* on ℝ≥0) is strictly weaker. The v-variable construction (Theorem 12
+in [LPP]) needs non-negative *coefficients* to produce A_{i,a,b} ≥ 0 in the
+quadraticized system. -/
+structure PolyCRNDecomposition (d : ℕ) (P : PolyPIVP d) where
+  /-- Production polynomial for each species (non-negative coefficients). -/
+  prod : Fin d → MvPolynomial (Fin d) ℚ
+  /-- Degradation polynomial for each species (non-negative coefficients). -/
+  degr : Fin d → MvPolynomial (Fin d) ℚ
+  /-- All coefficients of prod_i are non-negative. -/
+  prod_nonneg : ∀ i σ, 0 ≤ (prod i).coeff σ
+  /-- All coefficients of degr_i are non-negative. -/
+  degr_nonneg : ∀ i σ, 0 ≤ (degr i).coeff σ
+  /-- Initial concentrations are non-negative (CRN invariant). -/
+  init_nonneg : ∀ i, 0 ≤ P.init i
+  /-- Syntactic field decomposition: field_i = prod_i - degr_i * X_i. -/
+  field_eq : ∀ i, P.field i = prod i - degr i * MvPolynomial.X i
+
+namespace PolyCRNDecomposition
+
+/-- A syntactic CRN decomposition implies semantic CRN-implementability.
+Non-negative polynomial coefficients imply non-negative values on ℝ≥0. -/
+private theorem mvpoly_eval₂_nonneg {d : ℕ}
+    (p : MvPolynomial (Fin d) ℚ) (x : Fin d → ℝ)
+    (hx : ∀ i, 0 ≤ x i) (hc : ∀ σ, 0 ≤ p.coeff σ) :
+    0 ≤ p.eval₂ (Rat.castHom ℝ) x := by
+  rw [MvPolynomial.eval₂_eq']
+  apply Finset.sum_nonneg
+  intro σ _
+  apply mul_nonneg
+  · exact Rat.cast_nonneg.mpr (hc σ)
+  · exact Finset.prod_nonneg fun i _ => pow_nonneg (hx i) _
+
+noncomputable def toIsCRNImplementable {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) :
+    IsCRNImplementable d P.toPIVP.field where
+  prod := fun i x => (pcd.prod i).eval₂ (Rat.castHom ℝ) x
+  degr := fun i x => (pcd.degr i).eval₂ (Rat.castHom ℝ) x
+  prod_pos := fun i x hx => mvpoly_eval₂_nonneg (pcd.prod i) x hx (pcd.prod_nonneg i)
+  degr_pos := fun i x hx => mvpoly_eval₂_nonneg (pcd.degr i) x hx (pcd.degr_nonneg i)
+  field_eq := fun x i => by
+    show P.evalField x i = _
+    simp only [PolyPIVP.evalField, pcd.field_eq i]
+    -- eval₂ is eval₂Hom applied, which is a ring homomorphism
+    change (MvPolynomial.eval₂Hom (Rat.castHom ℝ) x)
+      (pcd.prod i - pcd.degr i * MvPolynomial.X i) = _
+    rw [map_sub, map_mul, MvPolynomial.eval₂Hom_X']
+    rfl
+
+end PolyCRNDecomposition
+
 /-! ## Conservative systems
 
 A system is conservative if the total mass is preserved: Σ x'ᵢ = 0.

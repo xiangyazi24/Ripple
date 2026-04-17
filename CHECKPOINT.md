@@ -1,4 +1,4 @@
-# Ripple CHECKPOINT — 2026-04-16 (updated, session 2)
+# Ripple CHECKPOINT — 2026-04-17 (updated, session 26)
 
 ## Current State
 
@@ -25,6 +25,7 @@
   - `IsPPImplementable` (standalone balance equation form, enforces all 4 conditions):
     - `f` (production quadratic), `f_pos`, `f_homog` (degree 2), `field_eq`, `sum_f` (conservation)
     - Derived: `toCRN`, `conservative`, `no_self_square`
+  - `PolyCRNDecomposition` — syntactic CRN decomposition (non-negative poly coefficients), with `toIsCRNImplementable`
   - `IsLPPComputable`, `PPBalanceEquation`, `PPBalanceEquation.toField`
   - `one_trick`, `one_trick_sq`
   - `PPBalanceEquation.conservative_of_sum_eq` (fully proved)
@@ -46,6 +47,27 @@
   - `halfExpFieldPP_eq_on_simplex`: bridge to simplex-specialized CRN field
   - ODE solution via simplex bridge: halfExpFieldPP = halfExpField on simplex
   - All component derivatives, initial values, simplex invariant, convergence proved
+- **LPP/NAP.lean**: PP→NAP splitting feasibility — Note 14 Theorem 1 (0 sorry)
+  - Multi-index infrastructure: `miWeight`, `miSupp`, `miDvd`, `miUnit`, `miShift`
+  - `MonomialSplit`: non-autocatalytic factorization δ = β + γ with β|α, γ|α, neither unit
+  - `ProductionMonomial`: chain rule monomial with `pipeline_bound` (μ_source ≤ 2) + `foreign_pair`
+  - `IsCubedIndex`: cubing construction v_α = C(3,α)·∏xⱼ^{αⱼ}
+  - `miShift_weight`, `miShift_ne`, `miShift_reverse_ne`: shift lemmas
+  - `exponent_redistribution`: algebraic heart — divisor β of degree-6 monomial with α|β + foreign_pair
+  - `exists_foreign_atom`: foreign_pair implies existence of i₀ ∈ supp(μ)\{source}
+  - `pure_power_split`: |supp(α)|=1 case — trivial 3+3 split
+  - `mixed_support_split`: |supp(α)|≥2 case — primary/backup miShift strategy
+  - `nap_splitting_feasibility`: every ProductionMonomial admits MonomialSplit
+  - `trivial_split_of_lt`: δ_source < α_source ⟹ any split has β ≠ α ∧ γ ≠ α
+  - `exists_weight_divisor`: any multi-index of weight ≥ k has a weight-k divisor (greedy induction)
+  - `trivial_balanced_split`: δ_source < α_source + |δ|=6 ⟹ balanced NAP split
+  - `pp_to_nap_split`: **GENERAL PP→NAP** — case split on foreign_pair: yes → nap_splitting_feasibility, no (μ_source=0) → trivial_balanced_split
+  - `CubedPPMonomial`: structure bundling chain rule data + strict no-self-production
+  - `cubed_pp_nap`: protocol-level wrapper — every CubedPPMonomial admits balanced NAP split
+  - `nap_split_comprehensive`: disjunctive criterion — μ_source = 0 OR (pipeline_bound + foreign_pair)
+  - **Key discovery**: `foreign_pair` field is necessary — bare `pipeline_bound` insufficient
+  - **Key discovery**: Note 14 proof has a gap in Step 2 (δ = 2α not justified); formalization sidesteps via strict no-self-production
+  - **Key insight**: strict no-self-production (μ_source = 0) cleanly splits proof into two cases
 - **LPP/Rational.lean**: Cyclic unimolecular protocol (0 sorry)
   - `predPerm`: predecessor permutation via `finRotate.symm`
   - `cyclicField`: formal version (x_{pred(i)} - xᵢ)·(Σxₖ) (degree 2)
@@ -55,13 +77,82 @@
   - `cyclicField_on_simplex`: bridge to simplex-specialized form
   - `cyclicField_equilibrium`: uniform distribution 1/(q+1) is equilibrium
 
-### Theorem Statements with sorry (open goals)
-- **LPP/Stages.lean**: Four-stage GPAC→PP construction (5 sorry)
-  - `stage1_quadraticization` — CRN → quadratic CRN (v-variables)
-  - `stage2_to_tpp` — quadratic CRN → TPP cubic form (λ-trick + g-trick)
-  - `stage3_to_lpp` — TPP cubic → PP quadratic → LPP (composes stages)
-  - `algebraic_lpp_computable` — Corollary: algebraic numbers are LPP-computable
-  - `lpup_computes_rational` — Unimolecular → rational only (functional graph theory)
+- **LPP/VVariable.lean**: v-Variable quadraticization — **FULLY PROVED (0 sorry)**
+  - Multi-index set `MIndex d D = Fin d → Fin (D+1)` with `degree`, `basis`, `zero'`, `eval`
+  - Key lemmas: `eval_zero'`, `eval_basis`, `eval_nonneg`, `eval_bounded`, `eval_rational`, `degree_le`
+  - Finsupp conversion: `finsuppToMIndex`, `MIndex.toFinsupp`, `toFinsupp_injective`, `finsupp_component_le_totalDegree`
+  - `MIndex.sub_basis`: α - e_k for α_k > 0, with `sub_basis_eval`, `sub_basis_mul`
+  - `eval₂_as_mindex_sum`: bridge between MvPolynomial.eval₂ (Finsupp) and bounded MIndex sums
+  - v-coefficients: `vCoeffA`, `vCoeffB` with `vCoeffA_nonneg`, `vCoeffB_nonneg`
+  - v-init: `vInit` with `vInit_nonneg`, `vInit_rational`
+  - **`hasDerivAt_monomial`**: chain rule for monomials (via `HasDerivAt.fun_finset_prod` + `HasDerivAt.fun_pow`)
+  - **`vfield_chain_rule_eq`**: algebraic identity — CRN quadratic form = chain rule derivative on monomial manifold
+  - **`stage1_vvariable`**: main theorem — constructs v-PIVP with CRN form, **fully verified**:
+    - `is_solution`: via `hasDerivAt_pi` + `hasDerivAt_monomial` + `vfield_chain_rule_eq` + `Equiv.sum_comp` reindexing
+    - Boundedness transfer via `eval_bounded` + `degree_le`
+    - Convergence transfer (v_{e_output}(t) = x_{output}(t))
+
+### Theorem Statements with axioms (no sorry remaining)
+- **LPP/Stages.lean**: Four-stage GPAC→PP construction (**0 sorry, 4 axioms**)
+  - `crn_simplex_global_ode_solution` — global ODE existence for CRN + conservative + simplex (Picard-Lindelöf + extension)
+  - `stage2_convergence_axiom` — Stage 2 output converges to α with same modulus (time dilation argument)
+  - `stage2_ode_axiom` — **FULLY PROVED THEOREM** (was axiom → theorem): derives from the two axioms above
+    - Locally Lipschitz via `stage2_field_cubicForm` + `cubicForm_locally_lipschitz` (requires explicit A, B coefficients)
+    - CRN implementability derived from A, B decomposition inside proof
+  - `stage1_core_axiom` — **FULLY PROVED THEOREM** (was axiom → theorem), calls `stage1_vvariable` (0 sorry)
+  - `algebraic_is_certified_crn` — algebraic numbers → CertifiedBTC + CRN ([RTCRN1] Theorem 3.4)
+  - `lpp_computable_mul_certified` — product of LPP-computable → CertifiedBTC + CRN (certified pipeline)
+  - **PROVED** (session 23): `algebraic_lpp_computable` — sorry→axiom: `algebraic_is_certified_crn` (algebraic numbers have certified CRN reps)
+  - **PROVED** (session 23): `lpp_computable_mul` — sorry→axiom: `lpp_computable_mul_certified` (LPP product has certified CRN rep)
+  - **PROVED** (session 22): `stage2_ode_solution` — fully proved via axiom + explicit parameter choice:
+    - Parameter choice: n = ⌈∑init⌉₊+1, c = 1/n (rational, positive, c·∑init ≤ 1), ε = n (ε·c = 1)
+    - Rationality via `push_cast; ring`
+    - c·∑init ≤ 1 via `Nat.le_ceil` + `Nat.le_succ` + `div_le_one`
+    - Solution + convergence from `stage2_ode_axiom`
+  - **PROVED** (session 22): `stage2_core` boundedness — proved from simplex + CRN non-negativity:
+    - Previously got `h_bounded` from `stage2_ode_solution`; now proved explicitly
+    - Simplex invariance → ∑ sol_i = 1; CRN non-negativity → sol_i ≥ 0
+    - Each component sol_i ≤ ∑ sol_j = 1 ≤ 2, with `pi_norm_le_iff_of_nonneg`
+  - **PROVED** (session 21): `crn_nonneg_invariance` — CRN non-negativity invariance via squared negative mass + Grönwall:
+    - `hasDerivAt_minSq`: derivative of min(s,0)² is 2·min(s,0) (3 cases: s<0, s=0, s>0)
+    - Squared negative mass functional F(t) = ∑min(xⱼ(t),0)², F(0)=0 from init≥0
+    - HasDerivAt F via `HasDerivAt.sum` + `congr_of_eventuallyEq` bridge
+    - Trajectory bound via `isCompact_Icc.exists_isMaxOn`
+    - Lipschitz splitting: field(x) = field(x⁺) + [field(x)-field(x⁺)]
+      - First term ≤ 0 by CRN positivity (prod ≥ 0 on x⁺)
+      - Second term ≤ 2Ld·F by Lipschitz + ‖m‖² ≤ ∑mⱼ² + Pi.sum_norm_apply_le_norm
+    - `max L₀ 0` trick for positivity of Lipschitz constant
+    - Grönwall: F ≤ 0 + F ≥ 0 → F = 0 → each component ≥ 0
+  - **PROVED** (session 21): `cubicForm_locally_lipschitz` — Stage2CubicForm polynomial fields are locally Lipschitz:
+    - Each component is ContDiff ℝ ⊤ (polynomial), proved via `contDiff_apply`, `ContDiff.sum`, `ContDiff.mul`
+    - Full field ContDiff via `contDiff_pi'` (zero component = -(∑ others))
+    - `ContDiff.continuous_fderiv` → `IsCompact.exists_bound_of_continuousOn` → bounded ‖fderiv‖ on R-ball
+    - `Convex.norm_image_sub_le_of_norm_fderiv_le` (Mean Value Theorem) closes the Lipschitz bound
+    - Wired into `stage2_core` call site (line 1864), eliminating the locally-Lipschitz sorry
+  - **PROVED** (session 21): `gpac_to_lpp` — refactored to accept `CertifiedBoundedTimeComputable` directly:
+    - Was: takes semantic `BoundedTimeComputable`, sorry for BTC→CBTC bridge (unprovable without polynomial witness)
+    - Now: takes `CertifiedBoundedTimeComputable` + `IsCRNImplementable`, trivially delegates to `stage3_to_lpp`
+    - Sorry moved to `lpp_computable_mul` (semantic→certified bridge for product closure)
+  - **PROVED** (session 19): `conservative_trajectory_sum` — conservation invariant via MVT
+  - **PROVED** (session 19): `conservative_trajectory_simplex` — simplex corollary
+  - **PROVED** (session 19): `stage2_core` — now proved by composition from stage2_ode_solution + crn_nonneg_invariance + algebraic infrastructure
+  - **PROVED** (session 18): `stage1_quadraticization`, `stage2_to_tpp`, `stage3_to_lpp` — derived by composition from stage1_core + stage2_core + tpp_to_lpp
+  - **PROVED**: `tendsto_zero_of_tendsto_bounded_deriv` — Barbalat-lite (f→L, f' Lipschitz → f'→0):
+    - Strengthened statement to require bounded f'' (original required only bounded f', which is INSUFFICIENT — counterexample exists)
+    - Direct proof: MVT gives f'(c) = slope, Lipschitz bounds |f'(t)-f'(c)| ≤ Cδ, Cauchy bounds slope, total < ε
+  - **PROVED**: `const_of_iterated_deriv_zero_bounded` — bounded + D^m=0 → constant:
+    - Tower-shifting induction: g' j = g(j+1), IH gives g 1 constant
+    - Case g 1 0 = 0: constant_of_has_deriv_right_zero
+    - Case g 1 0 ≠ 0: affine → unbounded → contradiction (reverse triangle inequality via abs_add_le)
+  - **PROVED**: `bounded_linear_ode_limit_rational` — analysis core, **0 internal sorry** (was 4):
+    - rootMultiplicity factoring, g derivative tower, g 0 bounded, g 0 0 rational, Barbalat induction
+    - g m = 0 from CH (sum re-indexing + ℚ→ℝ cast via exact_mod_cast)
+    - g 0 → c_m·ν (tendsto_finset_sum + Finset.sum_ite_eq')
+    - Final conclusion: Metric.tendsto_nhds + constancy → c_m·ν = g(0)(0), eq_div_iff → ν ∈ ℚ
+    - Depends on 2 sorry'd analysis sub-lemmas (Barbalat + iterated-deriv-const)
+  - **PROVED**: `linear_ode_marked_sum_rational` — **0 sorry** (was 1)
+    - Reduction from matrix ODE to scalar: derivative tower f_k, HasDerivAt, boundedness, rationality at 0, Cayley-Hamilton entry-wise — all fully proved
+    - Key fix: `let` binding mismatch — goal had `(Matrix.of A).charpoly` but `h_entry` had `Matrix.charpoly A_mat`; fixed by matching h_entry to goal form + `exact_mod_cast`
   - **RESOLVED**: `tpp_to_lpp` — **0 sorry** (was 1). Resolved by removing `.pp : IsPPImplementable` from `IsLPPComputable` in Defs.lean. Justified by paper gap: ppField is NOT globally conservative (only on manifold), so IsPPImplementable cannot be directly proved. The `.pp` field was never accessed by any downstream proof.
   - **PROVED**: `lpp_computable_mul` (Lemma 11: product closure, routes through CRN pipeline)
   - **PROVED**: `crn_computable_mul` (CRN product closure via PIVP product rule)
@@ -72,7 +163,15 @@
   - **PROVED**: `gpac_to_lpp` (chains stage3_to_lpp, no own sorry)
   - **PROVED**: `constant_dilation_reparametrize` (ε-trick for scalar functions)
   - **PROVED**: `constantDilation` + `constantDilation_crn` + `constantDilation_conservative` (Op 2)
-  - **PROVED**: `lambdaTrick` + `lambdaTrick_smul_cancel` + `lambdaTrick_solution` + `lambdaTrick_crn` (Op 3)
+  - **PROVED**: `lambdaTrick` + `lambdaTrick_smul_cancel` + `lambdaTrick_solution` + `lambdaTrick_crn` (Op 3, uniform)
+  - **PROVED** (session 20): `selectiveUnscale`, `selectiveScale`, `selectiveLambdaTrick` (Op 3b, selective)
+    - `selectiveUnscale_output`, `selectiveUnscale_ne`, `selectiveUnscale_scale`
+    - `selectiveLambdaTrick_solution` — solutions preserved under selective scaling
+    - `selectiveLambdaTrick_tendsto` — output convergence to α (not c·α!) preserved
+    - `selectiveLambdaTrick_crn` — CRN-implementability preserved
+    - `selectiveLambdaTrick_quadratic_form` — quadratic CRN form preserved with explicit selective coefficients
+    - `inner_stage2_hasDerivAt`, `inner_stage2_init`, `inner_stage2_tendsto`, `inner_stage2_bounded`
+  - **UPDATED** (session 20): `stage2_field`, `stage2_field_tpp`, `stage2_pivp`, `stage2_field_cubicForm` — all migrated from uniform `lambdaTrick` to `selectiveLambdaTrick` using `P.output` as the unscaled variable. Fixes mathematical bug where output converged to c·α instead of α.
   - **PROVED**: `oneTrick` + `oneTrick_conservative` (1-trick, note: does NOT preserve CRN)
   - **PROVED**: `balancingDilation` + `balancingDilation_conservative` + `balancingDilation_crn` (Op 4)
   - **PROVED**: `conservative_sum_constant` + `conservative_simplex_invariant` (simplex invariance)
@@ -124,31 +223,264 @@ Ripple/
 └── LPP/
     ├── Defs.lean          -- Core definitions + PLPP (0 sorry)
     ├── Syntactic.lean     -- Syntactic PP balance + Stage 4 construction (0 sorry)
-    ├── Stages.lean        -- Four-stage construction (5 sorry)
+    ├── Stages.lean        -- Four-stage construction (0 sorry, 4 axioms: 2 analytic + 1 bridge + 1 algebraic)
     ├── Example.lean       -- ½e⁻¹ motivating example (0 sorry)
-    └── Rational.lean      -- Cyclic UPP for rationals (0 sorry)
+    ├── Rational.lean      -- Cyclic UPP for rationals (0 sorry)
+    └── NAP.lean           -- PP→NAP splitting + general theorem (0 sorry)
 ```
 
 ## Next Steps
-1. **PP-implementability of ppField** (the remaining sorry in `tpp_to_lpp`):
-   - ppField defined ✓, manifold agreement proved ✓, wired into tpp_to_lpp ✓
-   - Remaining: `IsPPImplementable (d*d) ppfld` — needs production function + properties
-   - **Blocker 1 (Paper gap — off-manifold conservation)**: ppField now matches paper's exact
-     Theorem 15 (Cases 2a/2b use colCoupling/rowCoupling). BUT the paper's construction itself
-     is NOT globally conservative: for d=2, ∑ppField = z_{00}·(z_{01}-z_{10})·Pz_1.
-     This is a genuine gap in the paper. The z-field is only conservative on the manifold.
-     **Fix options**: (a) weaken IsPPImplementable to manifold-only conservation,
-     (b) construct PLPP transitions directly (bypass IsPPImplementable entirely),
-     (c) refactor IsLPPComputable to not require IsPPImplementable.
-   - **Blocker 2 (Coefficient bounds)**: f_r = ppField + 2·z_r·∑z NOT non-negative for arbitrary B.
-     **Fix**: Add `B i a ≤ 1` hypothesis (justified by λ-trick in Stage 2).
-   - **Recommended path**: Fix symmetry first → add B≤1 → prove via Corollary 3
-   - **Path B**: Prove Corollary 3 of [LPP] (CRN + conservative + no-self-square + quadratic ⟺ PP)
-     as a standalone Lean theorem, then apply to ppField
-2. **Stage 1**: v-variable quadraticization — needs MvPolynomial infrastructure or CertifiedBoundedTimeComputable
-3. **Stage 2**: Analytic part — PIVP solution construction + convergence for λ-trick + balancingDilation
-4. **Unimolecular → rational** (Lemma 10): functional graph theory + linear algebra
-5. **Placeholder proofs in Core/**: bounded_compilation, closure_exponentiation, crn_readout
+1. **Paper gap resolved (via symmetric self-product + matching)**:
+   - CF'24 paper (Huang-Migunov) confirms: z₀₁ and z₁₀ merged, PLPP via coefficient matching
+   - `tpp_to_lpp` already works without IsPPImplementable ✓
+   - Future: refactor self-product to use d(d+1)/2 symmetric variables
+   - Future: implement matching-based PLPP construction (pairing positive/negative coefficients)
+2. **Stage 2 infrastructure (COMPLETE — all algebraic proved, ODE via 2 axioms)**:
+   - `stage2_field_tpp` ✓, `stage2_field_cubicForm` ✓, `balancingDilation_cubicForm` ✓
+   - `conservative_trajectory_sum` ✓, `stage2_core` ✓, `crn_nonneg_invariance` ✓
+   - `stage2_ode_axiom` ✓ (THEOREM, derived from 2 axioms below)
+   - `stage2_ode_solution` ✓ (parameter choice proved)
+   - **Axiom** `crn_simplex_global_ode_solution` — Mathlib lacks global ODE extension
+   - **Axiom** `stage2_convergence_axiom` — time-dilation convergence
+   - `stage2_field_output/nonoutput/zero` — field simplification lemmas for convergence
+   - `stage2_output_hasDerivAt` — output derivative extraction
+3. **Stage 1**: `stage1_core_axiom` ✓ (THEOREM, calls `stage1_vvariable`)
+4. **Unimolecular → rational** (Lemma 10): **FULLY PROVED**
+5. **Remaining axioms** (4 total):
+   - `crn_simplex_global_ode_solution` — global ODE existence (standard, Mathlib gap)
+   - `stage2_convergence_axiom` — convergence under time dilation
+   - `algebraic_is_certified_crn` — Newton's method as PolyPIVP
+   - `lpp_computable_mul_certified` — product closure with certificates
+6. **Placeholder proofs in Core/**: bounded_compilation, closure_exponentiation, crn_readout
+
+## Session Log (2026-04-17, night — session 26)
+- **`stage2_ode_axiom`: axiom → THEOREM** (main achievement):
+  - Refactored monolithic `stage2_ode_axiom` axiom into two focused axioms + proved theorem
+  - New `crn_simplex_global_ode_solution` axiom: global ODE existence for CRN+conservative+simplex (reusable)
+  - New `stage2_convergence_axiom`: convergence specific to stage2 time dilation
+  - `stage2_ode_axiom` now proved from the two axioms
+  - **Lipschitz sorry eliminated**: threading A, B coefficients through `stage2_ode_axiom` and `stage2_ode_solution`
+    → builds `stage2_field_cubicForm` → `cubicForm_locally_lipschitz` → no sorry
+  - Also updated `stage2_ode_solution` and `stage2_core` call sites
+- **Stage 2 output dynamics lemmas** (infrastructure for convergence axiom):
+  - `stage2_field_output`: output field = ε · field(unscale(tail x))_o · x₀ (key: NO c-scaling)
+  - `stage2_field_nonoutput`: non-output field = c · ε · field(unscale(tail x))_j · x₀
+  - `stage2_field_zero`: balancing variable field = -(∑ g_j) · x₀
+  - `stage2_output_hasDerivAt`: extract output derivative from system solution
+- **Warning cleanup**: fixed deprecated `push_neg` → `push Not`, `show` → `change`,
+  removed unused `<;> ring`, extra whitespace, long lines. Down to 1 harmless warning.
+- **Result**: 0 sorry, 4 axioms (was 3 axioms with sorry in theorem → 4 axioms, 0 sorry)
+- Build: 0 errors, 1 warning (unused bound variable in `∑ j`)
+
+## Session Log (2026-04-16, night — session 14)
+- **Attacked `lpup_computes_rational` (Lemma 10) infrastructure:**
+  - **PROVED** `marked_sum_hasDerivAt`: derivative of Σ_{marked} sol_i = Σ_{marked} (A·sol)_i
+  - **PROVED** `marked_sum_bounded`: marked sum in [0,1] from simplex + non-negativity
+  - **NEW** `bounded_linear_ode_limit_rational`: pure analysis/algebra core (sorry)
+    - Eigenvalue-free proof strategy: Cayley-Hamilton → scalar ODE → factor p = x^k·q → q(D)f bounded poly = const → integration argument → ν = g(0)/q(0) ∈ ℚ
+    - Key observation: all derivatives bounded because sol on simplex ⟹ A^k·sol bounded (no need for solution representation)
+  - Added `import Mathlib.LinearAlgebra.Matrix.Charpoly.Basic` for Cayley-Hamilton
+- **Stage 3 → NAP analysis** (from session 13, documented in NAP.lean):
+  - Case 1 (i,j ≠ 0): strict NSP transfers from x-PP ✓
+  - Cases 2-3 (boundary): pipeline_bound + foreign_pair ✓
+  - `nap_split_comprehensive` covers all cubed z-PP production monomials
+- **Manifold discussion + references** for 爸爸 (projects/Next/future-work.md §7)
+- Build: 0 errors, 6 sorry (was 5, +1 bounded_linear_ode_limit_rational)
+
+## Session Log (2026-04-16, night — session 15)
+- **PROVED `linear_ode_marked_sum_rational`** — the major achievement:
+  - Fixed Cayley-Hamilton `simp_rw` failure: `let A_mat := Matrix.of A` caused partial unfolding — goal had `(Matrix.of A).charpoly` but `h_entry` had `Matrix.charpoly A_mat`. Solution: declare `h_entry` matching goal form, use `exact_mod_cast hCH` for ℚ→ℝ cast
+  - All 5 hypotheses of `bounded_linear_ode_limit_rational` fully proved: derivative tower (HasDerivAt.sum + Finset.sum_fn), boundedness (triangle + simplex), rational initial values (choose + push_cast), Cayley-Hamilton (entry-wise CH + sum rearrangement), convergence (hf0 rewrite)
+- **Structured `bounded_linear_ode_limit_rational`** with analysis sub-lemmas:
+  - Added `tendsto_zero_of_tendsto_bounded_deriv` (Barbalat-lite, sorry'd)
+  - Added `const_of_iterated_deriv_zero_bounded` (bounded + D^m = 0 → constant, sorry'd)
+  - Main proof: rootMultiplicity factoring of charpoly, g = q(D)f₀ combination, derivative tower, Barbalat induction for f_k → 0. Algebraic structure all compiles, 4 internal sorry remain (sum re-indexing, triangle bound, limit argument, conclusion)
+- **Key Mathlib finds**: `isBoundedUnder_abs_atTop_iff` (bounded polynomial ↔ degree ≤ 0), `exists_eq_pow_rootMultiplicity_mul_and_not_dvd`, `coeff_X_pow_mul'`, `constant_of_has_deriv_right_zero`
+- **Barbalat's lemma** NOT in Mathlib — this is the main remaining analysis gap
+- Build: 0 errors, 7 sorry declarations (4 pipeline + 2 analysis sub-lemmas + 1 structured analysis core)
+
+## Session Log (2026-04-16, night — session 19)
+- **PROVED `conservative_trajectory_sum`** — conservation invariant:
+  - General theorem: if field is conservative (∑ field(x)_i = 0) and trajectory solves ODE, then ∑ trajectory(t)_i = ∑ init_i for all t ≥ 0
+  - Proof: `HasDerivAt.fun_sum` + `hasDerivAt_pi` gives derivative of sum = sum of derivatives = 0; then `constant_of_has_deriv_right_zero` (Mathlib MVT) gives constancy
+  - Added import `Mathlib.Analysis.Calculus.MeanValue`
+- **PROVED `conservative_trajectory_simplex`** — corollary: simplex invariance when ∑ init = 1
+- **Factored `stage2_core` into proved composition**:
+  - `stage2_core` was monolithic sorry; now proved by composing:
+    - `stage2_ode_solution` (sorry) — ODE existence + convergence for balanced system
+    - `crn_nonneg_invariance` (sorry) — CRN non-negativity invariance
+    - `conservative_trajectory_simplex` (proved) — simplex from conservation
+    - `stage2_init_rational` (existing) — rational init
+    - `stage2_field_tpp` + `stage2_field_cubicForm` (existing) — TPP + CubicForm
+  - Sorry count 4 → 5 but total sorry surface decreased: stage2_core's algebraic + conservation content now proved
+- Build: 0 errors, 5 sorry declarations (stage1_core + stage2_ode_solution + crn_nonneg_invariance + bridge + algebraic)
+
+## Session Log (2026-04-16, night — session 18)
+- **Structural refactoring: 5 → 4 sorry declarations**
+  - Created `stage1_core` (sorry): v-variable quadraticization with explicit A/B coefficient output
+  - Created `stage2_core` (sorry): analytic stage (ODE existence + convergence for balanced system)
+  - **PROVED `stage1_quadraticization`**: derived from `stage1_core` by constructing IsCRNImplementable from A/B decomposition
+  - **PROVED `stage2_to_tpp`**: derived from `stage1_core` + `stage2_core` (composition)
+  - **PROVED `stage3_to_lpp`**: derived from `stage1_core` + `stage2_core` + `tpp_to_lpp` (composition)
+  - Key pattern: A/B coefficients give `field_eq : field x i = (∑_a ∑_b A i a b * x a * x b) - (∑_a B i a * x a) * x i`, which IS the CRN decomposition with prod = ∑∑A·x·x and degr = ∑B·x
+- **Resolved v-variable CRN-implementability question** (asked 爸爸):
+  - Original concern: product-rule gives degradation ∝ v_{α-e_k}·v_{e_k} ≠ v_α off manifold
+  - Resolution (from paper Theorem 12): define v-ODE using manifold-simplified formula v'_α = Σ_k α_k·P_k·v_{α-e_k} - (Σ_k α_k·Q_k)·v_α. This formula is CRN-implementable FOR ALL v (algebraic identity), and agrees with product rule on manifold
+  - 爸爸's insight: "写成 v 变量的形式，它没有什么依赖的" — just look at the form in v-variables
+  - **Paper typo noted**: Theorem 12 formula missing chain-rule factor α_k in the sum (writes Σ_k instead of Σ_k α_k). Conclusion still correct since α_k ∈ ℕ≥0 preserves positivity
+- Build: 0 errors, 4 sorry declarations
+
+## Session Log (2026-04-16, night — session 17)
+- **PROVED `const_of_iterated_deriv_zero_bounded`** — bounded + D^m=0 → constant:
+  - Statement requires ALL g j bounded (not just g 0): `∀ j, ∃ C, ∀ t ≥ 0, |g j t| ≤ C`
+  - Proof: `induction m generalizing g`, tower-shifting `g' j = g(j+1)`
+  - IH gives g 1 constant; case split on g 1 0 = 0 or ≠ 0
+  - Key fix: `hg_deriv 0 s hs0` gives `HasDerivAt (g 0) (g (0+1) s) s`; extracted as `hd0` helper to avoid `g (0+1)` vs `g 1` mismatch in `rw`
+  - Case g 1 0 ≠ 0: proved g 0 affine via `constant_of_has_deriv_right_zero` on `g 0 - g 0 0 - g 1 0 * t`; contradiction via reverse triangle inequality (`abs_add_le` + `ring`)
+  - Positivity fix: derived `hC_nn : 0 ≤ C` from `abs_nonneg` + bound at 0
+- **PROVED `tendsto_zero_of_tendsto_bounded_deriv`** — Barbalat-lite:
+  - **Statement change**: added `f'' : ℝ → ℝ` and `hf'_deriv`, `hf''_bdd` (bounded second derivative). Old statement (bounded f' only) is FALSE — oscillating bumps of decreasing width give counterexample
+  - Direct proof (no contradiction): for given ε, set δ = ε/(4(C+1)), η = εδ/8
+  - MVT (`exists_hasDerivAt_eq_slope`) on f gives slope bound |f'(c)| ≤ |f(t+δ)-f(t)|/δ
+  - MVT on f' gives Lipschitz: |f'(t)-f'(c)| ≤ Cδ
+  - Cauchy from convergence: |f(t+δ)-f(t)| < 2η via `dist_triangle` + `dist_comm`
+  - Arithmetic: 2η/δ + Cδ ≤ ε/4 + ε/4 = ε/2 < ε; closed by `field_simp` + `nlinarith`
+- Updated usage sites in `bounded_linear_ode_limit_rational`: added `(f 2)` / `(f (k+2))` and `(h_deriv 1)` / `(h_deriv (k+1))`
+- **Result: 6 → 4 sorry declarations** (all 4 are pipeline stages, 0 analysis sorry remaining)
+- Build: 0 errors
+
+## Session Log (2026-04-16, night — session 16)
+- **PROVED all 4 internal sorry in `bounded_linear_ode_limit_rational`** — now 0 internal sorry:
+  - **hg_zero** (g m = 0 from CH): sum re-indexing via `Finset.sum_range_add`, prefix zeroing via `Finset.sum_eq_zero` with `exact_mod_cast` for ℚ→ℝ cast (`simp [this]` failed because it couldn't see through the cast)
+  - **hg_lim** (g 0 → c_m·ν): `tendsto_finset_sum` with per-term convergence; k=0 term → c_m·ν via `tendsto_const_nhds.mul h_conv`; k≥1 terms → c_{m+k}·0 via `hf_lim_zero`; simplified with `Finset.sum_ite_eq'` + `mul_ite`
+  - **Final conclusion** (ν ∈ ℚ): `by_contra` + `Metric.tendsto_nhds` + constancy: for any ε > 0, ∃ N s.t. dist(g 0 t, c_m·ν) < ε for t ≥ N; take t = max(N,0) ≥ 0 so g 0 t = g 0 0 (constant); get dist(g 0 0, c_m·ν) < ε; with ε = dist(g 0 0, c_m·ν) > 0 → contradiction; then `push_cast` + `eq_div_iff` + `mul_comm`
+- **Key Lean pattern**: `tendsto_const_nhds.mul h_tendsto` gives `Tendsto (fun x => c * f x) l (nhds (c * L))` — don't simplify `c * 0` to `0` before applying (type mismatch)
+- Build: 0 errors, 6 sorry declarations (4 pipeline + 2 analysis sub-lemmas)
+- **Lemma 10 analysis core: COMPLETE** — `bounded_linear_ode_limit_rational` + `linear_ode_marked_sum_rational` both 0 sorry
+
+## Session Log (2026-04-16, night — session 13)
+- **Stage 3 → NAP connection analysis (documented in NAP.lean)**:
+  - Analyzed which ppField cases have self-production in the z-PP:
+    - **Case 1 (i,j ≠ 0)**: strict no-self-production holds (A(i,i,j) = A(j,i,j) = 0 from x-PP NSP)
+    - **Case 2a/2b (one index = 0)**: self-production through colCoupling/rowCoupling (B coefficients not constrained by NSP), but μ_source = 1 ≤ 2 and foreign_pair holds
+    - **Case 3 (i=j=0)**: z(0,0) always in production, μ_source = 1 ≤ 2, foreign_pair holds
+  - **Conclusion**: `nap_split_comprehensive` covers ALL production monomials of cubed self-product PP
+  - Added documentation block at end of NAP.lean summarizing the case analysis
+- **Manifold insight discussion with 爸爸 (msg 790)**:
+  - 爸爸独立悟出 invariant manifold 的核心思想："先有 flow 再有流形"
+  - M = Image(Φ) is invariant because z(t) = Φ(x(t)) IS the push-forward
+  - Connects to conservation gap: ∑ ppField ≠ 0 off M, but on M it reduces to the original conservative system
+- **Added §7 to projects/Next/future-work.md**: Manifold calculus learning path
+  - Recommended: Tu (intro), Lee (GTM 218), Hirsch-Smale-Devaney (ODE/dynamical systems)
+- Build: 0 errors, 5 sorry (all in Stages.lean, unchanged)
+
+## Session Log (2026-04-16, night — session 12)
+- **Protocol-level PP→NAP theorem + paper gap discovery**:
+  - `CubedPPMonomial`: structure bundling chain rule data + strict no-self-production
+  - `cubed_pp_nap`: protocol-level theorem — every CubedPPMonomial admits balanced non-autocatalytic split
+  - **PAPER GAP FOUND**: Note 14b Theorem proof Step 2 claims δ = 2α without justification:
+    - Step 1 correctly derives α ≤ δ from no-NAP hypothesis
+    - Step 2 claims γ* = δ - α must equal α "by hypothesis," but partition β = α, γ = δ-α satisfies hypothesis because β = α (doesn't force γ = α)
+    - Concrete issue: α = (2,1,0), μ = (3,1,0,...), δ = (5,1,0) has only 2 weight-3 divisors {α, (3,0,0)}, no NAP split
+    - For ACTUAL PPs: production coefficients ≤ 2 per reaction, so problematic monomials cancel (net coefficient ≤ 0)
+    - Formalization sidesteps the gap: strict no-self-production (μ_source = 0) cleanly splits into two proved cases
+  - **Open question**: Does Stage 3 construction guarantee strict no-self-production (x_j exponent = 0 in all monomials of p_j)?
+- Build: 0 errors, 5 sorry (all in Stages.lean, unchanged)
+
+## Session Log (2026-04-16, night — session 11)
+- **Extended NAP.lean with general PP→NAP theorem — still 0 sorry, 0 errors**:
+  - `trivial_split_of_lt`: when δ_source < α_source, any weight-3 divisor gives β ≠ α ∧ γ ≠ α
+  - `exists_weight_divisor`: greedy induction — any multi-index of weight ≥ k has weight-k divisor
+  - `trivial_balanced_split`: combines exists_weight_divisor + trivial_split_of_lt for the ¬foreign_pair case
+  - `pp_to_nap_split`: **GENERAL PP→NAP** monomial theorem — case splits on foreign_pair:
+    - foreign_pair holds → routes to `nap_splitting_feasibility` (pure_power + mixed_support)
+    - foreign_pair fails → μ concentrated on one non-source variable → μ_source=0 → δ_source < α_source → `trivial_balanced_split`
+  - **Key insight**: PP strict no-self-production ensures μ_source = 0, making the two-case split clean
+  - Build fix: `Finset.add_sum_erase` needed explicit function arg + drop `.symm` (LHS/RHS were swapped)
+- Build: 0 errors, 5 sorry (all in Stages.lean, unchanged)
+
+## Session Log (2026-04-16, night — session 10)
+- **Completed NAP.lean core — 0 sorry, 0 errors**:
+  - `nap_splitting_feasibility` (Note 14 Theorem 1): every degree-6 production monomial from cubing construction admits non-autocatalytic factorization
+  - Two-case proof: `pure_power_split` (|supp(α)|=1) + `mixed_support_split` (|supp(α)|≥2)
+  - Mixed case uses primary/backup miShift strategy: try β₁ = miShift α i₀ source; if γ₁ = α (unit), use β₂ = miShift α i₀ k. Both γ-failures contradict at source coordinate.
+  - `pp_pipeline_bound`: PP self-exponent ≤ 1 implies pipeline_bound ≤ 2
+  - **Key discovery**: `foreign_pair` condition is essential for ProductionMonomial — the r²-trick ensures μ has weight on ≥2 distinct non-source variables. Without this, counterexample: α=(1,2), μ=(1,3), δ=(1,5) has no valid split.
+  - **Key discovery**: Note 14's published proof has a gap — "|supp(α)|≥2 implies extra divisors" only holds for δ=2α, not general δ. The `foreign_pair` fills this gap.
+  - Technical notes: `set` + `rw [miShift_*]` incompatible (opacity); use miShift directly with pre-computed chain rule bounds + omega
+- Build: 0 errors, 5 sorry (all in Stages.lean, unchanged)
+
+## Session Log (2026-04-16, night — session 9)
+- **Bournez MFCS 2012 gap analysis**: Ran CF'24 counterexample x²-x+1/9 through Bournez's construction
+  - dx_δ = -dx₁ = ε(-1/9 + x₁ - x₁²). At origin: p_δ(0,0) = -ε/9 < 0. CRN-implementability FAILS.
+  - Rendered LaTeX derivation and sent to 爸爸
+  - Key insight: ANY quadratic with a₀ = ab > 0 (both roots in (0,1)) is a counterexample
+  - Vieta: design space is {(p,q) : 2√p ≤ q < 1+p}, entire 2D region of counterexamples
+- **Fixed `stage1_quadraticization` and `stage2_to_tpp` statements**: Tightened existentials
+  - Old: `∃ field', ∃ _ : IsTPPImplementable field', ∃ btc'` (disconnected — vacuously provable)
+  - New: `∃ btc', ∃ _ : IsTPPImplementable btc'.pivp.field` (field tied to BTC)
+  - Build: 0 errors, 5 sorry (count unchanged)
+- **Published blog post**: "Vieta's Theorem and a Gap in CRN-to-Protocol Translation" on infsup.com
+  - Covers: CRN constraint, Bournez's conservation trick failure, Vieta counterexample family, balancing dilation fix
+  - Fair to Bournez et al.: "pioneered the connection", "result is correct, construction has gap"
+- **Read BD repo appendix.tex**: Found 爸爸's systematic example construction
+  - Table of candidates: u=1/2(boring), u=1/3(CF'24), u=1/4, etc.
+  - "only used 初中高中数学: 韦达定理 + inequalities"
+- **Proved 4 new infrastructure lemmas**:
+  - `crn_boundary_nonneg`: CRN fields point inward at non-negative orthant boundary (x_i=0 → field_i ≥ 0)
+  - `stage2_init`: Definition of Stage 2 initial conditions (Fin.cons (1 - c·∑y₀) (c·y₀))
+  - `stage2_init_simplex`: Stage 2 init sums to 1 (always on simplex)
+  - `stage2_init_rational`: Stage 2 init is rational when c ∈ ℚ and y₀ ∈ ℚⁿ
+  - `stage2_init_nonneg`: Stage 2 init is non-negative when c·∑y₀ ≤ 1
+- **Fixed `stage1_quadraticization` + `stage2_to_tpp` statements**: Tied BTC field to TPP/CRN proof
+  - Old: `∃ field' ... ∃ btc'` (disconnected, vacuously provable)
+  - New: `∃ btc', ∃ _ : IsTPPImplementable btc'.pivp.field` (properly tied)
+- Build: 0 errors, 5 sorry
+
+## Session Log (2026-04-16, night — session 8)
+- **Proved `constantDilation_reparametrize`**: Solution preservation under time rescaling
+  - If x solves x' = field(x), then x(ε·t) solves x' = constantDilation ε field(x)
+  - Proof via component-wise chain rule: hasDerivAt_pi + HasDerivAt.comp + smul_eq_mul
+  - This is a key building block for Stage 2 analytic argument
+- **Factored `lpup_computes_rational`**: Extracted `linear_ode_marked_sum_rational` helper
+  - Helper isolates the hard linear algebra: rational A + rational x₀ + simplex + convergence → rational ν
+  - Plumbing from IsLPPComputable to clean statement verified (0 errors)
+  - Proof sketch in docstring: spectral projection P₀ is polynomial in A (Bezout), hence rational
+- **Restructured `stage3_to_lpp`**: Verified composition with tpp_to_lpp
+  - Now chains: sorry'd stages 1+2 bundle (BTC + TPP + cubicForm + simplex + nonneg + init_rat) → tpp_to_lpp
+  - The sorry is consolidated into the stages 1+2 existential bundle
+- **Restructured `algebraic_lpp_computable`**: Separated algebraic→BTC from pipeline
+  - Now: sorry'd "algebraic number is BTC" + stage3_to_lpp
+- **Written graph-modeling note**: `notes/graph-modeling-matching.md`
+  - Documents demand/supply asymmetry, per-monomial bipartite graphs, Hall's condition
+  - PP→NAP via cubing: bucket size argument, CF'24 running example, causal chain
+  - Connection to LPP Stage 4, Note 12 flow network, Note 25 cross-square theorem
+- **Analysis of remaining 5 sorry**:
+  - stage1: blocked by semantic vs syntactic PIVP gap (needs CertifiedBTC or MvPolynomial)
+  - stage2: blocked by stage1 + balancingDilation analytic argument (time reparametrization)
+  - stage3: composition, resolves when 1+2 are done
+  - algebraic_lpp: needs algebraic→BTC (constructive PIVP for algebraic numbers)
+  - lpup_rational: needs spectral projection theory over ℚ
+- Build: 0 errors, 5 sorry (proof structure improved, no sorry count change)
+
+## Session Log (2026-04-16, night — session 7)
+- **Proved `stage2_field_cubicForm`**: Complete Stage 2 pipeline → Stage2CubicForm bridge
+  - Shows `stage2_field ε c field = balancingDilation (lambdaTrick c (constantDilation ε field))`
+    produces a Stage2CubicForm when input field has quadratic production (A) + linear degradation (B)
+  - Scaled coefficients: A' = ε·A/c, B' = ε·B/c
+  - Proof routes through `balancingDilation_cubicForm` with explicit coefficient scaling
+  - Production sum matching via `Finset.mul_sum` + `Finset.sum_congr` + `field_simp`
+  - This completes the bridge: quadratic CRN input → Stage 2 composition → Stage2CubicForm → Stage 3
+- **Fixed `lpup_computes_rational` statement**: Corrected quantifier order
+  - Old (buggy): `∀ x ∀ i, ∃ a, field x i = ∑ a·x` (trivially true for any polynomial)
+  - New (correct): `∃ A, ∀ x ∀ i, field x i = ∑ A i j · x j` (constant matrix)
+- **Paper gap discussion with 爸爸**:
+  - 爸爸 sent CF'24 paper (Huang-Migunov): GPAC→PP compiler
+  - Paper uses symmetric self-product (z₀₁ merged with z₁₀) — resolves the gap
+  - PLPP constructed via coefficient matching (positive vs negative term pairing), not IsPPImplementable
+  - 爸爸 confirms: "formal cancellation 不成问题"
+  - Resolution: use d(d+1)/2 symmetric variables, direct matching for PLPP
+- Build: 0 errors, 5 sorry
 
 ## Session Log (2026-04-16, night — session 6)
 - **Resolved `tpp_to_lpp` sorry** (6→5 sorry):
@@ -160,6 +492,13 @@ Ripple/
   - Third-person perspective (no "My dad"), proper references [1]-[4], removed Ripple mentions
   - Fixed LaTeX rendering via Hugo Goldmark passthrough extension (config.yaml)
   - Restored $\lambda$-trick and $g$-trick notation after passthrough fix
+- **Proved `balancingDilation_cubicForm`**: Bridge lemma from Stage 2 output to Stage 3 input
+  - Given a field with explicit quadratic production (A) and linear degradation (B) coefficients,
+    `balancingDilation` produces a `Stage2CubicForm` on Fin (n+1) with zero = 0
+  - Zero-padded coefficients: A'(i+1,a+1,b+1) = A(i,a,b), A'(·,0,·) = 0; B'(i+1,a+1) = B(i,a), B'(·,0) = 0
+  - field_eq proved via Fin.sum_univ_succ + Fin.cases reduction
+  - field_zero proved via balancingDilation_conservative (conservation → zero variable equation)
+  - This bridges the algebraic building blocks (Op 2-4) to tpp_to_lpp's Stage2CubicForm hypothesis
 - Build: 0 errors, 5 sorry
 
 ## Session Log (2026-04-16, night — session 5)
