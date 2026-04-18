@@ -6,3 +6,4 @@ import Ripple.LPP.Rational
 import Ripple.LPP.NAP
 import Ripple.LPP.VVariable
 import Ripple.LPP.Product
+import Ripple.LPP.AlgebraicConstruction

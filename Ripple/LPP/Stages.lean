@@ -20,6 +20,7 @@ import Ripple.LPP.Syntactic
 import Ripple.Core.BoundedTime
 import Ripple.LPP.VVariable
 import Ripple.LPP.Product
+import Ripple.LPP.AlgebraicConstruction
 import Ripple.Core.ODEGlobal
 import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Calculus.MeanValue
@@ -3706,17 +3707,24 @@ theorem gpac_to_lpp {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
     ∃ _ : IsLPPComputable α, True :=
   stage3_to_lpp hα01 cbtc pcd
 
-/-- AXIOM: Algebraic numbers are CRN-computable with syntactic certificates.
-Justified by [RTCRN1] Theorem 3.4 + [LPP] Corollary 18.
+/-- Algebraic numbers are CRN-computable with syntactic certificates.
 
-TODO: the actual construction used in Xiang's papers for algebraic numbers
-is NOT Newton iteration (a prior session incorrectly sketched Newton + dual-rail
-here; the comment was speculative and has been removed to avoid misleading future
-work). The correct construction must be read from the paper proofs directly. -/
-axiom algebraic_is_certified_crn {α : ℝ}
+Construction:
+  [RTCRN1] Lemma 5.1 — single-species CRN `dx/dt = P(x)` with `x(0) = 0`,
+    where `α > 0` is the smallest positive root of min polynomial `P`,
+    `c₀ = P.coeff 0 ≥ 0`, and P has only simple roots.
+  [RTCRN1] Theorem 5.2 — general algebraic α reduces to Lemma 5.1 by
+    shifting via a rational `p/q`, using field-closure under addition.
+
+See `Ripple.Algebraic.algebraic_is_certified_crn_refined` in
+`Ripple/LPP/AlgebraicConstruction.lean` for the structured replacement
+that factors this through explicit polynomial data and focused analytic
+axioms aligned with the paper's proof steps. -/
+theorem algebraic_is_certified_crn {α : ℝ}
     (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
     ∃ (d : ℕ) (cbtc : CertifiedBoundedTimeComputable d α)
-      (_ : PolyCRNDecomposition d cbtc.pivp), True
+      (_ : PolyCRNDecomposition d cbtc.pivp), True :=
+  Ripple.Algebraic.algebraic_is_certified_crn_refined halg
 
 /-- Corollary 18 in [LPP]: Algebraic numbers in [0,1] are LPP-computable. -/
 theorem algebraic_lpp_computable {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
