@@ -3957,6 +3957,31 @@ theorem stage3_to_lpp_crn {d : ℕ} {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
   -- Pure Stage 3: TPP → LPP via self-product
   exact tpp_to_lpp hα01 btc₂ tpp₂ s₂ h_simp₂ h_nn₂ h_rat₂
 
+/-- **Scalar axiom-free LPP pipeline**: for one-dimensional CRN inputs with
+non-negative orbit and output-monotone descent, the `c = 1` sum inequality
+is automatic (`stage1_vvariable_crn_of_scalar_mono`), so the caller needs
+only the Newton-descent and non-negativity hypotheses. -/
+theorem stage3_to_lpp_crn_scalar {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
+    (btc : CertifiedBoundedTimeComputable 1 α)
+    (pcd : PolyCRNDecomposition 1 btc.pivp)
+    (D : ℕ) (hD : 1 ≤ D)
+    (hDprod : ∀ k, (pcd.prod k).totalDegree ≤ D)
+    (hDdegr : ∀ k, (pcd.degr k).totalDegree ≤ D)
+    (h_nn_orbit : ∀ t : ℝ, 0 ≤ t → ∀ k, 0 ≤ btc.sol.trajectory t k)
+    (h_mono : ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.toPIVP.field (btc.sol.trajectory t) btc.pivp.output ≤ 0)
+    (h_output_init_zero : btc.pivp.init btc.pivp.output = 0) :
+    ∃ _ : IsLPPComputable α, True := by
+  obtain ⟨d₁, hd₁nz, cbtc₁, A, B, hA, hB, h_field, h_nn, h_rat, h_out_init⟩ :=
+    stage1_vvariable_crn_of_scalar_mono btc pcd D hD hDprod hDdegr
+      h_nn_orbit h_mono
+  haveI : NeZero d₁ := hd₁nz
+  have h_zero_init : cbtc₁.pivp.init cbtc₁.pivp.output = 0 := by
+    rw [h_out_init, h_output_init_zero]; exact Rat.cast_zero
+  obtain ⟨d₂, btc₂, tpp₂, s₂, h_simp₂, h_nn₂, h_rat₂⟩ :=
+    stage2_core_crn cbtc₁ A B hA hB h_field h_nn h_zero_init h_rat
+  exact tpp_to_lpp hα01 btc₂ tpp₂ s₂ h_simp₂ h_nn₂ h_rat₂
+
 /-- Stage 4 (Theorem 16 / Construction 1 in [LPP]):
 Given a syntactic PP balance equation with explicit ℚ coefficients,
 the product distribution α_{i,j,k,l} = c_{k,i,j} · c_{l,i,j} / 4
