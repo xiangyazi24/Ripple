@@ -1,5 +1,7 @@
 # Ripple CHECKPOINT — 2026-04-17 (updated, session 28)
 
+> **Work log:** see [WORK_LOG.md](WORK_LOG.md) for append-only proof progress log with timestamps.
+
 ## Current State
 
 ### Fully Proved (0 sorry, 0 axiom)
