@@ -1195,9 +1195,35 @@ theorem stage2_z0_le_one {d : ℕ} {α : ℝ}
     Finset.sum_nonneg fun j _ => h_tail_nn j
   linarith
 
--- NOTE: monotonicity of stage2_effectiveTime deferred — requires
--- ContinuousOn.intervalIntegrable + integral additivity; non-blocking
--- for the uniqueness argument (which only needs τ ≥ 0 at t ≥ 0).
+/-- Monotonicity of the effective time `τ`: when `ε ≥ 0` and `z₀ ≥ 0` on
+`[0, ∞)`, for any `0 ≤ s ≤ t` we have `τ(s) ≤ τ(t)`.
+
+Uses `integral_add_adjacent_intervals` to split `∫₀ᵗ = ∫₀ˢ + ∫ₛᵗ`, then
+non-negativity of the integrand on `[s, t]`. -/
+theorem stage2_effectiveTime_mono {n : ℕ} {ε c : ℝ} (hε : 0 ≤ ε) {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P))
+    (h_z0_nn : ∀ s, 0 ≤ s → 0 ≤ sol.trajectory s 0)
+    {s t : ℝ} (hs : 0 ≤ s) (hst : s ≤ t) :
+    stage2_effectiveTime sol s ≤ stage2_effectiveTime sol t := by
+  have ht : 0 ≤ t := le_trans hs hst
+  unfold stage2_effectiveTime
+  -- Reduce to comparing the integrals ∫₀ˢ z₀ ≤ ∫₀ᵗ z₀.
+  refine mul_le_mul_of_nonneg_left ?_ hε
+  have h_cont_Icc : ContinuousOn (fun s => sol.trajectory s 0) (Set.Icc (0 : ℝ) t) :=
+    (stage2_zero_continuousOn sol).mono (fun x hx => hx.1)
+  have h_i_0s : IntervalIntegrable (fun u => sol.trajectory u 0)
+      MeasureTheory.volume 0 s :=
+    (h_cont_Icc.mono (fun x hx => ⟨hx.1, le_trans hx.2 hst⟩)).intervalIntegrable_of_Icc hs
+  have h_i_st : IntervalIntegrable (fun u => sol.trajectory u 0)
+      MeasureTheory.volume s t :=
+    (h_cont_Icc.mono (fun x hx => ⟨le_trans hs hx.1, hx.2⟩)).intervalIntegrable_of_Icc hst
+  have h_split : ∫ u in (0:ℝ)..t, sol.trajectory u 0
+      = (∫ u in (0:ℝ)..s, sol.trajectory u 0) + ∫ u in s..t, sol.trajectory u 0 :=
+    (intervalIntegral.integral_add_adjacent_intervals h_i_0s h_i_st).symm
+  have h_tail_nn : 0 ≤ ∫ u in s..t, sol.trajectory u 0 :=
+    intervalIntegral.integral_nonneg hst
+      (fun u hu => h_z0_nn u (le_trans hs hu.1))
+  linarith
 
 /-- Continuity of the unscaled tail `w(t) := selectiveUnscale o c (Fin.tail (sol t))`
 on `Set.Ici 0`. Follows from the derivative established in
