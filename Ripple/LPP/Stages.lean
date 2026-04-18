@@ -13,9 +13,9 @@
     Operation 3: Variable shrinking (λ-trick)
     Operation 4: Balancing dilation (g-trick)
 
-  The end-to-end pipeline is `stage3_to_lpp`, currently closing over
-  `stage2_convergence_axiom`. A paper-grounded replacement (Remark 14 of
-  [LPP]) for that axiom is planned but not yet wired.
+  The end-to-end pipeline closure lives in
+  `Ripple.LPP.Stage2Convergence` as `stage2_to_lpp_from_room`, which
+  threads the Remark 14 room condition as input and is axiom-free.
 -/
 
 import Ripple.LPP.Defs
@@ -1536,8 +1536,8 @@ theorem stage2_output_eq_btc_output_at_tau
               = btc.sol.trajectory (stage2_effectiveTime sol t) := h_eq
         exact congrArg (fun f => f btc.pivp.output) hpt
 
-/-- **Stage 2 convergence (conditional on the LPP invariant)** — closes the
-content of `stage2_convergence_axiom` for `t ≥ 0` assuming the still-open
+/-- **Stage 2 convergence (conditional on the LPP invariant)** — closes
+Stage 2 convergence for `t ≥ 0` assuming the still-open
 z₀ ≥ c invariant (LPP Remark 14).
 
 Hypotheses:
@@ -2456,7 +2456,7 @@ theorem quadraticForm_locally_lipschitz {d : ℕ} {field : (Fin d → ℝ) → F
   exact contDiff_locally_lipschitz h_cd
 
 /-- **Stage 2 convergence from the z₀ ≥ c invariant + simplex + quadratic btc
-form** — the cleanest conditional closure of `stage2_convergence_axiom`.
+form** — the cleanest conditional closure of Stage 2 convergence.
 
 Compared to `stage2_convergence_from_invariants`, this wrapper internally
 supplies the scaffolding (uniform `M`, `L`, `h_w_bdd`, `h_btc_bdd`, `h_lip`) so
@@ -3084,130 +3084,6 @@ noncomputable def crn_simplex_global_ode_solution {d : ℕ} (P : PIVP d)
     : PIVP.Solution P :=
   crn_simplex_global_ode_solution' P h_crn h_cons h_lip h_init_nn h_init_simplex
 
-/-- Axiom: Stage 2 ODE convergence.
-
-Given a CRN-implementable BTC computing α, the Stage 2 PIVP solution
-(from `crn_simplex_global_ode_solution`) converges to α with the same
-modulus, provided ε·c ≥ 1.
-
-The key argument ([LPP] Remark 14):
-1. The selectiveLambdaTrick preserves output dynamics: the equation for
-   z_{o+1} uses f_o(selectiveUnscale(tail z)), where selectiveUnscale
-   does NOT divide the output by c.
-2. The balancing dilation creates time dilation by factor z₀(t).
-3. In effective time τ(t) = ∫₀ᵗ z₀(s)ds, the output evolves by the
-   original (ε-scaled) dynamics.
-4. With ε·c ≥ 1 and simplex/non-negativity, τ(t) grows fast enough
-   that ε·τ(t) ≥ t, giving the same convergence modulus. -/
-axiom stage2_convergence_axiom {d : ℕ} {α : ℝ}
-    (btc : BoundedTimeComputable d α) (ε c : ℝ)
-    (hε : 0 < ε) (hc : 0 < c) (hεc : 1 ≤ ε * c)
-    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i)
-    (h_sum_le : c * ∑ j, btc.pivp.init j ≤ 1)
-    (crn : IsCRNImplementable d btc.pivp.field)
-    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp)) :
-    ∀ r : ℕ, ∀ t : ℝ, t > btc.modulus r →
-      |sol.trajectory t (stage2_pivp ε c btc.pivp).output - α| <
-        Real.exp (-(r : ℝ))
-
-/-- Stage 2 ODE existence with convergence (derived from the two axioms above).
-
-Given a BTC computing α with quadratic CRN coefficients A, B, the Stage 2 PIVP
-(ε-scaling + selective λ-shrinking + balancing dilation) has a solution
-that converges to α with the same modulus, provided ε·c ≥ 1.
-
-Requires explicit A, B coefficients (not just `IsCRNImplementable`) because
-the locally Lipschitz proof goes through `Stage2CubicForm`, which needs the
-quadratic coefficient matrices. -/
-theorem stage2_ode_axiom {d : ℕ} {α : ℝ}
-    (btc : BoundedTimeComputable d α) (ε c : ℝ)
-    (hε : 0 < ε) (hc : 0 < c) (hεc : 1 ≤ ε * c)
-    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
-    (hA : ∀ i a b, 0 ≤ A i a b) (hB : ∀ i a, 0 ≤ B i a)
-    (h_field : ∀ i x, btc.pivp.field x i =
-      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
-    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i)
-    (h_sum_le : c * ∑ j, btc.pivp.init j ≤ 1) :
-    ∃ sol : PIVP.Solution (stage2_pivp ε c btc.pivp),
-      ∀ r : ℕ, ∀ t : ℝ, t > btc.modulus r →
-        |sol.trajectory t (stage2_pivp ε c btc.pivp).output - α| <
-          Real.exp (-(r : ℝ)) := by
-  -- Derive CRN implementability from A, B decomposition
-  have crn : IsCRNImplementable d btc.pivp.field := {
-    prod := fun i x => ∑ a, ∑ b, A i a b * x a * x b
-    degr := fun i x => ∑ a, B i a * x a
-    prod_pos := fun i x hx => Finset.sum_nonneg fun a _ =>
-      Finset.sum_nonneg fun b _ => mul_nonneg (mul_nonneg (hA i a b) (hx a)) (hx b)
-    degr_pos := fun i x hx => Finset.sum_nonneg fun a _ => mul_nonneg (hB i a) (hx a)
-    field_eq := fun x i => h_field i x
-  }
-  -- Step 1: The stage2 system satisfies all hypotheses for global ODE existence
-  let P := stage2_pivp ε c btc.pivp
-  have h_crn' : IsCRNImplementable (d + 1) P.field :=
-    (stage2_field_tpp (o := btc.pivp.output) hε.le hc crn).toIsCRNImplementable
-  have h_cons' : IsConservative P.field :=
-    balancingDilation_conservative _
-  -- Locally Lipschitz via Stage2CubicForm (polynomial degree ≤ 3)
-  have h_lip' : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin (d + 1) → ℝ,
-      ‖x‖ ≤ R → ‖y‖ ≤ R → ‖P.field x - P.field y‖ ≤ L * ‖x - y‖ :=
-    cubicForm_locally_lipschitz
-      (stage2_field_cubicForm (o := btc.pivp.output) hε.le hc A B hA hB h_field)
-  have h_init_nn' : ∀ i, 0 ≤ P.init i :=
-    stage2_init_nonneg hc.le h_init_nn h_sum_le
-  have h_init_simp : ∑ i, P.init i = 1 :=
-    stage2_init_simplex c btc.pivp.init
-  -- Step 2: Global solution exists
-  let sol := crn_simplex_global_ode_solution P h_crn' h_cons' h_lip' h_init_nn' h_init_simp
-  -- Step 3: Convergence
-  exact ⟨sol, stage2_convergence_axiom btc ε c hε hc hεc h_init_nn h_sum_le crn sol⟩
-
-/-- Stage 2 ODE existence and convergence: given BTC d α with CRN
-decomposition, there exist ε, c > 0 (both rational) such that the
-Stage 2 PIVP has a solution converging to α with the same modulus.
-
-Parameter choice (proved):
-  - n = ⌈∑ init⌉₊ + 1 (ensures c·∑init ≤ 1)
-  - c = 1/n (rational, positive)
-  - ε = n (rational, positive, ε·c = 1)
-
-Boundedness is proved separately in `stage2_core` from
-simplex conservation + CRN non-negativity + Lipschitz.
-
-**Note:** still uses `stage2_convergence_axiom` via `stage2_ode_axiom`.
-An axiom-free replacement `stage2_ode_solution_crn` exists (consuming a
-`CRNBoundedTimeComputable` rather than a plain BTC) but cannot replace
-this theorem until Stage 1 (`stage1_core`) is refactored to produce a
-CRN-BTC. -/
-private theorem stage2_ode_solution {d : ℕ} {α : ℝ}
-    (btc : BoundedTimeComputable d α)
-    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
-    (hA : ∀ i a b, 0 ≤ A i a b) (hB : ∀ i a, 0 ≤ B i a)
-    (h_field : ∀ i x, btc.pivp.field x i =
-      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
-    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i) :
-    ∃ (ε c : ℝ) (_ : 0 < ε) (_ : 0 < c),
-      c * ∑ j, btc.pivp.init j ≤ 1 ∧
-      (∃ qε : ℚ, ε = (qε : ℝ)) ∧ (∃ qc : ℚ, c = (qc : ℝ)) ∧
-      ∃ sol : PIVP.Solution (stage2_pivp ε c btc.pivp),
-        ∀ r : ℕ, ∀ t : ℝ, t > btc.modulus r →
-          |sol.trajectory t (stage2_pivp ε c btc.pivp).output - α| <
-            Real.exp (-(r : ℝ)) := by
-  -- n = ⌈∑ init⌉₊ + 1
-  let n : ℕ := Nat.ceil (∑ j, btc.pivp.init j) + 1
-  have hn_pos : (0 : ℝ) < (n : ℝ) := Nat.cast_pos.mpr (Nat.succ_pos _)
-  -- c·∑init ≤ 1: since ∑init ≤ ⌈∑init⌉₊ ≤ n
-  have h_cS : 1 / (n : ℝ) * ∑ j, btc.pivp.init j ≤ 1 := by
-    rw [div_mul_eq_mul_div, one_mul, div_le_one hn_pos]
-    exact le_trans (Nat.le_ceil _) (by exact_mod_cast Nat.le_succ _)
-  -- ε·c = n · (1/n) = 1
-  have hεc : 1 ≤ (n : ℝ) * (1 / (n : ℝ)) := by
-    rw [mul_one_div, div_self (ne_of_gt hn_pos)]
-  -- Apply theorem with A, B coefficients
-  obtain ⟨sol, h_conv⟩ := stage2_ode_axiom btc (n : ℝ) (1 / (n : ℝ))
-    hn_pos (div_pos one_pos hn_pos) hεc A B hA hB h_field h_init_nn h_cS
-  exact ⟨(n : ℝ), 1 / (n : ℝ), hn_pos, div_pos one_pos hn_pos, h_cS,
-    ⟨(n : ℚ), by push_cast; ring⟩, ⟨1 / (n : ℚ), by push_cast; ring⟩, sol, h_conv⟩
-
 /-! ## Stage Core Lemmas
 
 The pipeline stages are split into "core" lemmas (with sorry for the main
@@ -3263,87 +3139,6 @@ private theorem stage1_core {d : ℕ} {α : ℝ}
       (∀ i, ∃ q : ℚ, btc'.pivp.init i = ↑q) :=
   stage1_core_axiom btc pcd
 
-/-- Stage 2 core (Theorem 13 in [LPP]):
-Given a quadratic CRN with explicit coefficients A, B, non-negative
-rational initial conditions, construct a TPP-implementable system on the
-simplex with all properties needed by Stage 3 (tpp_to_lpp).
-
-Algebraic parts (proved):
-  - `stage2_field_tpp`: TPP-implementable field
-  - `stage2_field_cubicForm`: Stage2CubicForm structure
-  - `stage2_init_simplex/rational/nonneg`: initial condition properties
-  - `conservative_trajectory_simplex`: simplex invariance from conservation
-
-Analytic parts (`crn_nonneg_invariance` PROVED; ODE via axioms):
-  - ODE existence: `crn_simplex_global_ode_solution` (axiom)
-  - Convergence: `stage2_convergence_axiom` (axiom)
-  - Non-negativity invariance (proved via squared negative mass + Grönwall) -/
-private theorem stage2_core {d : ℕ} {α : ℝ}
-    (btc : BoundedTimeComputable d α)
-    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
-    (hA : ∀ i a b, 0 ≤ A i a b) (hB : ∀ i a, 0 ≤ B i a)
-    (h_field : ∀ i x, btc.pivp.field x i =
-      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
-    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i)
-    (h_init_rat : ∀ i, ∃ q : ℚ, btc.pivp.init i = ↑q) :
-    ∃ (d' : ℕ) (btc' : BoundedTimeComputable d' α),
-      ∃ (_ : IsTPPImplementable d' btc'.pivp.field)
-        (_ : Stage2CubicForm d' btc'.pivp.field),
-        (∀ t, 0 ≤ t → ∑ i, btc'.sol.trajectory t i = 1) ∧
-        (∀ t, 0 ≤ t → ∀ i, 0 ≤ btc'.sol.trajectory t i) ∧
-        (∀ i, ∃ q : ℚ, btc'.sol.trajectory 0 i = ↑q) := by
-  -- Get ODE solution for Stage 2 system (via theorem using A, B coefficients)
-  obtain ⟨ε, c, hε, hc, h_sum_le, _hε_q, hc_q, sol, h_conv⟩ :=
-    stage2_ode_solution btc A B hA hB h_field h_init_nn
-  -- Reconstruct CRN decomposition from A/B coefficients (needed for TPP/nonneg)
-  have crn : IsCRNImplementable d btc.pivp.field := {
-    prod := fun i x => ∑ a, ∑ b, A i a b * x a * x b
-    degr := fun i x => ∑ a, B i a * x a
-    prod_pos := fun i x hx => Finset.sum_nonneg fun a _ =>
-      Finset.sum_nonneg fun b _ => mul_nonneg (mul_nonneg (hA i a b) (hx a)) (hx b)
-    degr_pos := fun i x hx => Finset.sum_nonneg fun a _ => mul_nonneg (hB i a) (hx a)
-    field_eq := fun x i => h_field i x
-  }
-  -- Algebraic: TPP and CubicForm (computed before btc' for boundedness proof)
-  have tpp' : IsTPPImplementable (d + 1) (stage2_pivp ε c btc.pivp).field :=
-    stage2_field_tpp (o := btc.pivp.output) hε.le hc crn
-  have s' : Stage2CubicForm (d + 1) (stage2_pivp ε c btc.pivp).field :=
-    stage2_field_cubicForm (o := btc.pivp.output) hε.le hc A B hA hB h_field
-  -- Simplex invariance (PROVED via conservative_trajectory_simplex)
-  have h_simplex : ∀ t, 0 ≤ t → ∑ i, sol.trajectory t i = 1 :=
-    fun t ht => conservative_trajectory_simplex sol tpp'.conservative
-      (stage2_init_simplex c btc.pivp.init) ht
-  -- Non-negativity: CRN invariance via Grönwall (PROVED)
-  have h_nn : ∀ t, 0 ≤ t → ∀ i, 0 ≤ sol.trajectory t i :=
-    fun t ht => crn_nonneg_invariance sol tpp'.toIsCRNImplementable
-      (stage2_init_nonneg hc.le h_init_nn h_sum_le)
-      (cubicForm_locally_lipschitz s') t ht
-  -- Boundedness from simplex + non-negativity: each component in [0,1] ⊂ [-2,2]
-  have h_bounded : (stage2_pivp ε c btc.pivp).IsBounded sol.trajectory := by
-    refine ⟨2, two_pos, fun t ht => ?_⟩
-    rw [pi_norm_le_iff_of_nonneg (by norm_num : (0 : ℝ) ≤ 2)]
-    intro i
-    rw [Real.norm_eq_abs, abs_of_nonneg (h_nn t ht i)]
-    calc sol.trajectory t i
-        ≤ ∑ j, sol.trajectory t j :=
-          Finset.single_le_sum (fun j _ => h_nn t ht j) (Finset.mem_univ i)
-      _ = 1 := h_simplex t ht
-      _ ≤ 2 := by norm_num
-  -- Build BoundedTimeComputable for Stage 2
-  let btc' : BoundedTimeComputable (d + 1) α := {
-    pivp := stage2_pivp ε c btc.pivp
-    sol := sol
-    modulus := btc.modulus
-    bounded := h_bounded
-    convergence := h_conv
-  }
-  refine ⟨d + 1, btc', tpp', s', h_simplex, h_nn, ?_⟩
-  -- Rational init: algebraic (PROVED via stage2_init_rational)
-  · intro i
-    have h_init := congr_fun sol.init_cond i
-    rw [show btc'.sol.trajectory 0 i = sol.trajectory 0 i from rfl, h_init]
-    exact stage2_init_rational hc_q h_init_rat i
-
 /-- Stage 1 (Theorem 12 in [LPP]):
 Any CRN is a solution of a CRN-implementable system of degree ≤ 2.
 Derived from `stage1_core` by extracting CRN decomposition from A/B. -/
@@ -3361,18 +3156,6 @@ theorem stage1_quadraticization {d : ℕ} {α : ℝ}
     degr_pos := fun i x hx => Finset.sum_nonneg fun a _ => mul_nonneg (hB i a) (hx a)
     field_eq := fun x i => h_field i x
   }, trivial⟩
-
-/-- Stage 2 (Theorem 13 in [LPP]):
-Any quadratic CRN is a solution of a TPP-implementable cubic form system.
-Derived from `stage1_core` + `stage2_core`. -/
-theorem stage2_to_tpp {d : ℕ} {α : ℝ}
-    (btc : CertifiedBoundedTimeComputable d α)
-    (pcd : PolyCRNDecomposition d btc.pivp) :
-    ∃ d' : ℕ, ∃ btc' : BoundedTimeComputable d' α,
-      ∃ _ : IsTPPImplementable d' btc'.pivp.field, True := by
-  obtain ⟨d₁, btc₁, A, B, hA, hB, h_field, h_nn, h_rat⟩ := stage1_core btc pcd
-  obtain ⟨d₂, btc₂, tpp₂, _, _, _, _⟩ := stage2_core btc₁ A B hA hB h_field h_nn h_rat
-  exact ⟨d₂, btc₂, tpp₂, trivial⟩
 
 /-- Pure Stage 3 (Theorem 15 in [LPP]):
 Given a TPP-implementable system on the simplex with rational initial
@@ -3498,21 +3281,6 @@ theorem tpp_to_lpp {d : ℕ} {α : ℝ}
               _ = ε := Real.exp_log hε
   }, trivial⟩
 
-/-- Stage 3 (full pipeline): any CRN-implementable BTC number in [0,1] is LPP-computable.
-Chains Stage 1 → Stage 2 → pure Stage 3 via `stage1_core` + `stage2_core` + `tpp_to_lpp`.
-No sorry — all sorry's are isolated in the core lemmas. -/
-theorem stage3_to_lpp {d : ℕ} {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
-    (btc : CertifiedBoundedTimeComputable d α)
-    (pcd : PolyCRNDecomposition d btc.pivp) :
-    ∃ _ : IsLPPComputable α, True := by
-  -- Stage 1: quadraticize to get explicit A/B coefficients
-  obtain ⟨d₁, btc₁, A, B, hA, hB, h_field, h_nn, h_rat⟩ := stage1_core btc pcd
-  -- Stage 2: λ-trick + balancing dilation → TPP on simplex
-  obtain ⟨d₂, btc₂, tpp₂, s₂, h_simp₂, h_nn₂, h_rat₂⟩ :=
-    stage2_core btc₁ A B hA hB h_field h_nn h_rat
-  -- Pure Stage 3: TPP → LPP via self-product
-  exact tpp_to_lpp hα01 btc₂ tpp₂ s₂ h_simp₂ h_nn₂ h_rat₂
-
 theorem stage4_to_plpp {n : ℕ} (eq : SynPPBalance n) :
     ∃ tr : PLPPTransitions n, tr.balanceField = eq.toField :=
   ⟨eq.toPLPPTransitions, eq.toPLPPTransitions_balanceField_eq⟩
@@ -3521,22 +3289,6 @@ theorem stage4_to_plpp {n : ℕ} (eq : SynPPBalance n) :
 
 The main result of [LPP]: LPPs compute the same set of numbers
 in [0,1] as GPACs and CRNs. -/
-
-/-- Main Theorem ([LPP]):
-If α ∈ [0,1] is GPAC/CRN computable (bounded-time) with syntactic
-polynomial certificates, then α is LPP-computable.
-
-The proof composes the four stages:
-  CRN → quadratic CRN → TPP cubic → PP quadratic → PLPP → LPP.
-
-Note: takes `CertifiedBoundedTimeComputable` (syntactic PolyPIVP) rather
-than semantic `BoundedTimeComputable`, because the pipeline requires
-explicit polynomial structure for monomial enumeration in Stage 1. -/
-theorem gpac_to_lpp {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
-    {d : ℕ} (cbtc : CertifiedBoundedTimeComputable d α)
-    (pcd : PolyCRNDecomposition d cbtc.pivp) :
-    ∃ _ : IsLPPComputable α, True :=
-  stage3_to_lpp hα01 cbtc pcd
 
 /-- Algebraic numbers are CRN-computable with syntactic certificates.
 
@@ -3556,13 +3308,6 @@ theorem algebraic_is_certified_crn {α : ℝ}
     ∃ (d : ℕ) (cbtc : CertifiedBoundedTimeComputable d α)
       (_ : PolyCRNDecomposition d cbtc.pivp), True :=
   Ripple.Algebraic.algebraic_is_certified_crn_refined halg
-
-/-- Corollary 18 in [LPP]: Algebraic numbers in [0,1] are LPP-computable. -/
-theorem algebraic_lpp_computable {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
-    (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
-    ∃ _ : IsLPPComputable α, True := by
-  obtain ⟨d, cbtc, pcd, _⟩ := algebraic_is_certified_crn halg
-  exact gpac_to_lpp hα01 cbtc pcd
 
 /-! ## Motivating Example
 
