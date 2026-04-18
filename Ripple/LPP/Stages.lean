@@ -2541,42 +2541,16 @@ theorem stage2_convergence_from_z0_invariant
   exact stage2_convergence_from_invariants hε hc hεc sol h_zero_init
     h_z0_nn h_z0_le h_z0_lb M L' hL'_nn h_w_bdd h_btc_bdd hL'_bound
 
-/-- **Stage 2 z₀ invariant under conservation + output-field sign**.
-
-Proves the LPP Remark 14 invariant `c ≤ z₀(s)` for all `s ≥ 0`, under the
-minimal sufficient hypotheses:
-
-* `h_conservative`: `∑ i, field(x)_i = 0` for all `x` (true for CRN fields on
-  the probability simplex — preservation of total mass).
-* `h_output_nonpos`: the output component of the underlying field, evaluated
-  at the unscaled tail of the Stage 2 trajectory, is non-positive along the
-  orbit. In the dual-rail / convergence regime, `field_o ~ α - x_o`, which is
-  non-positive exactly when `x_o ≥ α` — and the Stage 2 dynamics naturally
-  drive the output upward from 0.
-* `h_z0_init_ge`: at `s = 0`, `z₀(0) ≥ c`. With Stage 2 init
-  `z₀(0) = 1 - c·∑ P.init`, this holds whenever `c·∑ P.init ≤ 1 - c`
-  (automatic for `∑ P.init ≤ 1` and `c ≤ 1/2`, or for suitable init bounds).
-
-Key algebraic identity: using conservation `∑_j field(w)_j = 0`,
-the Stage 2 z₀ ODE simplifies to
-
-  `z₀'(s) = -ε · (1 - c) · field(w(s))_o · z₀(s)`
-
-where `w(s) := selectiveUnscale o c (tail sol(s))`. With `0 < c ≤ 1`,
-`z₀ ≥ 0`, and `field(w)_o ≤ 0`, the RHS is non-negative, so z₀ is monotone
-non-decreasing on `[0, ∞)`. Hence `z₀(s) ≥ z₀(0) ≥ c`. -/
-theorem stage2_z0_invariant_under_conservation
-    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
-    (hε : 0 ≤ ε) (_hc : 0 < c) (hc1 : c ≤ 1)
-    {btc : BoundedTimeComputable d α}
-    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
-    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
-    (h_conservative : ∀ x, ∑ i, btc.pivp.field x i = 0)
-    (h_output_nonpos : ∀ s, 0 ≤ s →
-      btc.pivp.field (selectiveUnscale btc.pivp.output c
-        (Fin.tail (sol.trajectory s))) btc.pivp.output ≤ 0)
-    (h_z0_init_ge : c ≤ sol.trajectory 0 0) :
-    ∀ s, 0 ≤ s → c ≤ sol.trajectory s 0 := by
+-- NOTE: `stage2_z0_invariant_under_conservation` was REMOVED here.
+-- It is fully superseded by `stage2_z0_invariant_honest` +
+-- `stage2_weighted_nonpos_from_btc` + `stage2_z0_invariant_final`, which
+-- do not require inner-field conservation. Inner-field conservation was
+-- bogus for the LPP pipeline: the v-variable output of Stage 1 is
+-- deliberately non-conservative, so this theorem was never usable in the
+-- real chain. The raw proof block (conservation-based z₀ monotonicity via
+-- `z₀' = -ε · (1 - c) · field(w)_o · z₀`) is preserved in git history
+-- prior to commit removing `conservative` from `CRNBoundedTimeComputable`.
+/- REMOVED stage2_z0_invariant_under_conservation body — see NOTE above.
   -- z₀(s) := sol.trajectory s 0
   set z₀ : ℝ → ℝ := fun s => sol.trajectory s 0 with hz₀_def
   -- Under conservation, the sum in stage2_zero_hasDerivAt reduces to
@@ -2680,6 +2654,7 @@ theorem stage2_z0_invariant_under_conservation
     h_mono Set.self_mem_Ici hs hs
   calc c ≤ z₀ 0 := h_z0_init_ge
     _ ≤ z₀ s := h_z0_mono
+-/
 
 /-- **Stage 2 z₀ invariant — HONEST form.**
 
@@ -2846,180 +2821,13 @@ theorem stage2_z0_init_ge_of_sum_bound {n : ℕ} {ε c : ℝ} {P : PIVP n}
   rw [h_init, stage2_z0_init_eq]
   linarith
 
-/-- **Stage 2 convergence under conservation + output-field sign + init bound**.
-
-A cleaner wrapper around `stage2_convergence_from_z0_invariant` that replaces
-the raw invariant hypothesis `h_z0_lb` with three natural conditions:
-
-* `h_conservative`: the underlying CRN field is mass-preserving (automatic
-  for CRN fields on the probability simplex — see `IsConservative`).
-* `h_output_nonpos`: the output component of the field is non-positive along
-  the unscaled-tail orbit (the dual-rail convergence regime).
-* `h_c_sum`: `c + c · ∑ P.init ≤ 1`, giving `c ≤ z₀(0)` at the start.
-  For standard simplex init (∑ P.init = 1), this is exactly `c ≤ 1/2`.
-
-The conclusion is the same convergence statement: the output tracks α with
-the BTC's time modulus. -/
-theorem stage2_convergence_under_conservation
-    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
-    (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1) (hεc : 1 ≤ ε * c)
-    {btc : BoundedTimeComputable d α}
-    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
-    (h_field : ∀ i x, btc.pivp.field x i =
-      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
-    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
-    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
-    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
-    (h_zero_init : btc.pivp.init btc.pivp.output = 0)
-    (h_conservative : ∀ x, ∑ i, btc.pivp.field x i = 0)
-    (h_output_nonpos : ∀ s, 0 ≤ s →
-      btc.pivp.field (selectiveUnscale btc.pivp.output c
-        (Fin.tail (sol.trajectory s))) btc.pivp.output ≤ 0)
-    (h_c_sum : c + c * ∑ j, btc.pivp.init j ≤ 1) :
-    ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > btc.modulus r →
-      |sol.trajectory t (stage2_pivp ε c btc.pivp).output - α| <
-        Real.exp (-(r : ℝ)) := by
-  -- Derive the init bound c ≤ z₀(0) from the sum bound.
-  have h_z0_init_ge : c ≤ sol.trajectory 0 0 :=
-    stage2_z0_init_ge_of_sum_bound sol h_c_sum
-  -- Promote to the invariant c ≤ z₀(s) for all s ≥ 0.
-  have h_z0_lb : ∀ s, 0 ≤ s → c ≤ sol.trajectory s 0 :=
-    stage2_z0_invariant_under_conservation hε.le hc hc1 sol h_sol_nn
-      h_conservative h_output_nonpos h_z0_init_ge
-  -- Chain into the upstream convergence theorem.
-  exact stage2_convergence_from_z0_invariant hε hc hc1 hεc A B h_field
-    sol h_sol_nn h_sol_sum h_zero_init h_z0_lb
-
-/-- **Stage 2 convergence for CRN-encoded BTCs**.
-
-This is `stage2_convergence_under_conservation` specialized to
-`CRNBoundedTimeComputable`, where the conservation hypothesis
-`∀ x, ∑ i, field x i = 0` is supplied by the structure itself
-(via `cbtc.conservative`) rather than as an ad-hoc hypothesis.
-
-Use this wrapper at Stage 2 when the caller already has a
-`CRNBoundedTimeComputable`: conservation is automatic. -/
-theorem stage2_convergence_crn
-    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
-    (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1) (hεc : 1 ≤ ε * c)
-    {cbtc : CRNBoundedTimeComputable d α}
-    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
-    (h_field : ∀ i x, cbtc.pivp.field x i =
-      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
-    (sol : PIVP.Solution (stage2_pivp ε c cbtc.pivp))
-    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
-    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
-    (h_zero_init : cbtc.pivp.init cbtc.pivp.output = 0)
-    (h_output_nonpos : ∀ s, 0 ≤ s →
-      cbtc.pivp.field (selectiveUnscale cbtc.pivp.output c
-        (Fin.tail (sol.trajectory s))) cbtc.pivp.output ≤ 0)
-    (h_c_sum : c + c * ∑ j, cbtc.pivp.init j ≤ 1) :
-    ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > cbtc.modulus r →
-      |sol.trajectory t (stage2_pivp ε c cbtc.pivp).output - α| <
-        Real.exp (-(r : ℝ)) :=
-  stage2_convergence_under_conservation (btc := cbtc.toBoundedTimeComputable)
-    hε hc hc1 hεc A B h_field sol h_sol_nn h_sol_sum h_zero_init
-    cbtc.conservative h_output_nonpos h_c_sum
-
-/-- **Stage 2 convergence for CRN-encoded BTCs — final form**.
-
-Like `stage2_convergence_crn`, but the ad-hoc `h_output_nonpos` hypothesis is
-replaced by the structural `cbtc.output_monotone`: the BTC's output coordinate
-is monotone non-increasing along its own orbit. Via the time-reparametrization
-identity `stage2_unscaledTail_eq_btcTraj_comp_tau`, the Stage-2 coordinate
-`selectiveUnscale o c (tail sol s)` coincides pointwise with
-`btc.sol.trajectory (τ s)` for `τ s ≥ 0`, so `output_monotone` delivers the
-required sign condition automatically.
-
-This closes the gap: callers only need a `CRNBoundedTimeComputable` with
-`output_monotone` (a property of the BTC alone) and the simplex/init hypotheses;
-nothing need be proved about Stage-2-coordinate-level quantities. -/
-theorem stage2_convergence_final
-    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
-    (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1) (hεc : 1 ≤ ε * c)
-    {cbtc : CRNBoundedTimeComputable d α}
-    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
-    (h_field : ∀ i x, cbtc.pivp.field x i =
-      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
-    (sol : PIVP.Solution (stage2_pivp ε c cbtc.pivp))
-    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
-    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
-    (h_zero_init : cbtc.pivp.init cbtc.pivp.output = 0)
-    (h_c_sum : c + c * ∑ j, cbtc.pivp.init j ≤ 1) :
-    ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > cbtc.modulus r →
-      |sol.trajectory t (stage2_pivp ε c cbtc.pivp).output - α| <
-        Real.exp (-(r : ℝ)) := by
-  -- Reconstruct the uniform bounds exactly as in stage2_convergence_from_z0_invariant,
-  -- so we can apply stage2_unscaledTail_eq_btcTraj_comp_tau on any [0, s].
-  have h_sol_bdd : ∀ s, 0 ≤ s → ‖sol.trajectory s‖ ≤ 1 := by
-    intro s hs
-    rw [pi_norm_le_iff_of_nonneg zero_le_one]
-    intro i
-    rw [Real.norm_eq_abs, abs_of_nonneg (h_sol_nn s hs i)]
-    calc sol.trajectory s i
-        ≤ ∑ j, sol.trajectory s j :=
-          Finset.single_le_sum (f := sol.trajectory s)
-            (fun j _ => h_sol_nn s hs j) (Finset.mem_univ i)
-      _ = 1 := h_sol_sum s hs
-  have h_z0_nn : ∀ s, 0 ≤ s → 0 ≤ sol.trajectory s 0 := fun s hs => h_sol_nn s hs 0
-  have h_z0_le : ∀ s, 0 ≤ s → sol.trajectory s 0 ≤ 1 := by
-    intro s hs
-    have h_coord := norm_le_pi_norm (sol.trajectory s) 0
-    rw [Real.norm_eq_abs] at h_coord
-    exact (abs_le.mp (h_coord.trans (h_sol_bdd s hs))).2
-  obtain ⟨M_btc, hM_btc_pos, hM_btc⟩ := cbtc.bounded
-  set M : ℝ := max M_btc (1 / c) with hM_def
-  have hM_pos : 0 < M := lt_of_lt_of_le hM_btc_pos (le_max_left _ _)
-  have h_invc_le_M : 1 / c ≤ M := le_max_right _ _
-  have h_Mbtc_le_M : M_btc ≤ M := le_max_left _ _
-  obtain ⟨L, hL_bound⟩ := quadraticForm_locally_lipschitz A B h_field M hM_pos
-  set L' : ℝ := max L 0 with hL'_def
-  have hL'_nn : 0 ≤ L' := le_max_right _ _
-  have hL'_bound : ∀ x y : Fin d → ℝ, ‖x‖ ≤ M → ‖y‖ ≤ M →
-      ‖cbtc.pivp.field x - cbtc.pivp.field y‖ ≤ L' * ‖x - y‖ := by
-    intro x y hx hy
-    exact (hL_bound x y hx hy).trans
-      (mul_le_mul_of_nonneg_right (le_max_left _ _) (norm_nonneg _))
-  have h_τ_nn : ∀ s, 0 ≤ s → 0 ≤ stage2_effectiveTime sol s := fun s hs =>
-    stage2_effectiveTime_nonneg hε.le sol h_z0_nn s hs
-  have h_w_bdd_all : ∀ s, 0 ≤ s →
-      ‖selectiveUnscale cbtc.pivp.output c (Fin.tail (sol.trajectory s))‖ ≤ M := by
-    intro s hs
-    have h_tail_bdd : ‖Fin.tail (sol.trajectory s)‖ ≤ 1 := by
-      rw [pi_norm_le_iff_of_nonneg zero_le_one]
-      intro i
-      exact (norm_le_pi_norm (sol.trajectory s) i.succ).trans (h_sol_bdd s hs)
-    calc ‖selectiveUnscale cbtc.pivp.output c (Fin.tail (sol.trajectory s))‖
-        ≤ ‖Fin.tail (sol.trajectory s)‖ / c :=
-          selectiveUnscale_norm_le_div _ hc hc1 _
-      _ ≤ 1 / c := by
-          rw [div_le_div_iff_of_pos_right hc]; exact h_tail_bdd
-      _ ≤ M := h_invc_le_M
-  have h_btc_bdd_all : ∀ s, 0 ≤ s →
-      ‖cbtc.sol.trajectory (stage2_effectiveTime sol s)‖ ≤ M := fun s hs =>
-    (hM_btc _ (h_τ_nn s hs)).trans h_Mbtc_le_M
-  -- Derive h_output_nonpos from output_monotone via the unscaledTail ≡ btc.sol∘τ identity.
-  have h_output_nonpos : ∀ s, 0 ≤ s →
-      cbtc.pivp.field (selectiveUnscale cbtc.pivp.output c
-        (Fin.tail (sol.trajectory s))) cbtc.pivp.output ≤ 0 := by
-    intro s hs
-    -- Apply the state-vector identity on [0, s].
-    have h_eq_on :=
-      stage2_unscaledTail_eq_btcTraj_comp_tau (hc := ne_of_gt hc)
-        (btc := cbtc.toBoundedTimeComputable) sol h_zero_init h_z0_nn h_z0_le h_τ_nn
-        s hs M L' hL'_nn
-        (fun t ht => h_w_bdd_all t ht.1)
-        (fun t ht => h_btc_bdd_all t ht.1)
-        hL'_bound
-    have h_pt : selectiveUnscale cbtc.pivp.output c (Fin.tail (sol.trajectory s))
-        = cbtc.sol.trajectory (stage2_effectiveTime sol s) :=
-      h_eq_on ⟨hs, le_refl _⟩
-    rw [h_pt]
-    -- Now apply output_monotone at τ s ≥ 0.
-    exact cbtc.output_monotone (stage2_effectiveTime sol s) (h_τ_nn s hs)
-  -- Delegate to stage2_convergence_crn with the derived hypothesis.
-  exact stage2_convergence_crn (cbtc := cbtc) hε hc hc1 hεc A B h_field
-    sol h_sol_nn h_sol_sum h_zero_init h_output_nonpos h_c_sum
+-- NOTE: `stage2_convergence_under_conservation` and `stage2_convergence_crn`
+-- were REMOVED here. They assumed inner-field conservation, which is false
+-- for the LPP pipeline (Stage 1's v-variable output is deliberately
+-- non-conservative). Both are fully superseded by the HONEST chain:
+-- `stage2_z0_invariant_final` (via structural `weighted_nonpos`) +
+-- `stage2_convergence_from_z0_invariant`. See git history for the removed
+-- proof bodies.
 
 /-- **Stage 2 weighted-nonpos from BTC orbit, via the unscaledTail ≡ btc.sol ∘ τ
 bridge.** Transfers the CRN-BTC structural `weighted_nonpos` field — a property
@@ -3144,6 +2952,49 @@ theorem stage2_z0_invariant_final
     hε hc hc1 A B h_field sol h_sol_nn h_sol_sum h_zero_init
   exact stage2_z0_invariant_honest (btc := cbtc.toBoundedTimeComputable)
     hε hc hc1 sol h_sol_nn h_weighted h_z0_init_ge
+
+/-- **Stage 2 convergence for CRN-encoded BTCs — final form**.
+
+HONEST chain: the only structural hypotheses needed are the CRN-BTC's
+`output_monotone` / `weighted_nonpos` orbit-level sign conditions (both
+plausibly satisfiable by Newton iteration — NOT inner-field conservation,
+which is false for the v-variable output of Stage 1). The derivation goes
+
+  `cbtc.weighted_nonpos` (on BTC orbit)
+    --[`stage2_unscaledTail_eq_btcTraj_comp_tau`]→
+  pointwise `weighted_nonpos` along Stage-2 unscaled-tail orbit
+    --[`stage2_z0_invariant_honest`]→
+  `c ≤ z₀(s)` for all `s ≥ 0`
+    --[`stage2_convergence_from_z0_invariant`]→
+  Stage 2 output tracks α with BTC's time modulus.
+
+This is packaged by `stage2_z0_invariant_final` (first two steps) +
+`stage2_convergence_from_z0_invariant` (final step). -/
+theorem stage2_convergence_final
+    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
+    (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1) (hεc : 1 ≤ ε * c)
+    {cbtc : CRNBoundedTimeComputable d α}
+    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
+    (h_field : ∀ i x, cbtc.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (sol : PIVP.Solution (stage2_pivp ε c cbtc.pivp))
+    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
+    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
+    (h_zero_init : cbtc.pivp.init cbtc.pivp.output = 0)
+    (h_c_sum : c + c * ∑ j, cbtc.pivp.init j ≤ 1) :
+    ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > cbtc.modulus r →
+      |sol.trajectory t (stage2_pivp ε c cbtc.pivp).output - α| <
+        Real.exp (-(r : ℝ)) := by
+  -- HONEST chain: structural `weighted_nonpos` ⇒ `c ≤ z₀(s)` invariant
+  -- (via `stage2_z0_invariant_final`), then upstream convergence theorem.
+  -- No inner-field conservation is used anywhere.
+  have h_z0_init_ge : c ≤ sol.trajectory 0 0 :=
+    stage2_z0_init_ge_of_sum_bound sol h_c_sum
+  have h_z0_lb : ∀ s, 0 ≤ s → c ≤ sol.trajectory s 0 :=
+    stage2_z0_invariant_final (cbtc := cbtc) hε.le hc hc1 A B h_field sol
+      h_sol_nn h_sol_sum h_zero_init h_z0_init_ge
+  exact stage2_convergence_from_z0_invariant (btc := cbtc.toBoundedTimeComputable)
+    hε hc hc1 hεc A B h_field sol h_sol_nn h_sol_sum h_zero_init h_z0_lb
 
 /-- A field with Stage2CubicForm structure (polynomial of degree ≤ 3) is locally Lipschitz. -/
 private lemma cubicForm_locally_lipschitz {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}

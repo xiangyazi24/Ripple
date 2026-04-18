@@ -99,14 +99,19 @@ def IsCertifiedRealTimeComputable (α : ℝ) : Prop :=
   ∃ d : ℕ, ∃ btc : CertifiedBoundedTimeComputable d α,
     ∃ C : ℝ, 0 < C ∧ ∀ r : ℕ, btc.modulus r ≤ C * (↑r + 1)
 
-/-- A `BoundedTimeComputable` whose underlying PIVP field is conservative
-(mass-preserving: `∑ i, field x i = 0`). Intended for CRN-encoded BTCs,
-where conservation follows from stoichiometry. Downstream Stage 2
-convergence theorems consume this structure instead of taking conservation
-as an ad-hoc hypothesis. -/
+/-- A `BoundedTimeComputable` enriched with the two orbit-level structural
+sign conditions required by the HONEST Stage 2 chain:
+`output_monotone` (output coordinate non-increasing along the BTC's own
+orbit) and `weighted_nonpos` (the λ-trick `c`-weighted inner-field
+combination is non-positive along the orbit — the LPP Remark 14 geometric
+feasibility condition).
+
+Intended for CRN-encoded Newton iterations approaching α. These fields are
+plausibly satisfiable by real LPP constructions (unlike inner-field
+conservation, which the v-variable output of Stage 1 is deliberately
+non-conservative for). Downstream Stage 2 convergence theorems consume
+this structure via `stage2_z0_invariant_final`. -/
 structure CRNBoundedTimeComputable (d : ℕ) (α : ℝ) extends BoundedTimeComputable d α where
-  /-- The underlying field is mass-preserving: `∑ i, field x i = 0` for all `x`. -/
-  conservative : ∀ x : Fin d → ℝ, ∑ i, pivp.field x i = 0
   /-- The output coordinate is monotone non-increasing along the BTC's own orbit.
   Holds for CRN-encoded Newton iterations approaching α from above. Enables
   Stage 2 convergence without ad-hoc output-sign hypotheses. -/
