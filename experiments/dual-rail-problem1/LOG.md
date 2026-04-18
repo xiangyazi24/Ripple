@@ -46,6 +46,7 @@ Each experiment lives in `experiment_NN_slug/`:
 | 03 | biased Hopf normal form | clean oscillator | limit cycle r ≈ 1, ω tunable | done | bounded for k ≳ 100 across ω ∈ {1..100}; k* ω-independent (surprising, expected k* ∝ ω) |
 | 04 | Brusselator | native CRN | positive species, 2-species autocat. | done | bounded for k ≳ 100; hypothesis that non-neg species → smaller k* disproved; spurious v-rail from degradation |
 | 05 | Lorenz (biased) | bounded chaos | degree 2, chaotic, |x|~20 |z|~50 | done | bounded for k ≳ 10; degree-2 drops k* 10× vs degree-3 Hopf/Brusselator |
+| 06 | y' = C − C·y³ | scalar, C-scaled | coefficient-scaling test | done | k*(C) = C · k*(1), collapse verified for C ∈ {1, 10, 100, 1000} |
 
 ## Interim pattern (after 5 experiments)
 
