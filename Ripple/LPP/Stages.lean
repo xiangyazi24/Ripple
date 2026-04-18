@@ -3707,11 +3707,12 @@ theorem gpac_to_lpp {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
   stage3_to_lpp hα01 cbtc pcd
 
 /-- AXIOM: Algebraic numbers are CRN-computable with syntactic certificates.
-Justified by [RTCRN1] Theorem 3.4 + [LPP] Corollary 18:
-1. Algebraic α is a root of p ∈ ℤ[x], p ≠ 0
-2. Newton's method for p converges exponentially from a rational approximation
-3. The iteration can be expressed as a polynomial PIVP (rational coefficients)
-4. The resulting CRN is the dual-rail encoding of the Newton iteration -/
+Justified by [RTCRN1] Theorem 3.4 + [LPP] Corollary 18.
+
+TODO: the actual construction used in Xiang's papers for algebraic numbers
+is NOT Newton iteration (a prior session incorrectly sketched Newton + dual-rail
+here; the comment was speculative and has been removed to avoid misleading future
+work). The correct construction must be read from the paper proofs directly. -/
 axiom algebraic_is_certified_crn {α : ℝ}
     (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
     ∃ (d : ℕ) (cbtc : CertifiedBoundedTimeComputable d α)
