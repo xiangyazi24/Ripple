@@ -1010,6 +1010,45 @@ theorem stage2_btcTraj_comp_tau_hasDerivAt {d : ℕ} {α : ℝ} {ε c : ℝ}
   --            ((ε * sol.trajectory t 0) • btc.pivp.field (...)) t
   convert h_comp using 1
 
+/-- Unified right-derivative of the effective time `τ` on `Set.Ici 0`: at every
+`t ≥ 0`, `HasDerivWithinAt τ (ε · z_0(t)) (Ici 0) t`.
+
+Combines `stage2_effectiveTime_hasDerivAt` (for t > 0) and
+`stage2_effectiveTime_hasDerivWithinAt_zero` (for t = 0). -/
+theorem stage2_effectiveTime_hasDerivWithinAt {n : ℕ} {ε c : ℝ} {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P))
+    (t : ℝ) (ht : 0 ≤ t) :
+    HasDerivWithinAt (stage2_effectiveTime sol) (ε * sol.trajectory t 0)
+      (Set.Ici (0 : ℝ)) t := by
+  rcases lt_or_eq_of_le ht with h_pos | h_zero
+  · exact (stage2_effectiveTime_hasDerivAt sol t h_pos).hasDerivWithinAt
+  · subst h_zero
+    exact stage2_effectiveTime_hasDerivWithinAt_zero sol
+
+/-- Chain-rule right-derivative of `btc.sol.trajectory ∘ τ` on `Set.Ici 0`:
+at every `t ≥ 0` with `τ(t) ≥ 0`, the composition has right-derivative
+`(ε · z_0(t)) • btc.pivp.field (btc.sol.trajectory (τ(t)))`.
+
+This is the form required by `ODE_solution_unique_of_mem_Icc_right`. -/
+theorem stage2_btcTraj_comp_tau_hasDerivWithinAt {d : ℕ} {α : ℝ} {ε c : ℝ}
+    {btc : BoundedTimeComputable d α}
+    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
+    (t : ℝ) (ht : 0 ≤ t)
+    (hτt_nn : 0 ≤ stage2_effectiveTime sol t) :
+    HasDerivWithinAt (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
+      ((ε * sol.trajectory t 0) •
+        btc.pivp.field (btc.sol.trajectory (stage2_effectiveTime sol t)))
+      (Set.Ici (0 : ℝ)) t := by
+  have h_inner : HasDerivWithinAt (stage2_effectiveTime sol)
+      (ε * sol.trajectory t 0) (Set.Ici (0 : ℝ)) t :=
+    stage2_effectiveTime_hasDerivWithinAt sol t ht
+  have h_outer : HasDerivAt btc.sol.trajectory
+      (btc.pivp.field (btc.sol.trajectory (stage2_effectiveTime sol t)))
+      (stage2_effectiveTime sol t) :=
+    btc.sol.is_solution (stage2_effectiveTime sol t) hτt_nn
+  have h_comp := h_outer.scomp_hasDerivWithinAt t h_inner
+  convert h_comp using 1
+
 /-- The stage-2 output equals the unscaled-tail at the output coordinate:
   `sol(t)_{o.succ} = w(t)_o`
 
