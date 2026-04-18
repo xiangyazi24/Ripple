@@ -180,6 +180,23 @@ lemma CRNBoundedTimeComputable.mk_weighted_nonpos {d : ℕ} {α : ℝ}
   intro c hc hc1 t ht
   exact weighted_sum_nonpos_of_endpoints _ _ c hc hc1 (h_mono t ht) (h_sum_at_one t ht)
 
+/-- **Full constructor from the two orbit-level endpoints.** Bundles a plain
+`BoundedTimeComputable` with `output_monotone` and the `c = 1` sum inequality
+into a `CRNBoundedTimeComputable`. The `c`-parametric `weighted_nonpos`
+field is discharged via `mk_weighted_nonpos`. -/
+def CRNBoundedTimeComputable.ofEndpoints {d : ℕ} {α : ℝ}
+    (btc : BoundedTimeComputable d α)
+    (h_mono : ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.field (btc.sol.trajectory t) btc.pivp.output ≤ 0)
+    (h_sum_at_one : ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.field (btc.sol.trajectory t) btc.pivp.output
+        + ∑ j ∈ Finset.univ.erase btc.pivp.output,
+            btc.pivp.field (btc.sol.trajectory t) j ≤ 0) :
+    CRNBoundedTimeComputable d α where
+  toBoundedTimeComputable := btc
+  output_monotone := h_mono
+  weighted_nonpos := CRNBoundedTimeComputable.mk_weighted_nonpos btc h_mono h_sum_at_one
+
 /-- Certified CRN-computability implies the older semantic notion. -/
 theorem certified_crn_to_crn {α : ℝ} :
     IsCertifiedCRNComputable α → IsCRNComputable α := by
