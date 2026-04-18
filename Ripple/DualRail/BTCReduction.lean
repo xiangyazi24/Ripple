@@ -33,10 +33,13 @@ import Ripple.Core.InitShift
 namespace Ripple
 
 /-- [RTCRN2]/DNA 25 dual-rail BTC reduction: a zero-init BTC for α produces
-a (possibly higher-dimensional) BTC for α whose every species starts at 0
-and whose non-output species stay non-negative on `[0, ∞)`. Time modulus
-is preserved exactly. The underlying construction is polynomial-scale
-annihilation dual-rail + readout. -/
+a (possibly higher-dimensional) BTC for α whose every species starts at 0,
+whose non-output species stay non-negative on `[0, ∞)`, and whose output
+(the readout z species) exactly tracks the original output trajectory.
+Time modulus is preserved. The underlying construction is polynomial-scale
+annihilation dual-rail + readout `z' = p_o(u − v)` with `z(0) = 0`,
+yielding `z(t) = y_o(t)` by uniqueness of solutions of `z' = y_o'` with
+matching initial conditions. -/
 axiom BoundedTimeComputable.toDualRail {d : ℕ} {α : ℝ}
     (btc : BoundedTimeComputable d α)
     (_h_zero : ∀ j, btc.pivp.init j = 0) :
@@ -44,7 +47,10 @@ axiom BoundedTimeComputable.toDualRail {d : ℕ} {α : ℝ}
       (∀ j, btc'.pivp.init j = 0) ∧
       (∀ t : ℝ, 0 ≤ t → ∀ j, j ≠ btc'.pivp.output →
         0 ≤ btc'.sol.trajectory t j) ∧
-      btc'.modulus = btc.modulus
+      btc'.modulus = btc.modulus ∧
+      (∀ t : ℝ, 0 ≤ t →
+        btc'.sol.trajectory t btc'.pivp.output
+          = btc.sol.trajectory t btc.pivp.output)
 
 /-! ## Composed DNA 25 reduction: shift + dual-rail -/
 
@@ -59,7 +65,7 @@ theorem BoundedTimeComputable.dna25_shift_dualRail {d : ℕ} {α : ℝ}
       (∀ t : ℝ, 0 ≤ t → ∀ j, j ≠ btc'.pivp.output →
         0 ≤ btc'.sol.trajectory t j) ∧
       btc'.modulus = btc.modulus := by
-  obtain ⟨d', btc', h_init', h_nonneg', h_mod_eq⟩ :=
+  obtain ⟨d', btc', h_init', h_nonneg', h_mod_eq, _h_readout⟩ :=
     btc.shiftToZero.toDualRail (fun j => btc.shiftToZero_pivp_init j)
   exact ⟨btc.pivp.init btc.pivp.output, d', btc', h_init', h_nonneg', h_mod_eq⟩
 
