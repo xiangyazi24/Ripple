@@ -275,6 +275,16 @@ Ripple/
 - **Result**: **0 sorry, 2 axioms** (down from 3). Both remaining are research-content axioms, not Mathlib gaps.
 - Commits: 36d849c, 3c7d3c8, 86d5fb1, cbba685, bc46ce5, 47d6cfa, 2513451, e6691da, 1206f5a, d50e52b, 0ff5eec, a2812ce.
 
+### Session 28 continued — stage2_convergence_axiom infrastructure
+- **`stage2_unscaledTail_hasDerivAt`** (chain-rule core): `w(t) := selectiveUnscale o c (tail (sol t))` satisfies uniform `dw/dt = (ε · z₀(t)) • P.field(w(t))` at every coordinate. Case split on j = o (output unchanged) vs j ≠ o (divide by c). commit `c218f3a`.
+- **`stage2_zero_hasDerivAt`**: `dz₀/dt = -(Σ slt(cd) (tail sol))_j · z₀(t)`, directly from `stage2_field_zero` + `hasDerivAt_pi`. commit `4a20d3b`.
+- **`stage2_effectiveTime`** + **`stage2_effectiveTime_hasDerivAt`**: defined `τ(t) := ε · ∫₀ᵗ z₀(s) ds`, proved `dτ/dt = ε · z₀(t)` for t > 0 via `intervalIntegral.integral_hasDerivAt_right` + continuity on `Set.Ici 0`. Boundary t=0 deferred. commit `39e92b4`.
+- **`stage2_unscaledTail_init`**: characterizes `w(0)`. Since `stage2_init` scales all tail entries uniformly by c but `selectiveUnscale` only divides non-output coordinates, `w(0) = update P.init o (c · P.init o)` — **not** `P.init` unless `P.init o = 0`. commit `45f45a3`.
+- **`stage2_output_eq_unscaledTail`**: `sol(t)_{o.succ} = w(t)_o` (identity at output coordinate). commit `4735502`.
+
+### Known issue in stage2_convergence_axiom statement
+The current axiom statement does NOT assume `btc.pivp.init btc.pivp.output = 0`. Without this, the chain-rule argument breaks: w(0) = P.init at j ≠ o but w(0)_o = c · P.init_o at j = o, so w and `btc.sol.trajectory ∘ τ` disagree at t = 0 and remain different under ODE uniqueness. The LPP proof implicitly relies on DNA 25 preprocessing which zeros `P.init_o`. Correct formalization path: (a) strengthen axiom to require `P.init_o = 0`, OR (b) derive this from the BTC structure (not always true). TBD.
+
 ## Session Log (2026-04-17, session 27)
 - **Axiom 1 narrowed**: old monolithic `crn_simplex_global_ode_solution` axiom (composite of ODE extension + CRN invariance + conservation + simplex bound) replaced by:
   - New file `Core/ODEGlobal.lean` (~330 lines, 0 sorry, 1 axiom):
