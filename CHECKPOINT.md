@@ -296,6 +296,17 @@ The current axiom statement does NOT assume `btc.pivp.init btc.pivp.output = 0`.
 - **Continuity + vField + Lipschitz**: added `stage2_unscaledTail_continuousOn` (w on Ici 0), `stage2_btcTraj_comp_tau_continuousOn` (btc.sol∘τ on Ioi 0), `stage2_vField btc sol t x := (ε·z₀(t))•f(x)` (common RHS), and `stage2_vField_lipschitzOnWith` (uniform Lipschitz on closedBall 0 M, constant |ε|·L, using z₀∈[0,1]). commits `80855b6`, `c9b1832`.
 - **Night session commit chain (2026-04-17 → 2026-04-18)**: `3a44996 → 98d9e38 → 4741a4c → a439308 → 10b3445 → 80855b6 → c9b1832`. 7 commits, +~200 lines of proved infra, 0 sorry, 2 axioms unchanged.
 
+### Session 28 post-compaction (2026-04-18 early morning) — ODE uniqueness closed
+- **`stage2_effectiveTime_hasDerivWithinAt_zero`**: boundary right-derivative of τ at t=0 via `integral_hasDerivWithinAt_right` with `IntervalIntegrable.refl` (a=b=0) + StronglyMeasurableAtFilter on 𝓝[>] 0. commit `c50042d`.
+- **`stage2_effectiveTime_hasDerivWithinAt`** + **`stage2_btcTraj_comp_tau_hasDerivWithinAt`**: unified right-derivatives of τ and btc.sol∘τ on Ici 0 (interior + boundary). Upgraded `stage2_btcTraj_comp_tau_continuousOn` to Ici 0. commit `61f4e47`.
+- **`stage2_unscaledTail_eq_btcTraj_comp_tau`** (MAIN): ODE uniqueness via `ODE_solution_unique_of_mem_Icc_right`. Given zero-init `P.init o = 0` + uniform M, L bounds, `w(t) = btc.sol(τ(t))` on `[0, T]`. Packages `stage2_vField_lipschitzOnWith'` (LipschitzOnWith on closedBall 0 M). commit `351ba59`.
+- **`stage2_output_eq_btc_output_at_tau`**: corollary — `sol(t)@stage2.out = btc.sol(τ(t))@btc.out` on [0,T]. commit `7fe6f2b`.
+- **`stage2_effectiveTime_mono`**: τ non-decreasing when ε ≥ 0 and z₀ ≥ 0 (previously deferred, now closed via `integral_add_adjacent_intervals`). commit `cdd5d26`.
+- **`stage2_effectiveTime_lb`**: τ(t) ≥ ε·c·t under z₀ ≥ c. commit `1e3f491`.
+- **`stage2_convergence_from_invariants`** (BIG): conditional convergence theorem — under the still-open LPP z₀≥c invariant + uniform bounds, the content of `stage2_convergence_axiom` is now PROVEN for all t ≥ 0. Chain: output-equality + τ≥ε·c·t≥t + btc.convergence. commit `ec8c86b`.
+- **Remaining gap to close the axiom**: (a) prove h_z0_lb (LPP Remark 14 z₀≥c invariant — non-trivial; z₀ is not constant because Σtail isn't monotone for general btc fields); (b) establish uniform M, L globally; (c) handle t < 0 regime (or restrict axiom signature).
+- **Post-compaction commit chain**: `c50042d → 61f4e47 → 351ba59 → 7fe6f2b → cdd5d26 → 1e3f491 → ec8c86b`. 7 commits, +~340 lines, 0 sorry, 2 axioms unchanged but `stage2_convergence_axiom` is now 90% proved conditionally.
+
 ## Session Log (2026-04-17, session 27)
 - **Axiom 1 narrowed**: old monolithic `crn_simplex_global_ode_solution` axiom (composite of ODE extension + CRN invariance + conservation + simplex bound) replaced by:
   - New file `Core/ODEGlobal.lean` (~330 lines, 0 sorry, 1 axiom):
