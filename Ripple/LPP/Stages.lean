@@ -979,6 +979,32 @@ theorem stage2_unscaledTail_init {n : ℕ} {ε c : ℝ} (hc : c ≠ 0) {P : PIVP
   · rw [selectiveUnscale_ne hj, Function.update_of_ne hj]
     field_simp
 
+/-- Linear lower bound for the effective time `τ`: if `ε ≥ 0`, `c ≥ 0`,
+and `z₀(s) ≥ c` on `[0, t]`, then `τ(t) ≥ ε · c · t`.
+
+This is the τ-growth lemma that feeds the convergence argument: given
+the LPP z₀ ≥ c invariant (Remark 14), effective time grows at least
+linearly, so `τ(t) → ∞` as `t → ∞` with rate `ε · c`. -/
+theorem stage2_effectiveTime_lb {n : ℕ} {ε c : ℝ} (hε : 0 ≤ ε) {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P))
+    {t : ℝ} (ht : 0 ≤ t) {lb : ℝ} (hlb : 0 ≤ lb)
+    (h_z0_lb : ∀ s ∈ Set.Icc (0 : ℝ) t, lb ≤ sol.trajectory s 0) :
+    ε * lb * t ≤ stage2_effectiveTime sol t := by
+  unfold stage2_effectiveTime
+  have h_int_lb : lb * t ≤ ∫ s in (0:ℝ)..t, sol.trajectory s 0 := by
+    have h_const_int : ∫ _s in (0:ℝ)..t, lb = lb * t := by
+      simp [intervalIntegral.integral_const, sub_zero, mul_comm]
+    rw [← h_const_int]
+    apply intervalIntegral.integral_mono_on ht
+    · exact intervalIntegrable_const
+    · have h_cont_Icc : ContinuousOn (fun s => sol.trajectory s 0) (Set.Icc (0 : ℝ) t) :=
+        (stage2_zero_continuousOn sol).mono (fun x hx => hx.1)
+      exact h_cont_Icc.intervalIntegrable_of_Icc ht
+    · intro s hs; exact h_z0_lb s hs
+  calc ε * lb * t = ε * (lb * t) := by ring
+    _ ≤ ε * ∫ s in (0:ℝ)..t, sol.trajectory s 0 :=
+        mul_le_mul_of_nonneg_left h_int_lb hε
+
 /-- Effective time `τ(t)` is non-negative when the 0-th coordinate stays non-negative. -/
 theorem stage2_effectiveTime_nonneg {n : ℕ} {ε c : ℝ} (hε : 0 ≤ ε) {P : PIVP n}
     (sol : PIVP.Solution (stage2_pivp ε c P))
