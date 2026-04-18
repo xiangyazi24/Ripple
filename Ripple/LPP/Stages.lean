@@ -2681,6 +2681,69 @@ theorem stage2_z0_invariant_under_conservation
   calc c ≤ z₀ 0 := h_z0_init_ge
     _ ≤ z₀ s := h_z0_mono
 
+/-- **Stage 2 z₀ initial value**. Reading off `stage2_init`, the 0-th
+component of a Stage 2 PIVP's initial condition is `1 - c · ∑ P.init`. -/
+theorem stage2_z0_init_eq {n : ℕ} (ε c : ℝ) (P : PIVP n) :
+    (stage2_pivp ε c P).init 0 = 1 - c * ∑ j, P.init j := by
+  simp [stage2_pivp, stage2_init]
+
+/-- **Init bound: `c ≤ z₀(0)` from a simplex-compatible init bound**.
+
+Combined with `sol.init_cond`, this gives `c ≤ sol.trajectory 0 0` whenever
+`c * (1 + ∑ P.init) ≤ 1`. In the standard simplex case `∑ P.init = 1`, this
+reduces to the clean `c ≤ 1/2`. -/
+theorem stage2_z0_init_ge_of_sum_bound {n : ℕ} {ε c : ℝ} {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P))
+    (h_c_sum : c + c * ∑ j, P.init j ≤ 1) :
+    c ≤ sol.trajectory 0 0 := by
+  have h_init : sol.trajectory 0 = (stage2_pivp ε c P).init := sol.init_cond
+  rw [h_init, stage2_z0_init_eq]
+  linarith
+
+/-- **Stage 2 convergence under conservation + output-field sign + init bound**.
+
+A cleaner wrapper around `stage2_convergence_from_z0_invariant` that replaces
+the raw invariant hypothesis `h_z0_lb` with three natural conditions:
+
+* `h_conservative`: the underlying CRN field is mass-preserving (automatic
+  for CRN fields on the probability simplex — see `IsConservative`).
+* `h_output_nonpos`: the output component of the field is non-positive along
+  the unscaled-tail orbit (the dual-rail convergence regime).
+* `h_c_sum`: `c + c · ∑ P.init ≤ 1`, giving `c ≤ z₀(0)` at the start.
+  For standard simplex init (∑ P.init = 1), this is exactly `c ≤ 1/2`.
+
+The conclusion is the same convergence statement: the output tracks α with
+the BTC's time modulus. -/
+theorem stage2_convergence_under_conservation
+    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
+    (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1) (hεc : 1 ≤ ε * c)
+    {btc : BoundedTimeComputable d α}
+    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
+    (h_field : ∀ i x, btc.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
+    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
+    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
+    (h_zero_init : btc.pivp.init btc.pivp.output = 0)
+    (h_conservative : ∀ x, ∑ i, btc.pivp.field x i = 0)
+    (h_output_nonpos : ∀ s, 0 ≤ s →
+      btc.pivp.field (selectiveUnscale btc.pivp.output c
+        (Fin.tail (sol.trajectory s))) btc.pivp.output ≤ 0)
+    (h_c_sum : c + c * ∑ j, btc.pivp.init j ≤ 1) :
+    ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > btc.modulus r →
+      |sol.trajectory t (stage2_pivp ε c btc.pivp).output - α| <
+        Real.exp (-(r : ℝ)) := by
+  -- Derive the init bound c ≤ z₀(0) from the sum bound.
+  have h_z0_init_ge : c ≤ sol.trajectory 0 0 :=
+    stage2_z0_init_ge_of_sum_bound sol h_c_sum
+  -- Promote to the invariant c ≤ z₀(s) for all s ≥ 0.
+  have h_z0_lb : ∀ s, 0 ≤ s → c ≤ sol.trajectory s 0 :=
+    stage2_z0_invariant_under_conservation hε.le hc hc1 sol h_sol_nn
+      h_conservative h_output_nonpos h_z0_init_ge
+  -- Chain into the upstream convergence theorem.
+  exact stage2_convergence_from_z0_invariant hε hc hc1 hεc A B h_field
+    sol h_sol_nn h_sol_sum h_zero_init h_z0_lb
+
 /-- A field with Stage2CubicForm structure (polynomial of degree ≤ 3) is locally Lipschitz. -/
 private lemma cubicForm_locally_lipschitz {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (s : Stage2CubicForm d field) :
