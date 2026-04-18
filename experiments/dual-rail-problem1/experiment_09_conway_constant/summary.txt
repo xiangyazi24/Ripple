@@ -1,0 +1,19 @@
+λ = 1.3035772690342615
+q'(λ) = 137759973.58125576
+SIGN = -1
+p̂⁺(λ, 0) = 362942556.7962499
+p̂⁻(λ, 0) = 362942556.79624516
+M₀ = 362942556.7962499
+num plus_terms = 1265
+num minus_terms = 1260
+T = 5.0
+{'k': 36294255.67962502, 'k_over_M0': 0.10000000000000007, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.013426790781068, 'max_v': 7.2807906673574665e-06, 'final_u': 1.013426790781068, 'final_v': 7.2807906673574665e-06, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 100990922.38744977, 'k_over_M0': 0.2782559402207122, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.0134347689806622, 'max_v': 2.617229186897621e-06, 'final_u': 1.0134347689806622, 'final_v': 2.617229186897621e-06, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 281013240.62676847, 'k_over_M0': 0.7742636826811268, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.0134222761724831, 'max_v': 9.401228219271219e-07, 'final_u': 1.0134222761724831, 'final_v': 9.401228219271219e-07, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 781936034.8507081, 'k_over_M0': 2.154434690031884, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.0134434800323098, 'max_v': 3.380740798410018e-07, 'final_u': 1.0134434800323098, 'final_v': 3.380740798410018e-07, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 2175783465.6983967, 'k_over_M0': 5.994842503189413, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.0134209921300517, 'max_v': 1.213991543696885e-07, 'final_u': 1.0134209921300517, 'final_v': 1.213991543696885e-07, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 6054246739.64588, 'k_over_M0': 16.681005372000605, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.013418677803346, 'max_v': 4.361846828370008e-08, 'final_u': 1.013418677803346, 'final_v': 4.361846828370008e-08, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 16846301188.68341, 'k_over_M0': 46.415888336127665, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.0134167362573798, 'max_v': 1.5732161456340122e-08, 'final_u': 1.0134167362573798, 'final_v': 1.5732161456340122e-08, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 46875833764.9843, 'k_over_M0': 129.15496650148864, 'success': False, 'status': -1, 'message': 'Unexpected istate in LSODA.', 'max_u': 1.0134252277253337, 'max_v': 5.6366165064656064e-09, 'final_u': 1.0134252277253337, 'final_v': 5.6366165064656064e-09, 'final_t': 0.2502502502502503, 'all_finite': True}
+{'k': 130434791979.05478, 'k_over_M0': 359.3813663804621, 'success': True, 'status': 0, 'message': 'The solver successfully reached the end of the integration interval.', 'max_u': 1.3064147509641597, 'max_v': 0.0028374819298622334, 'final_u': 1.3064147509641593, 'final_v': 0.0028374819298621814, 'final_t': 5.0, 'all_finite': True}
+{'k': 362942556796.24945, 'k_over_M0': 999.9999999999986, 'success': True, 'status': 0, 'message': 'The solver successfully reached the end of the integration interval.', 'max_u': 1.3044114079600502, 'max_v': 0.0008341389257530283, 'final_u': 1.304411407960049, 'final_v': 0.0008341389257529897, 'final_t': 5.0, 'all_finite': True}

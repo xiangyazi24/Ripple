@@ -49,6 +49,7 @@ Each experiment lives in `experiment_NN_slug/`:
 | 06 | y' = C − C·y³ | scalar, C-scaled | coefficient-scaling test | done | k*(C) = C · k*(1), collapse verified for C ∈ {1, 10, 100, 1000} |
 | 07 | BP cascade (z, w, λy-gate) | Bournez-Pouly style | internal rate λ, fixed amplitude [0,1] | done | k* ≈ O(1) regardless of λ ∈ [1, 1000]! Coefficient on *cancelling* term ≠ threat |
 | 08 | y' = ε + A·y² − A·y³ | engineered | non-cancelling A on both ±monomials | done | k* = Θ(A) confirmed; v_ss = A/k matches; coefficient on *non-cancelling* monomial DOES drive k* |
+| 09 | y' = −q(y), q = Conway | degree-71 Conway min. poly. | λ ≈ 1.3036, 1265+1260 monomials, M₀ ≈ 3.63e8 | done | k* ≈ 200·M₀ ≈ 7e10; v_ss = M₀/(k·λ) confirmed (ratio 1.1–1.3); degree-dependent prefactor on M₀ |
 
 ## Interim pattern (after 5 experiments)
 
@@ -86,6 +87,20 @@ be much larger via non-cancelling parallel monomials, exp 08).
 parameter β? Exp 08 answers NO: family `{y' = ε + A·y² − A·y³}_A`
 has β ≈ 1 for all A, but k* = Θ(A) grows. So any constant-k theorem
 must allow k to depend on p, not just on β.
+
+## After 9 experiments — degree also matters
+
+Exp 09 (Conway degree-71) gives `k* ≈ 200 · M₀`, i.e. a prefactor
+≈ 200 on top of the M₀ prediction. Degree 3 systems (exps 06, 08)
+had prefactor ≈ 1. This suggests
+
+    k*  ≈  C(deg, structure)  ·  M₀,
+
+with C possibly growing polynomially in polynomial degree (plausibly
+from the `O(deg²)` number of binomial monomials after u−v substitution).
+v_ss = M₀/(k·λ) still holds (ratio 1.1–1.3 at k/M₀ = 359, 1000), so
+the slow-manifold picture is robust; the k-threshold for *entering* the
+slow manifold grows with degree.
 
 ## Candidate systems to try
 
