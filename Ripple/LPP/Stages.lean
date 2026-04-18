@@ -1129,6 +1129,28 @@ theorem stage2_z0_le_one {d : ℕ} {α : ℝ}
 -- ContinuousOn.intervalIntegrable + integral additivity; non-blocking
 -- for the uniqueness argument (which only needs τ ≥ 0 at t ≥ 0).
 
+/-- Continuity of the unscaled tail `w(t) := selectiveUnscale o c (Fin.tail (sol t))`
+on `Set.Ici 0`. Follows from the derivative established in
+`stage2_unscaledTail_hasDerivAt`. -/
+theorem stage2_unscaledTail_continuousOn {n : ℕ} {ε c : ℝ} (hc : c ≠ 0) {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P)) :
+    ContinuousOn (fun s => selectiveUnscale P.output c (Fin.tail (sol.trajectory s)))
+      (Set.Ici (0 : ℝ)) := by
+  intro t ht
+  exact ((stage2_unscaledTail_hasDerivAt hc sol t ht).continuousAt).continuousWithinAt
+
+/-- Continuity of `btc.sol.trajectory ∘ τ` on `Set.Ioi 0` (the composition of
+the BTC trajectory with the effective time map). Follows from the derivative
+in `stage2_btcTraj_comp_tau_hasDerivAt`, which itself requires `t > 0`. -/
+theorem stage2_btcTraj_comp_tau_continuousOn {d : ℕ} {α : ℝ} {ε c : ℝ}
+    {btc : BoundedTimeComputable d α}
+    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
+    (h_τ_nn : ∀ s, 0 < s → 0 ≤ stage2_effectiveTime sol s) :
+    ContinuousOn (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
+      (Set.Ioi (0 : ℝ)) := by
+  intro t ht
+  exact ((stage2_btcTraj_comp_tau_hasDerivAt sol t ht (h_τ_nn t ht)).continuousAt).continuousWithinAt
+
 /-! ## Self-Product (Stage 3 Building Block)
 
 The self-product z_{i,j} = xᵢ · xⱼ is the key construction for Stage 3.
