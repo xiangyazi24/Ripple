@@ -291,25 +291,57 @@ theorem minPolyPIVP_certified {α : ℝ} {P : Polynomial ℤ}
 
 /-! ## RTCRN1 Theorem 5.2 reduction: general α via rational shift
 
-The general case reduces to Lemma 5.1 via:
-  • pick a rational `p/q` with β < p/q < α where β is the largest
-    positive root of P strictly less than α (if any; else p/q = 0);
-  • replace P with Q(X) := P(X + p/q) · qⁿ — still integer coefficients
-    and simple roots, and α − p/q is the smallest positive root of Q;
-  • run the single-species construction for Q, then shift the readout
-    back by p/q via the rational addition pipeline.
+The general case reduces to Lemma 5.1 in two focused steps:
+  • algebraic_shift_to_smallest_positive_root: pick rational `q` and
+    integer polynomial `P` such that α − q is the smallest positive
+    root of P with `P.coeff 0 ≥ 0` (pure algebra — ensures P's roots
+    in the positive real axis are bounded below by α − q);
+  • certified_add_rational: the CRN/PolyCRNDecomposition output for
+    a real β carries over to β + q for any q : ℚ (closure property,
+    corresponds to RTCRN1 Section 4 addition closure).
 
-The reduction is pure algebra; we state it as an axiom here and defer
-the explicit PolyPIVP shift construction to future work. -/
+These two axioms jointly implement Theorem 5.2, and both are named
+to the precise paper content they discharge — no monolithic escape. -/
 
-/-- RTCRN1 Theorem 5.2: every nonzero algebraic α admits a CRN
-certificate via the single-species min-polynomial construction (after
-a rational shift when α is not the smallest positive root of its
-minimum polynomial). -/
-axiom algebraic_reduction_to_minpoly {α : ℝ}
+/-- Algebraic reduction to smallest-positive-root form. Given an
+algebraic α, there exist a rational shift `q` and an integer
+polynomial `P` such that α − q is the smallest positive root of P
+with `P.coeff 0 ≥ 0`. Pure algebra: uses minimum polynomial,
+inter-root gap, and `P(X + q) · qⁿ` integer transformation. -/
+axiom algebraic_shift_to_smallest_positive_root {α : ℝ}
+    (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
+    ∃ (q : ℚ) (P : Polynomial ℤ),
+      0 < α - (q : ℝ) ∧
+      (Polynomial.aeval (α - (q : ℝ)) P : ℝ) = 0 ∧
+      (∀ β : ℝ, 0 < β → β < α - (q : ℝ) →
+        (Polynomial.aeval β P : ℝ) ≠ 0) ∧
+      0 ≤ P.coeff 0
+
+/-- Additive closure for the certified CRN-computable data: shifting
+the target by a rational number preserves the existence of a certified
+CRN construction with a valid PolyCRNDecomposition. This is the
+syntactic-certificate version of [RTCRN1] Lemma 4.3 (R_LCRN is closed
+under addition), applied at the PolyPIVP / PolyCRNDecomposition level
+rather than the IsRealTimeComputable property level. -/
+axiom certified_add_rational {β : ℝ} (q : ℚ) {d : ℕ}
+    (cbtc : CertifiedBoundedTimeComputable d β)
+    (_pcd : PolyCRNDecomposition d cbtc.pivp) :
+    ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' (β + (q : ℝ)))
+      (_ : PolyCRNDecomposition d' cbtc'.pivp), True
+
+/-- RTCRN1 Theorem 5.2 assembled: every nonzero algebraic α admits a
+CRN certificate via min-polynomial shift + Lemma 5.1 + additive
+closure. This is now a theorem, not an axiom. -/
+theorem algebraic_reduction_to_minpoly {α : ℝ}
     (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
     ∃ (d : ℕ) (cbtc : CertifiedBoundedTimeComputable d α)
-      (_ : PolyCRNDecomposition d cbtc.pivp), True
+      (_ : PolyCRNDecomposition d cbtc.pivp), True := by
+  obtain ⟨q, P, hpos, hroot, hsmallest, hc0⟩ :=
+    algebraic_shift_to_smallest_positive_root halg
+  obtain ⟨cbtc, pcd, _⟩ := minPolyPIVP_certified hpos hroot hsmallest hc0
+  have : α - (q : ℝ) + (q : ℝ) = α := by ring
+  rw [← this]
+  exact certified_add_rational q cbtc pcd
 
 /-! ## Glue: replaces the monolithic `algebraic_is_certified_crn` axiom
 
