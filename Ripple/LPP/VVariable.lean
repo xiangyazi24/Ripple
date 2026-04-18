@@ -563,6 +563,21 @@ theorem vfield_total_sum_weight_nonneg {d : ℕ} (D : ℕ) (k : Fin d)
   · exact pow_nonneg (hx k) _
   · exact Finset.prod_nonneg (fun j _ => pow_nonneg (hx j) _)
 
+/-- **Total-monomial product factorization**: since `MIndex d D = Fin d → Fin (D+1)`
+is a box (product of `d` copies of `Fin (D+1)`), the sum of all monomials
+factorizes into a product of per-coordinate partial sums. Concretely,
+`∑_{α ∈ MIndex d D} x^α = ∏_k (1 + x_k + x_k² + ⋯ + x_k^D)`.
+
+This makes the c=1 v-endpoint `∑_α vfield_α(v(t)) ≤ 0` equivalent to
+`d/dt [∏_k (∑_m x_k^m)(x(t))] ≤ 0`, a Lyapunov-style orbit condition on a
+separable, strictly positive polynomial (when x ≥ 0, each factor ≥ 1). -/
+theorem total_monomial_prod_factorization {d : ℕ} (D : ℕ) (x : Fin d → ℝ) :
+    (∑ α : MIndex d D, α.eval x) =
+      ∏ k : Fin d, ∑ m : Fin (D + 1), x k ^ ((m : ℕ)) := by
+  simp only [MIndex.eval]
+  rw [Finset.prod_univ_sum]
+  rfl
+
 /-! ## Stage 1 main theorem
 
 Assemble the v-variable construction into the form required by
