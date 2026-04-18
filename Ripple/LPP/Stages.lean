@@ -2744,6 +2744,37 @@ theorem stage2_convergence_under_conservation
   exact stage2_convergence_from_z0_invariant hε hc hc1 hεc A B h_field
     sol h_sol_nn h_sol_sum h_zero_init h_z0_lb
 
+/-- **Stage 2 convergence for CRN-encoded BTCs**.
+
+This is `stage2_convergence_under_conservation` specialized to
+`CRNBoundedTimeComputable`, where the conservation hypothesis
+`∀ x, ∑ i, field x i = 0` is supplied by the structure itself
+(via `cbtc.conservative`) rather than as an ad-hoc hypothesis.
+
+Use this wrapper at Stage 2 when the caller already has a
+`CRNBoundedTimeComputable`: conservation is automatic. -/
+theorem stage2_convergence_crn
+    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
+    (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1) (hεc : 1 ≤ ε * c)
+    {cbtc : CRNBoundedTimeComputable d α}
+    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
+    (h_field : ∀ i x, cbtc.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (sol : PIVP.Solution (stage2_pivp ε c cbtc.pivp))
+    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
+    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
+    (h_zero_init : cbtc.pivp.init cbtc.pivp.output = 0)
+    (h_output_nonpos : ∀ s, 0 ≤ s →
+      cbtc.pivp.field (selectiveUnscale cbtc.pivp.output c
+        (Fin.tail (sol.trajectory s))) cbtc.pivp.output ≤ 0)
+    (h_c_sum : c + c * ∑ j, cbtc.pivp.init j ≤ 1) :
+    ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > cbtc.modulus r →
+      |sol.trajectory t (stage2_pivp ε c cbtc.pivp).output - α| <
+        Real.exp (-(r : ℝ)) :=
+  stage2_convergence_under_conservation (btc := cbtc.toBoundedTimeComputable)
+    hε hc hc1 hεc A B h_field sol h_sol_nn h_sol_sum h_zero_init
+    cbtc.conservative h_output_nonpos h_c_sum
+
 /-- A field with Stage2CubicForm structure (polynomial of degree ≤ 3) is locally Lipschitz. -/
 private lemma cubicForm_locally_lipschitz {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (s : Stage2CubicForm d field) :

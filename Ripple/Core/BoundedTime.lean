@@ -99,6 +99,15 @@ def IsCertifiedRealTimeComputable (α : ℝ) : Prop :=
   ∃ d : ℕ, ∃ btc : CertifiedBoundedTimeComputable d α,
     ∃ C : ℝ, 0 < C ∧ ∀ r : ℕ, btc.modulus r ≤ C * (↑r + 1)
 
+/-- A `BoundedTimeComputable` whose underlying PIVP field is conservative
+(mass-preserving: `∑ i, field x i = 0`). Intended for CRN-encoded BTCs,
+where conservation follows from stoichiometry. Downstream Stage 2
+convergence theorems consume this structure instead of taking conservation
+as an ad-hoc hypothesis. -/
+structure CRNBoundedTimeComputable (d : ℕ) (α : ℝ) extends BoundedTimeComputable d α where
+  /-- The underlying field is mass-preserving: `∑ i, field x i = 0` for all `x`. -/
+  conservative : ∀ x : Fin d → ℝ, ∑ i, pivp.field x i = 0
+
 /-- Certified CRN-computability implies the older semantic notion. -/
 theorem certified_crn_to_crn {α : ℝ} :
     IsCertifiedCRNComputable α → IsCRNComputable α := by
