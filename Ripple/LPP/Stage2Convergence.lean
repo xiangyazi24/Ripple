@@ -126,7 +126,7 @@ theorem stage2_z0_lb_from_btc_room_local
       btc.sol.trajectory σ btc.pivp.output
         + c * ∑ j ∈ Finset.univ.erase btc.pivp.output,
               btc.sol.trajectory σ j ≤ 1 - c_room)
-    (T : ℝ) (hT : 0 ≤ T)
+    (T : ℝ) (_hT : 0 ≤ T)
     (h_reparam : Set.EqOn
       (fun s => selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory s)))
       (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
@@ -273,7 +273,7 @@ Hypotheses beyond those of `stage2_convergence_axiom`:
 theorem stage2_convergence_from_room
     {d : ℕ} [NeZero d] {α : ℝ} {ε c c_room : ℝ}
     (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1)
-    (hc_room_pos : 0 < c_room) (hc_room_le_c : c_room ≤ c)
+    (hc_room_pos : 0 < c_room) (_hc_room_le_c : c_room ≤ c)
     (hε_c_room : 1 ≤ ε * c_room)
     {btc : BoundedTimeComputable d α}
     (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
@@ -389,5 +389,85 @@ content of `stage2_convergence_axiom` with NO new axioms, at the cost of:
   * The hypothesis `1 ≤ ε · c_room` (strengthening `1 ≤ ε · c` via `c_room ≤ c`);
   * The `h_room` hypothesis on the BTC trajectory — must be supplied by the
     upstream CRN construction (open obligation on the algebraic pipeline). -/
+
+/-! ## Axiom-free Stage 2 ODE gate
+
+Parallel entry point to `stage2_ode_axiom`, invoking `stage2_convergence_from_room`
+(not `stage2_convergence_axiom`). Callers that can supply the room condition and
+zero-init normalization get an axiom-free Stage 2 ODE. -/
+
+/-- **Axiom-free replacement for `stage2_ode_axiom`**.
+
+Same conclusion as `stage2_ode_axiom` but the convergence proof uses
+`stage2_convergence_from_room`, so this theorem introduces no new axiom.
+
+Extra hypotheses beyond `stage2_ode_axiom`:
+  * `hc1 : c ≤ 1` (pins `c ∈ (0, 1]`)
+  * `c_room : ℝ`, `hc_room_pos : 0 < c_room`, `hc_room_le_c : c_room ≤ c`
+  * `hε_c_room : 1 ≤ ε * c_room` (strengthens `1 ≤ ε * c`)
+  * `h_zero_init : btc.pivp.init btc.pivp.output = 0`
+  * `h_room`: Remark 14 room condition on the upstream BTC trajectory. -/
+theorem stage2_ode_axiomless_from_room {d : ℕ} [NeZero d] {α : ℝ}
+    (btc : BoundedTimeComputable d α) (ε c c_room : ℝ)
+    (hε : 0 < ε) (hc : 0 < c) (hc1 : c ≤ 1)
+    (hc_room_pos : 0 < c_room) (hc_room_le_c : c_room ≤ c)
+    (hε_c_room : 1 ≤ ε * c_room)
+    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
+    (hA : ∀ i a b, 0 ≤ A i a b) (hB : ∀ i a, 0 ≤ B i a)
+    (h_field : ∀ i x, btc.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i)
+    (h_sum_le : c * ∑ j, btc.pivp.init j ≤ 1)
+    (h_zero_init : btc.pivp.init btc.pivp.output = 0)
+    (h_room : ∀ σ, 0 ≤ σ →
+      btc.sol.trajectory σ btc.pivp.output
+        + c * ∑ j ∈ Finset.univ.erase btc.pivp.output,
+              btc.sol.trajectory σ j ≤ 1 - c_room) :
+    ∃ sol : PIVP.Solution (stage2_pivp ε c btc.pivp),
+      ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > btc.modulus r →
+        |sol.trajectory t (stage2_pivp ε c btc.pivp).output - α| <
+          Real.exp (-(r : ℝ)) := by
+  -- Reconstruct CRN from A, B (mirrors `stage2_ode_axiom`).
+  have crn : IsCRNImplementable d btc.pivp.field := {
+    prod := fun i x => ∑ a, ∑ b, A i a b * x a * x b
+    degr := fun i x => ∑ a, B i a * x a
+    prod_pos := fun i x hx => Finset.sum_nonneg fun a _ =>
+      Finset.sum_nonneg fun b _ => mul_nonneg (mul_nonneg (hA i a b) (hx a)) (hx b)
+    degr_pos := fun i x hx => Finset.sum_nonneg fun a _ => mul_nonneg (hB i a) (hx a)
+    field_eq := fun x i => h_field i x }
+  let P := stage2_pivp ε c btc.pivp
+  have h_crn' : IsCRNImplementable (d + 1) P.field :=
+    (stage2_field_tpp (o := btc.pivp.output) hε.le hc crn).toIsCRNImplementable
+  have h_cons' : IsConservative P.field :=
+    balancingDilation_conservative _
+  have h_lip' : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin (d + 1) → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R → ‖P.field x - P.field y‖ ≤ L * ‖x - y‖ :=
+    cubicForm_locally_lipschitz
+      (stage2_field_cubicForm (o := btc.pivp.output) hε.le hc A B hA hB h_field)
+  have h_init_nn' : ∀ i, 0 ≤ P.init i :=
+    stage2_init_nonneg hc.le h_init_nn h_sum_le
+  have h_init_simp : ∑ i, P.init i = 1 :=
+    stage2_init_simplex c btc.pivp.init
+  -- Existence of the global solution on [0,∞).
+  let sol := crn_simplex_global_ode_solution P h_crn' h_cons' h_lip' h_init_nn' h_init_simp
+  -- Extract TPP & cubic-form data needed to derive simplex + non-negativity.
+  have tpp' : IsTPPImplementable (d + 1) P.field :=
+    stage2_field_tpp (o := btc.pivp.output) hε.le hc crn
+  have s' : Stage2CubicForm (d + 1) P.field :=
+    stage2_field_cubicForm (o := btc.pivp.output) hε.le hc A B hA hB h_field
+  -- Simplex invariance and non-negativity of `sol` (proved CRN invariants).
+  have h_sol_sum : ∀ t, 0 ≤ t → ∑ i, sol.trajectory t i = 1 :=
+    fun t ht => conservative_trajectory_simplex sol tpp'.conservative
+      (stage2_init_simplex c btc.pivp.init) ht
+  have h_sol_nn : ∀ t, 0 ≤ t → ∀ i, 0 ≤ sol.trajectory t i :=
+    fun t ht => crn_nonneg_invariance sol tpp'.toIsCRNImplementable
+      (stage2_init_nonneg hc.le h_init_nn h_sum_le)
+      (cubicForm_locally_lipschitz s') t ht
+  -- Discharge convergence via the axiom-free room lemma.
+  refine ⟨sol, ?_⟩
+  intro r t ht_nn ht_gt
+  exact stage2_convergence_from_room (d := d) (α := α) (ε := ε) (c := c) (c_room := c_room)
+    hε hc hc1 hc_room_pos hc_room_le_c hε_c_room
+    (btc := btc) A B h_field sol h_sol_nn h_sol_sum h_zero_init h_room r t ht_nn ht_gt
 
 end Ripple

@@ -2835,7 +2835,7 @@ theorem stage2_z0_init_ge_of_sum_bound {n : ℕ} {ε c : ℝ} {P : PIVP n}
 -- proof bodies.
 
 /-- A field with Stage2CubicForm structure (polynomial of degree ≤ 3) is locally Lipschitz. -/
-private lemma cubicForm_locally_lipschitz {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
+lemma cubicForm_locally_lipschitz {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (s : Stage2CubicForm d field) :
     ∀ R, 0 < R → ∃ L, ∀ x y : Fin d → ℝ, ‖x‖ ≤ R → ‖y‖ ≤ R →
       ‖field x - field y‖ ≤ L * ‖x - y‖ := by
@@ -2894,7 +2894,7 @@ trajectory starting non-negative stays non-negative.
 Proof method: squared negative mass F(t) = ∑_i min(x_i(t), 0)² satisfies
 F(0) = 0 and F'(t) ≤ K·F(t) via Lipschitz decomposition at the positive
 projection x⁺. Grönwall's inequality gives F ≡ 0. -/
-private theorem crn_nonneg_invariance {d : ℕ} {P : PIVP d}
+theorem crn_nonneg_invariance {d : ℕ} {P : PIVP d}
     (sol : P.Solution)
     (crn : IsCRNImplementable d P.field)
     (h_init_nn : ∀ i, 0 ≤ P.init i)
