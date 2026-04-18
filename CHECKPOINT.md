@@ -293,6 +293,8 @@ The current axiom statement does NOT assume `btc.pivp.init btc.pivp.output = 0`.
 - **`stage2_z0_eq_one_minus_tail_sum`**: z₀(t) = 1 - ∑_{i≥1} z_i(t) via `Fin.sum_univ_succ`. commit `4741a4c`.
 - **`stage2_tail_nonneg`** + **`stage2_z0_le_one`**: tail coords ≥ 0; z₀(t) ≤ 1. commit `a439308`.
 - **Status**: chain rule, simplex, non-negativity all proved globally. Still open for `stage2_convergence_axiom`: (a) ODE uniqueness step (Mathlib `ODE_solution_unique_of_mem_Icc_right` with time-varying v(t,x) = (ε·z₀(t))•f(x)); (b) z₀(t) ≥ c lower bound (LPP Remark 14 core invariant, requires additional constraint on P dynamics — not just simplex conservation); (c) zero-init hypothesis needed in axiom signature.
+- **Continuity + vField + Lipschitz**: added `stage2_unscaledTail_continuousOn` (w on Ici 0), `stage2_btcTraj_comp_tau_continuousOn` (btc.sol∘τ on Ioi 0), `stage2_vField btc sol t x := (ε·z₀(t))•f(x)` (common RHS), and `stage2_vField_lipschitzOnWith` (uniform Lipschitz on closedBall 0 M, constant |ε|·L, using z₀∈[0,1]). commits `80855b6`, `c9b1832`.
+- **Night session commit chain (2026-04-17 → 2026-04-18)**: `3a44996 → 98d9e38 → 4741a4c → a439308 → 10b3445 → 80855b6 → c9b1832`. 7 commits, +~200 lines of proved infra, 0 sorry, 2 axioms unchanged.
 
 ## Session Log (2026-04-17, session 27)
 - **Axiom 1 narrowed**: old monolithic `crn_simplex_global_ode_solution` axiom (composite of ODE extension + CRN invariance + conservation + simplex bound) replaced by:
