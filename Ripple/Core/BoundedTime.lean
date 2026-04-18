@@ -133,6 +133,53 @@ structure CRNBoundedTimeComputable (d : ℕ) (α : ℝ) extends BoundedTimeCompu
       + c * ∑ j ∈ Finset.univ.erase pivp.output,
           pivp.field (sol.trajectory t) j ≤ 0
 
+/-- **Convex-combination reduction for `weighted_nonpos`.**
+
+The structural `weighted_nonpos` field quantifies over all `c ∈ (0, 1]`, but
+the expression `A + c·B` is affine in `c`. By convex combination
+`A + c·B = (1-c)·A + c·(A+B)`, so the universal statement reduces to the two
+endpoint conditions:
+
+  * `A ≤ 0`  (equivalent to the `c → 0⁺` limit, i.e. `output_monotone`)
+  * `A + B ≤ 0`  (the `c = 1` case)
+
+This pure algebraic lemma lets us replace the c-parametric hypothesis with
+two orbit-level sign conditions, which is what downstream `weighted_nonpos`
+proofs (e.g. the v-variable transfer in `LPP/VVariable.lean`) actually need
+to verify in practice. -/
+lemma weighted_sum_nonpos_of_endpoints (A B c : ℝ)
+    (hc : 0 < c) (hc1 : c ≤ 1) (hA : A ≤ 0) (hAB : A + B ≤ 0) :
+    A + c * B ≤ 0 := by
+  have h_decomp : A + c * B = (1 - c) * A + c * (A + B) := by ring
+  rw [h_decomp]
+  have h1 : (1 - c) * A ≤ 0 :=
+    mul_nonpos_of_nonneg_of_nonpos (by linarith) hA
+  have h2 : c * (A + B) ≤ 0 :=
+    mul_nonpos_of_nonneg_of_nonpos hc.le hAB
+  linarith
+
+/-- **Constructor helper: build `CRNBoundedTimeComputable.weighted_nonpos`
+from output_monotone + the c=1 endpoint.** Uses
+`weighted_sum_nonpos_of_endpoints` to discharge the c-parametric quantifier.
+Callers need only verify the `c = 1` sum inequality on the orbit; the
+`output_monotone` case at `c → 0⁺` is already the `output_monotone` field.
+
+Saves duplicating the convex-combination argument at every instantiation. -/
+lemma CRNBoundedTimeComputable.mk_weighted_nonpos {d : ℕ} {α : ℝ}
+    (btc : BoundedTimeComputable d α)
+    (h_mono : ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.field (btc.sol.trajectory t) btc.pivp.output ≤ 0)
+    (h_sum_at_one : ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.field (btc.sol.trajectory t) btc.pivp.output
+        + ∑ j ∈ Finset.univ.erase btc.pivp.output,
+            btc.pivp.field (btc.sol.trajectory t) j ≤ 0) :
+    ∀ (c : ℝ), 0 < c → c ≤ 1 → ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.field (btc.sol.trajectory t) btc.pivp.output
+        + c * ∑ j ∈ Finset.univ.erase btc.pivp.output,
+            btc.pivp.field (btc.sol.trajectory t) j ≤ 0 := by
+  intro c hc hc1 t ht
+  exact weighted_sum_nonpos_of_endpoints _ _ c hc hc1 (h_mono t ht) (h_sum_at_one t ht)
+
 /-- Certified CRN-computability implies the older semantic notion. -/
 theorem certified_crn_to_crn {α : ℝ} :
     IsCertifiedCRNComputable α → IsCRNComputable α := by

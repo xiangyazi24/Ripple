@@ -923,6 +923,25 @@ records the precise gap so the LPP chain author can plan the correct
 first-principles argument rather than search for a transfer that does not
 exist.
 
-No transfer theorem is added here because none is mathematically available. -/
+### Convex-combination reduction (2026-04-18 update).
+
+The c-parametric `weighted_nonpos` is affine in `c`:
+`W(c) := A + c·B = (1-c)·A + c·(A+B)` where `A = field_o`, `B = ∑_{…≠o} field`.
+A convex combination of two non-positives is non-positive, so the universal
+statement `∀ c ∈ (0,1], W(c) ≤ 0` is *equivalent* to the two endpoint
+conditions `A ≤ 0` (= `output_monotone`, already transferred by
+`stage1_vvariable_output_monotone`) and `A + B ≤ 0` (the `c = 1` case).
+
+The helper `CRNBoundedTimeComputable.mk_weighted_nonpos` in
+`Ripple/Core/BoundedTime.lean` discharges the c-quantifier via this
+convex-combination argument, reducing the open work to proving the single
+`c = 1` orbit inequality. For the v-BTC that is
+`vfield(v(t))_{e_o} + ∑_{α ≠ e_o} vfield(v(t))_α ≤ 0`, or equivalently via
+`vfield_chain_rule_eq` at the input level,
+`field_o(x(t)) + ∑_k field_k(x(t)) · T_k^{(o)}(x(t)) ≤ 0`
+where `T_k^{(o)}(x) := ∑_{α ∈ MIndex d D, α ≠ e_o} α_k · x^{α - e_k}`.
+
+Path A and Path B above still apply — the c=1 sum is exactly the hard sign
+condition they target. But we now know no separate c < 1 work is needed. -/
 
 end Ripple
