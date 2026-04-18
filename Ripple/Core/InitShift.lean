@@ -124,4 +124,28 @@ theorem BoundedTimeComputable.shiftToZero_zero_output_init {d : ℕ} {α : ℝ}
     (btc : BoundedTimeComputable d α) :
     (btc.shiftToZero).pivp.init (btc.shiftToZero).pivp.output = 0 := rfl
 
+/-! ## IsRealTimeComputable-level DNA 25 corollary -/
+
+/-- [RTCRN2] Theorem 3 at `IsRealTimeComputable` level: every real-time
+computable `α` decomposes as `α = (α − y₀) + y₀`, where the first summand
+has a zero-init BTC with the same linear modulus, and the second is a
+(real) constant. Combined with `realtime_field_add` + `realtime_const`
+this closes the DNA 25 reduction cycle. -/
+theorem IsRealTimeComputable.zero_init_decomposition {α : ℝ}
+    (ha : IsRealTimeComputable α) :
+    ∃ β : ℝ, ∃ d : ℕ, ∃ btc : BoundedTimeComputable d (α - β),
+      btc.pivp.init btc.pivp.output = 0 ∧
+      ∃ C > 0, ∀ r : ℕ, btc.modulus r ≤ C * (↑r + 1) := by
+  obtain ⟨d, btc, C, hC, hmod⟩ := ha
+  exact ⟨btc.pivp.init btc.pivp.output, d, btc.shiftToZero, rfl, C, hC, hmod⟩
+
+/-- Reconstruction direction: if the zero-init part is real-time computable
+and the shift constant `β` is a real, then `α = (α − β) + β` is real-time
+computable. This is just `realtime_field_add` + `realtime_const`, but stated
+here to mark the DNA 25 reduction cycle as closed at the semantic layer. -/
+theorem IsRealTimeComputable.of_zero_init_plus_const (β α_minus_β : ℝ)
+    (h : IsRealTimeComputable α_minus_β) :
+    IsRealTimeComputable (α_minus_β + β) :=
+  realtime_field_add h (realtime_const β)
+
 end Ripple
