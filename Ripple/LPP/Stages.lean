@@ -3565,14 +3565,16 @@ theorem stage1_core_crn {d : ℕ} {α : ℝ}
             btc.sol.trajectory t k ^ (((a k : Fin (D+1)) : ℕ) - 1) *
             ∏ j ∈ Finset.univ.erase k,
               btc.sol.trajectory t j ^ (((a j : Fin (D+1)) : ℕ)) ≤ 0) :
-    ∃ (d' : ℕ) (cbtc : CRNBoundedTimeComputable d' α)
+    ∃ (d' : ℕ), NeZero d' ∧
+      ∃ (cbtc : CRNBoundedTimeComputable d' α)
       (A : Fin d' → Fin d' → Fin d' → ℝ) (B : Fin d' → Fin d' → ℝ),
       (∀ i a b, 0 ≤ A i a b) ∧
       (∀ i a, 0 ≤ B i a) ∧
       (∀ i x, cbtc.pivp.field x i =
         (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i) ∧
       (∀ i, 0 ≤ cbtc.pivp.init i) ∧
-      (∀ i, ∃ q : ℚ, cbtc.pivp.init i = ↑q) :=
+      (∀ i, ∃ q : ℚ, cbtc.pivp.init i = ↑q) ∧
+      cbtc.pivp.init cbtc.pivp.output = btc.pivp.init btc.pivp.output :=
   stage1_vvariable_crn_of_input_c1 btc pcd D hD hDprod hDdegr h_mono h_input_c1
 
 /-- Stage 2 core (Theorem 13 in [LPP]):
@@ -3903,6 +3905,55 @@ theorem stage3_to_lpp {d : ℕ} {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
   -- Stage 2: λ-trick + balancing dilation → TPP on simplex
   obtain ⟨d₂, btc₂, tpp₂, s₂, h_simp₂, h_nn₂, h_rat₂⟩ :=
     stage2_core btc₁ A B hA hB h_field h_nn h_rat
+  -- Pure Stage 3: TPP → LPP via self-product
+  exact tpp_to_lpp hα01 btc₂ tpp₂ s₂ h_simp₂ h_nn₂ h_rat₂
+
+/-- **Axiom-free LPP pipeline** — end-to-end `stage3_to_lpp` variant using
+`stage1_core_crn` + `stage2_core_crn` + `tpp_to_lpp`, which together avoid
+`stage2_convergence_axiom` by consuming the structural `weighted_nonpos`
+field on `CRNBoundedTimeComputable`.
+
+Caller hypotheses (in addition to `stage3_to_lpp`'s):
+  * `D, hD, hDprod, hDdegr`: v-variable degree bound witness
+  * `h_mono`: output coordinate is monotone non-increasing along input orbit
+  * `h_input_c1`: input-orbit c=1 sum inequality
+    (`∑_k field_k · w_k ≤ 0` where `w_k` is the per-coord weight from
+    `vfield_total_sum_as_field_weighted`)
+  * `h_output_init_zero`: `btc.pivp.init btc.pivp.output = 0`
+
+These are the *orbit-level* structural conditions — downstream of Stage 1
+they propagate mechanically. The previous axiom `stage2_convergence_axiom`
+is replaced by the honest `weighted_nonpos` structural field. -/
+theorem stage3_to_lpp_crn {d : ℕ} {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
+    (btc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d btc.pivp)
+    (D : ℕ) (hD : 1 ≤ D)
+    (hDprod : ∀ k, (pcd.prod k).totalDegree ≤ D)
+    (hDdegr : ∀ k, (pcd.degr k).totalDegree ≤ D)
+    (h_mono : ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.toPIVP.field (btc.sol.trajectory t) btc.pivp.output ≤ 0)
+    (h_input_c1 : ∀ t : ℝ, 0 ≤ t →
+      ∑ k : Fin d, btc.pivp.toPIVP.field (btc.sol.trajectory t) k *
+        ∑ a : MIndex d D,
+          (((a k : Fin (D+1)) : ℕ) : ℝ) *
+            btc.sol.trajectory t k ^ (((a k : Fin (D+1)) : ℕ) - 1) *
+            ∏ j ∈ Finset.univ.erase k,
+              btc.sol.trajectory t j ^ (((a j : Fin (D+1)) : ℕ)) ≤ 0)
+    (h_output_init_zero : btc.pivp.init btc.pivp.output = 0) :
+    ∃ _ : IsLPPComputable α, True := by
+  -- Stage 1 (CRN variant): produce CRNBoundedTimeComputable with the
+  -- structural weighted_nonpos field honest-derived from input sign conditions.
+  obtain ⟨d₁, hd₁nz, cbtc₁, A, B, hA, hB, h_field, h_nn, h_rat, h_out_init⟩ :=
+    stage1_core_crn btc pcd D hD hDprod hDdegr h_mono h_input_c1
+  haveI : NeZero d₁ := hd₁nz
+  -- Zero-init at v-BTC output follows from h_out_init + h_output_init_zero.
+  have h_zero_init : cbtc₁.pivp.init cbtc₁.pivp.output = 0 := by
+    rw [h_out_init, h_output_init_zero]
+    exact Rat.cast_zero
+  -- Stage 2 (CRN variant): λ-trick + balancing dilation → TPP on simplex,
+  -- consuming the HONEST weighted_nonpos field on cbtc₁ (no axiom).
+  obtain ⟨d₂, btc₂, tpp₂, s₂, h_simp₂, h_nn₂, h_rat₂⟩ :=
+    stage2_core_crn cbtc₁ A B hA hB h_field h_nn h_zero_init h_rat
   -- Pure Stage 3: TPP → LPP via self-product
   exact tpp_to_lpp hα01 btc₂ tpp₂ s₂ h_simp₂ h_nn₂ h_rat₂
 
