@@ -546,6 +546,23 @@ theorem vfield_total_sum_as_field_weighted {d : ℕ} {P : PolyPIVP d}
   simp only [PolyPIVP.evalField, PolyPIVP.toPIVP]
   ring
 
+/-- The per-coordinate weight `w_k(x) := ∑_α α_k · x^{α - e_k}` (the formal
+`∂_k` of the total monomial `∑_α x^α`) is non-negative on the non-negative
+orthant. Each α-summand is a product of non-negative factors: a cast Nat,
+a power of `x_k ≥ 0`, and a product of powers of `x_j ≥ 0`. -/
+theorem vfield_total_sum_weight_nonneg {d : ℕ} (D : ℕ) (k : Fin d)
+    (x : Fin d → ℝ) (hx : ∀ j, 0 ≤ x j) :
+    0 ≤ ∑ α : MIndex d D,
+          (((α k : Fin (D+1)) : ℕ) : ℝ) *
+            x k ^ (((α k : Fin (D+1)) : ℕ) - 1) *
+            ∏ j ∈ Finset.univ.erase k, x j ^ (((α j : Fin (D+1)) : ℕ)) := by
+  apply Finset.sum_nonneg
+  intro α _
+  refine mul_nonneg (mul_nonneg ?_ ?_) ?_
+  · exact Nat.cast_nonneg _
+  · exact pow_nonneg (hx k) _
+  · exact Finset.prod_nonneg (fun j _ => pow_nonneg (hx j) _)
+
 /-! ## Stage 1 main theorem
 
 Assemble the v-variable construction into the form required by
