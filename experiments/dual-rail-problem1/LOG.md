@@ -114,6 +114,12 @@ Prioritized queue:
 8. **Any GPAC computing a specific irrational via a polynomial ODE
    with a high-degree intermediate** (from RTCRN1 / Bounded). These
    match the CRN computability context directly.
+9. **Conway's constant λ ≈ 1.3036** (suggested by Xiang 2026-04-18).
+   Unique positive real root of a specific degree-71 integer polynomial
+   q(x). GPAC via gradient descent: `y' = −q(y)·q'(y)`, RHS degree ≈ 141.
+   Per refined hypothesis (exp 07), the cancelling `q·q' → 0` structure
+   at fixed point should give k* = O(1) despite huge coefficients —
+   a stress test for the on-trajectory production hypothesis.
 
 ## Log conventions
 
