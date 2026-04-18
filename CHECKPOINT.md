@@ -28,6 +28,21 @@
   - `IsRealTimeComputable.of_zero_init_plus_const`: reconstruction via `realtime_field_add` + `realtime_const`.
   - DNA 25 reduction cycle now closed at BTC semantic layer.
 - **Ripple.lean**: adds `import Ripple.Core.InitShift`.
+- **NEW: `Ripple/DualRail/BTCReduction.lean`** (commit `d863085`):
+  - `axiom BoundedTimeComputable.toDualRail`: zero-init BTC α ⟹ higher-dim
+    BTC α with all-zero init + non-neg-interior species + same modulus.
+    Narrow research-gap axiom, discharge requires upgrading
+    `dualRail_polynomial_scale_bounded` to yield full `PIVP.Solution`.
+  - `BoundedTimeComputable.dna25_shift_dualRail`: composes shiftToZero +
+    toDualRail. Any BTC α reduces to zero-init + nonneg-interior BTC for
+    `α − y₀` with same modulus.
+  - `IsRealTimeComputable.dna25_full_reduction`: IRTC-level DNA 25 full
+    reduction with linear modulus preserved.
+- **Axiom count**: 7 → 8 (added `toDualRail` as narrow paper-level gap).
+  Current axioms: `dualRail_polynomial_scale_bounded`, `toDualRail`,
+  `noCollapse_step2_root_liminf`, `noCollapse_step3_scc_induction`,
+  `minPolyPIVP_exists_solution`, `minPolyPIVP_convergence_modulus`,
+  `algebraic_shift_to_smallest_positive_root`, `certified_add_rational`.
 
 ## Current State
 
