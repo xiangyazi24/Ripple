@@ -48,6 +48,7 @@ Each experiment lives in `experiment_NN_slug/`:
 | 05 | Lorenz (biased) | bounded chaos | degree 2, chaotic, |x|~20 |z|~50 | done | bounded for k ≳ 10; degree-2 drops k* 10× vs degree-3 Hopf/Brusselator |
 | 06 | y' = C − C·y³ | scalar, C-scaled | coefficient-scaling test | done | k*(C) = C · k*(1), collapse verified for C ∈ {1, 10, 100, 1000} |
 | 07 | BP cascade (z, w, λy-gate) | Bournez-Pouly style | internal rate λ, fixed amplitude [0,1] | done | k* ≈ O(1) regardless of λ ∈ [1, 1000]! Coefficient on *cancelling* term ≠ threat |
+| 08 | y' = ε + A·y² − A·y³ | engineered | non-cancelling A on both ±monomials | done | k* = Θ(A) confirmed; v_ss = A/k matches; coefficient on *non-cancelling* monomial DOES drive k* |
 
 ## Interim pattern (after 5 experiments)
 
@@ -63,6 +64,28 @@ Each experiment lives in `experiment_NN_slug/`:
 
 No counterexample candidates yet. Next step: try to *construct* a
 system where k* is demonstrably very large.
+
+## After 8 experiments — refined understanding
+
+Experiments 06-08 pin down the scaling law:
+
+- **Exp 06**: C·(1 − y³), coefficient C on a non-cancelling term at
+  fixed point y = 1 ⇒ k*(C) = Θ(C).
+- **Exp 07**: λ·(w² − y²), coefficient λ on a term that cancels to 0
+  on the slow manifold ⇒ k*(λ) = O(1).
+- **Exp 08**: A·(y² − y³), coefficient A multiplies both ±monomials
+  which are individually O(A) at y = 1, but net RHS = 0 ⇒ k*(A) = Θ(A).
+
+**Refined hypothesis:** k* scales with `max_t ||p̂⁺(u(t), v(t)) +
+p̂⁻(u(t), v(t))||` — the maximum instantaneous total production rate
+into (u, v) on the trajectory. This is not the max coefficient (can
+be much smaller via cancellation, exp 07) and not the net RHS (can
+be much larger via non-cancelling parallel monomials, exp 08).
+
+**Uniform-β question:** can k* depend only on the boundedness
+parameter β? Exp 08 answers NO: family `{y' = ε + A·y² − A·y³}_A`
+has β ≈ 1 for all A, but k* = Θ(A) grows. So any constant-k theorem
+must allow k to depend on p, not just on β.
 
 ## Candidate systems to try
 
