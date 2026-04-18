@@ -47,6 +47,7 @@ Each experiment lives in `experiment_NN_slug/`:
 | 04 | Brusselator | native CRN | positive species, 2-species autocat. | done | bounded for k ≳ 100; hypothesis that non-neg species → smaller k* disproved; spurious v-rail from degradation |
 | 05 | Lorenz (biased) | bounded chaos | degree 2, chaotic, |x|~20 |z|~50 | done | bounded for k ≳ 10; degree-2 drops k* 10× vs degree-3 Hopf/Brusselator |
 | 06 | y' = C − C·y³ | scalar, C-scaled | coefficient-scaling test | done | k*(C) = C · k*(1), collapse verified for C ∈ {1, 10, 100, 1000} |
+| 07 | BP cascade (z, w, λy-gate) | Bournez-Pouly style | internal rate λ, fixed amplitude [0,1] | done | k* ≈ O(1) regardless of λ ∈ [1, 1000]! Coefficient on *cancelling* term ≠ threat |
 
 ## Interim pattern (after 5 experiments)
 
