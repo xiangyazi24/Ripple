@@ -764,6 +764,94 @@ theorem stage2_output_hasDerivAt {n : ℕ} {ε c : ℝ} {P : PIVP n}
   convert h_comp using 1
   exact (stage2_field_output ε c P.field (sol.trajectory t)).symm
 
+/-- The unscaled tail of a Stage 2 solution: `w(t) := selectiveUnscale o c (tail sol(t))`.
+At each coordinate it satisfies a chain-rule identity:
+  `d/dt w_o(t) = ε · field(w(t))_o · z₀(t)`
+  `d/dt w_j(t) = ε · field(w(t))_j · z₀(t)`  for j ≠ o.
+
+Uniformly: `dw/dt = (ε · z₀(t)) • field(w(t))`.
+
+This is the key chain-rule identity underpinning the time-dilation argument:
+in effective time τ(t) = ε · ∫₀ᵗ z₀(s) ds, w satisfies dw/dτ = field(w). -/
+theorem stage2_unscaledTail_hasDerivAt {n : ℕ} {ε c : ℝ} (hc : c ≠ 0) {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P))
+    (t : ℝ) (ht : 0 ≤ t) :
+    HasDerivAt
+      (fun s => selectiveUnscale P.output c (Fin.tail (sol.trajectory s)))
+      ((ε * sol.trajectory t 0) •
+        P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))))
+      t := by
+  -- Per-component derivative of `sol.trajectory` at index `j.succ`.
+  have h_sys := sol.is_solution t ht
+  have h_succ : ∀ j : Fin n,
+      HasDerivAt (fun s => sol.trajectory s j.succ)
+        ((stage2_pivp ε c P).field (sol.trajectory t) j.succ) t :=
+    fun j => hasDerivAt_pi.mp h_sys j.succ
+  -- Show per-component derivative of w(t) = selectiveUnscale o c (tail (sol t)).
+  refine hasDerivAt_pi.mpr ?_
+  intro j
+  simp only [Pi.smul_apply, smul_eq_mul]
+  by_cases hj : j = P.output
+  · -- j = o: w_o(t) = sol(t) o.succ, derivative uses stage2_field_output.
+    subst hj
+    have h_fun_eq :
+        (fun s => selectiveUnscale P.output c (Fin.tail (sol.trajectory s)) P.output)
+        = fun s => sol.trajectory s P.output.succ := by
+      funext s; simp [Fin.tail]
+    have h_comp := h_succ P.output
+    -- Convert (stage2_field _ _ _ _) P.output.succ into ε · f(w)_o · z₀.
+    have h_field_eq :
+        (stage2_pivp ε c P).field (sol.trajectory t) P.output.succ =
+          ε * P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t)))
+                P.output * sol.trajectory t 0 :=
+      stage2_field_output ε c P.field (sol.trajectory t)
+    rw [h_field_eq] at h_comp
+    -- Goal value after `simp Pi.smul_apply`:
+    -- ε * z₀ * f(w)_o  vs  h_comp: ε * f(w)_o * z₀.  Just mul_comm/assoc.
+    have h_val :
+        ε * sol.trajectory t 0 *
+            P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))) P.output
+          = ε * P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t)))
+                P.output * sol.trajectory t 0 := by ring
+    rw [h_val, h_fun_eq]
+    exact h_comp
+  · -- j ≠ o: w_j(t) = sol(t) j.succ / c.
+    have h_fun_eq :
+        (fun s => selectiveUnscale P.output c (Fin.tail (sol.trajectory s)) j)
+        = fun s => sol.trajectory s j.succ / c := by
+      funext s; rw [selectiveUnscale_ne hj]; simp [Fin.tail]
+    rw [h_fun_eq]
+    have h_comp := h_succ j
+    have h_field_eq :
+        (stage2_pivp ε c P).field (sol.trajectory t) j.succ =
+          c * (ε * P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))) j) *
+            sol.trajectory t 0 :=
+      stage2_field_nonoutput ε c P.field (sol.trajectory t) j hj
+    rw [h_field_eq] at h_comp
+    -- Divide the derivative by c.
+    have h_div : HasDerivAt (fun s => sol.trajectory s j.succ / c)
+        ((c * (ε *
+            P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))) j) *
+          sol.trajectory t 0) / c) t :=
+      h_comp.div_const c
+    -- Simplify (c * X * z₀) / c = ε * z₀ * f(w)_j when c ≠ 0 (goal after Pi.smul_apply).
+    have h_simp :
+        (c * (ε *
+            P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))) j) *
+          sol.trajectory t 0) / c
+          = ε * sol.trajectory t 0 *
+              P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))) j := by
+      rw [show
+          c * (ε *
+            P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))) j) *
+            sol.trajectory t 0 =
+          c * (ε * sol.trajectory t 0 *
+            P.field (selectiveUnscale P.output c (Fin.tail (sol.trajectory t))) j)
+          by ring]
+      field_simp
+    rw [h_simp] at h_div
+    exact h_div
+
 /-! ## Self-Product (Stage 3 Building Block)
 
 The self-product z_{i,j} = xᵢ · xⱼ is the key construction for Stage 3.
