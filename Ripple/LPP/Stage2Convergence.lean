@@ -470,4 +470,107 @@ theorem stage2_ode_axiomless_from_room {d : ℕ} [NeZero d] {α : ℝ}
     hε hc hc1 hc_room_pos hc_room_le_c hε_c_room
     (btc := btc) A B h_field sol h_sol_nn h_sol_sum h_zero_init h_room r t ht_nn ht_gt
 
+/-! ## Axiom-free Stage 2 core entry
+
+Parallel to the private `stage2_core` in `Stages.lean`: threads the Remark 14
+room hypothesis through, producing the same conclusion as `stage2_core` with
+no use of `stage2_convergence_axiom`. -/
+
+/-- **Axiom-free Stage 2 core**. Same conclusion as the private `stage2_core`,
+derived via `stage2_convergence_from_room`. Parameters `ε, c` are picked
+internally: `c := c_room`, `ε := 1 / c_room`. The caller supplies
+
+  * `c_room ∈ (0, 1]` with `c_room ∈ ℚ`
+  * `c_room · ∑ init ≤ 1` (same shape as the internal `h_sum_le`)
+  * `h_zero_init`, `h_room` (Remark 14 input). -/
+theorem stage2_core_from_room {d : ℕ} [NeZero d] {α : ℝ}
+    (btc : BoundedTimeComputable d α)
+    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
+    (hA : ∀ i a b, 0 ≤ A i a b) (hB : ∀ i a, 0 ≤ B i a)
+    (h_field : ∀ i x, btc.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i)
+    (h_init_rat : ∀ i, ∃ q : ℚ, btc.pivp.init i = ↑q)
+    (c_room : ℝ) (hc_room_pos : 0 < c_room) (hc_room_le_1 : c_room ≤ 1)
+    (hc_room_q : ∃ q : ℚ, c_room = (q : ℝ))
+    (h_sum_le_room : c_room * ∑ j, btc.pivp.init j ≤ 1)
+    (h_zero_init : btc.pivp.init btc.pivp.output = 0)
+    (h_room : ∀ σ, 0 ≤ σ →
+      btc.sol.trajectory σ btc.pivp.output
+        + c_room * ∑ j ∈ Finset.univ.erase btc.pivp.output,
+              btc.sol.trajectory σ j ≤ 1 - c_room) :
+    ∃ (d' : ℕ) (btc' : BoundedTimeComputable d' α),
+      ∃ (_ : IsTPPImplementable d' btc'.pivp.field)
+        (_ : Stage2CubicForm d' btc'.pivp.field),
+        (∀ t, 0 ≤ t → ∑ i, btc'.sol.trajectory t i = 1) ∧
+        (∀ t, 0 ≤ t → ∀ i, 0 ≤ btc'.sol.trajectory t i) ∧
+        (∀ i, ∃ q : ℚ, btc'.sol.trajectory 0 i = ↑q) := by
+  -- Parameter choice: ε := 1 / c_room, c := c_room. Then ε·c_room = 1.
+  set ε : ℝ := 1 / c_room with hε_def
+  set c : ℝ := c_room with hc_def
+  have hε : 0 < ε := by rw [hε_def]; exact one_div_pos.mpr hc_room_pos
+  have hc : 0 < c := hc_room_pos
+  have hc1 : c ≤ 1 := hc_room_le_1
+  have hε_c : 1 ≤ ε * c_room := by
+    rw [hε_def, div_mul_cancel₀ 1 (ne_of_gt hc_room_pos)]
+  have h_sum_le : c * ∑ j, btc.pivp.init j ≤ 1 := h_sum_le_room
+  -- Get ODE existence + convergence via the axiomless gate.
+  obtain ⟨sol, h_conv⟩ :=
+    stage2_ode_axiomless_from_room btc ε c c_room hε hc hc1 hc_room_pos le_rfl hε_c
+      A B hA hB h_field h_init_nn h_sum_le h_zero_init h_room
+  -- Reconstruct CRN decomposition from A, B (mirrors `stage2_core`).
+  have crn : IsCRNImplementable d btc.pivp.field := {
+    prod := fun i x => ∑ a, ∑ b, A i a b * x a * x b
+    degr := fun i x => ∑ a, B i a * x a
+    prod_pos := fun i x hx => Finset.sum_nonneg fun a _ =>
+      Finset.sum_nonneg fun b _ => mul_nonneg (mul_nonneg (hA i a b) (hx a)) (hx b)
+    degr_pos := fun i x hx => Finset.sum_nonneg fun a _ => mul_nonneg (hB i a) (hx a)
+    field_eq := fun x i => h_field i x }
+  -- TPP and CubicForm structure on the Stage 2 system.
+  have tpp' : IsTPPImplementable (d + 1) (stage2_pivp ε c btc.pivp).field :=
+    stage2_field_tpp (o := btc.pivp.output) hε.le hc crn
+  have s' : Stage2CubicForm (d + 1) (stage2_pivp ε c btc.pivp).field :=
+    stage2_field_cubicForm (o := btc.pivp.output) hε.le hc A B hA hB h_field
+  -- Simplex + non-negativity invariants on sol.
+  have h_simplex : ∀ t, 0 ≤ t → ∑ i, sol.trajectory t i = 1 :=
+    fun t ht => conservative_trajectory_simplex sol tpp'.conservative
+      (stage2_init_simplex c btc.pivp.init) ht
+  have h_nn : ∀ t, 0 ≤ t → ∀ i, 0 ≤ sol.trajectory t i :=
+    fun t ht => crn_nonneg_invariance sol tpp'.toIsCRNImplementable
+      (stage2_init_nonneg hc.le h_init_nn h_sum_le)
+      (cubicForm_locally_lipschitz s') t ht
+  -- Boundedness on simplex.
+  have h_bounded : (stage2_pivp ε c btc.pivp).IsBounded sol.trajectory := by
+    refine ⟨2, two_pos, fun t ht => ?_⟩
+    rw [pi_norm_le_iff_of_nonneg (by norm_num : (0 : ℝ) ≤ 2)]
+    intro i
+    rw [Real.norm_eq_abs, abs_of_nonneg (h_nn t ht i)]
+    calc sol.trajectory t i
+        ≤ ∑ j, sol.trajectory t j :=
+          Finset.single_le_sum (fun j _ => h_nn t ht j) (Finset.mem_univ i)
+      _ = 1 := h_simplex t ht
+      _ ≤ 2 := by norm_num
+  -- Build the Stage 2 BTC. `h_conv` has the extra `0 ≤ t` hypothesis; strip it
+  -- since `ht_gt : t > btc.modulus r` together with modulus ≥ 0 gives t ≥ 0.
+  -- The BoundedTimeComputable.convergence expects the bare form
+  -- `∀ r t, t > modulus r → ...`, so we derive 0 ≤ t from the modulus being
+  -- non-negative on the pipeline. In Ripple's pipeline, `btc.modulus` outputs
+  -- non-negative reals by convention. We case split on t ≥ 0 or not.
+  let btc' : BoundedTimeComputable (d + 1) α := {
+    pivp := stage2_pivp ε c btc.pivp
+    sol := sol
+    modulus := fun r => max (btc.modulus r) 0
+    bounded := h_bounded
+    convergence := by
+      intro r t ht
+      have ht_nn : 0 ≤ t := lt_of_le_of_lt (le_max_right _ _) ht |>.le
+      have ht_btc : t > btc.modulus r := lt_of_le_of_lt (le_max_left _ _) ht
+      exact h_conv r t ht_nn ht_btc }
+  refine ⟨d + 1, btc', tpp', s', h_simplex, h_nn, ?_⟩
+  -- Rational init: stage2_init_rational.
+  intro i
+  have h_init := congr_fun sol.init_cond i
+  rw [show btc'.sol.trajectory 0 i = sol.trajectory 0 i from rfl, h_init]
+  exact stage2_init_rational hc_room_q h_init_rat i
+
 end Ripple
