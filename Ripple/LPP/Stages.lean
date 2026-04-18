@@ -1082,6 +1082,53 @@ theorem stage2_z0_eq_one_minus_tail_sum {n : ℕ} {ε c : ℝ} {P : PIVP n}
   rw [h_tail_eq]
   linarith [h_sum]
 
+/-- Stage-2 tail coordinates stay non-negative (corollary of
+`stage2_z0_nonneg` / `pivp_solution_nonneg` at non-zero indices). -/
+theorem stage2_tail_nonneg {d : ℕ} {α : ℝ}
+    {btc : BoundedTimeComputable d α} {ε c : ℝ}
+    (hε : 0 ≤ ε) (hc : 0 < c)
+    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i)
+    (h_sum_le : c * ∑ j, btc.pivp.init j ≤ 1)
+    (crn : IsCRNImplementable d btc.pivp.field)
+    (h_lip : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin (d + 1) → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R →
+      ‖(stage2_pivp ε c btc.pivp).field x - (stage2_pivp ε c btc.pivp).field y‖
+        ≤ L * ‖x - y‖)
+    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
+    (t : ℝ) (ht : 0 ≤ t) (j : Fin d) :
+    0 ≤ sol.trajectory t j.succ := by
+  have h_crn_stage2 : IsCRNImplementable (d + 1) (stage2_pivp ε c btc.pivp).field :=
+    (stage2_field_tpp (o := btc.pivp.output) hε hc crn).toIsCRNImplementable
+  have h_init_nn' : ∀ i, 0 ≤ (stage2_pivp ε c btc.pivp).init i :=
+    stage2_init_nonneg hc.le h_init_nn h_sum_le
+  exact pivp_solution_nonneg h_crn_stage2 h_lip h_init_nn' sol t ht j.succ
+
+/-- Stage-2 z₀ upper bound: `z_0(t) ≤ 1` (from simplex + tail non-negativity). -/
+theorem stage2_z0_le_one {d : ℕ} {α : ℝ}
+    {btc : BoundedTimeComputable d α} {ε c : ℝ}
+    (hε : 0 ≤ ε) (hc : 0 < c)
+    (h_init_nn : ∀ i, 0 ≤ btc.pivp.init i)
+    (h_sum_le : c * ∑ j, btc.pivp.init j ≤ 1)
+    (crn : IsCRNImplementable d btc.pivp.field)
+    (h_lip : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin (d + 1) → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R →
+      ‖(stage2_pivp ε c btc.pivp).field x - (stage2_pivp ε c btc.pivp).field y‖
+        ≤ L * ‖x - y‖)
+    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
+    (t : ℝ) (ht : 0 ≤ t) :
+    sol.trajectory t 0 ≤ 1 := by
+  rw [stage2_z0_eq_one_minus_tail_sum sol t ht]
+  have h_tail_nn : ∀ j : Fin d, 0 ≤ Fin.tail (sol.trajectory t) j := fun j => by
+    simp only [Fin.tail]
+    exact stage2_tail_nonneg hε hc h_init_nn h_sum_le crn h_lip sol t ht j
+  have h_tail_sum_nn : 0 ≤ ∑ j : Fin d, Fin.tail (sol.trajectory t) j :=
+    Finset.sum_nonneg fun j _ => h_tail_nn j
+  linarith
+
+-- NOTE: monotonicity of stage2_effectiveTime deferred — requires
+-- ContinuousOn.intervalIntegrable + integral additivity; non-blocking
+-- for the uniqueness argument (which only needs τ ≥ 0 at t ≥ 0).
+
 /-! ## Self-Product (Stage 3 Building Block)
 
 The self-product z_{i,j} = xᵢ · xⱼ is the key construction for Stage 3.
