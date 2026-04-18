@@ -1030,4 +1030,219 @@ where `T_k^{(o)}(x) := ∑_{α ∈ MIndex d D, α ≠ e_o} α_k · x^{α - e_k}`
 Path A and Path B above still apply — the c=1 sum is exactly the hard sign
 condition they target. But we now know no separate c < 1 work is needed. -/
 
+/-! ## Stage 1 v-variable producing `CRNBoundedTimeComputable`
+
+Conditional on the input-orbit c=1 sum inequality, the v-variable
+construction produces a full `CRNBoundedTimeComputable`. This is the clean
+interface for callers who can supply the input-level sign condition and
+want to plug into the honest (axiom-free) Stage 2 chain. -/
+
+/-- **Stage 1 v-variable producing a `CRNBoundedTimeComputable`** given
+an input-orbit c=1 sum inequality.
+
+The c-parametric `weighted_nonpos` field is discharged by the convex-
+combination reduction (two endpoints: c=0 → `output_monotone`, c=1 →
+the supplied sum inequality). The c=1 endpoint on the v-orbit is
+translated to the input level via `vfield_total_sum_as_field_weighted`,
+yielding the required caller hypothesis `h_input_c1`:
+
+  `∑_k field_input_k(x(t)) · w_k(x(t)) ≤ 0`
+
+where `w_k(x) := ∑_α α_k · x_k^{α_k - 1} · ∏_{j ≠ k} x_j^{α_j}` is the
+per-coordinate weight from the total-v-sum chain rule. By
+`vfield_total_sum_weight_nonneg`, `w_k ≥ 0` on the non-negative orthant,
+so `h_input_c1` reduces to a per-coordinate sign balance on the input
+field along the Newton orbit.
+
+This closes Path A modulo the single input-level inequality hypothesis —
+the structural v-BTC orbit condition is expressed entirely in terms of
+the input CRN's orbit. -/
+theorem stage1_vvariable_crn_of_input_c1 {d : ℕ} {α : ℝ}
+    (btc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d btc.pivp)
+    (D : ℕ) (hD : 1 ≤ D)
+    (hDprod : ∀ k, (pcd.prod k).totalDegree ≤ D)
+    (hDdegr : ∀ k, (pcd.degr k).totalDegree ≤ D)
+    (h_mono : ∀ t : ℝ, 0 ≤ t →
+      btc.pivp.toPIVP.field (btc.sol.trajectory t) btc.pivp.output ≤ 0)
+    (h_input_c1 : ∀ t : ℝ, 0 ≤ t →
+      ∑ k : Fin d, btc.pivp.toPIVP.field (btc.sol.trajectory t) k *
+        ∑ a : MIndex d D,
+          (((a k : Fin (D+1)) : ℕ) : ℝ) *
+            btc.sol.trajectory t k ^ (((a k : Fin (D+1)) : ℕ) - 1) *
+            ∏ j ∈ Finset.univ.erase k,
+              btc.sol.trajectory t j ^ (((a j : Fin (D+1)) : ℕ)) ≤ 0) :
+    ∃ (d' : ℕ), Nonempty (CRNBoundedTimeComputable d' α) := by
+  -- Vacuous d = 0 case
+  by_cases hd : d = 0
+  · subst hd; exact Fin.elim0 btc.pivp.output
+  have hd1 : 1 ≤ d := Nat.one_le_iff_ne_zero.mpr hd
+  -- Same construction as `stage1_vvariable_output_monotone`.
+  let d' := Fintype.card (MIndex d D)
+  let enc : MIndex d D ≃ Fin d' := Fintype.equivFin (MIndex d D)
+  let A : Fin d' → Fin d' → Fin d' → ℝ :=
+    fun i a b => vCoeffA pcd D (enc.symm i) (enc.symm a) (enc.symm b)
+  let B : Fin d' → Fin d' → ℝ :=
+    fun i a => vCoeffB pcd D (enc.symm i) (enc.symm a)
+  let vfield : (Fin d' → ℝ) → Fin d' → ℝ :=
+    fun x i =>
+      (∑ a : Fin d', ∑ b : Fin d', A i a b * x a * x b) -
+      (∑ a : Fin d', B i a * x a) * x i
+  let vinit : Fin d' → ℝ := fun i => vInit btc.pivp (enc.symm i)
+  let voutput : Fin d' := enc (MIndex.basis hD btc.pivp.output)
+  let vpivp : PIVP d' := ⟨vfield, vinit, voutput⟩
+  let vtraj : ℝ → Fin d' → ℝ :=
+    fun t i => (enc.symm i).eval (btc.sol.trajectory t)
+  have vinit_eq : vtraj 0 = vinit := by
+    ext i
+    simp only [vtraj, vinit, vInit]
+    congr 1
+    have := btc.sol.init_cond
+    ext k
+    simp [PolyPIVP.toPIVP] at this
+    exact congr_fun this k
+  let vsol : PIVP.Solution vpivp :=
+    { trajectory := vtraj
+      init_cond := vinit_eq
+      is_solution := fun t ht => by
+        rw [hasDerivAt_pi]
+        intro i
+        have hx_k := fun k => (hasDerivAt_pi.mp (btc.sol.is_solution t ht)) k
+        have hmon := hasDerivAt_monomial (enc.symm i) btc.sol.trajectory _ t hx_k
+        change HasDerivAt (fun s => (enc.symm i).eval (btc.sol.trajectory s))
+          (vpivp.field (vtraj t) i) t
+        have halg : vpivp.field (vtraj t) i =
+          ∑ k : Fin d, (∏ j ∈ Finset.univ.erase k,
+            btc.sol.trajectory t j ^ ((enc.symm i j : ℕ))) *
+            (((enc.symm i k : ℕ) : ℝ) *
+               btc.sol.trajectory t k ^ ((enc.symm i k : ℕ) - 1) *
+              btc.pivp.toPIVP.field (btc.sol.trajectory t) k) := by
+          simp only [vpivp, vfield, A, B, vtraj]
+          rw [Equiv.sum_comp enc.symm (fun α =>
+                ∑ b : Fin d',
+                  vCoeffA pcd D (enc.symm i) α (enc.symm b) *
+                    α.eval (btc.sol.trajectory t) *
+                    (enc.symm b).eval (btc.sol.trajectory t)),
+              Equiv.sum_comp enc.symm (fun α =>
+                vCoeffB pcd D (enc.symm i) α *
+                  α.eval (btc.sol.trajectory t))]
+          conv_lhs =>
+            arg 1; arg 2; ext α
+            rw [Equiv.sum_comp enc.symm (fun β =>
+                  vCoeffA pcd D (enc.symm i) α β *
+                    α.eval (btc.sol.trajectory t) *
+                    β.eval (btc.sol.trajectory t))]
+          have hcr := vfield_chain_rule_eq pcd D hDprod hDdegr
+              (enc.symm i) (btc.sol.trajectory t)
+          simp only [PolyPIVP.evalField] at hcr
+          convert hcr using 2
+        rw [halg]
+        exact hmon }
+  have vbounded : vpivp.IsBounded vsol.trajectory := by
+    obtain ⟨M₀, hM₀_pos, hM₀_bound⟩ := btc.bounded
+    let M := max 1 M₀
+    have hM1 : 1 ≤ M := le_max_left 1 M₀
+    have hM_pos : 0 < M := lt_of_lt_of_le one_pos hM1
+    refine ⟨M ^ (d * D), by positivity, fun t ht => ?_⟩
+    rw [pi_norm_le_iff_of_nonneg (by positivity)]
+    intro i
+    rw [Real.norm_eq_abs]
+    calc |(enc.symm i).eval (btc.sol.trajectory t)|
+        ≤ M ^ (enc.symm i).degree := by
+          apply MIndex.eval_bounded _ _ M hM_pos
+          intro k
+          calc |btc.sol.trajectory t k|
+              = ‖btc.sol.trajectory t k‖ := (Real.norm_eq_abs _).symm
+            _ ≤ ‖btc.sol.trajectory t‖ := norm_le_pi_norm _ k
+            _ ≤ M₀ := hM₀_bound t ht
+            _ ≤ M := le_max_right 1 M₀
+      _ ≤ M ^ (d * D) :=
+          pow_le_pow_right₀ hM1 (MIndex.degree_le _)
+  have vconv : ∀ r : ℕ, ∀ t : ℝ, t > btc.modulus r →
+      |vsol.trajectory t vpivp.output - α| < Real.exp (-(r : ℝ)) := by
+    intro r t ht
+    simp only [vsol, vtraj, vpivp, voutput]
+    rw [Equiv.symm_apply_apply, MIndex.eval_basis]
+    exact btc.convergence r t ht
+  let btc' : BoundedTimeComputable d' α :=
+    ⟨vpivp, vsol, btc.modulus, vbounded, vconv⟩
+  -- output_monotone transfers via `vfield_at_basis_eq_field`.
+  have v_output_monotone : ∀ t : ℝ, 0 ≤ t →
+      btc'.pivp.field (btc'.sol.trajectory t) btc'.pivp.output ≤ 0 := by
+    intro t ht
+    show vfield (vtraj t) voutput ≤ 0
+    have h_eq : vfield (vtraj t) voutput =
+        (∑ a : MIndex d D, ∑ b : MIndex d D,
+          vCoeffA pcd D (MIndex.basis hD btc.pivp.output) a b *
+            a.eval (btc.sol.trajectory t) * b.eval (btc.sol.trajectory t)) -
+        (∑ a : MIndex d D,
+          vCoeffB pcd D (MIndex.basis hD btc.pivp.output) a *
+            a.eval (btc.sol.trajectory t)) *
+          (MIndex.basis hD btc.pivp.output).eval (btc.sol.trajectory t) := by
+      simp only [vfield, A, B, vtraj, voutput, Equiv.symm_apply_apply]
+      rw [Equiv.sum_comp enc.symm (fun α =>
+            ∑ b : Fin d',
+              vCoeffA pcd D (MIndex.basis hD btc.pivp.output) α (enc.symm b) *
+                α.eval (btc.sol.trajectory t) *
+                (enc.symm b).eval (btc.sol.trajectory t)),
+          Equiv.sum_comp enc.symm (fun α =>
+            vCoeffB pcd D (MIndex.basis hD btc.pivp.output) α *
+              α.eval (btc.sol.trajectory t))]
+      conv_lhs =>
+        arg 1; arg 2; ext α
+        rw [Equiv.sum_comp enc.symm (fun β =>
+              vCoeffA pcd D (MIndex.basis hD btc.pivp.output) α β *
+                α.eval (btc.sol.trajectory t) *
+                β.eval (btc.sol.trajectory t))]
+    rw [h_eq]
+    rw [vfield_at_basis_eq_field pcd D hD hDprod hDdegr btc.pivp.output]
+    exact h_mono t ht
+  -- NEW: c=1 endpoint via total-sum translation.
+  have v_c1 : ∀ t : ℝ, 0 ≤ t →
+      btc'.pivp.field (btc'.sol.trajectory t) btc'.pivp.output
+        + ∑ j ∈ Finset.univ.erase btc'.pivp.output,
+            btc'.pivp.field (btc'.sol.trajectory t) j ≤ 0 := by
+    intro t ht
+    -- Step 1: `f o + ∑_{j ≠ o} f j = ∑_j f j` on the universe.
+    rw [Finset.add_sum_erase _ _ (Finset.mem_univ btc'.pivp.output)]
+    change ∑ j : Fin d', vfield (vtraj t) j ≤ 0
+    -- Step 2: reindex via enc, so the sum is over α : MIndex d D.
+    rw [← Equiv.sum_comp enc (fun j => vfield (vtraj t) j)]
+    -- Step 3: each summand `vfield (vtraj t) (enc α)` matches the
+    -- `vCoeffA/vCoeffB` formula at α with the α-index reindexed.
+    have rewrite_sum : (∑ α : MIndex d D, vfield (vtraj t) (enc α)) =
+        ∑ α : MIndex d D,
+          ((∑ a : MIndex d D, ∑ b : MIndex d D,
+              vCoeffA pcd D α a b *
+                a.eval (btc.sol.trajectory t) *
+                b.eval (btc.sol.trajectory t)) -
+           (∑ a : MIndex d D,
+              vCoeffB pcd D α a * a.eval (btc.sol.trajectory t)) *
+              α.eval (btc.sol.trajectory t)) := by
+      apply Finset.sum_congr rfl
+      intro α _
+      simp only [vfield, A, B, vtraj, Equiv.symm_apply_apply]
+      rw [Equiv.sum_comp enc.symm (fun β =>
+            ∑ b : Fin d',
+              vCoeffA pcd D α β (enc.symm b) *
+                β.eval (btc.sol.trajectory t) *
+                (enc.symm b).eval (btc.sol.trajectory t)),
+          Equiv.sum_comp enc.symm (fun β =>
+            vCoeffB pcd D α β *
+              β.eval (btc.sol.trajectory t))]
+      conv_lhs =>
+        arg 1; arg 2; ext γ
+        rw [Equiv.sum_comp enc.symm (fun δ =>
+              vCoeffA pcd D α γ δ *
+                γ.eval (btc.sol.trajectory t) *
+                δ.eval (btc.sol.trajectory t))]
+    rw [rewrite_sum]
+    -- Step 4: apply the translation theorem.
+    rw [vfield_total_sum_as_field_weighted pcd D hDprod hDdegr
+          (btc.sol.trajectory t)]
+    -- Goal matches `h_input_c1 t ht`.
+    exact h_input_c1 t ht
+  -- Assemble the CRN-BTC via `ofEndpoints`.
+  exact ⟨d', ⟨CRNBoundedTimeComputable.ofEndpoints btc' v_output_monotone v_c1⟩⟩
+
 end Ripple
