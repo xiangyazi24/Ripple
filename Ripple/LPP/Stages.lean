@@ -923,6 +923,31 @@ theorem stage2_effectiveTime_hasDerivAt {n : ℕ} {ε c : ℝ} {P : PIVP n}
   have h_base := intervalIntegral.integral_hasDerivAt_right h_ii h_sm h_cont_at
   simpa [stage2_effectiveTime] using h_base.const_mul ε
 
+/-- Initial value of the unscaled tail: `w(0)` differs from `P.init` at the output
+coordinate by a factor of `c` — all tail variables are uniformly scaled by `c` in
+`stage2_init`, but `selectiveUnscale` only divides non-output coordinates.
+
+Explicitly:
+  `w(0) o = c · P.init o`
+  `w(0) j = P.init j`  for j ≠ o.
+
+This is the key subtlety: the convergence argument requires `w(0) = P.init`, which
+is automatic when `P.init o = 0` (the DNA 25 normalization) but otherwise introduces
+a factor-of-c discrepancy at the output coordinate. -/
+theorem stage2_unscaledTail_init {n : ℕ} {ε c : ℝ} (hc : c ≠ 0) {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P)) :
+    selectiveUnscale P.output c (Fin.tail (sol.trajectory 0))
+      = Function.update P.init P.output (c * P.init P.output) := by
+  have h_init : sol.trajectory 0 = (stage2_pivp ε c P).init := sol.init_cond
+  funext j
+  rw [h_init]
+  simp only [stage2_pivp, stage2_init, Fin.tail_cons]
+  by_cases hj : j = P.output
+  · subst hj
+    simp [selectiveUnscale]
+  · rw [selectiveUnscale_ne hj, Function.update_of_ne hj]
+    field_simp
+
 /-! ## Self-Product (Stage 3 Building Block)
 
 The self-product z_{i,j} = xᵢ · xⱼ is the key construction for Stage 3.
