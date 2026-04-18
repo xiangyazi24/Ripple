@@ -3021,6 +3021,130 @@ theorem stage2_convergence_final
   exact stage2_convergence_crn (cbtc := cbtc) hε hc hc1 hεc A B h_field
     sol h_sol_nn h_sol_sum h_zero_init h_output_nonpos h_c_sum
 
+/-- **Stage 2 weighted-nonpos from BTC orbit, via the unscaledTail ≡ btc.sol ∘ τ
+bridge.** Transfers the CRN-BTC structural `weighted_nonpos` field — a property
+of the BTC's own orbit — to the pointwise sign condition along the Stage 2
+unscaled-tail orbit that `stage2_z0_invariant_honest` consumes.
+
+No inner-field conservation is used. The transfer is purely the ODE
+uniqueness identity `stage2_unscaledTail_eq_btcTraj_comp_tau`, which already
+reduces `w(s) := selectiveUnscale o c (Fin.tail (sol s))` to
+`cbtc.sol.trajectory (τ s)` for `τ(s) ≥ 0`. -/
+theorem stage2_weighted_nonpos_from_btc
+    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
+    (hε : 0 ≤ ε) (hc : 0 < c) (hc1 : c ≤ 1)
+    {cbtc : CRNBoundedTimeComputable d α}
+    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
+    (h_field : ∀ i x, cbtc.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (sol : PIVP.Solution (stage2_pivp ε c cbtc.pivp))
+    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
+    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
+    (h_zero_init : cbtc.pivp.init cbtc.pivp.output = 0) :
+    ∀ s, 0 ≤ s →
+      cbtc.pivp.field (selectiveUnscale cbtc.pivp.output c
+        (Fin.tail (sol.trajectory s))) cbtc.pivp.output
+      + c * ∑ j ∈ Finset.univ.erase cbtc.pivp.output,
+            cbtc.pivp.field (selectiveUnscale cbtc.pivp.output c
+              (Fin.tail (sol.trajectory s))) j ≤ 0 := by
+  -- Uniform bounds (mirroring stage2_convergence_final) so we may invoke the
+  -- unscaledTail identity on every closed interval [0, s].
+  have h_sol_bdd : ∀ s, 0 ≤ s → ‖sol.trajectory s‖ ≤ 1 := by
+    intro s hs
+    rw [pi_norm_le_iff_of_nonneg zero_le_one]
+    intro i
+    rw [Real.norm_eq_abs, abs_of_nonneg (h_sol_nn s hs i)]
+    calc sol.trajectory s i
+        ≤ ∑ j, sol.trajectory s j :=
+          Finset.single_le_sum (f := sol.trajectory s)
+            (fun j _ => h_sol_nn s hs j) (Finset.mem_univ i)
+      _ = 1 := h_sol_sum s hs
+  have h_z0_nn : ∀ s, 0 ≤ s → 0 ≤ sol.trajectory s 0 := fun s hs => h_sol_nn s hs 0
+  have h_z0_le : ∀ s, 0 ≤ s → sol.trajectory s 0 ≤ 1 := by
+    intro s hs
+    have h_coord := norm_le_pi_norm (sol.trajectory s) 0
+    rw [Real.norm_eq_abs] at h_coord
+    exact (abs_le.mp (h_coord.trans (h_sol_bdd s hs))).2
+  obtain ⟨M_btc, hM_btc_pos, hM_btc⟩ := cbtc.bounded
+  set M : ℝ := max M_btc (1 / c) with hM_def
+  have hM_pos : 0 < M := lt_of_lt_of_le hM_btc_pos (le_max_left _ _)
+  have h_invc_le_M : 1 / c ≤ M := le_max_right _ _
+  have h_Mbtc_le_M : M_btc ≤ M := le_max_left _ _
+  obtain ⟨L, hL_bound⟩ := quadraticForm_locally_lipschitz A B h_field M hM_pos
+  set L' : ℝ := max L 0 with hL'_def
+  have hL'_nn : 0 ≤ L' := le_max_right _ _
+  have hL'_bound : ∀ x y : Fin d → ℝ, ‖x‖ ≤ M → ‖y‖ ≤ M →
+      ‖cbtc.pivp.field x - cbtc.pivp.field y‖ ≤ L' * ‖x - y‖ := by
+    intro x y hx hy
+    exact (hL_bound x y hx hy).trans
+      (mul_le_mul_of_nonneg_right (le_max_left _ _) (norm_nonneg _))
+  have h_τ_nn : ∀ s, 0 ≤ s → 0 ≤ stage2_effectiveTime sol s := by
+    intro s hs
+    -- stage2_effectiveTime_nonneg requires 0 ≤ ε.
+    exact stage2_effectiveTime_nonneg hε sol h_z0_nn s hs
+  have h_w_bdd_all : ∀ s, 0 ≤ s →
+      ‖selectiveUnscale cbtc.pivp.output c (Fin.tail (sol.trajectory s))‖ ≤ M := by
+    intro s hs
+    have h_tail_bdd : ‖Fin.tail (sol.trajectory s)‖ ≤ 1 := by
+      rw [pi_norm_le_iff_of_nonneg zero_le_one]
+      intro i
+      exact (norm_le_pi_norm (sol.trajectory s) i.succ).trans (h_sol_bdd s hs)
+    calc ‖selectiveUnscale cbtc.pivp.output c (Fin.tail (sol.trajectory s))‖
+        ≤ ‖Fin.tail (sol.trajectory s)‖ / c :=
+          selectiveUnscale_norm_le_div _ hc hc1 _
+      _ ≤ 1 / c := by
+          rw [div_le_div_iff_of_pos_right hc]; exact h_tail_bdd
+      _ ≤ M := h_invc_le_M
+  have h_btc_bdd_all : ∀ s, 0 ≤ s →
+      ‖cbtc.sol.trajectory (stage2_effectiveTime sol s)‖ ≤ M := fun s hs =>
+    (hM_btc _ (h_τ_nn s hs)).trans h_Mbtc_le_M
+  -- Main transfer: pointwise equality of w(s) and btc.sol(τ s), then invoke
+  -- the structural `weighted_nonpos` at τ(s) ≥ 0.
+  intro s hs
+  have h_eq_on :=
+    stage2_unscaledTail_eq_btcTraj_comp_tau (hc := ne_of_gt hc)
+      (btc := cbtc.toBoundedTimeComputable) sol h_zero_init h_z0_nn h_z0_le h_τ_nn
+      s hs M L' hL'_nn
+      (fun t ht => h_w_bdd_all t ht.1)
+      (fun t ht => h_btc_bdd_all t ht.1)
+      hL'_bound
+  have h_pt : selectiveUnscale cbtc.pivp.output c (Fin.tail (sol.trajectory s))
+      = cbtc.sol.trajectory (stage2_effectiveTime sol s) :=
+    h_eq_on ⟨hs, le_refl _⟩
+  rw [h_pt]
+  exact cbtc.weighted_nonpos c hc hc1 (stage2_effectiveTime sol s) (h_τ_nn s hs)
+
+/-- **Stage 2 z₀ invariant — final CRN form.**
+
+Composition of `stage2_z0_invariant_honest` with `stage2_weighted_nonpos_from_btc`:
+the pointwise weighted-nonpos hypothesis is supplied structurally by the
+`CRNBoundedTimeComputable` (its `weighted_nonpos` field), transferred to the
+Stage 2 unscaled-tail orbit via `stage2_unscaledTail_eq_btcTraj_comp_tau`.
+
+Callers need only the standard Stage 2 invariants (sol ≥ 0 componentwise,
+simplex `∑ = 1`, `btc.output`-coordinate zero init, init sum bound `c ≤ z₀(0)`);
+the λ-trick room condition is carried by the BTC structure, not proved at the
+Stage 2 level.
+
+No inner-field conservation is used anywhere in the chain. -/
+theorem stage2_z0_invariant_final
+    {d : ℕ} [NeZero d] {α : ℝ} {ε c : ℝ}
+    (hε : 0 ≤ ε) (hc : 0 < c) (hc1 : c ≤ 1)
+    {cbtc : CRNBoundedTimeComputable d α}
+    (A : Fin d → Fin d → Fin d → ℝ) (B : Fin d → Fin d → ℝ)
+    (h_field : ∀ i x, cbtc.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (sol : PIVP.Solution (stage2_pivp ε c cbtc.pivp))
+    (h_sol_nn : ∀ s, 0 ≤ s → ∀ i, 0 ≤ sol.trajectory s i)
+    (h_sol_sum : ∀ s, 0 ≤ s → ∑ i, sol.trajectory s i = 1)
+    (h_zero_init : cbtc.pivp.init cbtc.pivp.output = 0)
+    (h_z0_init_ge : c ≤ sol.trajectory 0 0) :
+    ∀ s, 0 ≤ s → c ≤ sol.trajectory s 0 := by
+  have h_weighted := stage2_weighted_nonpos_from_btc (cbtc := cbtc)
+    hε hc hc1 A B h_field sol h_sol_nn h_sol_sum h_zero_init
+  exact stage2_z0_invariant_honest (btc := cbtc.toBoundedTimeComputable)
+    hε hc hc1 sol h_sol_nn h_weighted h_z0_init_ge
+
 /-- A field with Stage2CubicForm structure (polynomial of degree ≤ 3) is locally Lipschitz. -/
 private lemma cubicForm_locally_lipschitz {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (s : Stage2CubicForm d field) :

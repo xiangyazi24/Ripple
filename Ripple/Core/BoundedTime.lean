@@ -112,6 +112,21 @@ structure CRNBoundedTimeComputable (d : ℕ) (α : ℝ) extends BoundedTimeCompu
   Stage 2 convergence without ad-hoc output-sign hypotheses. -/
   output_monotone : ∀ t : ℝ, 0 ≤ t →
     pivp.field (sol.trajectory t) pivp.output ≤ 0
+  /-- **LPP λ-trick room condition (orbit form).** For the λ-trick contraction
+  parameter `c ∈ (0, 1]`, the `c`-weighted inner-field combination driving the
+  Stage 2 slack variable `z₀` is non-positive along the BTC's own orbit:
+  `F(x(t))_o + c · ∑_{j ≠ o} F(x(t))_j ≤ 0`.
+  This is the *geometric* feasibility condition from [LPP, Remark 14]: the
+  Newton-iteration orbit lives in the convex region where weighted motion
+  towards the output coordinate dominates motion away from the simplex
+  boundary. It is NOT implied by conservation alone (the inner field is
+  generally non-conservative; conservation is a property of the *outer*
+  balancingDilation-extended system). It IS the λ-trick design condition
+  encoded at the structural level. -/
+  weighted_nonpos : ∀ (c : ℝ), 0 < c → c ≤ 1 → ∀ t : ℝ, 0 ≤ t →
+    pivp.field (sol.trajectory t) pivp.output
+      + c * ∑ j ∈ Finset.univ.erase pivp.output,
+          pivp.field (sol.trajectory t) j ≤ 0
 
 /-- Certified CRN-computability implies the older semantic notion. -/
 theorem certified_crn_to_crn {α : ℝ} :
