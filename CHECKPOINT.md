@@ -1,6 +1,33 @@
-# Ripple CHECKPOINT — 2026-04-17 (updated, session 28)
+# Ripple CHECKPOINT — 2026-04-18 (updated, session 29)
 
 > **Work log:** see [WORK_LOG.md](WORK_LOG.md) for append-only proof progress log with timestamps.
+
+## Session 29 (2026-04-18) — axiom pruning + DNA 25 semantic zero-init
+
+- **Stages.lean pruning** (commit `1dadf42`): deleted `stage2_core`, `stage2_to_tpp`,
+  `stage3_to_lpp`, `gpac_to_lpp`, `algebraic_lpp_computable` and their transitive axioms.
+  Canonical axiom-free chain is now `stage2_convergence_from_room → stage2_ode_axiomless_from_room
+  → stage2_core_from_room → stage2_to_lpp_from_room`. Axiom count 8 → 7.
+- **`Stage2Convergence.lean`: `stage2_to_lpp_from_bounds`** (commit `8c6b439`):
+  closes the `h_room` hypothesis via bounded-trajectory + small-λ argument from
+  [LPP] Remark 14 (c_room + M_out + M_rest bounds; uses `Finset.card_erase_of_mem`,
+  `Finset.sum_le_sum`, `mul_le_mul_of_nonneg_left`, linarith). h_room no longer a
+  free-floating assumption when the user supplies uniform bounds.
+- **NEW: `Core/InitShift.lean`** (commit `25b5a50`) — [RTCRN2]/DNA 25 Theorem 3:
+  - `PIVP.shiftToZero` (noncomputable def): semantic zero-init shift
+    via change of variables `ẑ(t) := y(t) − y₀`. Field `p̂(z) := p(z + y₀)`,
+    init = 0, output preserved.
+  - `PIVP.Solution.shift`: shifted trajectory solves the shifted PIVP.
+    `is_solution` proved via `hasDerivAt_pi` + `HasDerivAt.sub_const`.
+  - `PIVP.shiftToZero_isBounded`: boundedness transfers with constant `M + ‖P.init‖ + 1`.
+  - `BoundedTimeComputable.shiftToZero`: BTC-level zero-init reduction,
+    same modulus preserved. Output converges to `α − y₀.output`.
+  - `shiftToZero_zero_output_init`, `shiftToZero_pivp_output`, `_init`: simp lemmas.
+- **NEW: `IsRealTimeComputable` DNA 25 corollaries** (commit `062c502`):
+  - `IsRealTimeComputable.zero_init_decomposition`: RT α ⇒ ∃β, zero-init BTC for (α−β) with linear modulus.
+  - `IsRealTimeComputable.of_zero_init_plus_const`: reconstruction via `realtime_field_add` + `realtime_const`.
+  - DNA 25 reduction cycle now closed at BTC semantic layer.
+- **Ripple.lean**: adds `import Ripple.Core.InitShift`.
 
 ## Current State
 
