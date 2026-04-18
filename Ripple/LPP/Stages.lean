@@ -2978,7 +2978,8 @@ theorem stage2_z0_invariant_final
 
 HONEST chain: the only structural hypotheses needed are the CRN-BTC's
 `output_monotone` / `weighted_nonpos` orbit-level sign conditions (both
-plausibly satisfiable by Newton iteration — NOT inner-field conservation,
+plausibly satisfiable by the dual-rail minimum-polynomial CRN encoding
+of [RTCRN1] — NOT inner-field conservation,
 which is false for the v-variable output of Stage 1). The derivation goes
 
   `cbtc.weighted_nonpos` (on BTC orbit)
@@ -3980,7 +3981,7 @@ theorem stage3_to_lpp_crn {d : ℕ} {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
 /-- **Scalar axiom-free LPP pipeline**: for one-dimensional CRN inputs with
 non-negative orbit and output-monotone descent, the `c = 1` sum inequality
 is automatic (`stage1_vvariable_crn_of_scalar_mono`), so the caller needs
-only the Newton-descent and non-negativity hypotheses. -/
+only the output-descent and non-negativity hypotheses. -/
 theorem stage3_to_lpp_crn_scalar {α : ℝ} (hα01 : 0 ≤ α ∧ α ≤ 1)
     (btc : CertifiedBoundedTimeComputable 1 α)
     (pcd : PolyCRNDecomposition 1 btc.pivp)

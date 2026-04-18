@@ -1052,7 +1052,7 @@ where `w_k(x) := ∑_α α_k · x_k^{α_k - 1} · ∏_{j ≠ k} x_j^{α_j}` is t
 per-coordinate weight from the total-v-sum chain rule. By
 `vfield_total_sum_weight_nonneg`, `w_k ≥ 0` on the non-negative orthant,
 so `h_input_c1` reduces to a per-coordinate sign balance on the input
-field along the Newton orbit.
+field along the algebraic CRN orbit.
 
 This closes Path A modulo the single input-level inequality hypothesis —
 the structural v-BTC orbit condition is expressed entirely in terms of

@@ -106,15 +106,18 @@ orbit) and `weighted_nonpos` (the λ-trick `c`-weighted inner-field
 combination is non-positive along the orbit — the LPP Remark 14 geometric
 feasibility condition).
 
-Intended for CRN-encoded Newton iterations approaching α. These fields are
-plausibly satisfiable by real LPP constructions (unlike inner-field
-conservation, which the v-variable output of Stage 1 is deliberately
-non-conservative for). Downstream Stage 2 convergence theorems consume
-this structure via `stage2_z0_invariant_final`. -/
+Intended for algebraic CRN orbits approaching α (e.g. the dual-rail
+minimum-polynomial encoding of [RTCRN1]: `P = P⁺ - P⁻`, orbit descends
+along a root). These fields are plausibly satisfiable by real LPP
+constructions (unlike inner-field conservation, which the v-variable
+output of Stage 1 is deliberately non-conservative for). Downstream
+Stage 2 convergence theorems consume this structure via
+`stage2_z0_invariant_final`. -/
 structure CRNBoundedTimeComputable (d : ℕ) (α : ℝ) extends BoundedTimeComputable d α where
   /-- The output coordinate is monotone non-increasing along the BTC's own orbit.
-  Holds for CRN-encoded Newton iterations approaching α from above. Enables
-  Stage 2 convergence without ad-hoc output-sign hypotheses. -/
+  Holds for algebraic CRN orbits descending toward α from above (e.g. the
+  dual-rail minimum-polynomial encoding of [RTCRN1]). Enables Stage 2
+  convergence without ad-hoc output-sign hypotheses. -/
   output_monotone : ∀ t : ℝ, 0 ≤ t →
     pivp.field (sol.trajectory t) pivp.output ≤ 0
   /-- **LPP λ-trick room condition (orbit form).** For the λ-trick contraction
@@ -122,7 +125,7 @@ structure CRNBoundedTimeComputable (d : ℕ) (α : ℝ) extends BoundedTimeCompu
   Stage 2 slack variable `z₀` is non-positive along the BTC's own orbit:
   `F(x(t))_o + c · ∑_{j ≠ o} F(x(t))_j ≤ 0`.
   This is the *geometric* feasibility condition from [LPP, Remark 14]: the
-  Newton-iteration orbit lives in the convex region where weighted motion
+  algebraic CRN orbit lives in the convex region where weighted motion
   towards the output coordinate dominates motion away from the simplex
   boundary. It is NOT implied by conservation alone (the inner field is
   generally non-conservative; conservation is a property of the *outer*
