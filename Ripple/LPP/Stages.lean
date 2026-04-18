@@ -1209,17 +1209,16 @@ theorem stage2_unscaledTail_continuousOn {n : ℕ} {ε c : ℝ} (hc : c ≠ 0) {
   intro t ht
   exact ((stage2_unscaledTail_hasDerivAt hc sol t ht).continuousAt).continuousWithinAt
 
-/-- Continuity of `btc.sol.trajectory ∘ τ` on `Set.Ioi 0` (the composition of
-the BTC trajectory with the effective time map). Follows from the derivative
-in `stage2_btcTraj_comp_tau_hasDerivAt`, which itself requires `t > 0`. -/
+/-- Continuity of `btc.sol.trajectory ∘ τ` on `Set.Ici 0`. Follows from the unified
+right-derivative `stage2_btcTraj_comp_tau_hasDerivWithinAt`. -/
 theorem stage2_btcTraj_comp_tau_continuousOn {d : ℕ} {α : ℝ} {ε c : ℝ}
     {btc : BoundedTimeComputable d α}
     (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
-    (h_τ_nn : ∀ s, 0 < s → 0 ≤ stage2_effectiveTime sol s) :
+    (h_τ_nn : ∀ s, 0 ≤ s → 0 ≤ stage2_effectiveTime sol s) :
     ContinuousOn (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
-      (Set.Ioi (0 : ℝ)) := by
+      (Set.Ici (0 : ℝ)) := by
   intro t ht
-  exact ((stage2_btcTraj_comp_tau_hasDerivAt sol t ht (h_τ_nn t ht)).continuousAt).continuousWithinAt
+  exact (stage2_btcTraj_comp_tau_hasDerivWithinAt sol t ht (h_τ_nn t ht)).continuousWithinAt
 
 /-- Time-varying RHS for the stage-2 uniqueness argument:
   `v(t, x) := (ε · z_0(t)) • btc.pivp.field x`.
@@ -1266,6 +1265,143 @@ theorem stage2_vField_lipschitzOnWith {d : ℕ} {α : ℝ} {ε c : ℝ}
         have hεabs : 0 ≤ |ε| := abs_nonneg _
         exact mul_le_mul_of_nonneg_left h_fld hεabs
     _ = (|ε| * L) * ‖x - y‖ := by ring
+
+/-- Packaged `LipschitzOnWith` form of the stage-2 RHS bound on `closedBall 0 M`.
+Uses `stage2_vField_lipschitzOnWith` and converts the norm bound to the
+`LipschitzOnWith` structure required by Mathlib's ODE uniqueness theorems. -/
+theorem stage2_vField_lipschitzOnWith' {d : ℕ} {α : ℝ} {ε c : ℝ}
+    {btc : BoundedTimeComputable d α}
+    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
+    (t : ℝ) (M L : ℝ) (hL : 0 ≤ L)
+    (h_z0_nn : 0 ≤ sol.trajectory t 0) (h_z0_le : sol.trajectory t 0 ≤ 1)
+    (h_lip : ∀ x y : Fin d → ℝ, ‖x‖ ≤ M → ‖y‖ ≤ M →
+      ‖btc.pivp.field x - btc.pivp.field y‖ ≤ L * ‖x - y‖) :
+    LipschitzOnWith ⟨|ε| * L, mul_nonneg (abs_nonneg _) hL⟩
+      (stage2_vField btc sol t) (Metric.closedBall 0 M) := by
+  refine LipschitzOnWith.of_dist_le_mul ?_
+  intro x hx y hy
+  rw [Metric.mem_closedBall, dist_zero_right] at hx hy
+  have h_bound :=
+    stage2_vField_lipschitzOnWith sol t M L (le_trans (norm_nonneg _) hx)
+      h_z0_nn h_z0_le h_lip x y hx hy
+  rw [dist_eq_norm, dist_eq_norm]
+  simpa using h_bound
+
+/-- **Main uniqueness theorem for Stage 2** (LPP change-of-variables).
+
+Given the DNA 25 / LPP zero-init normalization (`P.init o = 0`), the unscaled tail
+`w(t) := selectiveUnscale o c (Fin.tail (sol t))` coincides with the composition
+`btc.sol.trajectory (τ(t))` on every compact interval `[0, T]`.
+
+The proof applies Mathlib's `ODE_solution_unique_of_mem_Icc_right` to the time-
+varying IVP `dv/dt = (ε · z₀(t)) • P.field(v)` with common initial value `P.init`:
+  * w(t) satisfies this by `stage2_unscaledTail_hasDerivAt` (plus zero-init for w(0));
+  * `btc.sol.trajectory (τ(t))` satisfies it by the chain rule
+    `stage2_btcTraj_comp_tau_hasDerivWithinAt` (plus btc.sol.init_cond).
+
+Caller supplies an a-priori bound `M` inside which both trajectories stay, and a
+Lipschitz constant `L` for `P.field` on `closedBall 0 M`. -/
+theorem stage2_unscaledTail_eq_btcTraj_comp_tau
+    {d : ℕ} {α : ℝ} {ε c : ℝ}
+    (hc : c ≠ 0)
+    {btc : BoundedTimeComputable d α}
+    (sol : PIVP.Solution (stage2_pivp ε c btc.pivp))
+    (h_zero_init : btc.pivp.init btc.pivp.output = 0)
+    (h_z0_nn : ∀ s, 0 ≤ s → 0 ≤ sol.trajectory s 0)
+    (h_z0_le : ∀ s, 0 ≤ s → sol.trajectory s 0 ≤ 1)
+    (h_τ_nn : ∀ s, 0 ≤ s → 0 ≤ stage2_effectiveTime sol s)
+    (T : ℝ) (hT : 0 ≤ T)
+    (M : ℝ) (L : ℝ) (hL : 0 ≤ L)
+    (h_w_bdd : ∀ s ∈ Set.Icc (0 : ℝ) T,
+      ‖selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory s))‖ ≤ M)
+    (h_btc_bdd : ∀ s ∈ Set.Icc (0 : ℝ) T,
+      ‖btc.sol.trajectory (stage2_effectiveTime sol s)‖ ≤ M)
+    (h_lip : ∀ x y : Fin d → ℝ, ‖x‖ ≤ M → ‖y‖ ≤ M →
+      ‖btc.pivp.field x - btc.pivp.field y‖ ≤ L * ‖x - y‖) :
+    Set.EqOn
+      (fun s => selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory s)))
+      (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
+      (Set.Icc (0 : ℝ) T) := by
+  -- Time-varying RHS and region.
+  set v : ℝ → (Fin d → ℝ) → Fin d → ℝ := stage2_vField btc sol with hv_def
+  set S : ℝ → Set (Fin d → ℝ) := fun _ => Metric.closedBall 0 M with hS_def
+  set K : NNReal := ⟨|ε| * L, mul_nonneg (abs_nonneg _) hL⟩ with hK_def
+  -- (1) Uniform Lipschitz bound on S t for all t ∈ Ico 0 T.
+  have hv : ∀ t ∈ Set.Ico (0 : ℝ) T, LipschitzOnWith K (v t) (S t) := by
+    intro t ht
+    exact stage2_vField_lipschitzOnWith' sol t M L hL
+      (h_z0_nn t ht.1) (h_z0_le t ht.1) h_lip
+  -- (2) Continuity of w on Icc 0 T.
+  have hf : ContinuousOn
+      (fun s => selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory s)))
+      (Set.Icc (0 : ℝ) T) :=
+    (stage2_unscaledTail_continuousOn hc sol).mono
+      (fun x hx => hx.1)
+  -- (3) Right-derivative of w on Ici t at each t ∈ Ico 0 T.
+  have hf' : ∀ t ∈ Set.Ico (0 : ℝ) T,
+      HasDerivWithinAt
+        (fun s => selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory s)))
+        (v t (selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory t))))
+        (Set.Ici t) t := by
+    intro t ht
+    have h := (stage2_unscaledTail_hasDerivAt hc sol t ht.1).hasDerivWithinAt
+      (s := Set.Ici t)
+    simpa [hv_def, stage2_vField] using h
+  -- (4) w stays in S t.
+  have hfs : ∀ t ∈ Set.Ico (0 : ℝ) T,
+      (fun s => selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory s))) t
+        ∈ S t := by
+    intro t ht
+    show _ ∈ Metric.closedBall (0 : Fin d → ℝ) M
+    rw [Metric.mem_closedBall, dist_zero_right]
+    exact h_w_bdd t ⟨ht.1, ht.2.le⟩
+  -- (5) Continuity of btc.sol ∘ τ on Icc 0 T.
+  have hg : ContinuousOn
+      (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
+      (Set.Icc (0 : ℝ) T) :=
+    (stage2_btcTraj_comp_tau_continuousOn sol h_τ_nn).mono
+      (fun x hx => hx.1)
+  -- (6) Right-derivative of btc.sol ∘ τ on Ici t at each t ∈ Ico 0 T.
+  have hg' : ∀ t ∈ Set.Ico (0 : ℝ) T,
+      HasDerivWithinAt (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
+        (v t (btc.sol.trajectory (stage2_effectiveTime sol t)))
+        (Set.Ici t) t := by
+    intro t ht
+    have h_unif : HasDerivWithinAt
+        (fun s => btc.sol.trajectory (stage2_effectiveTime sol s))
+        ((ε * sol.trajectory t 0) •
+          btc.pivp.field (btc.sol.trajectory (stage2_effectiveTime sol t)))
+        (Set.Ici (0 : ℝ)) t :=
+      stage2_btcTraj_comp_tau_hasDerivWithinAt sol t ht.1 (h_τ_nn t ht.1)
+    have h_sub : Set.Ici t ⊆ Set.Ici (0 : ℝ) := fun x hx => le_trans ht.1 hx
+    have := h_unif.mono h_sub
+    simpa [hv_def, stage2_vField] using this
+  -- (7) btc.sol ∘ τ stays in S t.
+  have hgs : ∀ t ∈ Set.Ico (0 : ℝ) T,
+      (fun s => btc.sol.trajectory (stage2_effectiveTime sol s)) t ∈ S t := by
+    intro t ht
+    show _ ∈ Metric.closedBall (0 : Fin d → ℝ) M
+    rw [Metric.mem_closedBall, dist_zero_right]
+    exact h_btc_bdd t ⟨ht.1, ht.2.le⟩
+  -- (8) Same initial value at t = 0.
+  have ha : (fun s => selectiveUnscale btc.pivp.output c
+                        (Fin.tail (sol.trajectory s))) 0
+      = (fun s => btc.sol.trajectory (stage2_effectiveTime sol s)) 0 := by
+    show selectiveUnscale btc.pivp.output c (Fin.tail (sol.trajectory 0))
+      = btc.sol.trajectory (stage2_effectiveTime sol 0)
+    have h_w0 := stage2_unscaledTail_init (ε := ε) hc sol
+    have h_τ0 : stage2_effectiveTime sol 0 = 0 := by
+      unfold stage2_effectiveTime
+      simp
+    have h_btc0 : btc.sol.trajectory (stage2_effectiveTime sol 0) = btc.pivp.init := by
+      rw [h_τ0]; exact btc.sol.init_cond
+    rw [h_btc0, h_w0, h_zero_init]
+    ext j
+    by_cases hj : j = btc.pivp.output
+    · subst hj
+      simp [h_zero_init]
+    · rw [Function.update_of_ne hj]
+  exact ODE_solution_unique_of_mem_Icc_right hv hf hf' hfs hg hg' hgs ha
 
 /-! ## Self-Product (Stage 3 Building Block)
 
