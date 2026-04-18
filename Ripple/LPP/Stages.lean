@@ -948,6 +948,16 @@ theorem stage2_unscaledTail_init {n : ℕ} {ε c : ℝ} (hc : c ≠ 0) {P : PIVP
   · rw [selectiveUnscale_ne hj, Function.update_of_ne hj]
     field_simp
 
+/-- The stage-2 output equals the unscaled-tail at the output coordinate:
+  `sol(t)_{o.succ} = w(t)_o`
+
+because `selectiveUnscale` is the identity at the output coordinate. -/
+theorem stage2_output_eq_unscaledTail {n : ℕ} {ε c : ℝ} {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P)) (t : ℝ) :
+    sol.trajectory t (stage2_pivp ε c P).output
+      = selectiveUnscale P.output c (Fin.tail (sol.trajectory t)) P.output := by
+  simp [stage2_pivp, selectiveUnscale, Fin.tail]
+
 /-! ## Self-Product (Stage 3 Building Block)
 
 The self-product z_{i,j} = xᵢ · xⱼ is the key construction for Stage 3.
