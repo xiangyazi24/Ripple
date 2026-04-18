@@ -1053,6 +1053,35 @@ theorem stage2_z0_nonneg {d : ℕ} {α : ℝ}
     stage2_init_nonneg hc.le h_init_nn h_sum_le
   exact pivp_solution_nonneg h_crn_stage2 h_lip h_init_nn' sol t ht 0
 
+/-- Stage-2 simplex conservation: `∑ i, sol.trajectory t i = 1` for all `t ≥ 0`.
+
+Direct specialization of `pivp_solution_sum_const` using
+`balancingDilation_conservative` and `stage2_init_simplex`. -/
+theorem stage2_sum_eq_one {n : ℕ} {ε c : ℝ} {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P))
+    (t : ℝ) (ht : 0 ≤ t) :
+    ∑ i, sol.trajectory t i = 1 := by
+  have h_cons : IsConservative (stage2_pivp ε c P).field :=
+    balancingDilation_conservative _
+  have h := pivp_solution_sum_const h_cons sol t ht
+  rw [h]
+  exact stage2_pivp_init_simplex ε c P
+
+/-- Stage-2 z₀ formula: `z_0(t) = 1 - ∑_{i ≥ 1} z_i(t)` for all `t ≥ 0`.
+
+Consequence of `stage2_sum_eq_one`. -/
+theorem stage2_z0_eq_one_minus_tail_sum {n : ℕ} {ε c : ℝ} {P : PIVP n}
+    (sol : PIVP.Solution (stage2_pivp ε c P))
+    (t : ℝ) (ht : 0 ≤ t) :
+    sol.trajectory t 0 = 1 - ∑ j : Fin n, Fin.tail (sol.trajectory t) j := by
+  have h_sum := stage2_sum_eq_one sol t ht
+  rw [Fin.sum_univ_succ] at h_sum
+  have h_tail_eq : ∑ j : Fin n, Fin.tail (sol.trajectory t) j
+      = ∑ j : Fin n, sol.trajectory t j.succ := by
+    simp [Fin.tail]
+  rw [h_tail_eq]
+  linarith [h_sum]
+
 /-! ## Self-Product (Stage 3 Building Block)
 
 The self-product z_{i,j} = xᵢ · xⱼ is the key construction for Stage 3.
