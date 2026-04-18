@@ -106,17 +106,18 @@ orbit) and `weighted_nonpos` (the λ-trick `c`-weighted inner-field
 combination is non-positive along the orbit — the LPP Remark 14 geometric
 feasibility condition).
 
-Intended for algebraic CRN orbits approaching α (e.g. the dual-rail
-minimum-polynomial encoding of [RTCRN1]: `P = P⁺ - P⁻`, orbit descends
-along a root). These fields are plausibly satisfiable by real LPP
-constructions (unlike inner-field conservation, which the v-variable
-output of Stage 1 is deliberately non-conservative for). Downstream
-Stage 2 convergence theorems consume this structure via
+Intended for algebraic CRN orbits approaching α (the quadratic PIVP
+from [RTCRN1] directly encoding the minimum polynomial; further stages
+re-quadraticize after balancing dilation and self-product, cf.
+Bournez's construction). These fields are plausibly satisfiable by
+real LPP constructions (unlike inner-field conservation, which the
+v-variable output of Stage 1 is deliberately non-conservative for).
+Downstream Stage 2 convergence theorems consume this structure via
 `stage2_z0_invariant_final`. -/
 structure CRNBoundedTimeComputable (d : ℕ) (α : ℝ) extends BoundedTimeComputable d α where
   /-- The output coordinate is monotone non-increasing along the BTC's own orbit.
   Holds for algebraic CRN orbits descending toward α from above (e.g. the
-  dual-rail minimum-polynomial encoding of [RTCRN1]). Enables Stage 2
+  quadratic minimum-polynomial PIVP of [RTCRN1]). Enables Stage 2
   convergence without ad-hoc output-sign hypotheses. -/
   output_monotone : ∀ t : ℝ, 0 ≤ t →
     pivp.field (sol.trajectory t) pivp.output ≤ 0

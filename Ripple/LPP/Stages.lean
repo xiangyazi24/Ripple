@@ -2978,9 +2978,9 @@ theorem stage2_z0_invariant_final
 
 HONEST chain: the only structural hypotheses needed are the CRN-BTC's
 `output_monotone` / `weighted_nonpos` orbit-level sign conditions (both
-plausibly satisfiable by the dual-rail minimum-polynomial CRN encoding
-of [RTCRN1] — NOT inner-field conservation,
-which is false for the v-variable output of Stage 1). The derivation goes
+plausibly satisfiable by the quadratic minimum-polynomial PIVP of
+[RTCRN1] — NOT inner-field conservation, which is false for the
+v-variable output of Stage 1). The derivation goes
 
   `cbtc.weighted_nonpos` (on BTC orbit)
     --[`stage2_unscaledTail_eq_btcTraj_comp_tau`]→
