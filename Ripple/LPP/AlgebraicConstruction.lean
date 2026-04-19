@@ -15,6 +15,7 @@
 import Ripple.Core.BoundedTime
 import Ripple.Core.MinPolyBounded
 import Ripple.Core.MinPolyConvergence
+import Ripple.LPP.AddRationalNeg
 import Ripple.LPP.AddRationalPos
 import Ripple.LPP.Defs
 import Ripple.LPP.MinPolyData
@@ -593,12 +594,19 @@ or (b) a positivity hypothesis on the original trajectory forcing
 `x_out(t) ≥ |q|` asymptotically and a quadratic-annihilation encoding.
 
 See the docstring comment on `certified_add_rational_pos` for the full
-obstruction analysis. -/
-axiom certified_add_rational_neg {β : ℝ} (q : ℚ) (hq : q < 0) {d : ℕ}
+obstruction analysis.
+
+**Status.** Now a theorem (see `Ripple.LPP.AddRationalNeg`). The
+`CertifiedBoundedTimeComputable` content is proved via the sign-independent
+relaxation-tracker construction from `AddRationalPos`. The remaining
+`PolyCRNDecomposition` existence is isolated as the narrow residual axiom
+`polyCRN_exists_neg_shift` in that file. -/
+theorem certified_add_rational_neg {β : ℝ} (q : ℚ) (hq : q < 0) {d : ℕ}
     (cbtc : CertifiedBoundedTimeComputable d β)
-    (_pcd : PolyCRNDecomposition d cbtc.pivp) :
+    (pcd : PolyCRNDecomposition d cbtc.pivp) :
     ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' (β + (q : ℝ)))
-      (_ : PolyCRNDecomposition d' cbtc'.pivp), True
+      (_ : PolyCRNDecomposition d' cbtc'.pivp), True :=
+  certified_add_rational_neg_proved q hq cbtc pcd
 
 /-- Additive closure, nonzero case: dispatch on sign of `q` to the
 positive/negative sub-axioms. Strictly narrower axiomatic content than

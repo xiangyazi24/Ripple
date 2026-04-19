@@ -1,6 +1,46 @@
-# Ripple CHECKPOINT — 2026-04-19 (updated, session 36)
+# Ripple CHECKPOINT — 2026-04-19 (updated, session 37)
 
 > **Work log:** see [WORK_LOG.md](WORK_LOG.md) for append-only proof progress log with timestamps.
+
+## Session 37 — `certified_add_rational_neg` narrowed to `PolyCRNDecomposition`-only residual
+
+The monolithic `certified_add_rational_neg` axiom in
+`Ripple/LPP/AlgebraicConstruction.lean:597` is now a **theorem**, reducing to
+a strictly narrower residual axiom `polyCRN_exists_neg_shift` in the new file
+`Ripple/LPP/AddRationalNeg.lean`.
+
+**What was discharged (zero new axioms):**
+- `certifiedBTCForNegShift` — a full `CertifiedBoundedTimeComputable (d+1) (β+q)`
+  for `q < 0`, constructed explicitly from the sign-independent relaxation-tracker
+  infrastructure in `AddRationalPos`. Refactored
+  `relaxation_tracker_convergence` to drop its unused `0 < q` hypothesis; the
+  proof works verbatim for any `q : ℚ`. Boundedness `extendedTraj_isBounded`
+  and the explicit `extendedSolution` are re-used sign-independently.
+
+**What remains (narrow residual axiom):**
+- `polyCRN_exists_neg_shift` — the *existence* of **some** `(d', cbtc', pcd')`
+  computing `β + q` with a `PolyCRNDecomposition`. Does NOT assert the
+  specific `relaxationPIVP` admits one (it provably cannot: `field_y = X_out + C q − X_y`
+  with `q < 0` has a negative constant coefficient no polynomial `degr_y`
+  can absorb, and `init_y = q < 0` violates `init_nonneg`).
+
+**Precise obstruction.** `PolyCRNDecomposition` requires both `prod_i` and
+`degr_i` to have non-negative rational coefficients. For `q < 0`, the constant
+term `C q` cannot appear in `prod_y` (negative coef); it cannot appear in
+`−degr_y · X_y` (vanishes at `X_y = 0`). Resolution requires one of:
+(a) dual-rail reduction (`toDualRail`) — output is `BoundedTimeComputable`,
+not `CertifiedBoundedTimeComputable` with a syntactic decomposition;
+(b) RTCRN1 Lemma 4.5 bimolecular annihilation (nonlinear, needs positivity
+hypothesis on `x_out(t)`);
+(c) quadratic forcing with no known non-negative-coef polynomial realization.
+
+**Verified axioms:**
+- `#print axioms Ripple.Algebraic.certifiedBTCForNegShift`
+  → `[propext, Classical.choice, Quot.sound]` (zero custom axioms)
+- `#print axioms Ripple.Algebraic.certified_add_rational_neg`
+  → `[propext, Classical.choice, Quot.sound, Ripple.Algebraic.polyCRN_exists_neg_shift]`
+
+`lake build` clean.
 
 ## Session 36 — `relaxation_tracker_convergence` fully discharged (axiom-free)
 

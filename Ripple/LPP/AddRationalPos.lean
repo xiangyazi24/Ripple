@@ -810,8 +810,13 @@ lemma tail_integral_bound {d : ℕ} {β : ℝ}
 -- The proof term is large (many integral manipulations, exp arithmetic);
 -- the default heartbeat budget is insufficient for elaboration.
 set_option maxHeartbeats 800000 in
-/-- The Grönwall-style convergence bound for the tracker. -/
-theorem relaxation_tracker_convergence {β : ℝ} (q : ℚ) (_hq : 0 < q) {d : ℕ}
+/-- The Grönwall-style convergence bound for the tracker.
+
+**Sign-independent**: the proof uses only the Duhamel/exp-decay structure of
+the linear scalar ODE `y' = x_out + q − y`, which is well-defined for any
+`q : ℚ`. This lets us re-use the same convergence content for `q < 0` in
+`Ripple.LPP.AddRationalNeg`. -/
+theorem relaxation_tracker_convergence {β : ℝ} (q : ℚ) {d : ℕ}
     (cbtc : CertifiedBoundedTimeComputable d β) :
     ∃ modulus' : TimeModulus,
       ∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
@@ -1023,14 +1028,14 @@ theorem relaxation_tracker_convergence {β : ℝ} (q : ℚ) (_hq : 0 < q) {d : �
 /-- Discharge the original-form `relaxation_tracker_solution` axiom in terms
 of the explicit solution construction. The existence/boundedness parts are
 proved; only convergence remains as the narrower axiom above. -/
-theorem relaxation_tracker_solution {β : ℝ} (q : ℚ) (hq : 0 < q) {d : ℕ}
+theorem relaxation_tracker_solution {β : ℝ} (q : ℚ) (_hq : 0 < q) {d : ℕ}
     (cbtc : CertifiedBoundedTimeComputable d β) :
     ∃ (sol' : PIVP.Solution (relaxationPIVP cbtc.pivp q).toPIVP)
       (modulus' : TimeModulus),
       (relaxationPIVP cbtc.pivp q).toPIVP.IsBounded sol'.trajectory ∧
       (∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
         |sol'.trajectory t (Fin.last d) - (β + (q : ℝ))| < Real.exp (-(r : ℝ))) := by
-  obtain ⟨mod', hconv⟩ := relaxation_tracker_convergence q hq cbtc
+  obtain ⟨mod', hconv⟩ := relaxation_tracker_convergence q cbtc
   exact ⟨extendedSolution cbtc q, mod',
     extendedTraj_isBounded cbtc q, hconv⟩
 
