@@ -34,6 +34,7 @@
 
 import Ripple.LPP.Defs
 import Ripple.LPP.Stages
+import Ripple.Core.GronwallCofinal
 
 namespace Ripple
 
@@ -619,34 +620,215 @@ theorem noCollapse_step2_root_liminf {d : ℕ} {P : PolyPIVP d}
   have hfinal : α - sol.trajectory t r ≤ α / 2 := h_f_le_half
   linarith
 
-/-- **Step 3 (SCC induction step).**
+/-! ### Step 3 scaffolding: eventual lower bounds and the analytic inductive step
 
-If species `j` has a positive-coefficient production monomial all of whose
-variables are species `i₁, …, i_k` (distinct from `j`, so this is a
-non-self production), and each feeder `i_ℓ` has a positive asymptotic lower
-bound, then `j` also has a positive asymptotic lower bound.
+We split the `noCollapse_step3_scc_induction` proof into two layers:
 
-Mathematical content: the feed `∏_ℓ x_{i_ℓ}^{e_ℓ}` is bounded below by
-`∏_ℓ c_ℓ^{e_ℓ}` on the cofinal set where all feeders are simultaneously
-bounded below by their `c_ℓ`. Under boundedness, the same Grönwall-on-
-scalar-linear-inequality argument as Step 2 gives a positive asymptotic
-lower bound for `j`.
+* **Analytic inductive step (proved here as `eventualLowerBound_of_prod_eventual_lower_bound`).**
+  Given a species `j`, an eventual positive lower bound on its production
+  polynomial `(pcd.prod j).eval₂ (sol s)`, and boundedness of the trajectory,
+  conclude an eventual positive lower bound on `sol s j`.
+  This is a direct instance of `gronwall_eventual_lower_bound` applied to the
+  scalar ODE `f'(s) = g(s) - D·f(s)` where `f(s) := sol s j`,
+  `g(s) := prod_j(sol s) + (D - degr_j(sol s))·f(s)`, and `D` is the
+  polynomial upper bound of `degr j` on the ball `‖x‖ ≤ M`.
 
-**Form used by `zero_init_no_collapse`.** We package the SCC induction as:
-for every non-root species with a positive trajectory value at some `t₀`,
-a positive asymptotic lower bound exists — deferring the graph-traversal
-bookkeeping (which is an inductive argument on the production-graph
-condensation) to this axiom. The non-algorithmic content is captured by
-the single phrase "induction on the condensation". -/
-axiom noCollapse_step3_scc_induction {d : ℕ} {P : PolyPIVP d}
+* **Combinatorial traversal (remaining axiom
+  `noCollapse_step3_graph_traversal`).** The graph-theoretic induction on
+  the production-graph condensation that feeds the analytic step its
+  hypothesis. Pure combinatorics on `PolyCRNDecomposition`; no further
+  analysis is hidden behind it.
+
+The top-level `noCollapse_step3_scc_induction` becomes a `theorem` that
+composes the two layers. -/
+
+/-- Eventually lower bound predicate: from some time `T` onward, species `i`
+is bounded below by `c`. -/
+def HasEventualLowerBound (traj : ℝ → Fin d → ℝ) (i : Fin d) (c : ℝ) : Prop :=
+  ∃ T : ℝ, ∀ t : ℝ, T ≤ t → c ≤ traj t i
+
+/-- An eventual positive lower bound easily converts to the cofinal form used
+by `zero_init_no_collapse`. -/
+theorem hasEventualLowerBound_to_cofinal {d : ℕ} {traj : ℝ → Fin d → ℝ}
+    {i : Fin d} {c : ℝ} (_hc : 0 < c)
+    (h : HasEventualLowerBound traj i c) :
+    ∀ T : ℝ, ∃ t : ℝ, T ≤ t ∧ c ≤ traj t i := by
+  obtain ⟨T₀, hT₀⟩ := h
+  intro T
+  refine ⟨max T T₀, le_max_left _ _, ?_⟩
+  exact hT₀ _ (le_max_right _ _)
+
+/-- **Analytic inductive step (PROVED).**
+
+Given bounded trajectory, zero-init CRN shape, and an eventual positive lower
+bound on the production polynomial of species `j`, species `j` itself admits
+an eventual positive lower bound.
+
+This is the analytic content of the SCC induction: the only missing piece is
+the graph-theoretic certification that the production polynomial is eventually
+lower-bounded — captured by the separate combinatorial axiom below. -/
+theorem eventualLowerBound_of_prod_eventual_lower_bound
+    {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (j : Fin d) {c_p : ℝ} (hc_p : 0 < c_p)
+    (h_prod_lb : ∃ T_p : ℝ, 0 ≤ T_p ∧
+      ∀ s, T_p ≤ s →
+        c_p ≤ (pcd.prod j).eval₂ (Rat.castHom ℝ) (sol.trajectory s)) :
+    ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory j c := by
+  -- Nonnegativity of trajectory.
+  have h_nn : ∀ (t : ℝ), 0 ≤ t → ∀ i, 0 ≤ sol.trajectory t i :=
+    fun t ht i => crn_trajectory_nonneg pcd hzi sol hbnd i t ht
+  -- Extract the norm bound.
+  obtain ⟨M, hMpos, hMbnd⟩ := hbnd
+  have hM_nn : 0 ≤ M := le_of_lt hMpos
+  have h_coord_bnd : ∀ (t : ℝ), 0 ≤ t → ∀ i, sol.trajectory t i ≤ M := by
+    intro t ht i
+    have h1 : ‖sol.trajectory t‖ ≤ M := hMbnd t ht
+    have h2 : ‖sol.trajectory t i‖ ≤ ‖sol.trajectory t‖ := norm_le_pi_norm _ i
+    have h3 : sol.trajectory t i ≤ ‖sol.trajectory t i‖ := Real.le_norm_self _
+    linarith
+  -- Uniform upper bound on degr_j.
+  let D : ℝ := polyUpperBound (pcd.degr j) M
+  have hD_nn : 0 ≤ D :=
+    polyUpperBound_nonneg _ _ hM_nn (pcd.degr_nonneg j)
+  -- Unpack the production lower bound hypothesis.
+  obtain ⟨T_p, hT_p_nn, h_prod_ge⟩ := h_prod_lb
+  -- Define the scalar f(s) := sol.trajectory s j and g(s) such that
+  -- f'(s) = g(s) - D · f(s), with g(s) ≥ c_p on [T_p, ∞).
+  let f : ℝ → ℝ := fun s => sol.trajectory s j
+  let g : ℝ → ℝ := fun s =>
+    (pcd.prod j).eval₂ (Rat.castHom ℝ) (sol.trajectory s)
+      + (D - (pcd.degr j).eval₂ (Rat.castHom ℝ) (sol.trajectory s))
+        * sol.trajectory s j
+  -- Continuity of f on Ici T_p.
+  have h_f_contOn : ContinuousOn f (Set.Ici T_p) := by
+    intro s hs
+    have h_s_nn : 0 ≤ s := le_trans hT_p_nn hs
+    have h_ode : HasDerivAt sol.trajectory
+        (P.toPIVP.field (sol.trajectory s)) s :=
+      sol.is_solution s h_s_nn
+    have h_r : HasDerivAt (fun u => sol.trajectory u j)
+        (P.toPIVP.field (sol.trajectory s) j) s :=
+      hasDerivAt_pi.mp h_ode j
+    exact h_r.continuousAt.continuousWithinAt
+  -- Nonnegativity at T_p.
+  have h_f_Tp_nn : 0 ≤ f T_p := h_nn T_p hT_p_nn j
+  -- Derivative of f on Ici T_p: f'(s) = g(s) - D · f(s).
+  have h_f_hasDeriv : ∀ s, T_p ≤ s →
+      HasDerivWithinAt f (g s - D * f s) (Set.Ici s) s := by
+    intro s hs
+    have h_s_nn : 0 ≤ s := le_trans hT_p_nn hs
+    have h_ode : HasDerivAt sol.trajectory
+        (P.toPIVP.field (sol.trajectory s)) s :=
+      sol.is_solution s h_s_nn
+    have h_deriv_j := crn_component_hasDerivAt pcd sol j s h_ode
+    -- h_deriv_j : HasDerivAt f (prod_j - degr_j * x_j) s
+    -- We want f'(s) = g s - D * f s.
+    have heq : (pcd.prod j).eval₂ (Rat.castHom ℝ) (sol.trajectory s)
+          - (pcd.degr j).eval₂ (Rat.castHom ℝ) (sol.trajectory s) *
+            sol.trajectory s j
+        = g s - D * f s := by
+      change _ = _ + (D - _) * _ - D * _
+      ring
+    rw [heq] at h_deriv_j
+    exact h_deriv_j.hasDerivWithinAt
+  -- g(s) ≥ c_p on [T_p, ∞).
+  have h_g_ge : ∀ s, T_p ≤ s → c_p ≤ g s := by
+    intro s hs
+    have h_s_nn : 0 ≤ s := le_trans hT_p_nn hs
+    have h_xs_nn : ∀ i, 0 ≤ sol.trajectory s i := h_nn s h_s_nn
+    have h_xs_le : ∀ i, sol.trajectory s i ≤ M := h_coord_bnd s h_s_nn
+    -- degr_j ≤ D.
+    have h_degr_le : (pcd.degr j).eval₂ (Rat.castHom ℝ) (sol.trajectory s) ≤ D :=
+      mvpoly_eval₂_le_polyUpperBound (pcd.degr j) (sol.trajectory s) M
+        hM_nn h_xs_nn h_xs_le (pcd.degr_nonneg j)
+    have h_x_j_nn : 0 ≤ sol.trajectory s j := h_xs_nn j
+    have h_slack_nn :
+        0 ≤ (D - (pcd.degr j).eval₂ (Rat.castHom ℝ) (sol.trajectory s))
+              * sol.trajectory s j :=
+      mul_nonneg (by linarith) h_x_j_nn
+    have h_prod_bd : c_p ≤
+        (pcd.prod j).eval₂ (Rat.castHom ℝ) (sol.trajectory s) :=
+      h_prod_ge s hs
+    change c_p ≤ _ + _
+    linarith
+  -- Invoke the eventual-feed Grönwall lemma.
+  obtain ⟨T', c', hT'_ge, hc'_pos, hf_ge⟩ :=
+    gronwall_eventual_lower_bound hc_p hD_nn h_f_contOn h_f_Tp_nn
+      h_f_hasDeriv h_g_ge
+  exact ⟨c', hc'_pos, ⟨T', hf_ge⟩⟩
+
+/-- **Graph-traversal axiom (combinatorial).**
+
+Given: zero-init, CRN shape, boundedness, and an *eventual* positive lower
+bound for every root species, every eventually-positive species also has an
+*eventual* positive lower bound. Pure combinatorial induction on the
+production-graph condensation using `eventualLowerBound_of_prod_eventual_lower_bound`
+at each inductive step — no further analysis. -/
+axiom noCollapse_step3_graph_traversal {d : ℕ} {P : PolyPIVP d}
     (_pcd : PolyCRNDecomposition d P) (_hzi : P.IsZeroInit)
     (sol : PIVP.Solution P.toPIVP)
     (_hbnd : P.toPIVP.IsBounded sol.trajectory)
     (i : Fin d) (t₀ : ℝ) (_ht₀ : 0 ≤ t₀) (_hpos : 0 < sol.trajectory t₀ i)
-    (_root_feed : ∀ r : Fin d, 0 < (_pcd.prod r).coeff 0 →
+    (_root_feed_eventual : ∀ r : Fin d, 0 < (_pcd.prod r).coeff 0 →
+      ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory r c) :
+    ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory i c
+
+/-! ### Strengthened Step 2: root species have an *eventual* lower bound.
+
+Identical proof strategy to `noCollapse_step2_root_liminf`, but extracted in
+the strictly stronger form needed to feed the combinatorial traversal. -/
+
+/-- **Step 2 (eventual form) — PROVED.**
+
+A root species along a bounded, zero-init trajectory admits a positive
+*eventual* lower bound (i.e., for some `T`, `sol t r ≥ c` for every `t ≥ T`). -/
+theorem noCollapse_step2_root_eventual {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (r : Fin d) (hroot : 0 < (pcd.prod r).coeff 0) :
+    ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory r c := by
+  -- Apply the analytic inductive step: the production polynomial has
+  -- constant coefficient c_r > 0, so it is bounded below by c_r on the
+  -- whole non-negative orthant (in particular for all s ≥ 0).
+  have h_nn : ∀ (t : ℝ), 0 ≤ t → ∀ i, 0 ≤ sol.trajectory t i :=
+    fun t ht i => crn_trajectory_nonneg pcd hzi sol hbnd i t ht
+  have hc_r_pos : (0 : ℝ) < (((pcd.prod r).coeff 0 : ℚ) : ℝ) := by
+    exact_mod_cast hroot
+  refine eventualLowerBound_of_prod_eventual_lower_bound pcd hzi sol hbnd r
+    hc_r_pos ⟨0, le_refl _, ?_⟩
+  intro s hs
+  have h_xs_nn : ∀ i, 0 ≤ sol.trajectory s i := h_nn s hs
+  exact mvpoly_const_coeff_le_eval₂ (pcd.prod r) (sol.trajectory s)
+    h_xs_nn (pcd.prod_nonneg r)
+
+/-- **Step 3 (SCC induction step) — theorem composed from the analytic
+inductive step and the combinatorial graph-traversal axiom.**
+
+The original `noCollapse_step3_scc_induction` axiom is discharged by (i)
+strengthening the root-feed hypothesis from cofinal to eventual using Step 2,
+(ii) running the combinatorial traversal to get an eventual lower bound on
+species `i`, and (iii) relaxing back to the cofinal form. -/
+theorem noCollapse_step3_scc_induction {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (i : Fin d) (t₀ : ℝ) (ht₀ : 0 ≤ t₀) (hpos : 0 < sol.trajectory t₀ i)
+    (_root_feed : ∀ r : Fin d, 0 < (pcd.prod r).coeff 0 →
       ∃ c : ℝ, 0 < c ∧ ∀ T : ℝ, ∃ t : ℝ, T ≤ t ∧ c ≤ sol.trajectory t r) :
     ∃ c : ℝ, 0 < c ∧
-      ∀ T : ℝ, ∃ t : ℝ, T ≤ t ∧ c ≤ sol.trajectory t i
+      ∀ T : ℝ, ∃ t : ℝ, T ≤ t ∧ c ≤ sol.trajectory t i := by
+  -- Strengthen root feed from cofinal to eventual via the strong Step 2.
+  have root_feed_eventual : ∀ r : Fin d, 0 < (pcd.prod r).coeff 0 →
+      ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory r c :=
+    fun r hroot => noCollapse_step2_root_eventual pcd hzi sol hbnd r hroot
+  obtain ⟨c, hc_pos, h_ev⟩ :=
+    noCollapse_step3_graph_traversal pcd hzi sol hbnd i t₀ ht₀ hpos
+      root_feed_eventual
+  exact ⟨c, hc_pos, hasEventualLowerBound_to_cofinal hc_pos h_ev⟩
 
 /-! ## The non-collapse conjecture (composed from Steps 1–3) -/
 
