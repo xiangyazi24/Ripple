@@ -200,6 +200,42 @@ noncomputable def saturatingPIVP_polyCRN {d : ℕ} {P : PolyPIVP d} (U : ℚ)
       unfold liftProd liftDegr
       rw [pcd.field_eq i', map_sub, map_mul, rename_X]
 
+/-! ## Step 4b: evaluation of the extended field.
+
+Decomposes `(saturatingPIVP P U).toPIVP.field` on the two coordinate classes,
+reducing the extended vector field to the original one (on `castSucc` rows)
+and to the scalar saturating-tracker expression (on the last row). These are
+the structural glue used to verify that the eventual explicit trajectory
+satisfies the extended ODE. -/
+
+/-- Evaluation on a `castSucc` coordinate reduces to the original field
+evaluated on the restricted state vector. -/
+lemma evalField_castSucc {d : ℕ} (P : PolyPIVP d) (U : ℚ)
+    (x : Fin (d+1) → ℝ) (i : Fin d) :
+    (saturatingPIVP P U).toPIVP.field x i.castSucc
+      = P.toPIVP.field (fun j : Fin d => x j.castSucc) i := by
+  show ((saturatingPIVP P U).field i.castSucc).eval₂ (Rat.castHom ℝ) x
+      = (P.field i).eval₂ (Rat.castHom ℝ) (fun j : Fin d => x j.castSucc)
+  rw [saturatingPIVP_field_castSucc]
+  exact eval₂_rename (Rat.castHom ℝ) Fin.castSucc x (P.field i)
+
+/-- Evaluation on the last coordinate gives the scalar saturating-tracker
+expression `(x_out − x_y)(U − x_y)`. -/
+lemma evalField_last {d : ℕ} (P : PolyPIVP d) (U : ℚ)
+    (x : Fin (d+1) → ℝ) :
+    (saturatingPIVP P U).toPIVP.field x (Fin.last d)
+      = (x P.output.castSucc - x (Fin.last d)) *
+          ((U : ℝ) - x (Fin.last d)) := by
+  show ((saturatingPIVP P U).field (Fin.last d)).eval₂ (Rat.castHom ℝ) x
+      = _
+  rw [saturatingPIVP_field_last]
+  unfold saturatingField saturatingProd saturatingDegr
+  simp only [eval₂_sub, eval₂_add, eval₂_mul, eval₂_C, eval₂_X]
+  show (Rat.castHom ℝ) U * x P.output.castSucc + x (Fin.last d) * x (Fin.last d) -
+        (x P.output.castSucc + (Rat.castHom ℝ) U) * x (Fin.last d)
+      = (x P.output.castSucc - x (Fin.last d)) * ((Rat.castHom ℝ) U - x (Fin.last d))
+  ring
+
 /-! ## Step 5: analytic residual — existence of the saturating tracker solution.
 
 Given a CBTC for `α` and any `U ∈ (α, 1) ∩ ℚ`, the extended system

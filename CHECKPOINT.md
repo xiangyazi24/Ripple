@@ -37,6 +37,13 @@ inherits `x_out → α` ⇒ `y → α`. See paper-level proof in
 **Build status.** 2782 jobs, 0 errors, 0 sorries, 1 new axiom
 (`saturating_tracker_solution`) scoped to this file.
 
+**Session 40+ (discharge progress):**
+- Phase A (structural glue) landed: `evalField_castSucc` reduces the extended
+  field on `castSucc` rows to `P.toPIVP.field` via `MvPolynomial.eval₂_rename`;
+  `evalField_last` unfolds the last row to the scalar expression
+  `(x_out − x_y)(U − x_y)`. Both used downstream to verify the explicit
+  trajectory satisfies the extended ODE.
+
 ---
 
 ## Session 39 — `polyCRN_exists_neg_shift` eliminated from `algebraic_is_certified_crn` axiom trace
