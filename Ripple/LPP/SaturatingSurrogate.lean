@@ -919,6 +919,306 @@ lemma saturating_global_solution {d : ℕ} {α : ℝ}
     locally_lipschitz_bounded_global_ode_proved
       (saturatingPIVP cbtc.pivp U).toPIVP.field y₀ h_lip M hM_pos h_invariant
 
+/-! ### Phase C+E helper: agreement and output-range on a finite window.
+
+Given any `y` on the extended system with the correct initial condition and
+derivative on `Ico 0 T`, we get three invariants on `Ico 0 T`:
+
+(i) `y τ i.castSucc = cbtc.sol.trajectory τ i` (head matching, via uniqueness),
+(ii) `0 ≤ y τ (Fin.last d)` (lower barrier),
+(iii) `y τ (Fin.last d) ≤ (U : ℝ)` (upper barrier).
+
+This is the same argument used inside `saturating_global_solution`'s
+`h_invariant`, re-packaged so Phase C+E can reuse it. -/
+lemma saturating_agrees_on_Ico {d : ℕ} {α : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d cbtc.pivp)
+    (U : ℚ) (hU_nn : (0 : ℝ) ≤ (U : ℝ)) (hU_pos : (0 : ℝ) < (U : ℝ))
+    {T : ℝ} (hT : 0 < T)
+    (y : ℝ → Fin (d+1) → ℝ)
+    (hy_init : y 0 = Fin.snoc (cbtc.sol.trajectory 0) (0 : ℝ))
+    (hy_deriv : ∀ t ∈ Set.Ico (0 : ℝ) T, HasDerivAt y
+        ((saturatingPIVP cbtc.pivp U).toPIVP.field (y t)) t) :
+    (∀ t ∈ Set.Ico (0 : ℝ) T, ∀ i : Fin d,
+        y t i.castSucc = cbtc.sol.trajectory t i) ∧
+    (∀ t ∈ Set.Ico (0 : ℝ) T,
+        0 ≤ y t (Fin.last d) ∧ y t (Fin.last d) ≤ (U : ℝ)) := by
+  classical
+  -- Extract cbtc's own a priori bound M_cbtc.
+  obtain ⟨M_cbtc, hM_cbtc_pos, hM_cbtc_bd⟩ := cbtc.bounded
+  -- Non-negativity of the original trajectory at every coordinate (needs pcd).
+  have h_traj_nn : ∀ t : ℝ, 0 ≤ t → ∀ i : Fin d,
+      0 ≤ cbtc.sol.trajectory t i := by
+    intro t ht i
+    have h_crn : IsCRNImplementable d cbtc.pivp.toPIVP.field :=
+      pcd.toIsCRNImplementable
+    have h_lip := polyPIVP_field_locally_lipschitz cbtc.pivp
+    have h_init_nn : ∀ j, 0 ≤ cbtc.pivp.toPIVP.init j := by
+      intro j
+      simp only [PolyPIVP.toPIVP_init]
+      exact_mod_cast pcd.init_nonneg j
+    exact pivp_solution_nonneg h_crn h_lip h_init_nn cbtc.sol t ht i
+  -- Split y into head (first d coordinates) and last coordinate.
+  set y_head : ℝ → Fin d → ℝ := fun τ i => y τ i.castSucc with hy_head_def
+  set y_last : ℝ → ℝ := fun τ => y τ (Fin.last d) with hy_last_def
+  -- (a) y_head 0 = cbtc.sol.trajectory 0.
+  have hy_head_init : y_head 0 = cbtc.sol.trajectory 0 := by
+    funext i
+    show y 0 i.castSucc = cbtc.sol.trajectory 0 i
+    rw [hy_init]
+    simp [Fin.snoc_castSucc]
+  have hy_head_init' : y_head 0 = cbtc.pivp.toPIVP.init := by
+    rw [hy_head_init]; exact cbtc.sol.init_cond
+  -- (b) y_head satisfies the original PIVP on Ico 0 T.
+  have hy_head_deriv : ∀ τ ∈ Set.Ico (0 : ℝ) T,
+      HasDerivAt y_head (cbtc.pivp.toPIVP.field (y_head τ)) τ := by
+    intro τ hτ
+    rw [hasDerivAt_pi]
+    intro i
+    have h_full := hy_deriv τ hτ
+    have h_i := (hasDerivAt_pi.mp h_full) i.castSucc
+    have h_eval := evalField_castSucc cbtc.pivp U (y τ) i
+    show HasDerivAt (fun τ => y τ i.castSucc)
+      (cbtc.pivp.toPIVP.field (y_head τ) i) τ
+    rw [← h_eval]
+    exact h_i
+  -- (c) cbtc.sol.trajectory also satisfies the PIVP starting from the same init.
+  have h_cbtc_deriv : ∀ τ ∈ Set.Ico (0 : ℝ) T,
+      HasDerivAt cbtc.sol.trajectory
+        (cbtc.pivp.toPIVP.field (cbtc.sol.trajectory τ)) τ := by
+    intro τ hτ
+    exact cbtc.sol.is_solution τ hτ.1
+  have h_cbtc_init : cbtc.sol.trajectory 0 = cbtc.pivp.toPIVP.init :=
+    cbtc.sol.init_cond
+  have h_lip_orig := polyPIVP_field_locally_lipschitz cbtc.pivp
+  -- Agreement on any sub-interval [0, S] ⊂ [0, T).
+  have h_agree : ∀ S : ℝ, 0 < S → S < T →
+      Set.EqOn y_head cbtc.sol.trajectory (Set.Icc 0 S) := by
+    intro S hS_pos hS_lt_T
+    have hS_nn : 0 ≤ S := hS_pos.le
+    -- Continuity of y_head on [0, S].
+    have hy_head_cont : ContinuousOn y_head (Set.Icc 0 S) := by
+      intro τ hτ
+      have hτ_Ico : τ ∈ Set.Ico (0 : ℝ) T :=
+        ⟨hτ.1, lt_of_le_of_lt hτ.2 hS_lt_T⟩
+      exact (hy_head_deriv τ hτ_Ico).continuousAt.continuousWithinAt
+    have hy_head_cont_norm : ContinuousOn (fun τ => ‖y_head τ‖) (Set.Icc 0 S) :=
+      hy_head_cont.norm
+    have h_Icc_ne : (Set.Icc (0 : ℝ) S).Nonempty := ⟨0, ⟨le_refl _, hS_nn⟩⟩
+    obtain ⟨u_y, _, hu_y_max⟩ :=
+      isCompact_Icc.exists_isMaxOn h_Icc_ne hy_head_cont_norm
+    set My : ℝ := ‖y_head u_y‖ with hMy_def
+    set R : ℝ := max M_cbtc My with hR_def
+    have hR_nn : 0 ≤ R := le_max_of_le_left hM_cbtc_pos.le
+    have hy_head_bd_R : ∀ τ ∈ Set.Icc (0 : ℝ) S, ‖y_head τ‖ ≤ R := fun τ hτ =>
+      le_trans (hu_y_max hτ) (le_max_right _ _)
+    have h_cbtc_bd_R : ∀ τ ∈ Set.Icc (0 : ℝ) S, ‖cbtc.sol.trajectory τ‖ ≤ R :=
+      fun τ hτ => le_trans (hM_cbtc_bd τ hτ.1) (le_max_left _ _)
+    have hy_head_dw : ∀ τ ∈ Set.Icc (0 : ℝ) S,
+        HasDerivWithinAt y_head (cbtc.pivp.toPIVP.field (y_head τ))
+          (Set.Icc 0 S) τ := by
+      intro τ hτ
+      have hτ_Ico : τ ∈ Set.Ico (0 : ℝ) T :=
+        ⟨hτ.1, lt_of_le_of_lt hτ.2 hS_lt_T⟩
+      exact (hy_head_deriv τ hτ_Ico).hasDerivWithinAt
+    have h_cbtc_dw : ∀ τ ∈ Set.Icc (0 : ℝ) S,
+        HasDerivWithinAt cbtc.sol.trajectory
+          (cbtc.pivp.toPIVP.field (cbtc.sol.trajectory τ))
+          (Set.Icc 0 S) τ := by
+      intro τ hτ
+      have hτ_Ico : τ ∈ Set.Ico (0 : ℝ) T :=
+        ⟨hτ.1, lt_of_le_of_lt hτ.2 hS_lt_T⟩
+      exact (h_cbtc_deriv τ hτ_Ico).hasDerivWithinAt
+    exact solutions_agree_on_Icc hS_pos hR_nn h_lip_orig
+      hy_head_init' h_cbtc_init hy_head_dw h_cbtc_dw hy_head_bd_R h_cbtc_bd_R
+  -- Head matching: for t ∈ Ico 0 T, pick S = (t + T)/2.
+  have h_head_match : ∀ t ∈ Set.Ico (0 : ℝ) T, ∀ i : Fin d,
+      y t i.castSucc = cbtc.sol.trajectory t i := by
+    intro t ht_mem i
+    set S : ℝ := (t + T) / 2 with hS_def
+    have hS_lt_T : S < T := by show (t + T) / 2 < T; linarith [ht_mem.2]
+    have ht_le_S : t ≤ S := by show t ≤ (t + T) / 2; linarith [ht_mem.2]
+    have hS_pos : 0 < S := by linarith [ht_mem.1]
+    have ht_in_Icc_S : t ∈ Set.Icc (0 : ℝ) S := ⟨ht_mem.1, ht_le_S⟩
+    have h_eqOn := h_agree S hS_pos hS_lt_T
+    have h_eq : y_head t = cbtc.sol.trajectory t := h_eqOn ht_in_Icc_S
+    show y_head t i = cbtc.sol.trajectory t i
+    rw [h_eq]
+  -- Build x_fn := y τ cbtc.pivp.output.castSucc, and show x_fn ≥ 0 on Ico 0 T.
+  set x_fn : ℝ → ℝ := fun τ => y τ cbtc.pivp.output.castSucc with hx_fn_def
+  have hx_nn : ∀ τ, 0 ≤ τ → τ < T → 0 ≤ x_fn τ := by
+    intro τ hτ_nn hτ_lt
+    have : y τ cbtc.pivp.output.castSucc = cbtc.sol.trajectory τ cbtc.pivp.output :=
+      h_head_match τ ⟨hτ_nn, hτ_lt⟩ cbtc.pivp.output
+    show x_fn τ ≥ 0
+    rw [show x_fn τ = y τ cbtc.pivp.output.castSucc from rfl, this]
+    exact h_traj_nn τ hτ_nn cbtc.pivp.output
+  -- y_last has derivative (x_fn - y_last)(U - y_last) on Ico 0 T.
+  have hy_last_deriv : ∀ τ, 0 ≤ τ → τ < T →
+      HasDerivAt y_last ((x_fn τ - y_last τ) * ((U : ℝ) - y_last τ)) τ := by
+    intro τ hτ_nn hτ_lt_T
+    have hτ_Ico : τ ∈ Set.Ico (0 : ℝ) T := ⟨hτ_nn, hτ_lt_T⟩
+    have h_full := hy_deriv τ hτ_Ico
+    have h_last := (hasDerivAt_pi.mp h_full) (Fin.last d)
+    have h_eval := evalField_last cbtc.pivp U (y τ)
+    show HasDerivAt (fun τ => y τ (Fin.last d))
+      ((x_fn τ - y_last τ) * ((U : ℝ) - y_last τ)) τ
+    have h_rewrite :
+        ((y τ cbtc.pivp.output.castSucc - y τ (Fin.last d)) *
+            ((U : ℝ) - y τ (Fin.last d)))
+          = (x_fn τ - y_last τ) * ((U : ℝ) - y_last τ) := rfl
+    rw [← h_rewrite, ← h_eval]
+    exact h_last
+  have hy_last_0 : y_last 0 = 0 := by
+    show y 0 (Fin.last d) = 0
+    rw [hy_init]; simp [Fin.snoc_last]
+  -- Continuity of x_fn on [0, S] for S < T.
+  have hx_fn_cont_on : ∀ S : ℝ, S < T → ContinuousOn x_fn (Set.Icc 0 S) := by
+    intro S hS_lt_T τ hτ
+    have hτ_Ico : τ ∈ Set.Ico (0 : ℝ) T :=
+      ⟨hτ.1, lt_of_le_of_lt hτ.2 hS_lt_T⟩
+    have h_full := hy_deriv τ hτ_Ico
+    have h_comp := (hasDerivAt_pi.mp h_full) cbtc.pivp.output.castSucc
+    exact h_comp.continuousAt.continuousWithinAt
+  -- Combine: for t ∈ Ico 0 T, pick T'' := (t + T)/2 > t so that Ico 0 T'' ⊃ [0, t].
+  have h_range : ∀ t ∈ Set.Ico (0 : ℝ) T,
+      0 ≤ y t (Fin.last d) ∧ y t (Fin.last d) ≤ (U : ℝ) := by
+    intro t ht_mem
+    set T'' : ℝ := (t + T) / 2 with hT''_def
+    have hT''_lt_T : T'' < T := by show (t + T) / 2 < T; linarith [ht_mem.2]
+    have ht_lt_T'' : t < T'' := by show t < (t + T) / 2; linarith [ht_mem.2]
+    have hT''_pos : 0 < T'' := by linarith [ht_mem.1]
+    have hx_fn_cont_T'' : ContinuousOn x_fn (Set.Icc 0 T'') :=
+      hx_fn_cont_on T'' hT''_lt_T
+    have hdy_Ico : ∀ τ, 0 ≤ τ → τ < T'' →
+        HasDerivAt y_last ((x_fn τ - y_last τ) * ((U : ℝ) - y_last τ)) τ := by
+      intro τ hτ_nn hτ_lt_T''
+      exact hy_last_deriv τ hτ_nn (lt_trans hτ_lt_T'' hT''_lt_T)
+    have hx_nn_T'' : ∀ τ, 0 ≤ τ → τ ≤ T'' → 0 ≤ x_fn τ := by
+      intro τ hτ_nn hτ_le_T''
+      exact hx_nn τ hτ_nn (lt_of_le_of_lt hτ_le_T'' hT''_lt_T)
+    refine ⟨?_, ?_⟩
+    · -- Lower barrier.
+      exact saturating_barrier_lower hU_pos hx_nn_T'' hy_last_0 hdy_Ico t
+        ht_mem.1 ht_lt_T''
+    · -- Upper barrier.
+      exact saturating_barrier_upper hU_pos hx_fn_cont_T'' hy_last_0 hdy_Ico t
+        ht_mem.1 ht_lt_T''
+  exact ⟨h_head_match, h_range⟩
+
+/-- **Phase C+E.** The extended PIVP admits a genuine `PIVP.Solution` which is
+bounded and whose last coordinate stays in `[0, U]` on `t ≥ 0`. The third
+conjunct — head matching — says the first `d` coordinates of the extended
+trajectory coincide pointwise with `cbtc.sol.trajectory`. -/
+lemma saturating_extended_solution {d : ℕ} {α : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d cbtc.pivp)
+    (U : ℚ) (hU_nn : (0 : ℝ) ≤ (U : ℝ)) (hU_pos : (0 : ℝ) < (U : ℝ)) :
+    ∃ (sol' : PIVP.Solution (saturatingPIVP cbtc.pivp U).toPIVP),
+      (saturatingPIVP cbtc.pivp U).toPIVP.IsBounded sol'.trajectory ∧
+      (∀ σ : ℝ, 0 ≤ σ →
+        0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
+        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) ∧
+      (∀ σ : ℝ, 0 ≤ σ → ∀ i : Fin d,
+        sol'.trajectory σ i.castSucc = cbtc.sol.trajectory σ i) := by
+  classical
+  -- Get the global trajectory from Phase B2.
+  obtain ⟨y, hy_init, hy_deriv_all⟩ :=
+    saturating_global_solution cbtc pcd U hU_nn hU_pos
+  -- Build the PIVP.Solution wrapper.
+  have h_init_match : y 0 = (saturatingPIVP cbtc.pivp U).toPIVP.init := by
+    rw [hy_init]
+    funext k
+    induction k using Fin.lastCases with
+    | last =>
+      -- Goal: Fin.snoc _ 0 (Fin.last d) = (satPIVP..).toPIVP.init (Fin.last d)
+      rw [Fin.snoc_last]
+      show (0 : ℝ) = ((saturatingPIVP cbtc.pivp U).init (Fin.last d) : ℝ)
+      rw [saturatingPIVP_init_last]; norm_cast
+    | cast i =>
+      -- Goal: Fin.snoc _ 0 i.castSucc = (satPIVP..).toPIVP.init i.castSucc
+      rw [Fin.snoc_castSucc]
+      show cbtc.sol.trajectory 0 i = ((saturatingPIVP cbtc.pivp U).init i.castSucc : ℝ)
+      rw [saturatingPIVP_init_castSucc]
+      show cbtc.sol.trajectory 0 i = (cbtc.pivp.init i : ℝ)
+      have h : cbtc.sol.trajectory 0 = cbtc.pivp.toPIVP.init := cbtc.sol.init_cond
+      rw [h]; rfl
+  let sol' : PIVP.Solution (saturatingPIVP cbtc.pivp U).toPIVP :=
+    { trajectory := y
+      init_cond := h_init_match
+      is_solution := hy_deriv_all }
+  refine ⟨sol', ?_, ?_, ?_⟩
+  · -- IsBounded. Bound: M := (sup on [0, 1] of ‖y‖) + ... Actually simplest: use
+    -- the head-matching to bound y on each coord via cbtc.bounded + U.
+    obtain ⟨M_cbtc, hM_cbtc_pos, hM_cbtc_bd⟩ := cbtc.bounded
+    set M : ℝ := M_cbtc + (U : ℝ) + 1 with hM_def
+    have hM_pos : 0 < M := by positivity
+    refine ⟨M, hM_pos, ?_⟩
+    intro t ht
+    -- Apply saturating_agrees_on_Ico on Ico 0 (t+1).
+    set T : ℝ := t + 1 with hT_def
+    have hT_pos : 0 < T := by linarith
+    have ht_mem : t ∈ Set.Ico (0 : ℝ) T := ⟨ht, by linarith⟩
+    have hy_deriv_Ico : ∀ τ ∈ Set.Ico (0 : ℝ) T,
+        HasDerivAt y ((saturatingPIVP cbtc.pivp U).toPIVP.field (y τ)) τ := by
+      intro τ hτ
+      exact hy_deriv_all τ hτ.1
+    obtain ⟨h_head_match, h_range⟩ :=
+      saturating_agrees_on_Ico cbtc pcd U hU_nn hU_pos hT_pos y hy_init hy_deriv_Ico
+    -- Bound ‖y t‖ coordinatewise.
+    show ‖sol'.trajectory t‖ ≤ M
+    change ‖y t‖ ≤ M
+    rw [pi_norm_le_iff_of_nonneg hM_pos.le]
+    intro k
+    refine Fin.lastCases ?_ (fun i => ?_) k
+    · -- Last coord: |y_last t| ≤ U ≤ M.
+      show ‖y t (Fin.last d)‖ ≤ M
+      obtain ⟨h_lo, h_hi⟩ := h_range t ht_mem
+      rw [Real.norm_eq_abs, abs_le]
+      refine ⟨?_, ?_⟩
+      · linarith
+      · linarith
+    · -- castSucc: y t i.castSucc = cbtc.sol.trajectory t i.
+      show ‖y t i.castSucc‖ ≤ M
+      have h_eq : y t i.castSucc = cbtc.sol.trajectory t i :=
+        h_head_match t ht_mem i
+      rw [h_eq]
+      have h1 : ‖cbtc.sol.trajectory t i‖ ≤ ‖cbtc.sol.trajectory t‖ :=
+        norm_le_pi_norm _ _
+      have h2 : ‖cbtc.sol.trajectory t‖ ≤ M_cbtc := hM_cbtc_bd t ht
+      linarith
+  · -- Output range [0, U].
+    intro σ hσ
+    -- `(saturatingPIVP cbtc.pivp U).output = Fin.last d` by defn.
+    show 0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
+      sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)
+    rw [saturatingPIVP_output]
+    change 0 ≤ y σ (Fin.last d) ∧ y σ (Fin.last d) ≤ (U : ℝ)
+    set T : ℝ := σ + 1 with hT_def
+    have hT_pos : 0 < T := by linarith
+    have hσ_mem : σ ∈ Set.Ico (0 : ℝ) T := ⟨hσ, by linarith⟩
+    have hy_deriv_Ico : ∀ τ ∈ Set.Ico (0 : ℝ) T,
+        HasDerivAt y ((saturatingPIVP cbtc.pivp U).toPIVP.field (y τ)) τ := by
+      intro τ hτ
+      exact hy_deriv_all τ hτ.1
+    obtain ⟨_, h_range⟩ :=
+      saturating_agrees_on_Ico cbtc pcd U hU_nn hU_pos hT_pos y hy_init hy_deriv_Ico
+    exact h_range σ hσ_mem
+  · -- Head matching.
+    intro σ hσ i
+    set T : ℝ := σ + 1 with hT_def
+    have hT_pos : 0 < T := by linarith
+    have hσ_mem : σ ∈ Set.Ico (0 : ℝ) T := ⟨hσ, by linarith⟩
+    have hy_deriv_Ico : ∀ τ ∈ Set.Ico (0 : ℝ) T,
+        HasDerivAt y ((saturatingPIVP cbtc.pivp U).toPIVP.field (y τ)) τ := by
+      intro τ hτ
+      exact hy_deriv_all τ hτ.1
+    obtain ⟨h_head_match, _⟩ :=
+      saturating_agrees_on_Ico cbtc pcd U hU_nn hU_pos hT_pos y hy_init hy_deriv_Ico
+    show sol'.trajectory σ i.castSucc = cbtc.sol.trajectory σ i
+    change y σ i.castSucc = cbtc.sol.trajectory σ i
+    exact h_head_match σ hσ_mem i
+
 /-- Residual witness: the extended PIVP has a certified bounded-time
 computation for `α` (the same target), whose output trajectory stays
 in `[0, U]` on `t ≥ 0`. Analytic content deferred. -/
