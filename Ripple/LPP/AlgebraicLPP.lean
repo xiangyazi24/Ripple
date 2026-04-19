@@ -273,28 +273,151 @@ theorem algebraic_lpp_computable_boundary_cases {α : ℝ}
   · subst h0; exact ⟨zero_lpp, trivial⟩
   · subst h1; exact ⟨one_lpp, trivial⟩
 
-/-- **Algebraic LPP computable (end-to-end, conditional).** The main theorem
-of [LPP, Corollary 18] — algebraic α ∈ [0, 1] is LPP-computable — derived
-from the three disjoint sub-cases:
-* α = 0: `zero_lpp` (direct);
-* α = 1: `one_lpp` (direct);
-* α ∈ (0, 1): `algebraic_lpp_interior_from_sharp_bound`, conditioned on the
-  sharp tracker bound `h_sharp`.
+/-- **Unconditional interior case**: for `α ∈ (0, 1)` algebraic, `IsLPPComputable α`
+holds without any external `h_sharp` hypothesis. The sharp tracker bound
+required by the Stage 2 room argument is supplied internally via
+`algebraic_is_certified_crn_sharp` + `certified_zero_init_wrapper_sharp`. -/
+theorem algebraic_lpp_interior {α : ℝ}
+    (hα_nn : 0 ≤ α) (hα_lt : α < 1)
+    (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
+    ∃ _ : IsLPPComputable α, True := by
+  -- Sharp upstream CBTC.
+  obtain ⟨d, cbtc, pcd, h_sharp_up⟩ := algebraic_is_certified_crn_sharp hα_nn halg
+  -- Sharp zero-init wrapper.
+  obtain ⟨d', cbtc', pcd', h_zero_init', h_sharp_zero⟩ :=
+    certified_zero_init_wrapper_sharp cbtc pcd hα_nn h_sharp_up
+  -- Step 2: Stage 1 quadraticize with output equality.
+  obtain ⟨d'', btc'', A, B, hA, hB, h_field, h_init_nn, h_init_rat, h_out_eq⟩ :=
+    stage1_core_with_output_eq cbtc' pcd'
+  rcases Nat.eq_zero_or_pos d'' with hd''0 | hd''pos
+  · subst hd''0; exact Fin.elim0 btc''.pivp.output
+  haveI : NeZero d'' := ⟨Nat.pos_iff_ne_zero.mp hd''pos⟩
+  -- Zero-init preservation.
+  have h_zero_stage1 : btc''.pivp.init btc''.pivp.output = 0 := by
+    have h0 := h_out_eq 0
+    have h_btc''_init : btc''.sol.trajectory 0 btc''.pivp.output
+        = btc''.pivp.init btc''.pivp.output :=
+      congr_fun btc''.sol.init_cond btc''.pivp.output
+    rw [← h_btc''_init, h0]
+    have h_cbtc'_init : cbtc'.sol.trajectory 0 cbtc'.pivp.output
+        = cbtc'.pivp.toPIVP.init cbtc'.pivp.output :=
+      congr_fun cbtc'.sol.init_cond cbtc'.pivp.output
+    show cbtc'.sol.trajectory 0 cbtc'.pivp.output = 0
+    rw [h_cbtc'_init, PolyPIVP.toPIVP_init, h_zero_init']
+    simp
+  -- M_out = α (from sharp bound composed with output equality).
+  have h_M_out : ∀ σ, 0 ≤ σ →
+      btc''.sol.trajectory σ btc''.pivp.output ≤ α := fun σ hσ => by
+    rw [h_out_eq σ]; exact h_sharp_zero σ hσ
+  -- M_rest from stage1_rest_bound_and_nonneg.
+  obtain ⟨M_rest, hM_rest_nn, h_rest_nn_all, h_rest_le_all⟩ :=
+    stage1_rest_bound_and_nonneg btc'' A B hA hB h_field h_init_nn
+  set ε : ℝ := 1 - α with hε_def
+  have hε_pos : 0 < ε := by simpa [hε_def] using sub_pos.mpr hα_lt
+  have h_init_le_Mrest : ∀ j, btc''.pivp.init j ≤ M_rest := by
+    intro j
+    have h0 := h_rest_le_all 0 le_rfl j
+    have h_eq : btc''.sol.trajectory 0 j = btc''.pivp.init j :=
+      congr_fun btc''.sol.init_cond j
+    rw [h_eq] at h0
+    exact h0
+  have h_init_sum_le : ∑ j, btc''.pivp.init j ≤ (d'' : ℝ) * M_rest := by
+    calc ∑ j, btc''.pivp.init j
+        ≤ ∑ _j : Fin d'', M_rest := Finset.sum_le_sum fun j _ => h_init_le_Mrest j
+      _ = (d'' : ℝ) * M_rest := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  set N : ℝ := max 1 ((((d'' : ℕ) - 1 : ℕ) : ℝ) * M_rest + (d'' : ℝ) * M_rest + 1) with hN_def
+  have hN_pos : 0 < N := lt_of_lt_of_le one_pos (le_max_left _ _)
+  have h_bound_pos : 0 < ε / (2 * N) := by positivity
+  obtain ⟨q_room, hq_room_pos, hq_room_lt⟩ := exists_rat_btwn h_bound_pos
+  set c_room : ℝ := (q_room : ℝ) with hc_room_def
+  have hc_room_pos : 0 < c_room := hq_room_pos
+  have hc_room_lt_thr : c_room < ε / (2 * N) := hq_room_lt
+  have hc_room_le_half : c_room ≤ 1/2 := by
+    have hε_le1 : ε ≤ 1 := by simp [hε_def]; linarith
+    have hN_ge1 : 1 ≤ N := le_max_left _ _
+    have : c_room ≤ ε / (2 * N) := le_of_lt hc_room_lt_thr
+    have h2N : 2 * 1 ≤ 2 * N := by linarith
+    have hdiv : ε / (2 * N) ≤ ε / (2 * 1) := by
+      apply div_le_div_of_nonneg_left hε_pos.le (by linarith) h2N
+    linarith [this, hdiv, hε_le1]
+  have hc_room_le_1 : c_room ≤ 1 := by linarith
+  have hc_room_q : ∃ q : ℚ, c_room = (q : ℝ) := ⟨q_room, rfl⟩
+  have h_sum_le_room : c_room * ∑ j, btc''.pivp.init j ≤ 1 := by
+    have hstep1 : c_room * ∑ j, btc''.pivp.init j ≤ c_room * ((d'' : ℝ) * M_rest) :=
+      mul_le_mul_of_nonneg_left h_init_sum_le hc_room_pos.le
+    have hMrest_le_N : (d'' : ℝ) * M_rest ≤ N := by
+      apply le_trans _ (le_max_right _ _)
+      have : 0 ≤ (((d'' : ℕ) - 1 : ℕ) : ℝ) * M_rest := mul_nonneg (by positivity) hM_rest_nn
+      linarith
+    have hstep2 : c_room * ((d'' : ℝ) * M_rest) ≤ c_room * N :=
+      mul_le_mul_of_nonneg_left hMrest_le_N hc_room_pos.le
+    have hstep3 : c_room * N ≤ ε / 2 := by
+      have h1 : c_room * N < (ε / (2 * N)) * N :=
+        mul_lt_mul_of_pos_right hc_room_lt_thr hN_pos
+      have h2 : (ε / (2 * N)) * N = ε / 2 := by
+        have hN_ne : N ≠ 0 := ne_of_gt hN_pos
+        have : (2 * N) ≠ 0 := mul_ne_zero (by norm_num) hN_ne
+        field_simp
+      linarith
+    have hε_half_le1 : ε / 2 ≤ 1 := by
+      have : ε ≤ 1 := by simp [hε_def]; linarith
+      linarith
+    linarith
+  have h_small_lambda :
+      c_room * (((d'' : ℕ) - 1 : ℕ) : ℝ) * M_rest ≤ 1 - c_room - α := by
+    have hN_ge1 : 1 ≤ N := le_max_left _ _
+    have hc_room_le_half_ε : c_room ≤ ε / 2 := by
+      have h1 : c_room < ε / (2 * N) := hc_room_lt_thr
+      have h2 : ε / (2 * N) ≤ ε / 2 := by
+        have h2N_pos : 0 < 2 * N := by positivity
+        apply div_le_div_of_nonneg_left hε_pos.le (by norm_num) (by linarith)
+      linarith
+    have hdm1_le_N : (((d'' : ℕ) - 1 : ℕ) : ℝ) * M_rest ≤ N := by
+      apply le_trans _ (le_max_right _ _)
+      have : 0 ≤ (d'' : ℝ) * M_rest := mul_nonneg (by positivity) hM_rest_nn
+      linarith
+    have hstep : c_room * (((d'' : ℕ) - 1 : ℕ) : ℝ) * M_rest
+        = c_room * ((((d'' : ℕ) - 1 : ℕ) : ℝ) * M_rest) := by ring
+    rw [hstep]
+    calc c_room * ((((d'' : ℕ) - 1 : ℕ) : ℝ) * M_rest)
+        ≤ c_room * N :=
+            mul_le_mul_of_nonneg_left hdm1_le_N hc_room_pos.le
+      _ ≤ ε / 2 := by
+          have h1 : c_room * N < (ε / (2 * N)) * N :=
+            mul_lt_mul_of_pos_right hc_room_lt_thr hN_pos
+          have h2 : (ε / (2 * N)) * N = ε / 2 := by
+            have hN_ne : N ≠ 0 := ne_of_gt hN_pos
+            have : (2 * N) ≠ 0 := mul_ne_zero (by norm_num) hN_ne
+            field_simp
+          linarith
+      _ ≤ ε - c_room := by linarith
+      _ = 1 - c_room - α := by simp [hε_def]; ring
+  have h_rest_nn_ne : ∀ σ, 0 ≤ σ → ∀ j, j ≠ btc''.pivp.output →
+      0 ≤ btc''.sol.trajectory σ j := fun σ hσ j _ => h_rest_nn_all σ hσ j
+  have h_rest_le_ne : ∀ σ, 0 ≤ σ → ∀ j, j ≠ btc''.pivp.output →
+      btc''.sol.trajectory σ j ≤ M_rest := fun σ hσ j _ => h_rest_le_all σ hσ j
+  have hα01 : 0 ≤ α ∧ α ≤ 1 := ⟨hα_nn, le_of_lt hα_lt⟩
+  exact stage2_to_lpp_from_bounds hα01 btc'' A B hA hB h_field h_init_nn h_init_rat
+    c_room hc_room_pos hc_room_le_1 hc_room_q h_sum_le_room h_zero_stage1
+    α h_M_out M_rest hM_rest_nn h_rest_nn_ne h_rest_le_ne h_small_lambda
 
-To obtain the unconditional Corollary 18, discharge the sharp-bound
-hypothesis by propagating `Ripple.Core.MinPolyMonotone.minPolyPIVP_sol_in_interval`
-(which already gives `sol.trajectory ≤ β` for the min-poly solution, and
-via `trackerTraj` nested + positive-shift yields `y(σ) ≤ α < 1`). -/
+/-- **Algebraic LPP computable (end-to-end, unconditional).** The main theorem
+of [LPP, Corollary 18] — every algebraic `α ∈ [0, 1]` is LPP-computable.
+
+* `α = 0`: `zero_lpp` (direct constant-zero construction);
+* `α = 1`: `one_lpp` (direct constant-one construction);
+* `α ∈ (0, 1)`: full Pipeline A, with the sharp tracker bound
+  `y(σ) ≤ α` discharged internally via
+  `algebraic_is_certified_crn_sharp` + `certified_zero_init_wrapper_sharp`
+  (both of which propagate `minPolyPIVP_sol_in_interval`'s `sol ≤ β`
+  through the Duhamel/relaxation-tracker construction).
+
+Zero new axioms — the proof depends only on
+`[propext, Classical.choice, Quot.sound]`. -/
 theorem algebraic_lpp_computable {α : ℝ}
     (hα01 : 0 ≤ α ∧ α ≤ 1)
-    (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0)
-    (h_sharp :
-      ∀ (d : ℕ) (cbtc : CertifiedBoundedTimeComputable d α)
-        (_ : PolyCRNDecomposition d cbtc.pivp)
-        (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' α)
-        (_ : PolyCRNDecomposition d' cbtc'.pivp),
-        cbtc'.pivp.init cbtc'.pivp.output = 0 →
-        ∀ σ, 0 ≤ σ → cbtc'.sol.trajectory σ cbtc'.pivp.output ≤ α) :
+    (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
     ∃ _ : IsLPPComputable α, True := by
   obtain ⟨hα_nn, hα_le⟩ := hα01
   rcases eq_or_lt_of_le hα_le with hα1 | hα_lt
@@ -305,6 +428,6 @@ theorem algebraic_lpp_computable {α : ℝ}
     · -- α = 0
       have : α = 0 := h0.symm; subst this; exact ⟨zero_lpp, trivial⟩
     · -- α ∈ (0, 1)
-      exact algebraic_lpp_interior_from_sharp_bound hα_nn hα_lt halg h_sharp
+      exact algebraic_lpp_interior hα_nn hα_lt halg
 
 end Ripple
