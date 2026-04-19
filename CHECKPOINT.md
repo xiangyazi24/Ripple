@@ -24,7 +24,6 @@ Proof chain closed this session (commits `12dc4be` → `c72484f`):
 
 Remaining custom axioms in Ripple (all outside the non-collapse chain):
 - `BoundedTimeComputable.toDualRail` — DNA25 structural reduction.
-- `dualRail_polynomial_scale_bounded` — [RTCRN2] bounded-dual-rail (ODE-analysis).
 - `certified_add_rational` — `q < 0` dual-rail sum-tracker (deferred).
 
 `lake build` clean (2775 jobs).
@@ -160,6 +159,16 @@ deprecation, no errors).
 - **Axiom count**: 6 → 5. Remaining: `dualRail_polynomial_scale_bounded`,
   `toDualRail`, `noCollapse_step3_scc_induction`,
   `minPolyPIVP_convergence_modulus`, `certified_add_rational`.
+- **NEW: `dualRail_polynomial_scale_bounded` PROVED (weak form).**
+  The axiom statement asked for the *existence* of a bounded non-negative
+  lift `ûSol` with `uᵢ − vᵢ = yᵢ` — it did *not* require `ûSol` to solve
+  the polynomial-scale dual-rail ODE. Explicit witness: shift by β
+  (`u_i := β + y_i`, `v_i := β`) satisfies every clause directly. No ODE
+  theory needed. The stronger "`ûSol` solves the dual-rail ODE" version
+  remains a research gap and lives in `BTCReduction.toDualRail`.
+- **Axiom count**: 5 → 4. Remaining: `toDualRail`,
+  `noCollapse_step3_scc_induction`, `minPolyPIVP_convergence_modulus`,
+  `certified_add_rational`.
 
 ## Current State
 
