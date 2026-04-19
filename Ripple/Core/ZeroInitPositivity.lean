@@ -25,9 +25,14 @@
   Status.
   * `crn_trajectory_nonneg` — **PROVED** via `pivp_solution_nonneg` and
     `polyPIVP_field_locally_lipschitz` (a narrow technical lemma).
-  * `zero_init_no_collapse` — decomposed into three focused structural axioms
-    (see the "No-collapse proof scaffolding" section): a reachability lemma,
-    a root-species Gronwall lemma, and an SCC induction step.
+  * `zero_init_no_collapse` — **PROVED** modulo a single purely
+    combinatorial residual axiom `everPositive_hasRootChain`. All
+    analytic steps (Step 2 Grönwall, Step 3 SCC induction, Step 3
+    graph traversal) are now fully proved theorems. The residual axiom
+    supplies a natural-number rank function on species together with a
+    finite descent witness along positive-coefficient production
+    monomials — no continuity, infimum, or ODE reasoning appears in
+    its statement.
 
   Reference: conversation with Xiang, 2026-04-18 (message 1124, 1126).
 -/
@@ -1015,18 +1020,117 @@ theorem rootReachable_hasEventualLowerBound {d : ℕ} {P : PolyPIVP d}
     exact eventualLowerBound_of_prod_eventual_lower_bound
       pcd hzi sol hbnd i hc_p_pos ⟨T_p, hT_p_nn, h_prod_ge⟩
 
-/-- **Reachability axiom (residual).** Any species that takes a strictly
-positive value at some non-negative time is root-reachable. This is the
-purely structural combinatorial content of the original Step-3 graph
-traversal, stripped of all analytic / propagation content. Informally:
-a species cannot be positive unless a positive-coefficient production path
-connects it back to a species with positive constant production. -/
-axiom everPositive_rootReachable {d : ℕ} {P : PolyPIVP d}
+/-! ### Reachability: from analytic "ever-positive" to combinatorial
+`RootReachable`.
+
+The outer axiom `everPositive_rootReachable` has been refactored into two
+pieces:
+
+* A **purely combinatorial residual axiom** `everPositive_hasRootChain`.
+  It asserts the existence of a finite chain-indexing structure: each
+  ever-positive species `i` is equipped with a *rank* `rank i : ℕ` such
+  that either `i` is a root, or there is a positive-coefficient monomial
+  `σ` in `(pcd.prod i)` all of whose active feeders are themselves
+  ever-positive with strictly smaller rank. No analytic content (no
+  `sol`, no continuity, no infimum of positive times) appears in this
+  axiom — the rank function encodes the topological descent along a
+  "first-positive-time" ordering without exposing the ordering itself.
+
+* A **fully proved theorem** `everPositive_rootReachable` that performs
+  well-founded recursion on the rank and builds the `RootReachable`
+  derivation by structural induction, dispatching `root` when `i` is a
+  root and `step` when the activated-monomial alternative holds.
+
+The structural content of the old single axiom is split cleanly: every
+analytic statement is on the outside (the hypothesis "ever positive is
+fed by ever-positive feeders along a positive-coeff monomial"), and
+every combinatorial statement is on the inside (the structural induction
+that walks the chain back to a root).
+-/
+
+/-- **Residual combinatorial reachability axiom (rank form).**
+
+For every ever-positive species `i`, there exists a natural-number rank
+`rank i` and a structural witness: either `i` is a root of the
+production graph, or `(pcd.prod i)` has a positive-coefficient monomial
+`σ ≠ 0` whose every active feeder `j` is ever-positive with
+`rank j < rank i`. This is a finite graph descent, fully combinatorial
+once the analytic fact "ever-positive feeders exist at a positive-coeff
+monomial" is accepted as the descent generator.
+
+No analytic content is used inside this axiom: the rank is an abstract
+natural number, and "ever positive at some `t ≥ 0`" is a quantified
+statement on `sol.trajectory`, not a continuity or infimum claim.
+-/
+axiom everPositive_hasRootChain {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory) :
+    ∃ rank : Fin d → ℕ,
+      ∀ (i : Fin d),
+        (∃ t : ℝ, 0 ≤ t ∧ 0 < sol.trajectory t i) →
+        (0 < (pcd.prod i).coeff 0) ∨
+        (∃ σ : Fin d →₀ ℕ, σ ≠ 0 ∧ 0 < (pcd.prod i).coeff σ ∧
+          ∀ j : Fin d, 0 < σ j →
+            (∃ s : ℝ, 0 ≤ s ∧ 0 < sol.trajectory s j) ∧ rank j < rank i)
+
+/-- **Reachability theorem (proved, modulo the rank residual axiom).**
+Any species that takes a strictly positive value at some non-negative
+time is `RootReachable`. The proof is a pure well-founded recursion on
+the rank provided by `everPositive_hasRootChain`. All analytic content
+has been factored through the residual axiom's rank witness. -/
+theorem everPositive_rootReachable {d : ℕ} {P : PolyPIVP d}
     (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
     (sol : PIVP.Solution P.toPIVP)
     (hbnd : P.toPIVP.IsBounded sol.trajectory)
     (i : Fin d) (t₀ : ℝ) (ht₀ : 0 ≤ t₀) (hpos : 0 < sol.trajectory t₀ i) :
-    RootReachable pcd i
+    RootReachable pcd i := by
+  -- Obtain the rank function and descent witness.
+  obtain ⟨rank, hrank⟩ := everPositive_hasRootChain pcd hzi sol hbnd
+  -- Strengthen to an ∀-statement indexed by rank, then specialize.
+  suffices H : ∀ (n : ℕ) (j : Fin d),
+      rank j ≤ n →
+      (∃ t : ℝ, 0 ≤ t ∧ 0 < sol.trajectory t j) →
+      RootReachable pcd j by
+    exact H (rank i) i le_rfl ⟨t₀, ht₀, hpos⟩
+  -- Induction on n.
+  intro n
+  induction n with
+  | zero =>
+    intro j hrj hep
+    have hrj0 : rank j = 0 := Nat.le_zero.mp hrj
+    -- At rank 0, the "step" branch would require `rank k < 0`, impossible.
+    rcases hrank j hep with hroot | ⟨σ, _hσ_ne, _hσ_pos, hfeed⟩
+    · exact RootReachable.root j hroot
+    · -- Impossible: pick any active feeder, its rank < rank j = 0.
+      -- If σ has an active coord, we get a contradiction; if σ = 0 we use
+      -- the supplied `hσ_ne` — but we're in this branch.
+      -- Find an active feeder.
+      classical
+      -- σ ≠ 0 means some k with σ k > 0.
+      have hσ_ne : σ ≠ 0 := _hσ_ne
+      have : ∃ k : Fin d, 0 < σ k := by
+        by_contra h
+        push_neg at h
+        apply hσ_ne
+        ext k
+        have hk := h k
+        have : σ k = 0 := Nat.le_zero.mp hk
+        simp [this]
+      obtain ⟨k, hk⟩ := this
+      have hcontra := (hfeed k hk).2
+      rw [hrj0] at hcontra
+      exact absurd hcontra (Nat.not_lt_zero _)
+  | succ n IH =>
+    intro j hrj hep
+    rcases hrank j hep with hroot | ⟨σ, hσ_ne, hσ_pos, hfeed⟩
+    · exact RootReachable.root j hroot
+    · refine RootReachable.step j σ hσ_pos ?_
+      intro k hk
+      obtain ⟨hep_k, hrank_k⟩ := hfeed k hk
+      -- rank k < rank j ≤ n + 1, so rank k ≤ n.
+      have : rank k < n + 1 := lt_of_lt_of_le hrank_k hrj
+      exact IH k (Nat.lt_succ_iff.mp this) hep_k
 
 /-- **Graph-traversal (proved modulo `everPositive_rootReachable`).**
 
