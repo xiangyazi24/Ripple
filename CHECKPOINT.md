@@ -48,8 +48,17 @@
   Given nonzero `p : ℤ[X]` and `α : ℝ`, there is a rational `q < α`
   such that `(q, α)` contains no real root of `p`. Uses
   `Polynomial.finite_setOf_isRoot` + `Finset.max'` + `exists_rat_btwn`.
-  Next brick: the integer-polynomial shift `P(x) := b^n · p(x + q)`
-  (b = q.den), reducing the axiom to a sign case split on `P.coeff 0`.
+- **NEW: `rational_polynomial_to_integer_real_roots`** (commit `c13ab42`)
+  — second structural brick, factored per 2026-04-18 architectural
+  guidance. For any nonzero `p : ℚ[X]`, produces `P : ℤ[X]` with
+  identical real roots. Uses `IsLocalization.integerNormalization`
+  machinery from Mathlib; key step: `Algebra.smul_def` +
+  `eq_intCast` + `← C_eq_intCast` to unfold the ℤ-algebra smul into
+  `C ((b : ℚ)) * p`, then `eval₂_mul` + `eval₂_C` to evaluate.
+  Standalone theorem so the shift axiom reduces to pure root geometry.
+- **Next brick** toward `algebraic_shift_to_smallest_positive_root`:
+  compose gap + clearing + sign case split on `P.coeff 0` (DNA 25
+  dual-rail style).
 
 ## Current State
 
