@@ -76,6 +76,20 @@
   handles only `t = 0`), first-exit-time / sup-argument, and
   `Fin 1`-specific sup-norm bookkeeping. Factor out into new
   `Core/MinPolyBounded.lean` in a later session. No file changes.
+- **NEW: `noCollapse_step2_root_liminf` PROVED** (commit `abe1527`) —
+  axiom → theorem, +404 lines in `Core/ZeroInitPositivity.lean`.
+  Scalar Grönwall with ODE uniqueness on `f(s) := α − sol s r`,
+  using `le_gronwallBound_of_liminf_deriv_right_le`. Helpers:
+  `mvpoly_const_coeff_le_eval₂` (constant coeff is lower bound on
+  nonneg orthant), `polyUpperBound` + `mvpoly_eval₂_le_polyUpperBound`
+  (uniform bound `D_r` on degr polynomial via `Finset.prod_le_prod` +
+  `pow_le_pow_left₀`), `crn_component_hasDerivAt` (component derivative
+  via `hasDerivAt_pi`). Case-split `D_r = 0` vs `D_r > 0` with threshold
+  `t_thr := if D_r = 0 then 1 else (log 2)/D_r + 1`.
+- **Axiom count**: 7 → 6. Remaining: `dualRail_polynomial_scale_bounded`,
+  `toDualRail`, `noCollapse_step3_scc_induction`,
+  `minPolyPIVP_exists_solution`, `minPolyPIVP_convergence_modulus`,
+  `certified_add_rational`.
 
 ## Current State
 
