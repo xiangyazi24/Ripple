@@ -59,8 +59,14 @@ inherits `x_out → α` ⇒ `y → α`. See paper-level proof in
   `c97b8b3`): genuine `PIVP.Solution` wrapping the trajectory, with `IsBounded`
   (M := M_cbtc + U + 1), output coord ∈ [0, U] pointwise, plus the bridge
   lemma `saturating_agrees_on_Ico` (head matches `cbtc.sol.trajectory`).
-- Next: Phase D (convergence via τ-rescaling Grönwall) + Phase F (package
-  into `saturating_tracker_solution` replacement).
+- Phase D/F narrow-axiom split (commit `c1c7a21`): `saturating_tracker_convergence`
+  proves the full `saturating_tracker_solution` signature (now a theorem, not an
+  axiom) by combining `saturating_extended_solution` with a strictly narrower
+  residual axiom `saturating_tracker_tendsto` (scalar convergence with effective
+  modulus given head-matching + [0,U] range). Top-level axiom trace now
+  `[propext, Classical.choice, Quot.sound, saturating_tracker_tendsto]`.
+- Next: discharge `saturating_tracker_tendsto` via τ-rescaling Grönwall
+  (paper-level argument in `projects/Bounded/notes/saturating-surrogate-LPP.tex`).
 
 ---
 
