@@ -24,7 +24,6 @@ import Ripple.LPP.Syntactic
 import Ripple.Core.BoundedTime
 import Ripple.LPP.VVariable
 import Ripple.LPP.Product
-import Ripple.LPP.AlgebraicConstruction
 import Ripple.Core.ODEGlobal
 import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Calculus.MeanValue
@@ -3289,25 +3288,6 @@ theorem stage4_to_plpp {n : ℕ} (eq : SynPPBalance n) :
 
 The main result of [LPP]: LPPs compute the same set of numbers
 in [0,1] as GPACs and CRNs. -/
-
-/-- Algebraic numbers are CRN-computable with syntactic certificates.
-
-Construction:
-  [RTCRN1] Lemma 5.1 — single-species CRN `dx/dt = P(x)` with `x(0) = 0`,
-    where `α > 0` is the smallest positive root of min polynomial `P`,
-    `c₀ = P.coeff 0 ≥ 0`, and P has only simple roots.
-  [RTCRN1] Theorem 5.2 — general algebraic α reduces to Lemma 5.1 by
-    shifting via a rational `p/q`, using field-closure under addition.
-
-See `Ripple.Algebraic.algebraic_is_certified_crn_refined` in
-`Ripple/LPP/AlgebraicConstruction.lean` for the structured replacement
-that factors this through explicit polynomial data and focused analytic
-axioms aligned with the paper's proof steps. -/
-theorem algebraic_is_certified_crn {α : ℝ}
-    (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
-    ∃ (d : ℕ) (cbtc : CertifiedBoundedTimeComputable d α)
-      (_ : PolyCRNDecomposition d cbtc.pivp), True :=
-  Ripple.Algebraic.algebraic_is_certified_crn_refined halg
 
 /-! ## Motivating Example
 
