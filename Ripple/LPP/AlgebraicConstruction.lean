@@ -910,23 +910,94 @@ lemma exists_simple_integer_witness {α : ℝ}
   · intro h
     exact h_minpoly_deriv ((hP_deriv_iff α).mp h)
 
-/-- RTCRN1 Theorem 5.2 assembled: every nonzero algebraic α admits a
-CRN certificate via min-polynomial shift + Lemma 5.1 + additive
-closure. This is now a theorem, not an axiom. -/
+/-- Trivial 1-species polynomial PIVP with zero field, zero init, zero
+output. Used to build `trivialZeroCBTC` below. -/
+noncomputable def trivialZeroPolyPIVP : PolyPIVP 1 where
+  field := fun _ => 0
+  init := fun _ => 0
+  output := 0
+
+/-- Constant-zero trajectory is a solution of `trivialZeroPolyPIVP`. -/
+noncomputable def trivialZeroSolution :
+    PIVP.Solution trivialZeroPolyPIVP.toPIVP where
+  trajectory := fun _ _ => 0
+  init_cond := by
+    funext i
+    show (0 : ℝ) = ((0 : ℚ) : ℝ)
+    norm_num
+  is_solution := by
+    intro t _
+    have hfield :
+        trivialZeroPolyPIVP.toPIVP.field (fun _ : Fin 1 => (0 : ℝ)) = 0 := by
+      funext i
+      show PolyPIVP.evalField trivialZeroPolyPIVP (fun _ => 0) i = 0
+      simp [PolyPIVP.evalField, trivialZeroPolyPIVP]
+    rw [hfield]
+    exact hasDerivAt_const t _
+
+/-- Trivial `CertifiedBoundedTimeComputable 1 0` witness: the 1-species
+PIVP `x' = 0, x(0) = 0` has constant-zero trajectory, which converges
+exactly to `0`. Used as the base case in `algebraic_reduction_to_minpoly`
+when `α = 0`, avoiding the negative-shift branch entirely. -/
+noncomputable def trivialZeroCBTC : CertifiedBoundedTimeComputable 1 (0 : ℝ) where
+  pivp := trivialZeroPolyPIVP
+  sol := trivialZeroSolution
+  modulus := fun _ => 0
+  bounded := ⟨1, by norm_num, fun t _ => by
+    show ‖(fun _ : Fin 1 => (0 : ℝ))‖ ≤ 1
+    simp [Pi.norm_def]⟩
+  convergence := by
+    intro r t _
+    show |(0 : ℝ) - 0| < Real.exp (-(r : ℝ))
+    simp [Real.exp_pos]
+
+/-- `PolyCRNDecomposition` witness for the trivial zero PIVP: all
+production/degradation polynomials are zero, so `field = 0 - 0·X_0 = 0`,
+and the zero initial condition trivially satisfies `init_nonneg`. -/
+noncomputable def trivialZeroPCD :
+    PolyCRNDecomposition 1 trivialZeroCBTC.pivp where
+  prod := fun _ => 0
+  degr := fun _ => 0
+  prod_nonneg := fun _ _ => by simp
+  degr_nonneg := fun _ _ => by simp
+  init_nonneg := fun _ => by
+    show (0 : ℚ) ≤ trivialZeroCBTC.pivp.init _
+    simp [trivialZeroCBTC, trivialZeroPolyPIVP]
+  field_eq := fun i => by
+    show trivialZeroCBTC.pivp.field i = (0 : MvPolynomial (Fin 1) ℚ)
+      - (0 : MvPolynomial (Fin 1) ℚ) * MvPolynomial.X i
+    simp [trivialZeroCBTC, trivialZeroPolyPIVP]
+
+/-- RTCRN1 Theorem 5.2 assembled: every non-negative algebraic α admits a
+CRN certificate via min-polynomial shift + Lemma 5.1 + additive closure.
+This is now a theorem, not an axiom.
+
+Case-splits on `α = 0` vs `0 < α`:
+* `α = 0`: direct trivial construction (`trivialZeroCBTC`, `trivialZeroPCD`),
+  no shift needed.
+* `0 < α`: use `algebraic_shift_to_smallest_positive_root_simple_pos` to
+  obtain a strictly positive rational shift `q`, then route through
+  `certified_add_rational_nonneg` (which never touches the negative
+  branch). This is the key routing change that eliminates
+  `polyCRN_exists_neg_shift` from the axiom trace. -/
 theorem algebraic_reduction_to_minpoly {α : ℝ}
     (hα_nn : 0 ≤ α)
     (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
     ∃ (d : ℕ) (cbtc : CertifiedBoundedTimeComputable d α)
       (_ : PolyCRNDecomposition d cbtc.pivp), True := by
-  have halg_simple := exists_simple_integer_witness halg
-  obtain ⟨q, P, hpos, hroot, hsmallest, hc0, hsimple⟩ :=
-    algebraic_shift_to_smallest_positive_root_simple halg_simple
-  obtain ⟨cbtc, pcd, _⟩ := minPolyPIVP_certified hpos hroot hsmallest hc0 hsimple
-  have hback : α - (q : ℝ) + (q : ℝ) = α := by ring
-  rw [← hback]
-  -- Need 0 ≤ (α - q) + q = α. Use hα_nn.
-  have hβq : 0 ≤ α - (q : ℝ) + (q : ℝ) := by rw [hback]; exact hα_nn
-  exact certified_add_rational q hβq cbtc pcd
+  rcases eq_or_lt_of_le hα_nn with h0 | hpos_α
+  · -- α = 0: trivial construction.
+    have h : α = 0 := h0.symm
+    subst h
+    exact ⟨1, trivialZeroCBTC, trivialZeroPCD, trivial⟩
+  · -- 0 < α: route through positive-shift only.
+    have halg_simple := exists_simple_integer_witness halg
+    obtain ⟨q, P, hqpos, hpos, hroot, hsmallest, hc0, hsimple⟩ :=
+      algebraic_shift_to_smallest_positive_root_simple_pos hpos_α halg_simple
+    obtain ⟨cbtc, pcd, _⟩ := minPolyPIVP_certified hpos hroot hsmallest hc0 hsimple
+    have hback : α - (q : ℝ) + (q : ℝ) = α := by ring
+    rw [← hback]
+    exact certified_add_rational_nonneg q (le_of_lt hqpos) cbtc pcd
 
 /-! ## Glue: replaces the monolithic `algebraic_is_certified_crn` axiom
 
