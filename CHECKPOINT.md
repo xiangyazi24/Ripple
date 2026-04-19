@@ -1,8 +1,35 @@
-# Ripple CHECKPOINT — 2026-04-18 (updated, session 29)
+# Ripple CHECKPOINT — 2026-04-19 (updated, session 30)
 
 > **Work log:** see [WORK_LOG.md](WORK_LOG.md) for append-only proof progress log with timestamps.
 
-## Session 29 latest — Phase A: zero-trajectory bug fix (hypothesis strengthening)
+## Session 30 milestone — `zero_init_no_collapse` axiom-free
+
+**`#print axioms Ripple.zero_init_no_collapse`** → `[propext, Classical.choice, Quot.sound]`.
+
+Xiang's non-collapse conjecture (zero-init + nonneg-coeff + bounded ⇒ no species with ever-positive value collapses to liminf 0) is now a fully proved theorem with zero custom axioms.
+
+Proof chain closed this session (commits `12dc4be` → `c72484f`):
+
+- `gronwall_eventual_lower_bound` (`Ripple/Core/GronwallCofinal.lean`): `f' = g − D·f`
+  with `g ≥ c` eventually ⇒ `f ≥ c'` cofinally for `c' = c/(2(D+1))`. Mathlib's
+  `le_gronwallBound_of_liminf_deriv_right_le` on `φ := α − f` with `K_gron = −D`,
+  `ε = −α`. Split `D = 0` / `D > 0`.
+- `minPolyPIVP_convergence_modulus` discharged via new
+  `Ripple/Core/MinPolyMonotone.lean` + `Ripple/Core/MinPolyConvergence.lean`.
+- `noCollapse_step3_scc_induction` → theorem via `eventualLowerBound_of_prod_eventual_lower_bound`.
+- `noCollapse_step3_graph_traversal` → theorem (induction on `RootReachable`).
+- `everPositive_rootReachable` → theorem (dead-species quadratic Lyapunov
+  `S(t) := Σⱼ∉RootReachable (sol t j)²`; scalar Grönwall with `δ = ε = 0`
+  forces `S ≡ 0`, contradicting ever-positive for non-root-reachable species).
+
+Remaining custom axioms in Ripple (all outside the non-collapse chain):
+- `BoundedTimeComputable.toDualRail` — DNA25 structural reduction.
+- `dualRail_polynomial_scale_bounded` — [RTCRN2] bounded-dual-rail (ODE-analysis).
+- `certified_add_rational` — `q < 0` dual-rail sum-tracker (deferred).
+
+`lake build` clean (2775 jobs).
+
+## Session 29 — Phase A: zero-trajectory bug fix (hypothesis strengthening)
 
 Strengthened the single-species min-poly interface to rule out the latent
 `P.coeff 0 = 0` counterexample (zero trajectory ≢ convergence to α).
