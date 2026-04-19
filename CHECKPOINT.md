@@ -1,6 +1,43 @@
-# Ripple CHECKPOINT — 2026-04-19 (updated, session 34)
+# Ripple CHECKPOINT — 2026-04-19 (updated, session 35)
 
 > **Work log:** see [WORK_LOG.md](WORK_LOG.md) for append-only proof progress log with timestamps.
+
+## Session 35 — `relaxation_tracker_solution` narrowed to pure convergence
+
+Further discharged `relaxation_tracker_solution` in `Ripple/LPP/AddRationalPos.lean`:
+the existence and boundedness parts are now **proved**, with only the Grönwall-type
+convergence modulus remaining as a narrowed axiom `relaxation_tracker_convergence`.
+
+**Proved axiom-free:**
+- `extendedSolution cbtc q : PIVP.Solution (relaxationPIVP cbtc.pivp q).toPIVP`
+  — the explicit Duhamel trajectory, with `init_cond` from `extendedTraj_init`
+  and `is_solution` via `hasDerivAt_pi` + `Fin.lastCases`: the `Fin.castSucc i`
+  coord inherits `HasDerivAt` from `cbtc.sol.is_solution` (using
+  `MvPolynomial.eval₂_rename` for the field identity), and the `Fin.last d`
+  coord uses `trackerTraj_hasDerivAt`.
+- `extendedTraj_isBounded` — boundedness via `pi_norm_le_iff_of_nonneg`, using
+  `cbtc.bounded` on the original species and `trackerTraj_bound` on the tracker.
+- `trackerTraj_hasDerivAt` (two-sided, all `t : ℝ`) — via FTC-1 + product rule
+  applied to `y(t) = q + e^{-t}·F(t)` where `F(t) := ∫₀^t e^s · x_out(s) ds`.
+  Uses an extended `outTraj` (continuous on all of ℝ by freezing at `t = 0` for
+  `t < 0`) so the integrand is continuous everywhere, enabling
+  `intervalIntegral.integral_hasDerivAt_right` cleanly.
+- `trackerTraj_bound` — `|y(t)| ≤ |q| + M` via the Duhamel estimate
+  `e^{-t}·|F(t)| ≤ M·(1 − e^{-t}) ≤ M`.
+
+**Remaining narrow axiom:** `relaxation_tracker_convergence` — existence of a
+time modulus `μ'` with `|trackerTraj t - (β + q)| < e^{-r}` for `t > μ'(r)`.
+This is the linear-ODE Grönwall estimate; reduction to Mathlib is straightforward
+in principle but requires assembling several pieces (integral splitting, exp
+arithmetic, log-based modulus arithmetic) that together run ~200+ lines.
+
+`#print axioms Ripple.Algebraic.relaxation_tracker_solution`:
+`[propext, Classical.choice, Quot.sound, Ripple.Algebraic.relaxation_tracker_convergence]`.
+
+`#print axioms Ripple.Algebraic.certified_add_rational_pos_proved`:
+`[propext, Classical.choice, Quot.sound, Ripple.Algebraic.relaxation_tracker_convergence]`.
+
+`lake build` clean.
 
 ## Session 34 — `certified_add_rational_pos` factored to linear-ODE residual
 
