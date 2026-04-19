@@ -3124,6 +3124,99 @@ theorem stage1_core_axiom {d : ℕ} {α : ℝ}
       (∀ i, ∃ q : ℚ, btc'.pivp.init i = ↑q) :=
   stage1_vvariable btc pcd
 
+/-- **Lemma A (Stage 1 core with output equality).** Same conclusion as
+`stage1_core_axiom`, plus the extra guarantee that the Stage 1 output
+trajectory equals the upstream output trajectory pointwise in time.
+
+This is a direct delegate to `stage1_vvariable_with_output_eq`. Exposed
+here alongside `stage1_core_axiom` so callers can pick the variant that
+matches their needs. -/
+theorem stage1_core_with_output_eq {d : ℕ} {α : ℝ}
+    (btc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d btc.pivp) :
+    ∃ (d' : ℕ) (btc' : BoundedTimeComputable d' α)
+      (A : Fin d' → Fin d' → Fin d' → ℝ) (B : Fin d' → Fin d' → ℝ),
+      (∀ i a b, 0 ≤ A i a b) ∧
+      (∀ i a, 0 ≤ B i a) ∧
+      (∀ i x, btc'.pivp.field x i =
+        (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i) ∧
+      (∀ i, 0 ≤ btc'.pivp.init i) ∧
+      (∀ i, ∃ q : ℚ, btc'.pivp.init i = ↑q) ∧
+      (∀ t : ℝ, btc'.sol.trajectory t btc'.pivp.output
+          = btc.sol.trajectory t btc.pivp.output) :=
+  stage1_vvariable_with_output_eq btc pcd
+
+/-- **Lemma B (Stage 1 output bound from upstream).** Given a Stage 1
+BTC that has the same output trajectory as an upstream CBTC (as
+produced by `stage1_core_with_output_eq`), the upstream's uniform
+`‖sol‖ ≤ M` bound yields an output-only bound `M_out = M` valid for all
+`σ ≥ 0`.
+
+Paying in slack on the small-λ side (rather than sharpening `M_out` to
+the convergence target `α`) lets us skip any convergence analysis here
+— `M_out` comes entirely from upstream boundedness. -/
+theorem stage1_output_bound {d : ℕ} {α : ℝ}
+    (btc : CertifiedBoundedTimeComputable d α)
+    {d' : ℕ} (btc' : BoundedTimeComputable d' α)
+    (h_output_eq : ∀ t : ℝ,
+      btc'.sol.trajectory t btc'.pivp.output
+        = btc.sol.trajectory t btc.pivp.output) :
+    ∃ M_out : ℝ, 0 ≤ M_out ∧
+      ∀ σ, 0 ≤ σ →
+        btc'.sol.trajectory σ btc'.pivp.output ≤ M_out := by
+  obtain ⟨M, hM_pos, hM_bound⟩ := btc.bounded
+  refine ⟨M, hM_pos.le, fun σ hσ => ?_⟩
+  rw [h_output_eq σ]
+  calc btc.sol.trajectory σ btc.pivp.output
+      ≤ |btc.sol.trajectory σ btc.pivp.output| := le_abs_self _
+    _ = ‖btc.sol.trajectory σ btc.pivp.output‖ := (Real.norm_eq_abs _).symm
+    _ ≤ ‖btc.sol.trajectory σ‖ := norm_le_pi_norm _ _
+    _ ≤ M := hM_bound σ hσ
+
+/-- **Lemma C (Stage 1 rest-species bound and non-negativity).** Given
+a Stage 1 BTC with explicit non-negative A, B decomposition and
+non-negative rational initial conditions, every coordinate of the
+trajectory stays non-negative on `σ ≥ 0` (via `pivp_solution_nonneg`
+applied to the quadratic CRN field + `quadraticForm_locally_lipschitz`),
+and every coordinate is uniformly bounded by the BTC's existing
+`‖sol‖ ≤ M_rest` constant. Restricting to `j ≠ output` gives the form
+`stage2_to_lpp_from_bounds` consumes. -/
+theorem stage1_rest_bound_and_nonneg {d' : ℕ} {α : ℝ}
+    (btc' : BoundedTimeComputable d' α)
+    (A : Fin d' → Fin d' → Fin d' → ℝ) (B : Fin d' → Fin d' → ℝ)
+    (hA : ∀ i a b, 0 ≤ A i a b) (hB : ∀ i a, 0 ≤ B i a)
+    (h_field : ∀ i x, btc'.pivp.field x i =
+      (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i)
+    (h_init_nn : ∀ i, 0 ≤ btc'.pivp.init i) :
+    ∃ M_rest : ℝ, 0 ≤ M_rest ∧
+      (∀ σ, 0 ≤ σ → ∀ j : Fin d', 0 ≤ btc'.sol.trajectory σ j) ∧
+      (∀ σ, 0 ≤ σ → ∀ j : Fin d', btc'.sol.trajectory σ j ≤ M_rest) := by
+  -- CRN implementability from the explicit quadratic decomposition.
+  have h_crn : IsCRNImplementable d' btc'.pivp.field :=
+    { prod := fun i x => ∑ a, ∑ b, A i a b * x a * x b
+      degr := fun i x => ∑ a, B i a * x a
+      prod_pos := fun i x hx => Finset.sum_nonneg fun a _ =>
+        Finset.sum_nonneg fun b _ => mul_nonneg (mul_nonneg (hA i a b) (hx a)) (hx b)
+      degr_pos := fun i x hx => Finset.sum_nonneg fun a _ =>
+        mul_nonneg (hB i a) (hx a)
+      field_eq := fun x i => h_field i x }
+  -- Local Lipschitz of the quadratic field.
+  have h_lip : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin d' → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R →
+        ‖btc'.pivp.field x - btc'.pivp.field y‖ ≤ L * ‖x - y‖ :=
+    quadraticForm_locally_lipschitz A B h_field
+  -- Per-coordinate non-negativity via `pivp_solution_nonneg`.
+  have h_traj_nn : ∀ σ, 0 ≤ σ → ∀ j : Fin d', 0 ≤ btc'.sol.trajectory σ j :=
+    fun σ hσ j => pivp_solution_nonneg h_crn h_lip h_init_nn btc'.sol σ hσ j
+  -- Upper bound from `btc'.bounded`: ‖sol σ‖ ≤ M ⇒ sol σ j ≤ M.
+  obtain ⟨M, hM_pos, hM_bound⟩ := btc'.bounded
+  refine ⟨M, hM_pos.le, h_traj_nn, fun σ hσ j => ?_⟩
+  calc btc'.sol.trajectory σ j
+      ≤ |btc'.sol.trajectory σ j| := le_abs_self _
+    _ = ‖btc'.sol.trajectory σ j‖ := (Real.norm_eq_abs _).symm
+    _ ≤ ‖btc'.sol.trajectory σ‖ := norm_le_pi_norm _ _
+    _ ≤ M := hM_bound σ hσ
+
 /-- Stage 1 core: proved from `stage1_core_axiom`. -/
 private theorem stage1_core {d : ℕ} {α : ℝ}
     (btc : CertifiedBoundedTimeComputable d α)
