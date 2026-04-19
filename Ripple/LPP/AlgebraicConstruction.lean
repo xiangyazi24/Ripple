@@ -29,6 +29,8 @@ import Ripple.LPP.Defs
 import Mathlib.Algebra.Polynomial.Basic
 import Mathlib.Algebra.Polynomial.RingDivision
 import Mathlib.FieldTheory.Minpoly.Basic
+import Mathlib.RingTheory.Localization.Integral
+import Mathlib.RingTheory.Localization.FractionRing
 
 namespace Ripple
 namespace Algebraic
@@ -366,6 +368,64 @@ lemma exists_rational_gap_below_real (p : Polynomial ℤ) (hp : p ≠ 0)
       rw [Polynomial.IsRoot, ← h_aeval_eq r]
       exact hroot
     exact hS_ne ⟨r, hrα, hroot'⟩
+
+/-- **Rational → integer polynomial clearing preserving real roots.**
+
+Reusable step in the DNA 25 / RTCRN1 normalization chain: given any
+nonzero `p : ℚ[X]`, there is a nonzero `P : ℤ[X]` with exactly the
+same real roots (up to a nonzero scalar factor, so both sides vanish
+simultaneously). Proof: `IsLocalization.integerNormalization` scales
+`p` by a nonzero element `b` of `ℤ` to clear all denominators; the
+real roots are preserved because `P.aeval β = b · p.aeval β` and
+`b ≠ 0`.
+
+This is the "clearing denominators" lemma per Xiang's 2026-04-18
+guidance — factored as a standalone theorem so the algebraic-shift
+axiom below reduces to pure root geometry without polynomial-
+arithmetic clutter. -/
+theorem rational_polynomial_to_integer_real_roots
+    (p : Polynomial ℚ) (hp : p ≠ 0) :
+    ∃ P : Polynomial ℤ, P ≠ 0 ∧
+      ∀ β : ℝ, (Polynomial.aeval β P : ℝ) = 0 ↔
+               (Polynomial.aeval β p : ℝ) = 0 := by
+  classical
+  let P : Polynomial ℤ :=
+    IsLocalization.integerNormalization (nonZeroDivisors ℤ) p
+  obtain ⟨b, hb_mem, hb_eq⟩ :=
+    IsLocalization.integerNormalization_spec (nonZeroDivisors ℤ) p
+  have hb_ne : (b : ℤ) ≠ 0 := nonZeroDivisors.ne_zero hb_mem
+  have hP_ne : P ≠ 0 := by
+    intro h
+    exact hp
+      ((IsLocalization.integerNormalization_eq_zero_iff
+        (M := nonZeroDivisors ℤ) le_rfl p).mp h)
+  refine ⟨P, hP_ne, fun β => ?_⟩
+  -- aeval β P = (b : ℝ) * aeval β p via integerNormalization_spec.
+  have h_cast : (algebraMap ℤ ℝ : ℤ →+* ℝ)
+      = (algebraMap ℚ ℝ).comp (algebraMap ℤ ℚ) := by
+    ext n; simp
+  have h_aeval : (Polynomial.aeval β P : ℝ)
+      = (b : ℝ) * Polynomial.aeval β p := by
+    -- Express aeval β P via eval₂ with composition to ℝ through ℚ.
+    have h1 : (Polynomial.aeval β P : ℝ)
+        = Polynomial.eval₂ (algebraMap ℚ ℝ) β (P.map (algebraMap ℤ ℚ)) := by
+      rw [Polynomial.eval₂_map]
+      show Polynomial.aeval β P = Polynomial.eval₂ (algebraMap ℤ ℝ) β P
+      rw [Polynomial.aeval_def]
+    -- Unfold ℤ-algebra smul to multiplication by C ((b : ℚ)).
+    rw [Algebra.smul_def, eq_intCast (algebraMap ℤ (Polynomial ℚ)) b,
+        ← Polynomial.C_eq_intCast (R := ℚ) b] at hb_eq
+    rw [h1, hb_eq, Polynomial.eval₂_mul, Polynomial.eval₂_C,
+        ← Polynomial.aeval_def]
+    simp
+  constructor
+  · intro h
+    rw [h_aeval] at h
+    rcases mul_eq_zero.mp h with hb0 | hp0
+    · exact absurd (by exact_mod_cast hb0) hb_ne
+    · exact hp0
+  · intro h
+    rw [h_aeval, h, mul_zero]
 
 /-- Algebraic reduction to smallest-positive-root form. Given an
 algebraic α, there exist a rational shift `q` and an integer
