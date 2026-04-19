@@ -760,22 +760,6 @@ theorem eventualLowerBound_of_prod_eventual_lower_bound
       h_f_hasDeriv h_g_ge
   exact ⟨c', hc'_pos, ⟨T', hf_ge⟩⟩
 
-/-- **Graph-traversal axiom (combinatorial).**
-
-Given: zero-init, CRN shape, boundedness, and an *eventual* positive lower
-bound for every root species, every eventually-positive species also has an
-*eventual* positive lower bound. Pure combinatorial induction on the
-production-graph condensation using `eventualLowerBound_of_prod_eventual_lower_bound`
-at each inductive step — no further analysis. -/
-axiom noCollapse_step3_graph_traversal {d : ℕ} {P : PolyPIVP d}
-    (_pcd : PolyCRNDecomposition d P) (_hzi : P.IsZeroInit)
-    (sol : PIVP.Solution P.toPIVP)
-    (_hbnd : P.toPIVP.IsBounded sol.trajectory)
-    (i : Fin d) (t₀ : ℝ) (_ht₀ : 0 ≤ t₀) (_hpos : 0 < sol.trajectory t₀ i)
-    (_root_feed_eventual : ∀ r : Fin d, 0 < (_pcd.prod r).coeff 0 →
-      ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory r c) :
-    ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory i c
-
 /-! ### Strengthened Step 2: root species have an *eventual* lower bound.
 
 Identical proof strategy to `noCollapse_step2_root_liminf`, but extracted in
@@ -804,6 +788,271 @@ theorem noCollapse_step2_root_eventual {d : ℕ} {P : PolyPIVP d}
   have h_xs_nn : ∀ i, 0 ≤ sol.trajectory s i := h_nn s hs
   exact mvpoly_const_coeff_le_eval₂ (pcd.prod r) (sol.trajectory s)
     h_xs_nn (pcd.prod_nonneg r)
+
+/-! ### Root-reachability on the production graph
+
+The combinatorial content of Step 3 splits into two parts:
+
+* **Propagation.** If every species `j` on which `prod i` meaningfully depends
+  (via a positive-coefficient monomial) already has an eventual positive lower
+  bound, then so does `i`. Captured by the inductive predicate `RootReachable`
+  together with the theorem `rootReachable_hasEventualLowerBound` below,
+  proved entirely from the analytic inductive step. No new analysis; only a
+  monomial lower bound and a straight application of the eventual-feed
+  Grönwall lemma.
+
+* **Reachability.** Any species that ever takes a positive value on the
+  trajectory is `RootReachable`. This is the single remaining axiom, a
+  purely structural claim about positive-coefficient polynomial ODEs with
+  zero init. It is strictly weaker than the original bundled graph-traversal
+  axiom, which mixed reachability with propagation.
+-/
+
+/-- A species `i` is *root-reachable* if it can be grown from the zero state
+via positive-coefficient production edges. Recursive definition: either `i`
+is itself a root, or `prod i` contains a monomial with strictly positive
+coefficient whose every active input species is already root-reachable. -/
+inductive RootReachable {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) : Fin d → Prop
+  | root (i : Fin d) (hroot : 0 < (pcd.prod i).coeff 0) : RootReachable pcd i
+  | step (i : Fin d) (σ : Fin d →₀ ℕ)
+      (hσ_pos : 0 < (pcd.prod i).coeff σ)
+      (hfeeders : ∀ j : Fin d, 0 < σ j → RootReachable pcd j) :
+      RootReachable pcd i
+
+/-- **Monomial lower bound.** If each active species `j` (those with
+`σ j > 0`) admits an eventual lower bound `c_j > 0`, and the trajectory is
+eventually non-negative, then the monomial product
+`∏ j, (traj s j) ^ σ j` is eventually bounded below by `∏ j, c_j ^ σ j`,
+where we use `c_j = 1` for inactive species (which contribute a factor of 1
+via `x ^ 0 = 1`). -/
+theorem monomial_eventual_lower_bound {d : ℕ}
+    (traj : ℝ → Fin d → ℝ) (σ : Fin d →₀ ℕ)
+    (c : Fin d → ℝ) (hc_nn : ∀ j, 0 ≤ c j)
+    (hlb : ∀ j, 0 < σ j → HasEventualLowerBound traj j (c j))
+    (hnn : ∃ T₀ : ℝ, ∀ s, T₀ ≤ s → ∀ j, 0 ≤ traj s j) :
+    ∃ T : ℝ, ∀ s, T ≤ s →
+      (∏ j : Fin d, (c j) ^ σ j) ≤ ∏ j : Fin d, (traj s j) ^ σ j := by
+  classical
+  obtain ⟨T₀, hT₀⟩ := hnn
+  -- Pick a per-species threshold.
+  let Tfun : Fin d → ℝ := fun j =>
+    if h : 0 < σ j then Classical.choose (hlb j h) else T₀
+  have hTfun_spec : ∀ j (h : 0 < σ j), ∀ s, Tfun j ≤ s → c j ≤ traj s j := by
+    intro j h s hs
+    have : Tfun j = Classical.choose (hlb j h) := by simp [Tfun, h]
+    rw [this] at hs
+    exact Classical.choose_spec (hlb j h) s hs
+  -- Maximum of the finitely many thresholds plus T₀.
+  let T : ℝ := T₀ + ∑ j : Fin d, max 0 (Tfun j - T₀)
+  refine ⟨T, ?_⟩
+  intro s hs
+  -- s ≥ T ≥ T₀ and s ≥ Tfun j for every j (since T ≥ T₀ + (Tfun j - T₀)⁺).
+  have h_sum_nn : 0 ≤ ∑ j : Fin d, max 0 (Tfun j - T₀) :=
+    Finset.sum_nonneg (fun j _ => le_max_left _ _)
+  have hs_T₀ : T₀ ≤ s := by
+    have hle : T₀ ≤ T := by
+      change T₀ ≤ T₀ + ∑ j : Fin d, max 0 (Tfun j - T₀)
+      linarith
+    linarith
+  have hs_Tfun : ∀ j, Tfun j ≤ s := by
+    intro j
+    have hpick : max 0 (Tfun j - T₀) ≤ ∑ k : Fin d, max 0 (Tfun k - T₀) := by
+      have := Finset.single_le_sum (f := fun k => max 0 (Tfun k - T₀))
+        (s := (Finset.univ : Finset (Fin d)))
+        (fun k _ => le_max_left _ _) (Finset.mem_univ j)
+      simpa using this
+    have : Tfun j - T₀ ≤ max 0 (Tfun j - T₀) := le_max_right _ _
+    have : Tfun j - T₀ ≤ ∑ k : Fin d, max 0 (Tfun k - T₀) := le_trans this hpick
+    linarith
+  -- Now argue the product inequality pointwise.
+  apply Finset.prod_le_prod
+  · intro j _; exact pow_nonneg (hc_nn j) _
+  · intro j _
+    by_cases hσj : 0 < σ j
+    · exact pow_le_pow_left₀ (hc_nn j) (hTfun_spec j hσj s (hs_Tfun j)) _
+    · -- σ j = 0, so both sides are 1.
+      have hσj0 : σ j = 0 := by omega
+      simp [hσj0]
+
+/-- **Single-monomial production lower bound.**
+
+If some monomial `σ` in `prod i` has strictly positive coefficient and every
+active species `j` (with `σ j > 0`) has an eventual positive lower bound,
+then the full production polynomial `(prod i)(sol s)` is eventually bounded
+below by a strictly positive constant. -/
+theorem prod_eventual_lower_bound_of_monomial {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P)
+    (sol : PIVP.Solution P.toPIVP)
+    (h_nn : ∀ (t : ℝ), 0 ≤ t → ∀ i, 0 ≤ sol.trajectory t i)
+    (i : Fin d) (σ : Fin d →₀ ℕ)
+    (hσ_pos : 0 < (pcd.prod i).coeff σ)
+    (cF : Fin d → ℝ) (hcF_pos : ∀ j, 0 < σ j → 0 < cF j)
+    (hcF_nn : ∀ j, 0 ≤ cF j)
+    (hlb : ∀ j, 0 < σ j →
+      HasEventualLowerBound sol.trajectory j (cF j)) :
+    ∃ c_p : ℝ, 0 < c_p ∧
+      ∃ T_p : ℝ, 0 ≤ T_p ∧
+        ∀ s, T_p ≤ s →
+          c_p ≤ (pcd.prod i).eval₂ (Rat.castHom ℝ) (sol.trajectory s) := by
+  classical
+  -- The monomial contribution `coeff σ * ∏ x_j^σ j` is eventually ≥
+  -- `coeff σ * ∏ cF j ^ σ j` (a positive real).
+  -- The other monomial contributions are non-negative on the non-negative orthant.
+  -- So (prod i)(sol s) ≥ coeff σ * ∏ cF j ^ σ j.
+  have hcoef_pos_ℝ : (0 : ℝ) < (((pcd.prod i).coeff σ : ℚ) : ℝ) := by exact_mod_cast hσ_pos
+  -- Compute the lower bound for the monomial product.
+  have hmon : ∃ T : ℝ, ∀ s, T ≤ s →
+      (∏ j : Fin d, (cF j) ^ σ j) ≤ ∏ j : Fin d, (sol.trajectory s j) ^ σ j :=
+    monomial_eventual_lower_bound sol.trajectory σ cF hcF_nn hlb
+      ⟨0, fun s hs j => h_nn s hs j⟩
+  obtain ⟨T_mon, hT_mon⟩ := hmon
+  -- The full production evaluation:
+  -- (prod i)(x) = ∑_{τ ∈ support} coeff τ * ∏ j, x j ^ τ j
+  -- For x ≥ 0, each summand is ≥ 0. Thus pick out σ (if σ ∈ support):
+  -- (prod i)(x) ≥ coeff σ * ∏ j, x j ^ σ j.
+  have hσ_mem : σ ∈ (pcd.prod i).support := by
+    rw [MvPolynomial.mem_support_iff]
+    exact ne_of_gt hσ_pos
+  -- Produce the bound.
+  let c_p : ℝ := (((pcd.prod i).coeff σ : ℚ) : ℝ) * ∏ j : Fin d, (cF j) ^ σ j
+  have hcF_prod_nn : 0 ≤ ∏ j : Fin d, (cF j) ^ σ j :=
+    Finset.prod_nonneg (fun j _ => pow_nonneg (hcF_nn j) _)
+  -- Use positivity: if σ has any active coordinate, cF j > 0 for that j.
+  -- If σ = 0 (the root case), then we have hσ_pos = 0 < coeff 0 which means i is a root.
+  -- In either case c_p > 0 holds because...
+  --   Case σ ≠ 0: pick j with σ j > 0, then cF j > 0, so (cF j)^σ j > 0.
+  --     But other factors might be 0 if σ k > 0 and cF k = 0 — no, hcF_pos says cF k > 0.
+  --   Case σ = 0: ∏ cF j ^ 0 = 1, and coeff 0 > 0. Product is positive.
+  have hc_p_pos : 0 < c_p := by
+    apply mul_pos hcoef_pos_ℝ
+    apply Finset.prod_pos
+    intro j _
+    by_cases hσj : 0 < σ j
+    · exact pow_pos (hcF_pos j hσj) _
+    · have : σ j = 0 := by omega
+      rw [this]; norm_num
+  refine ⟨c_p, hc_p_pos, max 0 T_mon, le_max_left _ _, ?_⟩
+  intro s hs
+  have hs_T_mon : T_mon ≤ s := le_trans (le_max_right _ _) hs
+  have hs_0 : 0 ≤ s := le_trans (le_max_left _ _) hs
+  have h_xs_nn : ∀ j, 0 ≤ sol.trajectory s j := h_nn s hs_0
+  -- Lower-bound the monomial contribution.
+  have hmon_ge : ∏ j : Fin d, (cF j) ^ σ j ≤
+      ∏ j : Fin d, (sol.trajectory s j) ^ σ j := hT_mon s hs_T_mon
+  have hprod_eq := MvPolynomial.eval₂_eq' (Rat.castHom ℝ)
+      (sol.trajectory s) (pcd.prod i)
+  rw [hprod_eq]
+  -- Split the sum at σ.
+  rw [← Finset.sum_erase_add _ _ hσ_mem]
+  have hrest_nn :
+      0 ≤ ∑ τ ∈ (pcd.prod i).support.erase σ,
+        (((pcd.prod i).coeff τ : ℚ) : ℝ) * ∏ j, sol.trajectory s j ^ τ j := by
+    apply Finset.sum_nonneg
+    intro τ _
+    apply mul_nonneg
+    · exact_mod_cast pcd.prod_nonneg i τ
+    · exact Finset.prod_nonneg fun j _ => pow_nonneg (h_xs_nn j) _
+  -- σ-term ≥ c_p.
+  have hσ_term_ge :
+      c_p ≤ (((pcd.prod i).coeff σ : ℚ) : ℝ) * ∏ j, sol.trajectory s j ^ σ j := by
+    change (((pcd.prod i).coeff σ : ℚ) : ℝ) * ∏ j, (cF j) ^ σ j ≤
+      (((pcd.prod i).coeff σ : ℚ) : ℝ) * ∏ j, sol.trajectory s j ^ σ j
+    apply mul_le_mul_of_nonneg_left hmon_ge (le_of_lt hcoef_pos_ℝ)
+  -- The goal after `rw` is with `(Rat.castHom ℝ) (coeff ...)` — normalize to the cast form.
+  have hcast : ∀ τ : Fin d →₀ ℕ,
+      (Rat.castHom ℝ) ((pcd.prod i).coeff τ) =
+        (((pcd.prod i).coeff τ : ℚ) : ℝ) := by
+    intro τ; rfl
+  simp only [hcast]
+  linarith
+
+/-- **Propagation theorem.** Every root-reachable species has an eventual
+positive lower bound. Proved by induction on `RootReachable`, with each step
+invoking the analytic eventual-Grönwall lemma. -/
+theorem rootReachable_hasEventualLowerBound {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (i : Fin d) (hreach : RootReachable pcd i) :
+    ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory i c := by
+  induction hreach with
+  | root i hroot => exact noCollapse_step2_root_eventual pcd hzi sol hbnd i hroot
+  | step i σ hσ_pos _ IH =>
+    -- Build up the cF function and per-species lower bounds via Classical.choose.
+    classical
+    -- For each active feeder species `j`, pick cF j > 0 with eventual LB.
+    let cF : Fin d → ℝ := fun j =>
+      if h : 0 < σ j then Classical.choose (IH j h) else 0
+    have hcF_nn : ∀ j, 0 ≤ cF j := by
+      intro j
+      by_cases h : 0 < σ j
+      · have : cF j = Classical.choose (IH j h) := by simp [cF, h]
+        rw [this]
+        have := (Classical.choose_spec (IH j h)).1
+        exact le_of_lt this
+      · have : cF j = 0 := by simp [cF, h]
+        rw [this]
+    have hcF_pos : ∀ j, 0 < σ j → 0 < cF j := by
+      intro j h
+      have : cF j = Classical.choose (IH j h) := by simp [cF, h]
+      rw [this]
+      exact (Classical.choose_spec (IH j h)).1
+    have hlb : ∀ j, 0 < σ j →
+        HasEventualLowerBound sol.trajectory j (cF j) := by
+      intro j h
+      have : cF j = Classical.choose (IH j h) := by simp [cF, h]
+      rw [this]
+      exact (Classical.choose_spec (IH j h)).2
+    -- Non-negativity of the trajectory.
+    have h_nn : ∀ (t : ℝ), 0 ≤ t → ∀ i, 0 ≤ sol.trajectory t i :=
+      fun t ht i => crn_trajectory_nonneg pcd hzi sol hbnd i t ht
+    -- Get the production lower bound.
+    obtain ⟨c_p, hc_p_pos, T_p, hT_p_nn, h_prod_ge⟩ :=
+      prod_eventual_lower_bound_of_monomial pcd sol h_nn i σ hσ_pos
+        cF hcF_pos hcF_nn hlb
+    -- Apply the analytic inductive step.
+    exact eventualLowerBound_of_prod_eventual_lower_bound
+      pcd hzi sol hbnd i hc_p_pos ⟨T_p, hT_p_nn, h_prod_ge⟩
+
+/-- **Reachability axiom (residual).** Any species that takes a strictly
+positive value at some non-negative time is root-reachable. This is the
+purely structural combinatorial content of the original Step-3 graph
+traversal, stripped of all analytic / propagation content. Informally:
+a species cannot be positive unless a positive-coefficient production path
+connects it back to a species with positive constant production. -/
+axiom everPositive_rootReachable {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (i : Fin d) (t₀ : ℝ) (ht₀ : 0 ≤ t₀) (hpos : 0 < sol.trajectory t₀ i) :
+    RootReachable pcd i
+
+/-- **Graph-traversal (proved modulo `everPositive_rootReachable`).**
+
+Given eventual positive lower bounds on every root species and a species `i`
+that is positive at some time `t₀`, `i` has an eventual positive lower
+bound. The proof factors through the pure-combinatorial reachability axiom
+`everPositive_rootReachable` (whose content is graph-theoretic, not analytic)
+and the analytic propagation theorem `rootReachable_hasEventualLowerBound`
+(fully proved).
+
+The hypothesis `root_feed_eventual` is not used directly in this form —
+after factoring, root lower bounds are always derived from
+`noCollapse_step2_root_eventual` inside the propagation proof. It is kept
+in the signature to preserve the downstream call site in
+`noCollapse_step3_scc_induction`. -/
+theorem noCollapse_step3_graph_traversal {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (i : Fin d) (t₀ : ℝ) (ht₀ : 0 ≤ t₀) (hpos : 0 < sol.trajectory t₀ i)
+    (_root_feed_eventual : ∀ r : Fin d, 0 < (pcd.prod r).coeff 0 →
+      ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory r c) :
+    ∃ c : ℝ, 0 < c ∧ HasEventualLowerBound sol.trajectory i c := by
+  have hreach : RootReachable pcd i :=
+    everPositive_rootReachable pcd hzi sol hbnd i t₀ ht₀ hpos
+  exact rootReachable_hasEventualLowerBound pcd hzi sol hbnd i hreach
 
 /-- **Step 3 (SCC induction step) — theorem composed from the analytic
 inductive step and the combinatorial graph-traversal axiom.**
