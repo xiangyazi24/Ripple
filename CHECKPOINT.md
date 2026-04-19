@@ -1,6 +1,76 @@
-# Ripple CHECKPOINT — 2026-04-19 (updated, session 32)
+# Ripple CHECKPOINT — 2026-04-19 (updated, session 34)
 
 > **Work log:** see [WORK_LOG.md](WORK_LOG.md) for append-only proof progress log with timestamps.
+
+## Session 34 — `certified_add_rational_pos` factored to linear-ODE residual
+
+New file `Ripple/LPP/AddRationalPos.lean`. The previous monolithic axiom
+`certified_add_rational_pos` (q > 0 branch of RTCRN1 Lemma 4.3) is now a
+**theorem** `certified_add_rational_pos_proved`, factored into:
+
+1. **Structural PIVP extension (proved).** `relaxationPIVP P q` builds the
+   `d+1`-dimensional system via `Fin.snoc`:
+   - original species `i : Fin d` at `i.castSucc`, with field polynomials
+     lifted via `MvPolynomial.rename Fin.castSucc` (keyed by `liftField`,
+     `liftProd`, `liftDegr`);
+   - new tracker species at `Fin.last d`, with
+     `trackerField = trackerProd - trackerDegr · X_y`,
+     `trackerProd = X_out + q`, `trackerDegr = 1`.
+   Initial conditions: original inits at `castSucc`, `q` at `last`.
+
+2. **PolyCRNDecomposition lift (proved).** `relaxationPIVP_polyCRN`
+   proves non-negativity of all coefficients:
+   - for `castSucc` rows, `coeff_rename_castSucc_nonneg` (from
+     `coeff_rename_mapDomain` + `coeff_rename_eq_zero`) preserves
+     `prod_nonneg` / `degr_nonneg` along the injection `Fin.castSucc`;
+   - for the `last` row, `trackerProd_coeff_nonneg` uses `0 ≤ q`
+     hypothesis and `coeff_X'` / `coeff_C`; `trackerDegr_coeff_nonneg`
+     is trivial;
+   - `field_eq` for `castSucc` rows falls out of `pcd.field_eq` +
+     `rename_X` applied to the lifted difference.
+
+3. **Narrow analytic residual axiom.** `relaxation_tracker_solution`
+   encapsulates exactly the linear-ODE convergence content: existence
+   of a `PIVP.Solution` of `relaxationPIVP` that is bounded and whose
+   tracker coordinate converges to `β + q`. The underlying derivation
+   (Duhamel / variation-of-constants + Grönwall) is the narrow gap.
+
+Replaces the monolithic axiom; the wrapper theorem
+`certified_add_rational_pos` in `AlgebraicConstruction.lean` now reduces
+to `certified_add_rational_pos_proved`.
+
+`#print axioms Ripple.Algebraic.certified_add_rational_pos`:
+`[propext, Classical.choice, Quot.sound, Ripple.Algebraic.relaxation_tracker_solution]`.
+
+`lake build` clean (2777 jobs).
+
+## Session 33 — `bounded_zero_init_exp_majorization` discharged
+
+The last narrow analytic axiom in the dual-rail pipeline is now a **proved
+theorem**. `Ripple/DualRail/ExpMajorization.lean` no longer contains any
+`axiom` declaration; the `dualRail_semantic_solution` proof chain is fully
+axiom-free modulo Mathlib.
+
+**Proof strategy.** Let `c := y'(0)` within `Ici 0` (exists by the
+`DifferentiableOn` hypothesis). Choose `L := |c| + 1`. By the slope-limit
+characterisation of `HasDerivWithinAt`, the slope `(y t)/t = slope y 0 t`
+tends to `c` as `t → 0⁺`, hence is bounded by `L` on some `(0, δ]`. Then:
+
+* On `(0, δ']` with `δ' := min(δ/2, 1)`: `|y(t)| ≤ L·t`, and via the
+  elementary inequality `t ≤ (1 − e^{−t})·e^t` (proved from
+  `Real.add_one_le_exp`), `L·t ≤ L·e^{δ'}·(1 − e^{−t})`.
+* On `[δ', ∞)`: `|y(t)| ≤ M ≤ (M/(1 − e^{−δ'}))·(1 − e^{−t})` using
+  monotonicity of `1 − e^{−t}`.
+
+Take `β := max(L·e^{δ'}, M/(1 − e^{−δ'}))`.
+
+Helper lemmas landed (reusable): `one_sub_exp_neg_pos`,
+`one_sub_exp_neg_nonneg`, `one_sub_exp_neg_mono`,
+`t_le_one_sub_exp_neg_mul_exp`.
+
+Verified via `#print axioms Ripple.bounded_zero_init_exp_majorization`:
+depends only on `[propext, Classical.choice, Quot.sound]`. `lake build`
+clean (2777 jobs).
 
 ## Session 32 — `dualRail_semantic_solution` theorem via exp-shift
 
