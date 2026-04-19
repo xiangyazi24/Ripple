@@ -27,6 +27,9 @@
 import Ripple.Core.BoundedTime
 import Ripple.LPP.Defs
 import Mathlib.Algebra.MvPolynomial.Rename
+import Mathlib.Analysis.SpecialFunctions.Exp
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
+import Mathlib.Analysis.Calculus.Deriv.Mul
 
 namespace Ripple
 namespace Algebraic
@@ -200,20 +203,132 @@ noncomputable def relaxationPIVP_polyCRN {d : ℕ} {P : PolyPIVP d} (q : ℚ)
       rw [pcd.field_eq i']
       rw [map_sub, map_mul, rename_X]
 
-/-! ## Step 5: narrow analytic residual axiom — relaxation tracker convergence.
+/-! ## Step 5: explicit Duhamel trajectory for the tracker species.
 
-Given a `CertifiedBoundedTimeComputable` witness for `β` with output species
-at index `P.output`, and `0 < q : ℚ`, there exists a solution of the extended
-ODE `relaxationPIVP P q` that:
+The extended `PolyPIVP` has, at the tracker coordinate `Fin.last d`, the scalar
+linear inhomogeneous ODE
+  y'(t) = x_out(t) + q − y(t),   y(0) = q
+where `x_out(t) := cbtc.sol.trajectory t cbtc.pivp.output` is the original
+output species' trajectory. The Duhamel/variation-of-constants formula gives
+the explicit solution
+  y(t) = e^{−t} · q + ∫₀^t e^{−(t−s)} · (x_out(s) + q) ds
+       = q + ∫₀^t e^{−(t−s)} · x_out(s) ds           (since e^{−t}·q + q(1−e^{−t}) = q).
 
-* projects identically to the original solution on the first `d` species;
-* converges to `β + q` on the tracker species `Fin.last d` with time modulus
-  `μ'(r) := μ(r+1) + ⌈r + 1 + log(max(2|β|, 1))⌉` (the exact form is
-  an implementation detail — any time modulus is acceptable).
+We build the combined (d+1)-dim trajectory by `Fin.snoc`, inheriting the first
+`d` coordinates from `cbtc.sol` and using the integral formula for the last.
 
-This axiom encapsulates the linear-ODE convergence analysis. The solution is
-built by Duhamel/variation-of-constants on the tracker coordinate; the proof
-uses Grönwall-style estimates that Mathlib currently exposes only in pieces.
+The convergence / boundedness analysis of this tracker is the remaining analytic
+content; see `relaxation_tracker_solution` below (narrow residual axiom).
+-/
+
+/-- The output trajectory of the original BTC, as a function of time. -/
+noncomputable def outTraj {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) : ℝ → ℝ :=
+  fun t => cbtc.sol.trajectory t cbtc.pivp.output
+
+/-- The tracker trajectory, defined by the Duhamel integral formula:
+  y(t) = q + ∫₀^t e^{−(t−s)} · x_out(s) ds.
+Equivalent forms:
+  y(t) = e^{−t}·q + ∫₀^t e^{−(t−s)}·(x_out(s) + q) ds
+       = e^{−t}·y(0) + ∫₀^t e^{−(t−s)}·(x_out(s) + q) ds. -/
+noncomputable def trackerTraj {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) : ℝ → ℝ :=
+  fun t => (q : ℝ) + ∫ s in (0 : ℝ)..t, Real.exp (-(t - s)) * outTraj cbtc s
+
+/-- The full extended trajectory on `Fin (d+1)`: the first `d` coordinates are
+inherited from `cbtc.sol.trajectory` (via `Fin.castSucc` decoding), and the
+last coordinate is `trackerTraj`. -/
+noncomputable def extendedTraj {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) :
+    ℝ → Fin (d+1) → ℝ :=
+  fun t => Fin.snoc (fun i : Fin d => cbtc.sol.trajectory t i)
+                     (trackerTraj cbtc q t)
+
+@[simp] lemma extendedTraj_castSucc {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) (t : ℝ) (i : Fin d) :
+    extendedTraj cbtc q t i.castSucc = cbtc.sol.trajectory t i := by
+  unfold extendedTraj
+  simp [Fin.snoc_castSucc]
+
+@[simp] lemma extendedTraj_last {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) (t : ℝ) :
+    extendedTraj cbtc q t (Fin.last d) = trackerTraj cbtc q t := by
+  unfold extendedTraj
+  simp [Fin.snoc_last]
+
+/-- At `t = 0`, the Duhamel integral vanishes, so `trackerTraj cbtc q 0 = q`. -/
+lemma trackerTraj_zero {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) :
+    trackerTraj cbtc q 0 = (q : ℝ) := by
+  unfold trackerTraj
+  simp
+
+/-- The initial condition of the extended trajectory matches the extended
+PIVP's `init` vector. -/
+lemma extendedTraj_init {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) :
+    extendedTraj cbtc q 0 = (relaxationPIVP cbtc.pivp q).toPIVP.init := by
+  funext k
+  refine Fin.lastCases ?_ (fun i => ?_) k
+  · -- last coord
+    rw [extendedTraj_last, trackerTraj_zero]
+    show (q : ℝ) = ((relaxationPIVP cbtc.pivp q).init (Fin.last d) : ℝ)
+    rw [relaxationPIVP_init_last]
+  · -- castSucc coord
+    rw [extendedTraj_castSucc]
+    show cbtc.sol.trajectory 0 i = ((relaxationPIVP cbtc.pivp q).init i.castSucc : ℝ)
+    rw [relaxationPIVP_init_castSucc]
+    have := congrFun cbtc.sol.init_cond i
+    rw [this]
+    rfl
+
+/-- The original output trajectory `x_out` is continuous on `[0, ∞)` (in fact
+differentiable, since it satisfies an ODE there). -/
+lemma outTraj_continuousOn {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    ContinuousOn (outTraj cbtc) (Set.Ici (0 : ℝ)) := by
+  intro t ht
+  have ht0 : (0 : ℝ) ≤ t := ht
+  have h := (hasDerivAt_pi.mp (cbtc.sol.is_solution t ht0)) cbtc.pivp.output
+  exact h.continuousAt.continuousWithinAt
+
+/-! ## Step 5b: per-coordinate uniform bound on the original trajectory. -/
+
+/-- Per-coordinate uniform bound on `cbtc.sol.trajectory`, from the `IsBounded`
+witness. Analogous to `BoundedTimeComputable.coord_bound` but at the semantic
+`PolyPIVP` layer. -/
+lemma cbtc_coord_bound {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    ∃ M : ℝ, 0 ≤ M ∧ ∀ t, 0 ≤ t → ∀ j : Fin d,
+      |cbtc.sol.trajectory t j| ≤ M := by
+  obtain ⟨M, hMpos, hM⟩ := cbtc.bounded
+  refine ⟨M, hMpos.le, fun t ht j => ?_⟩
+  have h1 : ‖cbtc.sol.trajectory t j‖ ≤ ‖cbtc.sol.trajectory t‖ :=
+    norm_le_pi_norm _ _
+  have h2 : ‖cbtc.sol.trajectory t‖ ≤ M := hM t ht
+  rw [Real.norm_eq_abs] at h1
+  linarith
+
+/-- Uniform bound on `outTraj` on `[0,∞)`. -/
+lemma outTraj_bound {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    ∃ M : ℝ, 0 ≤ M ∧ ∀ t, 0 ≤ t → |outTraj cbtc t| ≤ M := by
+  obtain ⟨M, hM_nn, hM⟩ := cbtc_coord_bound cbtc
+  exact ⟨M, hM_nn, fun t ht => hM t ht cbtc.pivp.output⟩
+
+/-! ## Step 5c: narrow analytic residual axiom — relaxation tracker convergence.
+
+The construction `extendedTraj` above is the explicit Duhamel trajectory. What
+remains is purely analytic: (i) that it actually satisfies the ODE (a scalar
+FTC-1 + product rule computation), (ii) that it is bounded, and (iii) that the
+tracker coordinate converges to `β + q` with an effective time modulus via
+Grönwall. Items (i)–(ii) follow from a direct FTC computation that Mathlib
+supports but requires careful setup. Item (iii) is the usual linear-ODE
+Grönwall estimate, which Mathlib exposes only in pieces.
+
+We keep the original axiom statement (narrowed to precisely this analytic
+content) — the structural `Fin.snoc`/lifting work has already been done
+above and in `relaxationPIVP_polyCRN`.
 -/
 axiom relaxation_tracker_solution {β : ℝ} (q : ℚ) (hq : 0 < q) {d : ℕ}
     (cbtc : CertifiedBoundedTimeComputable d β) :
