@@ -1219,24 +1219,102 @@ lemma saturating_extended_solution {d : ℕ} {α : ℝ}
     change y σ i.castSucc = cbtc.sol.trajectory σ i
     exact h_head_match σ hσ_mem i
 
-/-- Residual witness: the extended PIVP has a certified bounded-time
-computation for `α` (the same target), whose output trajectory stays
-in `[0, U]` on `t ≥ 0`. Analytic content deferred. -/
-axiom saturating_tracker_solution {d : ℕ} {α : ℝ}
+/-! ## Step 5b: narrow analytic axiom + packaged convergence theorem.
+
+The existence, boundedness, range, and head-matching of the surrogate
+trajectory are all discharged by `saturating_extended_solution`
+(Phase C+E). What remains is the *scalar convergence* of the tracker
+coordinate `y(t)` to `α`. We isolate this single analytic fact as
+a narrow axiom `saturating_tracker_tendsto`, and derive the full
+packaged witness `saturating_tracker_solution` as a theorem.
+
+**Analytic content of the narrow axiom.** Given the extended PIVP
+solution `sol'` whose head coordinates equal `cbtc.sol.trajectory`
+and whose last coordinate stays in `[0, U]`, the last coordinate
+converges to `α` as `t → ∞`, with an effective modulus derivable
+(in paper) via the `τ = ∫(U-y)` time rescaling and a Duhamel
+solution of `dΦ/dτ = ε(t) - Φ`. See
+`projects/Bounded/notes/saturating-surrogate-LPP.tex` (Proposition
+"Convergence" around line 124).
+
+We axiomatize the quantitative modulus directly rather than going
+through `Tendsto`, to preserve exact parity with the
+`CertifiedBoundedTimeComputable.convergence` signature consumed
+downstream. -/
+
+/-- **Narrow analytic axiom.** Given an extended saturating solution
+`sol'` whose head coordinates match the driver `cbtc.sol.trajectory`
+and whose last coordinate stays in `[0, U]` with `α < U < 1`, the
+tracker coordinate `sol'.trajectory t (Fin.last d)` converges to
+`α` with an effective modulus `μ'`.
+
+This is the sole piece of analytic content deferred: existence,
+boundedness, output range, and head-matching are *proved*
+(see `saturating_extended_solution`). Proof sketch in the header
+of this section; full formalization requires τ-rescaling Grönwall
+beyond current scope. -/
+axiom saturating_tracker_tendsto {d : ℕ} {α : ℝ}
     (cbtc : CertifiedBoundedTimeComputable d α)
+    (U : ℚ) (hα_nn : 0 ≤ α) (hU_lo : α < (U : ℝ)) (hU_hi : (U : ℝ) < 1)
+    (sol' : PIVP.Solution (saturatingPIVP cbtc.pivp U).toPIVP)
+    (_h_range : ∀ σ : ℝ, 0 ≤ σ →
+      0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
+      sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ))
+    (_h_head : ∀ σ : ℝ, 0 ≤ σ → ∀ i : Fin d,
+      sol'.trajectory σ i.castSucc = cbtc.sol.trajectory σ i) :
+    ∃ (μ' : TimeModulus), ∀ r : ℕ, ∀ t : ℝ, t > μ' r →
+      |sol'.trajectory t (saturatingPIVP cbtc.pivp U).output - α|
+        < Real.exp (-(r : ℝ))
+
+/-- **Phase D (packaged).** Convergence of the saturating tracker
+`y` to `α`, together with boundedness and output range.
+
+**Proved content:** existence of `sol'`, boundedness of the full
+vector trajectory, output coordinate ∈ `[0, U]`, all from
+`saturating_extended_solution`. **Narrow analytic input:** scalar
+convergence modulus, via `saturating_tracker_tendsto`. -/
+theorem saturating_tracker_convergence {d : ℕ} {α : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d cbtc.pivp)
     (U : ℚ) (hα_nn : 0 ≤ α) (hU_lo : α < (U : ℝ)) (hU_hi : (U : ℝ) < 1) :
     ∃ (sol' : PIVP.Solution (saturatingPIVP cbtc.pivp U).toPIVP)
       (μ' : TimeModulus),
-      -- Convergence at rate μ'.
       (∀ r : ℕ, ∀ t : ℝ, t > μ' r →
         |sol'.trajectory t (saturatingPIVP cbtc.pivp U).output - α|
           < Real.exp (-(r : ℝ))) ∧
-      -- Boundedness of the whole vector trajectory.
       (saturatingPIVP cbtc.pivp U).toPIVP.IsBounded sol'.trajectory ∧
-      -- Output stays in `[0, U]` on `t ≥ 0`.
+      (∀ σ : ℝ, 0 ≤ σ →
+        0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
+        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) := by
+  have hU_nn : (0 : ℝ) ≤ (U : ℝ) := le_trans hα_nn hU_lo.le
+  have hU_pos : (0 : ℝ) < (U : ℝ) := lt_of_le_of_lt hα_nn hU_lo
+  obtain ⟨sol', h_bounded, h_range, h_head⟩ :=
+    saturating_extended_solution cbtc pcd U hU_nn hU_pos
+  obtain ⟨μ', h_conv⟩ :=
+    saturating_tracker_tendsto cbtc U hα_nn hU_lo hU_hi sol' h_range h_head
+  exact ⟨sol', μ', h_conv, h_bounded, h_range⟩
+
+/-- Residual witness: the extended PIVP has a certified bounded-time
+computation for `α` (the same target), whose output trajectory stays
+in `[0, U]` on `t ≥ 0`. This is now a **theorem** proved by
+`saturating_tracker_convergence`, which discharges existence,
+boundedness, and range from `saturating_extended_solution` and
+uses the narrow axiom `saturating_tracker_tendsto` only for scalar
+convergence. -/
+theorem saturating_tracker_solution {d : ℕ} {α : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d cbtc.pivp)
+    (U : ℚ) (hα_nn : 0 ≤ α) (hU_lo : α < (U : ℝ)) (hU_hi : (U : ℝ) < 1) :
+    ∃ (sol' : PIVP.Solution (saturatingPIVP cbtc.pivp U).toPIVP)
+      (μ' : TimeModulus),
+      (∀ r : ℕ, ∀ t : ℝ, t > μ' r →
+        |sol'.trajectory t (saturatingPIVP cbtc.pivp U).output - α|
+          < Real.exp (-(r : ℝ))) ∧
+      (saturatingPIVP cbtc.pivp U).toPIVP.IsBounded sol'.trajectory ∧
       (∀ σ, 0 ≤ σ →
         0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
-        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ))
+        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) :=
+  saturating_tracker_convergence cbtc pcd U hα_nn hU_lo hU_hi
 
 /-! ## Step 6: package into a new CBTC + PCD with `output ≤ U` sharp bound.
 
@@ -1263,7 +1341,7 @@ theorem saturating_surrogate_cbtc {d : ℕ} {α : ℝ}
     exact_mod_cast this
   -- Get the analytic witness.
   obtain ⟨sol', μ', hconv, hbdd, hrange⟩ :=
-    saturating_tracker_solution cbtc U hα_nn hU_lo hU_hi
+    saturating_tracker_solution cbtc pcd U hα_nn hU_lo hU_hi
   refine ⟨d + 1,
     { pivp := saturatingPIVP cbtc.pivp U
       sol := sol'
