@@ -349,102 +349,22 @@ def OriginalBounded {n : ℕ} (p : Fin n → MvPolynomial (Fin n) ℚ)
     ((p i).eval₂ (Rat.castHom ℝ) (sol t)) t) ∧
   (∀ t ≥ (0 : ℝ), ∀ i, |sol t i| ≤ β)
 
-/-! ### Explicit dual-rail witness from a bounded GPAC solution
+/-! ### Algebraic infrastructure for the DNA25 dual-rail boundedness
 
-The statement `dualRail_polynomial_scale_bounded` asks for the *existence* of
-a non-negative bounded lift `ûSol : ℝ → Fin (2n) → ℝ` satisfying
-`û t ⟨2i⟩ − û t ⟨2i+1⟩ = ySol t i`. It does not demand that `û` solve the
-polynomial-scale dual-rail ODE — only that it be a bounded non-negative
-lift of `ySol`.
+The strong DNA25 theorem — existence of a `PIVP.Solution` of the
+polynomial-scale dual-rail system with non-negativity, boundedness, and
+the dual-rail identity — lives at the semantic `BoundedTimeComputable`
+level as `Ripple.dualRail_semantic_solution` (in `BTCReduction.lean`),
+since it is consumed by `BoundedTimeComputable.toDualRail`.
 
-We give an explicit witness built by "shifting the graph": set
-`û t ⟨2i⟩ := β + ySol t i` (the `u`-component) and
-`û t ⟨2i+1⟩ := β` (the `v`-component).
-
-Then:
-  * `û t ⟨2i⟩ − û t ⟨2i+1⟩ = (β + ySol t i) − β = ySol t i` (invariant).
-  * `|ySol t i| ≤ β` gives `0 ≤ β + ySol t i ≤ 2β` (non-negative, bounded).
-  * `û t ⟨2i+1⟩ = β ∈ [0, 2β]`.
-
-The bound `B := 2β + 1 > 0` works uniformly.
-
-Landing this as a theorem discharges the axiom completely without invoking
-ODE theory. The *dynamic* theorem (`û` solving the polynomial-scale dual-rail
-ODE, as in [RTCRN2]) is a stronger statement whose formalization needs
-local Picard–Lindelöf + Lyapunov global existence and is tracked in the
-proof sketch below. -/
-
-/-- The explicit dual-rail witness: `u_i(t) = β + y_i(t)`, `v_i(t) = β`. -/
-noncomputable def dualRailShiftWitness {n : ℕ}
-    (ySol : ℝ → Fin n → ℝ) (β : ℝ) :
-    ℝ → Fin (2 * n) → ℝ := fun t K =>
-  if K.val % 2 = 0 then β + ySol t ⟨K.val / 2, by omega⟩ else β
-
-/-- **[RTCRN2] Theorem (Option (a), weak form): a bounded GPAC admits a
-bounded non-negative dual-rail lift.**
-
-If the original GPAC `p` has a bounded solution (∀ t, |yᵢ(t)| ≤ β), then
-there is a non-negative bounded `ûSol` on `[0, ∞)` with the dual-rail
-invariant `uᵢ − vᵢ = yᵢ`. (It is not claimed here that `ûSol` satisfies
-the dual-rail polynomial-scale ODE; see discussion below.)
-
-Proof: take the shift witness `uᵢ = β + yᵢ`, `vᵢ = β`.
-
-Algebraic machinery available for the stronger ODE form:
- * `posPart_sub_negPart`: `p = posPart p − negPart p` at the syntactic level.
- * `posPart_eval_nonneg` / `negPart_eval_nonneg`: both parts evaluate
-   non-negatively on non-negative inputs.
- * `dualRailHom_eval₂`: evaluating the dual-railed polynomial at
-   `w : Fin (2n) → ℝ` equals evaluating the original polynomial at the
-   "difference state" `j ↦ w(2j) − w(2j+1)`.
- * `dualRailPos_sub_dualRailNeg_eval`: the scalar identity
-   `p̂ᵢ⁺(w) − p̂ᵢ⁻(w) = pᵢ(u − v)` — core to persistence of `uᵢ − vᵢ = yᵢ`
-   under the dual-rail flow.
- * `dualRailPosPart_eval_nonneg` / `dualRailNegPart_eval_nonneg`:
-   barrier lemmas guaranteeing no negative flow at `uᵢ = 0` or `vᵢ = 0`. -/
-theorem dualRail_polynomial_scale_bounded {n : ℕ}
-    (p : Fin n → MvPolynomial (Fin n) ℚ) (y₀ : Fin n → ℚ)
-    (ySol : ℝ → Fin n → ℝ) (β : ℝ) (hBd : OriginalBounded p y₀ ySol β) :
-    ∃ (ûSol : ℝ → Fin (2 * n) → ℝ) (B : ℝ), 0 < B ∧
-      (∀ t ≥ (0 : ℝ), ∀ K, 0 ≤ ûSol t K ∧ ûSol t K ≤ B) ∧
-      (∀ t ≥ (0 : ℝ), ∀ i : Fin n,
-        ûSol t ⟨2 * i.val, by omega⟩ - ûSol t ⟨2 * i.val + 1, by omega⟩
-          = ySol t i) := by
-  classical
-  -- Unpack the bounded-GPAC hypothesis: only `0 < β` and the sup-bound on `ySol`.
-  obtain ⟨hβpos, _hy0, _hDeriv, hyBd⟩ := hBd
-  -- Witness: `u_i(t) = β + y_i(t)`, `v_i(t) = β`.
-  refine ⟨dualRailShiftWitness ySol β, 2 * β + 1, by linarith, ?_, ?_⟩
-  · -- Non-negativity and bound.
-    intro t ht K
-    unfold dualRailShiftWitness
-    by_cases hpar : K.val % 2 = 0
-    · -- u-component: `β + ySol t i` with `i := ⟨K.val/2, _⟩`.
-      simp only [hpar, if_true]
-      have hi := hyBd t ht ⟨K.val / 2, by omega⟩
-      -- `|ySol t i| ≤ β` ⇒ `−β ≤ ySol t i ≤ β` ⇒ `0 ≤ β + ySol t i ≤ 2β`.
-      have h1 : -β ≤ ySol t ⟨K.val / 2, by omega⟩ := neg_le_of_abs_le hi
-      have h2 : ySol t ⟨K.val / 2, by omega⟩ ≤ β := le_of_abs_le hi
-      refine ⟨?_, ?_⟩
-      · linarith
-      · linarith
-    · -- v-component: constant `β`.
-      simp only [hpar, if_false]
-      refine ⟨le_of_lt hβpos, ?_⟩
-      linarith
-  · -- Dual-rail invariant: `u_i − v_i = y_i`.
-    intro t _ht i
-    unfold dualRailShiftWitness
-    -- For K = ⟨2*i.val, _⟩: K.val % 2 = 0, K.val/2 = i.val, so u = β + ySol t i.
-    -- For K = ⟨2*i.val+1, _⟩: K.val % 2 = 1 ≠ 0, so v = β.
-    have hU_mod : (2 * i.val) % 2 = 0 := by omega
-    have hU_div : (2 * i.val) / 2 = i.val := by omega
-    have hV_mod : (2 * i.val + 1) % 2 ≠ 0 := by omega
-    simp only [hU_mod, if_true, hV_mod, if_false]
-    -- Goal: β + ySol t ⟨2*i.val/2, _⟩ - β = ySol t i.
-    have : ySol t ⟨(2 * i.val) / 2, by omega⟩ = ySol t i := by
-      congr 1; exact Fin.ext hU_div
-    rw [this]; ring
+The algebraic lemmas established in this file —
+`posPart_sub_negPart`, `posPart_eval_nonneg`, `negPart_eval_nonneg`,
+`dualRailHom_eval₂`, `dualRailPos_sub_dualRailNeg_eval`,
+`dualRailPosPart_eval_nonneg`, `dualRailNegPart_eval_nonneg` — are the
+purely syntactic / evaluation reductions needed by any eventual proof of
+the semantic solution axiom. They are used in the downstream construction
+and remain available for future proof work on the analytic core
+(Picard–Lindelöf + Lyapunov global existence). -/
 
 /-! ## The open question (UCNC25 Problem 1)
 
