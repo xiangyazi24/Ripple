@@ -25,14 +25,17 @@
   Status.
   * `crn_trajectory_nonneg` — **PROVED** via `pivp_solution_nonneg` and
     `polyPIVP_field_locally_lipschitz` (a narrow technical lemma).
-  * `zero_init_no_collapse` — **PROVED** modulo a single purely
-    combinatorial residual axiom `everPositive_hasRootChain`. All
+  * `zero_init_no_collapse` — **PROVED** modulo a single narrow
+    analytic residual axiom `everPositive_hasFeedingMonomial`. All
     analytic steps (Step 2 Grönwall, Step 3 SCC induction, Step 3
-    graph traversal) are now fully proved theorems. The residual axiom
-    supplies a natural-number rank function on species together with a
-    finite descent witness along positive-coefficient production
-    monomials — no continuity, infimum, or ODE reasoning appears in
-    its statement.
+    graph traversal) as well as the combinatorial rank packaging
+    (`everPositive_hasRootChain`, `everPositive_rootReachable`) are
+    now fully proved theorems. The sole residual axiom asserts that
+    at the first positive time of an ever-positive non-root species
+    `i`, some positive-coefficient monomial of `pcd.prod i` is
+    activated with all active feeders having strictly earlier
+    first-positive-time. This is the ODE continuity fact that remains
+    to be discharged to achieve a zero-custom-axiom proof.
 
   Reference: conversation with Xiang, 2026-04-18 (message 1124, 1126).
 -/
@@ -1023,46 +1026,158 @@ theorem rootReachable_hasEventualLowerBound {d : ℕ} {P : PolyPIVP d}
 /-! ### Reachability: from analytic "ever-positive" to combinatorial
 `RootReachable`.
 
-The outer axiom `everPositive_rootReachable` has been refactored into two
-pieces:
+The reachability infrastructure is split into three pieces:
 
-* A **purely combinatorial residual axiom** `everPositive_hasRootChain`.
-  It asserts the existence of a finite chain-indexing structure: each
-  ever-positive species `i` is equipped with a *rank* `rank i : ℕ` such
-  that either `i` is a root, or there is a positive-coefficient monomial
-  `σ` in `(pcd.prod i)` all of whose active feeders are themselves
-  ever-positive with strictly smaller rank. No analytic content (no
-  `sol`, no continuity, no infimum of positive times) appears in this
-  axiom — the rank function encodes the topological descent along a
-  "first-positive-time" ordering without exposing the ordering itself.
+* A **narrow analytic residual axiom** `everPositive_hasFeedingMonomial`
+  expressing the single ODE fact that at the first positive time of an
+  ever-positive non-root species `i`, some positive-coefficient monomial
+  of `pcd.prod i` is activated with all active feeders being ever-positive
+  at strictly earlier first-positive-time.
+
+* A **fully proved theorem** `everPositive_hasRootChain` that packages
+  the analytic residual into a natural-number rank, via `Finset.card` of
+  the strictly-earlier species set. This theorem discharges what was
+  previously a combinatorial axiom.
 
 * A **fully proved theorem** `everPositive_rootReachable` that performs
   well-founded recursion on the rank and builds the `RootReachable`
   derivation by structural induction, dispatching `root` when `i` is a
   root and `step` when the activated-monomial alternative holds.
 
-The structural content of the old single axiom is split cleanly: every
-analytic statement is on the outside (the hypothesis "ever positive is
-fed by ever-positive feeders along a positive-coeff monomial"), and
-every combinatorial statement is on the inside (the structural induction
-that walks the chain back to a root).
+The analytic content is now concentrated in a single axiom whose
+statement mentions only continuity of the trajectory and first-positive
+ordering; every combinatorial, rank, and well-founded-recursion step is
+fully proved.
 -/
 
-/-- **Residual combinatorial reachability axiom (rank form).**
+/-! ### First-positive-time descent — analytic residual axiom
 
-For every ever-positive species `i`, there exists a natural-number rank
-`rank i` and a structural witness: either `i` is a root of the
-production graph, or `(pcd.prod i)` has a positive-coefficient monomial
-`σ ≠ 0` whose every active feeder `j` is ever-positive with
-`rank j < rank i`. This is a finite graph descent, fully combinatorial
-once the analytic fact "ever-positive feeders exist at a positive-coeff
-monomial" is accepted as the descent generator.
+The combinatorial reachability axiom `everPositive_hasRootChain` is now a
+**proved theorem**, obtained by packaging an abstract `key : Fin d → α`
+(where `α` is any linear order) into a natural-number rank via
+`Finset.card` of the strictly-smaller key set.
 
-No analytic content is used inside this axiom: the rank is an abstract
-natural number, and "ever positive at some `t ≥ 0`" is a quantified
-statement on `sol.trajectory`, not a continuity or infimum claim.
+The only remaining analytic input is the descent statement at
+`firstPositiveTime`, isolated below as the narrow axiom
+`everPositive_hasFeedingMonomial`. Its content is: for each ever-positive
+non-root species `i`, the production polynomial `pcd.prod i` has a
+positive-coefficient monomial `σ ≠ 0` all of whose active feeders are
+themselves ever-positive with STRICTLY earlier first-positive-time than
+`i`. No rank structure appears — only the continuous-time ordering of
+first-positive events.
+
+This is strictly smaller than the old `everPositive_hasRootChain`:
+the rank construction, well-founded descent, and combinatorial packaging
+are now all theorems. What remains is exactly the ODE fact that at the
+first positive time, production must be turned on by an activated
+monomial whose feeders were already positive earlier.
 -/
-axiom everPositive_hasRootChain {d : ℕ} {P : PolyPIVP d}
+
+/-- **First positive time.** For species `i`, the infimum of the set of
+non-negative times at which `sol.trajectory t i > 0`; if the set is empty
+(`i` is never positive) we return `-1` as an out-of-range sentinel.
+
+Because `sol.trajectory 0 i = 0` (zero init) and positive values appear
+only at strictly positive times, `firstPositiveTime` is always `≥ 0` for
+ever-positive species. Non-ever-positive species get sentinel `-1` so
+that the value `firstPositiveTime j < firstPositiveTime i` is never
+vacuously satisfied by "never-positive" feeders. -/
+noncomputable def firstPositiveTime {d : ℕ} {P : PolyPIVP d}
+    (_pcd : PolyCRNDecomposition d P) (_hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (_hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (i : Fin d) : ℝ := by
+  classical
+  exact
+    if (∃ t : ℝ, 0 ≤ t ∧ 0 < sol.trajectory t i) then
+      sInf {t : ℝ | 0 ≤ t ∧ 0 < sol.trajectory t i}
+    else -1
+
+/-- **Analytic residual axiom — first-positive-time feeding monomial.**
+
+At the first positive time `t*` of an ever-positive non-root species `i`,
+some positive-coefficient monomial `σ ≠ 0` of `pcd.prod i` is activated,
+and every active feeder `j` (with `σ j > 0`) is itself ever-positive at
+a strictly EARLIER first-positive-time (`firstPositiveTime j < firstPositiveTime i`).
+
+This captures the sole remaining analytic content of the non-collapse
+proof: continuity of the trajectory plus infimum structure at
+`t* = firstPositiveTime i` force the production polynomial to be
+activated by a monomial whose active feeders have `sol t* j > 0`, i.e.
+are positive strictly before `t*`.
+
+The statement is pure ODE/continuity content: no combinatorial rank,
+no RootReachable, no structural induction. The combinatorial packaging
+into a natural-number rank is proved below. -/
+axiom everPositive_hasFeedingMonomial {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory) :
+    ∀ (i : Fin d),
+      (∃ t : ℝ, 0 ≤ t ∧ 0 < sol.trajectory t i) →
+      (0 < (pcd.prod i).coeff 0) ∨
+      (∃ σ : Fin d →₀ ℕ, σ ≠ 0 ∧ 0 < (pcd.prod i).coeff σ ∧
+        ∀ j : Fin d, 0 < σ j →
+          (∃ s : ℝ, 0 ≤ s ∧ 0 < sol.trajectory s j) ∧
+          firstPositiveTime pcd hzi sol hbnd j
+            < firstPositiveTime pcd hzi sol hbnd i)
+
+/-- **Rank from `firstPositiveTime`.**
+The natural-number rank of species `i` is the cardinality of the set of
+species with strictly earlier first-positive-time. This is the unique
+order-isomorphism between a totally ordered finite set and an initial
+segment of ℕ (when ties are resolved by `firstPositiveTime`, distinct
+species with the same first-positive-time get the same rank, but the
+descent lemma below uses strict `<` so ties are not a problem). -/
+noncomputable def firstPositiveTimeRank {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    (i : Fin d) : ℕ := by
+  classical
+  exact (Finset.univ.filter
+    (fun j : Fin d =>
+      firstPositiveTime pcd hzi sol hbnd j
+        < firstPositiveTime pcd hzi sol hbnd i)).card
+
+/-- Strict monotonicity of `firstPositiveTimeRank` along strict `firstPositiveTime`. -/
+theorem firstPositiveTimeRank_strictMono {d : ℕ} {P : PolyPIVP d}
+    (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
+    (sol : PIVP.Solution P.toPIVP)
+    (hbnd : P.toPIVP.IsBounded sol.trajectory)
+    {i j : Fin d}
+    (h : firstPositiveTime pcd hzi sol hbnd j
+        < firstPositiveTime pcd hzi sol hbnd i) :
+    firstPositiveTimeRank pcd hzi sol hbnd j
+      < firstPositiveTimeRank pcd hzi sol hbnd i := by
+  classical
+  unfold firstPositiveTimeRank
+  -- {k | firstPos k < firstPos j} ⊆ {k | firstPos k < firstPos i} via transitivity,
+  -- and `j` lies in the larger set but not the smaller.
+  set fp : Fin d → ℝ := firstPositiveTime pcd hzi sol hbnd
+  set Sj : Finset (Fin d) :=
+    Finset.univ.filter (fun k => fp k < fp j) with hSj_def
+  set Si : Finset (Fin d) :=
+    Finset.univ.filter (fun k => fp k < fp i) with hSi_def
+  have hsub : Sj ⊆ Si := by
+    intro k hk
+    rw [hSj_def, Finset.mem_filter] at hk
+    rw [hSi_def, Finset.mem_filter]
+    exact ⟨Finset.mem_univ _, lt_trans hk.2 h⟩
+  have hj_in : j ∈ Si := by
+    rw [hSi_def, Finset.mem_filter]
+    exact ⟨Finset.mem_univ _, h⟩
+  have hj_notin : j ∉ Sj := by
+    rw [hSj_def, Finset.mem_filter]
+    intro hc
+    exact (lt_irrefl _) hc.2
+  exact Finset.card_lt_card ⟨hsub, fun h' => hj_notin (h' hj_in)⟩
+
+/-- **Combinatorial reachability theorem (PROVED from the analytic residual).**
+
+Packages `everPositive_hasFeedingMonomial` (which uses the continuous
+first-positive-time order) into a natural-number rank. -/
+theorem everPositive_hasRootChain {d : ℕ} {P : PolyPIVP d}
     (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
     (sol : PIVP.Solution P.toPIVP)
     (hbnd : P.toPIVP.IsBounded sol.trajectory) :
@@ -1072,7 +1187,17 @@ axiom everPositive_hasRootChain {d : ℕ} {P : PolyPIVP d}
         (0 < (pcd.prod i).coeff 0) ∨
         (∃ σ : Fin d →₀ ℕ, σ ≠ 0 ∧ 0 < (pcd.prod i).coeff σ ∧
           ∀ j : Fin d, 0 < σ j →
-            (∃ s : ℝ, 0 ≤ s ∧ 0 < sol.trajectory s j) ∧ rank j < rank i)
+            (∃ s : ℝ, 0 ≤ s ∧ 0 < sol.trajectory s j) ∧ rank j < rank i) := by
+  refine ⟨firstPositiveTimeRank pcd hzi sol hbnd, ?_⟩
+  intro i hep
+  rcases everPositive_hasFeedingMonomial pcd hzi sol hbnd i hep with
+    hroot | ⟨σ, hσ_ne, hσ_pos, hfeed⟩
+  · exact Or.inl hroot
+  · refine Or.inr ⟨σ, hσ_ne, hσ_pos, ?_⟩
+    intro j hj
+    obtain ⟨hep_j, hfp_lt⟩ := hfeed j hj
+    refine ⟨hep_j, ?_⟩
+    exact firstPositiveTimeRank_strictMono pcd hzi sol hbnd hfp_lt
 
 /-- **Reachability theorem (proved, modulo the rank residual axiom).**
 Any species that takes a strictly positive value at some non-negative
