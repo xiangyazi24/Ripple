@@ -1,6 +1,43 @@
-# Ripple CHECKPOINT — 2026-04-19 (updated, session 39)
+# Ripple CHECKPOINT — 2026-04-19 (updated, session 40)
 
 > **Work log:** see [WORK_LOG.md](WORK_LOG.md) for append-only proof progress log with timestamps.
+
+## Session 40 — Saturating surrogate scaffold + unconditional LPP main theorem
+
+**Problem fixed.** The DNA28 LPP paper's Stage 2 slack assumes `x_out(σ) < 1`
+pointwise, but a generic CBTC only guarantees `‖sol t‖ ≤ M` with potentially
+`M > 1`. Previously `bounded_crn_is_lpp_computable` carried this as an
+explicit `h_sharp` hypothesis.
+
+**Construction.** In `Ripple/LPP/SaturatingSurrogate.lean`: append a tracker
+species `y` obeying `y' = (x - y)(U - y)` for a rational `U ∈ (α, 1)`,
+`y(0) = 0`. The factor `(U - y)` is a hard cap — `y = U ⇒ y' = 0`, so
+`y ∈ [0, U]` invariantly. Time-rescale `τ(t) := ∫₀ᵗ (U - y(s)) ds` converts
+the nonlinear ODE to linear `Φ'(τ) = E(τ) - Φ(τ)`, whose Duhamel solution
+inherits `x_out → α` ⇒ `y → α`. See paper-level proof in
+`projects/Bounded/notes/saturating-surrogate-LPP.tex`.
+
+**Structural content (fully proved):**
+- `saturatingProd`, `saturatingDegr`, `saturatingField` with non-negative
+  coefficient proofs (`prod_y = U·X_out + X_y²`, `degr_y = X_out + U`).
+- `saturatingPIVP` via `Fin.snoc`; `saturatingPIVP_polyCRN` lifts PCD.
+- `saturating_surrogate_cbtc` packages U existentially in the output.
+- `bounded_crn_is_lpp_computable_interior_from_bound`: Stage 2 parametric
+  in `M_out < 1` (slack uses `ε := 1 - M_out`).
+- `bounded_crn_is_lpp_computable_unconditional`: outer theorem with
+  zero-assumption signature `(hα01, cbtc, pcd) → IsLPPComputable α`.
+  U is hidden inside the proof.
+
+**Analytic residual (one narrow axiom, pending):**
+- `saturating_tracker_solution` — existence of the extended solution,
+  invariance `y ∈ [0, U]`, convergence `y → α` with modulus `μ'`.
+  Pattern matches `relaxation_tracker_solution` in `AddRationalPos.lean`
+  (which was eventually discharged — task #21). To be discharged analogously.
+
+**Build status.** 2782 jobs, 0 errors, 0 sorries, 1 new axiom
+(`saturating_tracker_solution`) scoped to this file.
+
+---
 
 ## Session 39 — `polyCRN_exists_neg_shift` eliminated from `algebraic_is_certified_crn` axiom trace
 
