@@ -27,6 +27,7 @@
 -/
 
 import Ripple.Core.BoundedTime
+import Ripple.Core.ZeroInitPositivity
 import Ripple.LPP.Defs
 import Mathlib.Algebra.MvPolynomial.Rename
 
@@ -235,6 +236,17 @@ lemma evalField_last {d : ℕ} (P : PolyPIVP d) (U : ℚ)
         (x P.output.castSucc + (Rat.castHom ℝ) U) * x (Fin.last d)
       = (x P.output.castSucc - x (Fin.last d)) * ((Rat.castHom ℝ) U - x (Fin.last d))
   ring
+
+/-- **Phase B1 (Lipschitz).** The extended vector field is locally Lipschitz
+in the state variable — immediate from the polynomial-field locally-Lipschitz
+theorem applied to the extended `PolyPIVP`. This is the first ingredient for
+invoking `locally_lipschitz_bounded_global_ode_proved` on the extended system. -/
+theorem saturatingPIVP_field_locally_lipschitz {d : ℕ} (P : PolyPIVP d) (U : ℚ) :
+    ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin (d + 1) → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R →
+      ‖(saturatingPIVP P U).toPIVP.field x - (saturatingPIVP P U).toPIVP.field y‖
+        ≤ L * ‖x - y‖ :=
+  polyPIVP_field_locally_lipschitz (saturatingPIVP P U)
 
 /-! ## Step 5: analytic residual — existence of the saturating tracker solution.
 
