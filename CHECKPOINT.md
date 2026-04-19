@@ -51,9 +51,16 @@ inherits `x_out → α` ⇒ `y → α`. See paper-level proof in
   `y ≤ U` on `[0, T)` via sSup of `{u ≤ t : y u ≤ U}` + ODE uniqueness
   (`ODE_solution_unique_of_mem_Icc_right`) against the constant `U`, with
   compactness (`isCompact_Icc.exists_isMaxOn`) packaging the Lipschitz bound.
-- Next: Phase B2 (global existence of extended system) via
-  `locally_lipschitz_bounded_global_ode_proved` with `h_invariant`
-  driven by both barriers + CBTC bounds.
+- Phase B2 (global existence, `saturating_global_solution`, commit `d4fb020`):
+  extended trajectory on `[0, ∞)` via `locally_lipschitz_bounded_global_ode_proved`.
+  `h_invariant` built from barriers + PIVP uniqueness (`solutions_agree_on_Icc`)
+  + CBTC bound + PCD-driven non-negativity (`pivp_solution_nonneg`).
+- Phase C+E (packaging + output range, `saturating_extended_solution`, commit
+  `c97b8b3`): genuine `PIVP.Solution` wrapping the trajectory, with `IsBounded`
+  (M := M_cbtc + U + 1), output coord ∈ [0, U] pointwise, plus the bridge
+  lemma `saturating_agrees_on_Ico` (head matches `cbtc.sol.trajectory`).
+- Next: Phase D (convergence via τ-rescaling Grönwall) + Phase F (package
+  into `saturating_tracker_solution` replacement).
 
 ---
 
