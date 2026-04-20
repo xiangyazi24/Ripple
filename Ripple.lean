@@ -24,4 +24,5 @@ import Ripple.DualRail.ScalarCubic
 import Ripple.DualRail.ScalarQuintic
 import Ripple.Number.Apery
 import Ripple.Number.PiCertified
+import Ripple.Number.Ln2Certified
 import Ripple.LPP
