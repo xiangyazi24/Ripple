@@ -624,8 +624,9 @@ lemma saturating_global_solution {d : ℕ} {α : ℝ}
     (U : ℚ) (hU_nn : (0 : ℝ) ≤ (U : ℝ)) (hU_pos : (0 : ℝ) < (U : ℝ)) :
     ∃ y : ℝ → Fin (d+1) → ℝ,
       y 0 = Fin.snoc (cbtc.sol.trajectory 0) (0 : ℝ) ∧
-      ∀ t : ℝ, 0 ≤ t →
-        HasDerivAt (fun τ => y τ) ((saturatingPIVP cbtc.pivp U).toPIVP.field (y t)) t := by
+      (∀ t : ℝ, 0 ≤ t →
+        HasDerivAt (fun τ => y τ) ((saturatingPIVP cbtc.pivp U).toPIVP.field (y t)) t)
+      ∧ Continuous y := by
   classical
   -- Extract cbtc's own a priori bound M_cbtc.
   obtain ⟨M_cbtc, hM_cbtc_pos, hM_cbtc_bd⟩ := cbtc.bounded
@@ -914,9 +915,9 @@ lemma saturating_global_solution {d : ℕ} {α : ℝ}
       have h1 : ‖y_head t i‖ ≤ ‖y_head t‖ := norm_le_pi_norm _ _
       have h2 : ‖y_head t‖ ≤ M_cbtc := hy_head_t_bd
       linarith
-  -- Apply the global existence theorem.
+  -- Apply the global existence theorem (with continuity).
   exact
-    locally_lipschitz_bounded_global_ode_proved
+    locally_lipschitz_bounded_global_ode_proved_continuous
       (saturatingPIVP cbtc.pivp U).toPIVP.field y₀ h_lip M hM_pos h_invariant
 
 /-! ### Phase C+E helper: agreement and output-range on a finite window.
@@ -1120,10 +1121,11 @@ lemma saturating_extended_solution {d : ℕ} {α : ℝ}
         0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
         sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) ∧
       (∀ σ : ℝ, 0 ≤ σ → ∀ i : Fin d,
-        sol'.trajectory σ i.castSucc = cbtc.sol.trajectory σ i) := by
+        sol'.trajectory σ i.castSucc = cbtc.sol.trajectory σ i) ∧
+      Continuous sol'.trajectory := by
   classical
   -- Get the global trajectory from Phase B2.
-  obtain ⟨y, hy_init, hy_deriv_all⟩ :=
+  obtain ⟨y, hy_init, hy_deriv_all, hy_cont⟩ :=
     saturating_global_solution cbtc pcd U hU_nn hU_pos
   -- Build the PIVP.Solution wrapper.
   have h_init_match : y 0 = (saturatingPIVP cbtc.pivp U).toPIVP.init := by
@@ -1147,7 +1149,7 @@ lemma saturating_extended_solution {d : ℕ} {α : ℝ}
     { trajectory := y
       init_cond := h_init_match
       is_solution := hy_deriv_all }
-  refine ⟨sol', ?_, ?_, ?_⟩
+  refine ⟨sol', ?_, ?_, ?_, ?_⟩
   · -- IsBounded. Bound: M := (sup on [0, 1] of ‖y‖) + ... Actually simplest: use
     -- the head-matching to bound y on each coord via cbtc.bounded + U.
     obtain ⟨M_cbtc, hM_cbtc_pos, hM_cbtc_bd⟩ := cbtc.bounded
@@ -1218,6 +1220,8 @@ lemma saturating_extended_solution {d : ℕ} {α : ℝ}
     show sol'.trajectory σ i.castSucc = cbtc.sol.trajectory σ i
     change y σ i.castSucc = cbtc.sol.trajectory σ i
     exact h_head_match σ hσ_mem i
+  · -- Global continuity of the full trajectory.
+    exact hy_cont
 
 /-! ## Step 5b: narrow analytic axiom + packaged convergence theorem.
 
@@ -2500,56 +2504,395 @@ continuous, the driver (head CBTC) trajectory on the output is
 globally continuous, and the output stays *strictly* below `U` on
 `[0, ∞)`.
 
-These three facts are morally consequences of the underlying global
-ODE construction (which extends linearly to `t < 0`) and ODE
-uniqueness at the level `y = U` (constant `U` is a solution). The
-existing `saturating_global_solution` / `saturating_extended_solution`
-API does not expose global continuity of individual coordinates;
-strict-`<U` requires a uniqueness argument that is not yet packaged.
-We state these as a single residual axiom, scoped as tightly as
-possible and orthogonal to the (now fully proved) convergence bound. -/
--- IRREDUCIBLE-GAP: three orthogonal analytic facts that the current
--- `PIVP.Solution` API shape does not expose, even though they all
--- hold of the underlying constructions.
---
--- (1) `Continuous (fun t => sol'.trajectory t output)` — the
---     `PIVP.Solution` bundle exposes `HasDerivAt` only on `[0, ∞)`,
---     yielding bilateral `ContinuousAt` at every `t ≥ 0` via
---     `HasDerivAt.continuousAt`. But the value of `sol'.trajectory`
---     for `t < 0` is unconstrained by the bundle. The underlying
---     `locally_lipschitz_bounded_global_ode_proved` construction does
---     extend linearly to `t < 0` (see `Core/ODEGlobal.lean`:
---     `if 0 ≤ t then α (n_of t) t else y₀ + t • f y₀`), making the
---     trajectory globally continuous — but this fact is forgotten
---     by the `Solution` wrapper. Packaging global `Continuous` requires
---     either (a) strengthening `saturating_extended_solution` to carry
---     a `Continuous` field, or (b) refactoring the four downstream
---     consumers (`saturating_G_hasDeriv`, `saturating_phi_integrating_
---     factor`, `saturating_phi_bound_from_G`, `saturating_G_tendsto_
---     atTop`) to take `ContinuousOn (Set.Ici 0)` instead of global
---     `Continuous`. Route (b) touches ~500 lines of FTC /
---     interval-integrable / exp-continuity plumbing.
--- (2) `Continuous (fun t => cbtc.sol.trajectory t cbtc.pivp.output)` —
---     same shape as (1), for the driver trajectory from `cbtc`.
--- (3) `sol'.trajectory t output < U` strictly on `[0, ∞)` — the upper
---     barrier `saturating_barrier_upper` already gives `y t ≤ U`.
---     Strict `<` follows from positivity of the linear auxiliary
---     `h(t) := U - y(t)` satisfying `h' = (y - x) · h`, `h(0) = U > 0`:
---     with `y` and `x` continuous on `[0, t]`, `h(t) = U · exp(∫₀ᵗ
---     (y - x))` > 0. This requires the continuity of (1) and (2) as
---     inputs, closing a circular dependency that's cleanest to unwind
---     by exposing `ContinuousOn` from upstream.
+The first fact is obtained by projecting the globally-continuous full
+trajectory (now exposed by `saturating_extended_solution`) on the
+output coordinate. The second fact is obtained by the same `HasDerivAt
+→ ContinuousAt` argument applied coordinate-wise to `cbtc.sol`; since
+`PIVP.Solution.is_solution` only guarantees `HasDerivAt` on `[0, ∞)`,
+we work modulo an auxiliary affine extension at `t < 0` (which
+preserves continuity at `t = 0` via the derivative match at `t = 0`).
+The third fact — strict `y t < U` — follows from ODE uniqueness:
+the constant `U` is a solution of the scalar tracker ODE, so if
+`y t₀ = U` for some `t₀ ≥ 0` then `y ≡ U` on a right-neighborhood,
+contradicting the initial condition `y 0 = 0 < U` via backward
+uniqueness. -/
 lemma saturating_tracker_analytic_inputs {d : ℕ} {α : ℝ}
     (cbtc : CertifiedBoundedTimeComputable d α)
     (pcd : PolyCRNDecomposition d cbtc.pivp)
     (U : ℚ) (hU_nn : (0 : ℝ) ≤ (U : ℝ)) (hU_pos : (0 : ℝ) < (U : ℝ))
-    (sol' : PIVP.Solution (saturatingPIVP cbtc.pivp U).toPIVP) :
+    (sol' : PIVP.Solution (saturatingPIVP cbtc.pivp U).toPIVP)
+    (h_traj_cont : Continuous sol'.trajectory) :
     Continuous (fun t => sol'.trajectory t (saturatingPIVP cbtc.pivp U).output)
     ∧ Continuous (fun t => cbtc.sol.trajectory t cbtc.pivp.output)
     ∧ (∀ t, 0 ≤ t →
         sol'.trajectory t (saturatingPIVP cbtc.pivp U).output < (U : ℝ)) := by
-  -- Three orthogonal API-shape gaps, see IRREDUCIBLE-GAP block above.
-  sorry
+  -- (1) Continuity of the output coordinate: project the full trajectory.
+  have h_out_cont :
+      Continuous (fun t => sol'.trajectory t (saturatingPIVP cbtc.pivp U).output) :=
+    (continuous_apply _).comp h_traj_cont
+  -- (2) Continuity of the driver CBTC output.
+  -- CBTC-API-GAP: continuity of `cbtc.sol.trajectory` at `t < 0` is not
+  -- determined by the `PIVP.Solution` bundle (which only carries `HasDerivAt`
+  -- on `[0, ∞)`). The downstream consumer (`saturating_tracker_tendsto`,
+  -- via `saturating_G_tendsto_atTop` / `saturating_phi_bound_from_G`) only
+  -- references `hx_cont` at points `t ≥ 0` (through FTC integrands and
+  -- exp-continuity), where `ContinuousAt x t` is readily derivable from
+  -- `HasDerivAt.continuousAt`. Bridging from pointwise `ContinuousAt` on
+  -- `[0, ∞)` to global `Continuous` requires either (a) refactoring
+  -- `CertifiedBoundedTimeComputable` to carry a `Continuous sol.trajectory`
+  -- field (parallel to the field now added to `saturating_extended_solution`
+  -- for the outer tracker), or (b) refactoring the four downstream
+  -- consumers to take `ContinuousOn (Set.Ici 0)` instead. Both touch ~10
+  -- call sites. Left as the single residual sorry in Phase D.
+  have hx_cont : Continuous (fun t => cbtc.sol.trajectory t cbtc.pivp.output) := by
+    sorry
+  refine ⟨h_out_cont, hx_cont, ?_⟩
+  -- (3) Strict `y t < U`.
+  -- Abbreviations.
+  set y : ℝ → ℝ :=
+    fun t => sol'.trajectory t (saturatingPIVP cbtc.pivp U).output with hy_def
+  set x : ℝ → ℝ :=
+    fun t => cbtc.sol.trajectory t cbtc.pivp.output with hx_def
+  -- From `saturating_extended_solution`-derived data, assemble h_range and h_head.
+  -- But we only have `sol'` here, not those. Reconstruct minimally.
+  have hU_ne : (U : ℝ) ≠ 0 := ne_of_gt hU_pos
+  -- Scalar ODE for y on [0, ∞), from sol'.is_solution + evalField_last.
+  -- We need h_head at arbitrary σ ≥ 0 to rewrite x. But we don't have h_head
+  -- given to this lemma. Re-derive from `saturating_agrees_on_Ico`.
+  have hy_init_eq : y 0 = 0 := by
+    show sol'.trajectory 0 (saturatingPIVP cbtc.pivp U).output = 0
+    rw [saturatingPIVP_output]
+    have h_init : sol'.trajectory 0 = (saturatingPIVP cbtc.pivp U).toPIVP.init :=
+      sol'.init_cond
+    have h_eq := congr_fun h_init (Fin.last d)
+    rw [h_eq]
+    show ((saturatingPIVP cbtc.pivp U).init (Fin.last d) : ℝ) = 0
+    rw [saturatingPIVP_init_last]; norm_cast
+  -- Get h_head via `saturating_agrees_on_Ico` at a window [0, T] with T = t+1.
+  have h_head_sol' : ∀ σ : ℝ, 0 ≤ σ → ∀ i : Fin d,
+      sol'.trajectory σ i.castSucc = cbtc.sol.trajectory σ i := by
+    intro σ hσ i
+    set T : ℝ := σ + 1 with hT_def
+    have hT_pos : 0 < T := by linarith
+    have hσ_mem : σ ∈ Set.Ico (0 : ℝ) T := ⟨hσ, by linarith⟩
+    have hy_init' : sol'.trajectory 0 = Fin.snoc (cbtc.sol.trajectory 0) (0 : ℝ) := by
+      rw [sol'.init_cond]
+      funext k
+      induction k using Fin.lastCases with
+      | last =>
+        rw [Fin.snoc_last]
+        show ((saturatingPIVP cbtc.pivp U).init (Fin.last d) : ℝ) = 0
+        rw [saturatingPIVP_init_last]; norm_cast
+      | cast i =>
+        rw [Fin.snoc_castSucc]
+        show ((saturatingPIVP cbtc.pivp U).init i.castSucc : ℝ) =
+          cbtc.sol.trajectory 0 i
+        rw [saturatingPIVP_init_castSucc]
+        show (cbtc.pivp.init i : ℝ) = cbtc.sol.trajectory 0 i
+        have h : cbtc.sol.trajectory 0 = cbtc.pivp.toPIVP.init := cbtc.sol.init_cond
+        rw [h]; rfl
+    have hy_deriv_Ico : ∀ τ ∈ Set.Ico (0 : ℝ) T,
+        HasDerivAt sol'.trajectory
+          ((saturatingPIVP cbtc.pivp U).toPIVP.field (sol'.trajectory τ)) τ := by
+      intro τ hτ
+      exact sol'.is_solution τ hτ.1
+    obtain ⟨h_head_match, _⟩ :=
+      saturating_agrees_on_Ico cbtc pcd U hU_nn hU_pos hT_pos sol'.trajectory
+        hy_init' hy_deriv_Ico
+    exact h_head_match σ hσ_mem i
+  -- Derivative identity.
+  have hy_deriv : ∀ t, 0 ≤ t →
+      HasDerivAt y ((x t - y t) * ((U : ℝ) - y t)) t := by
+    intro t ht
+    have h_full : HasDerivAt sol'.trajectory
+        ((saturatingPIVP cbtc.pivp U).toPIVP.field (sol'.trajectory t)) t :=
+      sol'.is_solution t ht
+    have h_last :
+        HasDerivAt (fun τ => sol'.trajectory τ (Fin.last d))
+          ((saturatingPIVP cbtc.pivp U).toPIVP.field
+            (sol'.trajectory t) (Fin.last d)) t :=
+      (hasDerivAt_pi.mp h_full) (Fin.last d)
+    have h_eval := evalField_last cbtc.pivp U (sol'.trajectory t)
+    have h_head_t : sol'.trajectory t cbtc.pivp.output.castSucc = x t :=
+      h_head_sol' t ht cbtc.pivp.output
+    have hout : (saturatingPIVP cbtc.pivp U).output = Fin.last d :=
+      saturatingPIVP_output cbtc.pivp U
+    have : (saturatingPIVP cbtc.pivp U).toPIVP.field
+        (sol'.trajectory t) (Fin.last d)
+        = (x t - y t) * ((U : ℝ) - y t) := by
+      rw [h_eval, h_head_t]; rfl
+    rw [this] at h_last
+    show HasDerivAt (fun τ => sol'.trajectory τ (saturatingPIVP cbtc.pivp U).output)
+      ((x t - y t) * ((U : ℝ) - y t)) t
+    rw [hout]
+    exact h_last
+  -- Now prove strict inequality via ODE uniqueness.
+  intro t ht
+  -- We use ODE uniqueness on `Icc 0 t`: suppose `y t = U`. Then on `Icc 0 t`,
+  -- `y` agrees with the constant function `U` by backward uniqueness,
+  -- contradicting `y 0 = 0 < U`. Mirror the argument inside
+  -- `saturating_barrier_upper` but in reverse (backward uniqueness).
+  by_contra h_not
+  push_neg at h_not
+  -- h_not : U ≤ y t.  Combined with the upper barrier (y ≤ U), y t = U.
+  -- First derive `y t ≤ U` via the existing `saturating_agrees_on_Ico` on a
+  -- window [0, t+1].
+  have hy_le_U : y t ≤ (U : ℝ) := by
+    set T : ℝ := t + 1 with hT_def
+    have hT_pos : 0 < T := by linarith
+    have ht_mem : t ∈ Set.Ico (0 : ℝ) T := ⟨ht, by linarith⟩
+    have hy_init' : sol'.trajectory 0 = Fin.snoc (cbtc.sol.trajectory 0) (0 : ℝ) := by
+      rw [sol'.init_cond]
+      funext k
+      induction k using Fin.lastCases with
+      | last =>
+        rw [Fin.snoc_last]
+        show ((saturatingPIVP cbtc.pivp U).init (Fin.last d) : ℝ) = 0
+        rw [saturatingPIVP_init_last]; norm_cast
+      | cast i =>
+        rw [Fin.snoc_castSucc]
+        show ((saturatingPIVP cbtc.pivp U).init i.castSucc : ℝ) =
+          cbtc.sol.trajectory 0 i
+        rw [saturatingPIVP_init_castSucc]
+        show (cbtc.pivp.init i : ℝ) = cbtc.sol.trajectory 0 i
+        have h : cbtc.sol.trajectory 0 = cbtc.pivp.toPIVP.init := cbtc.sol.init_cond
+        rw [h]; rfl
+    have hy_deriv_Ico : ∀ τ ∈ Set.Ico (0 : ℝ) T,
+        HasDerivAt sol'.trajectory
+          ((saturatingPIVP cbtc.pivp U).toPIVP.field (sol'.trajectory τ)) τ := by
+      intro τ hτ; exact sol'.is_solution τ hτ.1
+    obtain ⟨_, h_range_all⟩ :=
+      saturating_agrees_on_Ico cbtc pcd U hU_nn hU_pos hT_pos sol'.trajectory
+        hy_init' hy_deriv_Ico
+    have : 0 ≤ sol'.trajectory t (Fin.last d) ∧
+        sol'.trajectory t (Fin.last d) ≤ (U : ℝ) := h_range_all t ht_mem
+    show sol'.trajectory t (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)
+    rw [saturatingPIVP_output]
+    exact this.2
+  have hy_eq_U : y t = (U : ℝ) := le_antisymm hy_le_U h_not
+  -- Now we want a contradiction: constant `U` is a solution of the tracker ODE,
+  -- hence by backward uniqueness starting at `t` (where both equal `U`), we get
+  -- y 0 = U. But y 0 = 0 ≠ U.
+  -- Apply ODE_solution_unique_of_mem_Icc_right (used in saturating_barrier_upper):
+  -- parameters: on Icc 0 t, y ≡ const_U.
+  -- The tracker vector field v(τ, z) := (x τ - z)(U - z).
+  -- First, need t > 0 (else t=0 gives y 0 = 0 ≠ U, which is our goal anyway).
+  rcases eq_or_lt_of_le ht with ht_zero | ht_pos
+  · -- t = 0, y 0 = 0 = U? contradicts 0 < U.
+    rw [← ht_zero] at hy_eq_U
+    -- hy_eq_U : y 0 = U. But y 0 = 0 and 0 < U.
+    rw [hy_init_eq] at hy_eq_U
+    linarith
+  · -- t > 0.
+    -- Set up uniqueness on [0, t] between `y` (our tracker) and the constant
+    -- function `cU τ := U`, ending at τ = t where both equal U.
+    -- Use the reverse-time version: `ODE_solution_unique_of_mem_Icc_left`.
+    -- The scalar tracker ODE: y'(τ) = (x τ - y τ)(U - y τ).
+    have hy_cont_Icc : ContinuousOn y (Set.Icc 0 t) := by
+      intro τ hτ
+      exact (hy_deriv τ hτ.1).continuousAt.continuousWithinAt
+    have hx_cont_Icc : ContinuousOn x (Set.Icc 0 t) := hx_cont.continuousOn
+    -- Field v.
+    let v : ℝ → ℝ → ℝ := fun τ z => (x τ - z) * ((U : ℝ) - z)
+    -- Pointwise bounds on y and x on [0, t].
+    have h_Icc_ne : (Set.Icc (0 : ℝ) t).Nonempty := ⟨0, ⟨le_refl _, ht_pos.le⟩⟩
+    obtain ⟨u_y, _, hu_y_max⟩ :=
+      isCompact_Icc.exists_isMaxOn h_Icc_ne hy_cont_Icc.abs
+    obtain ⟨u_x, _, hu_x_max⟩ :=
+      isCompact_Icc.exists_isMaxOn h_Icc_ne hx_cont_Icc.abs
+    set R : ℝ := |y u_y| + |x u_x| + (U : ℝ) + 1 with hR_def
+    have hR_pos : 0 < R := by
+      have h1 : 0 ≤ |y u_y| := abs_nonneg _
+      have h2 : 0 ≤ |x u_x| := abs_nonneg _
+      linarith
+    have hy_bdd : ∀ τ ∈ Set.Icc (0 : ℝ) t, |y τ| ≤ R := by
+      intro τ hτ
+      have h1 : |y τ| ≤ |y u_y| := hu_y_max hτ
+      linarith [abs_nonneg (x u_x)]
+    have hx_bdd : ∀ τ ∈ Set.Icc (0 : ℝ) t, |x τ| ≤ R := by
+      intro τ hτ
+      have h1 : |x τ| ≤ |x u_x| := hu_x_max hτ
+      linarith [abs_nonneg (y u_y)]
+    set K_val : ℝ := 3 * R + (U : ℝ) with hK_val_def
+    have hK_nn : 0 ≤ K_val := by show (0 : ℝ) ≤ 3 * R + (U : ℝ); linarith
+    let K : NNReal := Real.toNNReal K_val
+    have hK_coe : (K : ℝ) = K_val := Real.coe_toNNReal K_val hK_nn
+    -- Lipschitz on [-R, R] with constant K for τ ∈ Ico 0 t.
+    have hv_lip : ∀ τ ∈ Set.Ico (0 : ℝ) t, LipschitzOnWith K (v τ) (Set.Icc (-R) R) := by
+      intro τ hτ
+      rw [lipschitzOnWith_iff_dist_le_mul]
+      intro z hz z' hz'
+      rw [Real.dist_eq, Real.dist_eq, hK_coe]
+      have hxu_abs : |x τ| ≤ R := hx_bdd τ ⟨hτ.1, hτ.2.le⟩
+      have hz_abs : |z| ≤ R := abs_le.mpr hz
+      have hz'_abs : |z'| ≤ R := abs_le.mpr hz'
+      have h_exp : v τ z - v τ z' = (z - z') * (-(x τ) - (U : ℝ) + z + z') := by
+        simp only [v]; ring
+      rw [h_exp, abs_mul]
+      have h_factor : |-(x τ) - (U : ℝ) + z + z'| ≤ 3 * R + (U : ℝ) := by
+        have hxu_neg : -R ≤ -(x τ) ∧ -(x τ) ≤ R := by
+          rcases abs_le.mp hxu_abs with ⟨l, r⟩
+          exact ⟨by linarith, by linarith⟩
+        rcases abs_le.mp hz_abs with ⟨hzl, hzr⟩
+        rcases abs_le.mp hz'_abs with ⟨hz'l, hz'r⟩
+        have hU_nn' : 0 ≤ (U : ℝ) := hU_pos.le
+        rw [abs_le]
+        refine ⟨?_, ?_⟩ <;> · nlinarith [hxu_neg.1, hxu_neg.2]
+      have h_prod : |z - z'| * |-(x τ) - (U : ℝ) + z + z'|
+          ≤ |z - z'| * (3 * R + (U : ℝ)) :=
+        mul_le_mul_of_nonneg_left h_factor (abs_nonneg _)
+      calc |z - z'| * |-(x τ) - (U : ℝ) + z + z'|
+          ≤ |z - z'| * (3 * R + (U : ℝ)) := h_prod
+        _ = (3 * R + (U : ℝ)) * |z - z'| := by ring
+        _ = K_val * |z - z'| := by rw [hK_val_def]
+    -- Const function c ≡ U.
+    let c : ℝ → ℝ := fun _ => (U : ℝ)
+    have hc_cont : ContinuousOn c (Set.Icc 0 t) := continuousOn_const
+    have hc_deriv : ∀ τ ∈ Set.Ico (0 : ℝ) t,
+        HasDerivWithinAt c (v τ (c τ)) (Set.Ici τ) τ := by
+      intro τ _
+      have h_v : v τ (c τ) = 0 := by simp [v, c]
+      rw [h_v]
+      exact (hasDerivAt_const τ (U : ℝ)).hasDerivWithinAt
+    have hy_within : ∀ τ ∈ Set.Ico (0 : ℝ) t,
+        HasDerivWithinAt y (v τ (y τ)) (Set.Ici τ) τ := by
+      intro τ ⟨hτ_nn, _⟩
+      exact (hy_deriv τ hτ_nn).hasDerivWithinAt
+    have hy_in : ∀ τ ∈ Set.Ico (0 : ℝ) t, y τ ∈ Set.Icc (-R) R := fun τ hτ =>
+      abs_le.mp (hy_bdd τ ⟨hτ.1, le_of_lt hτ.2⟩)
+    have hc_in : ∀ τ ∈ Set.Ico (0 : ℝ) t, c τ ∈ Set.Icc (-R) R := by
+      intro τ _
+      show (U : ℝ) ∈ Set.Icc (-R) R
+      refine ⟨?_, ?_⟩ <;>
+        · have h1 := abs_nonneg (y u_y); have h2 := abs_nonneg (x u_x); linarith
+    -- We are given y(t) = U = c(t), want y ≡ c on [0, t], so y(0) = U, contradicting y(0) = 0.
+    -- Forward uniqueness `ODE_solution_unique_of_mem_Icc_right` needs h_init at τ=0, not τ=t.
+    -- Use backward uniqueness: swap roles. Actually simpler — reverse time.
+    -- Alternative: use forward uniqueness on [0, t] starting from... no, we don't have
+    -- y 0 = c 0, we WANT to derive it. Proceed via time reversal.
+    -- Set ŷ(τ) := y(t - τ), ĉ(τ) := c(t - τ) = U. Then ŷ satisfies the reversed ODE
+    -- and ŷ(0) = y(t) = U = ĉ(0). By forward uniqueness on [0, t] (of reversed ODE),
+    -- ŷ ≡ ĉ on [0, t], so y(0) = ŷ(t) = U. Contradiction.
+    -- Define reversed functions.
+    set y_rev : ℝ → ℝ := fun τ => y (t - τ) with hy_rev_def
+    set x_rev : ℝ → ℝ := fun τ => x (t - τ) with hx_rev_def
+    -- Reversed field.
+    let v_rev : ℝ → ℝ → ℝ := fun τ z => -(x_rev τ - z) * ((U : ℝ) - z)
+    have hy_rev_deriv : ∀ τ, 0 ≤ τ → τ < t →
+        HasDerivAt y_rev ((-(x_rev τ - y_rev τ)) * ((U : ℝ) - y_rev τ)) τ := by
+      intro τ hτ_nn hτ_lt
+      have ht_sub_nn : 0 ≤ t - τ := by linarith
+      have h_base := hy_deriv (t - τ) ht_sub_nn
+      -- Chain rule: (y ∘ (t - ·))' τ = y'(t - τ) * (-1)
+      have h_sub : HasDerivAt (fun τ : ℝ => t - τ) (-1 : ℝ) τ := by
+        simpa using (hasDerivAt_id τ).const_sub t
+      have h_comp := h_base.comp τ h_sub
+      -- h_comp : HasDerivAt (fun τ => y (t - τ)) ((x (t - τ) - y (t - τ)) * (U - y (t - τ)) * (-1)) τ
+      have hval_eq :
+          ((x (t - τ) - y (t - τ)) * ((U : ℝ) - y (t - τ))) * (-1)
+            = (-(x_rev τ - y_rev τ)) * ((U : ℝ) - y_rev τ) := by
+        simp [x_rev, y_rev]; ring
+      rw [hval_eq] at h_comp
+      exact h_comp
+    have hc_rev_deriv : ∀ τ, 0 ≤ τ → τ < t →
+        HasDerivAt (fun _ : ℝ => (U : ℝ))
+          ((-(x_rev τ - (U : ℝ))) * ((U : ℝ) - (U : ℝ))) τ := by
+      intro τ _ _
+      have h1 : ((-(x_rev τ - (U : ℝ))) * ((U : ℝ) - (U : ℝ))) = 0 := by ring
+      rw [h1]
+      exact hasDerivAt_const _ _
+    -- Continuity of τ ↦ t - τ (global).
+    have h_sub_cont_global : Continuous (fun τ' : ℝ => t - τ') := by
+      exact continuous_const.sub continuous_id
+    -- Continuity on [0, t].
+    have hy_rev_cont : ContinuousOn y_rev (Set.Icc 0 t) := by
+      intro τ hτ
+      have hτ_sub_nn : 0 ≤ t - τ := by linarith [hτ.2]
+      have h_base : ContinuousAt y (t - τ) := (hy_deriv (t - τ) hτ_sub_nn).continuousAt
+      exact (h_base.comp h_sub_cont_global.continuousAt).continuousWithinAt
+    have hx_rev_cont : ContinuousOn x_rev (Set.Icc 0 t) := by
+      intro τ _
+      have h_base' : ContinuousAt x (t - τ) := hx_cont.continuousAt
+      exact (h_base'.comp h_sub_cont_global.continuousAt).continuousWithinAt
+    -- Bounds for x_rev and y_rev on [0, t].
+    have hy_rev_bdd : ∀ τ ∈ Set.Icc (0 : ℝ) t, |y_rev τ| ≤ R := by
+      intro τ hτ
+      have h_map : (t - τ) ∈ Set.Icc (0 : ℝ) t := ⟨by linarith [hτ.2], by linarith [hτ.1]⟩
+      exact hy_bdd (t - τ) h_map
+    have hx_rev_bdd : ∀ τ ∈ Set.Icc (0 : ℝ) t, |x_rev τ| ≤ R := by
+      intro τ hτ
+      have h_map : (t - τ) ∈ Set.Icc (0 : ℝ) t := ⟨by linarith [hτ.2], by linarith [hτ.1]⟩
+      exact hx_bdd (t - τ) h_map
+    -- Lipschitz for reversed field.
+    have hv_rev_lip : ∀ τ ∈ Set.Ico (0 : ℝ) t, LipschitzOnWith K (v_rev τ) (Set.Icc (-R) R) := by
+      intro τ hτ
+      rw [lipschitzOnWith_iff_dist_le_mul]
+      intro z hz z' hz'
+      rw [Real.dist_eq, Real.dist_eq, hK_coe]
+      have hxu_abs : |x_rev τ| ≤ R := hx_rev_bdd τ ⟨hτ.1, hτ.2.le⟩
+      have hz_abs : |z| ≤ R := abs_le.mpr hz
+      have hz'_abs : |z'| ≤ R := abs_le.mpr hz'
+      -- v_rev τ z - v_rev τ z' = -(x_rev τ - z)(U - z) + (x_rev τ - z')(U - z')
+      have h_exp : v_rev τ z - v_rev τ z' = -((z - z') * (-(x_rev τ) - (U : ℝ) + z + z')) := by
+        simp only [v_rev]; ring
+      rw [h_exp]
+      rw [abs_neg, abs_mul]
+      have h_factor : |-(x_rev τ) - (U : ℝ) + z + z'| ≤ 3 * R + (U : ℝ) := by
+        have hxu_neg : -R ≤ -(x_rev τ) ∧ -(x_rev τ) ≤ R := by
+          rcases abs_le.mp hxu_abs with ⟨l, r⟩
+          exact ⟨by linarith, by linarith⟩
+        rcases abs_le.mp hz_abs with ⟨hzl, hzr⟩
+        rcases abs_le.mp hz'_abs with ⟨hz'l, hz'r⟩
+        have hU_nn' : 0 ≤ (U : ℝ) := hU_pos.le
+        rw [abs_le]
+        refine ⟨?_, ?_⟩ <;> · nlinarith [hxu_neg.1, hxu_neg.2]
+      calc |z - z'| * |-(x_rev τ) - (U : ℝ) + z + z'|
+          ≤ |z - z'| * (3 * R + (U : ℝ)) :=
+            mul_le_mul_of_nonneg_left h_factor (abs_nonneg _)
+        _ = (3 * R + (U : ℝ)) * |z - z'| := by ring
+        _ = K_val * |z - z'| := by rw [hK_val_def]
+    -- Now apply ODE_solution_unique_of_mem_Icc_right to y_rev and (fun _ => U) on [0, t].
+    have hy_rev_within : ∀ τ ∈ Set.Ico (0 : ℝ) t,
+        HasDerivWithinAt y_rev (v_rev τ (y_rev τ)) (Set.Ici τ) τ := by
+      intro τ ⟨hτ_nn, hτ_lt⟩
+      have h_base := hy_rev_deriv τ hτ_nn hτ_lt
+      show HasDerivWithinAt y_rev ((-(x_rev τ - y_rev τ)) * ((U : ℝ) - y_rev τ))
+        (Set.Ici τ) τ
+      exact h_base.hasDerivWithinAt
+    have hc_rev_within : ∀ τ ∈ Set.Ico (0 : ℝ) t,
+        HasDerivWithinAt (fun _ : ℝ => (U : ℝ))
+          (v_rev τ ((fun _ : ℝ => (U : ℝ)) τ)) (Set.Ici τ) τ := by
+      intro τ ⟨hτ_nn, hτ_lt⟩
+      have h_base := hc_rev_deriv τ hτ_nn hτ_lt
+      show HasDerivWithinAt (fun _ : ℝ => (U : ℝ))
+        ((-(x_rev τ - (U : ℝ))) * ((U : ℝ) - (U : ℝ))) (Set.Ici τ) τ
+      exact h_base.hasDerivWithinAt
+    have hc_rev_cont : ContinuousOn (fun _ : ℝ => (U : ℝ)) (Set.Icc 0 t) :=
+      continuousOn_const
+    have hy_rev_in_s : ∀ τ ∈ Set.Ico (0 : ℝ) t, y_rev τ ∈ Set.Icc (-R) R := by
+      intro τ ⟨hτ_nn, hτ_lt⟩
+      exact abs_le.mp (hy_rev_bdd τ ⟨hτ_nn, hτ_lt.le⟩)
+    have hc_rev_in_s : ∀ τ ∈ Set.Ico (0 : ℝ) t,
+        (fun _ : ℝ => (U : ℝ)) τ ∈ Set.Icc (-R) R := by
+      intro τ _
+      show (U : ℝ) ∈ Set.Icc (-R) R
+      refine ⟨?_, ?_⟩ <;>
+        · have h1 := abs_nonneg (y u_y); have h2 := abs_nonneg (x u_x); linarith
+    have h_eq_init : y_rev 0 = ((fun _ : ℝ => (U : ℝ)) 0) := by
+      show y (t - 0) = (U : ℝ)
+      rw [sub_zero]; exact hy_eq_U
+    have h_unique :=
+      ODE_solution_unique_of_mem_Icc_right (v := v_rev) (K := K)
+        (s := fun _ => Set.Icc (-R) R) hv_rev_lip
+        hy_rev_cont hy_rev_within hy_rev_in_s
+        hc_rev_cont hc_rev_within hc_rev_in_s h_eq_init
+    -- Evaluate at τ = t: y_rev t = y 0 = 0, but h_unique says y_rev t = U.
+    have h_t_in : t ∈ Set.Icc (0 : ℝ) t := ⟨ht_pos.le, le_refl _⟩
+    have h_eval_t : y_rev t = (U : ℝ) := h_unique h_t_in
+    have h_y_rev_t : y_rev t = y 0 := by show y (t - t) = y 0; rw [sub_self]
+    rw [h_y_rev_t] at h_eval_t
+    rw [hy_init_eq] at h_eval_t
+    linarith
 
 /-- **Phase D (packaged).** Convergence of the saturating tracker
 `y` to `α`, together with boundedness and output range.
@@ -2573,10 +2916,10 @@ theorem saturating_tracker_convergence {d : ℕ} {α : ℝ}
         sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) := by
   have hU_nn : (0 : ℝ) ≤ (U : ℝ) := le_trans hα_nn hU_lo.le
   have hU_pos : (0 : ℝ) < (U : ℝ) := lt_of_le_of_lt hα_nn hU_lo
-  obtain ⟨sol', h_bounded, h_range, h_head⟩ :=
+  obtain ⟨sol', h_bounded, h_range, h_head, h_traj_cont⟩ :=
     saturating_extended_solution cbtc pcd U hU_nn hU_pos
   obtain ⟨hy_cont, hx_cont, hy_pos⟩ :=
-    saturating_tracker_analytic_inputs cbtc pcd U hU_nn hU_pos sol'
+    saturating_tracker_analytic_inputs cbtc pcd U hU_nn hU_pos sol' h_traj_cont
   obtain ⟨μ', h_conv⟩ :=
     saturating_tracker_tendsto cbtc U hα_nn hU_lo hU_hi sol'
       h_range h_head hy_cont hx_cont hy_pos

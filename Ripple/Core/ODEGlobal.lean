@@ -930,6 +930,221 @@ theorem locally_lipschitz_bounded_global_ode_proved
     rw [← hf_eq]
     exact hαN_at.congr_of_eventuallyEq h_y_eq_αN_nhds
 
+/-- **Global ODE existence with global continuity** (Path A strengthening).
+
+Same hypotheses as `locally_lipschitz_bounded_global_ode_proved`, but we additionally
+return a globally `Continuous y`. The witness is constructed by Picard iteration on
+`[0, ∞)` and extended linearly to `t < 0`, so it satisfies `HasDerivAt` at every
+`t : ℝ` (with the forward-time ODE on `[0, ∞)` and the affine slope `f y₀` on
+`(-∞, 0]`). Continuity then follows pointwise from `HasDerivAt.continuousAt`. -/
+theorem locally_lipschitz_bounded_global_ode_proved_continuous
+    {d : ℕ} (f : (Fin d → ℝ) → Fin d → ℝ) (y₀ : Fin d → ℝ)
+    (h_lip : ∀ R : ℝ, 0 < R → ∃ L : ℝ, ∀ x y : Fin d → ℝ,
+      ‖x‖ ≤ R → ‖y‖ ≤ R → ‖f x - f y‖ ≤ L * ‖x - y‖)
+    (M : ℝ) (hM : 0 < M)
+    (h_invariant : ∀ (T : ℝ), 0 < T → ∀ (y : ℝ → Fin d → ℝ),
+      y 0 = y₀ →
+      (∀ t ∈ Ico (0 : ℝ) T, HasDerivAt y (f (y t)) t) →
+      ∀ t ∈ Ico (0 : ℝ) T, ‖y t‖ ≤ M) :
+    ∃ y : ℝ → Fin d → ℝ, y 0 = y₀ ∧
+      (∀ t : ℝ, 0 ≤ t → HasDerivAt y (f (y t)) t) ∧ Continuous y := by
+  classical
+  -- Re-construct the witness exactly as in `locally_lipschitz_bounded_global_ode_proved`.
+  -- The duplication is intentional: we need access to the explicit affine-extension
+  -- shape `if 0 ≤ t then α (n_of t) t else y₀ + t • f y₀` in order to prove
+  -- HasDerivAt at t < 0.
+  have hM_nn : (0 : ℝ) ≤ M := hM.le
+  have hy0 : ‖y₀‖ ≤ M := y0_norm_le_M h_lip h_invariant
+  obtain ⟨ε, K, B, hε, hB_nn, h_side, h_lip_ball, h_bound_ball⟩ :=
+    picard_uniform_step h_lip M hM_nn
+  have h_family : ∀ n : ℕ, ∃ α : ℝ → Fin d → ℝ, α 0 = y₀ ∧
+      (∀ t ∈ Icc (0 : ℝ) (n * ε),
+        HasDerivWithinAt α (f (α t)) (Icc 0 (n * ε)) t) ∧
+      ‖α (n * ε)‖ ≤ M := fun n =>
+    exists_solution_on_step_Icc hε hB_nn h_side h_lip_ball h_bound_ball
+      h_invariant hy0 n
+  choose α hα0 hα_deriv _hα_endpt using h_family
+  have hα_bound_pos : ∀ n : ℕ, 0 < n →
+      ∀ t ∈ Icc (0 : ℝ) (n * ε), ‖α n t‖ ≤ M := by
+    intro n hn t ht
+    have hnε_pos : (0 : ℝ) < (n : ℝ) * ε :=
+      mul_pos (by exact_mod_cast hn) hε
+    exact solution_bounded_of_invariant hnε_pos (hα0 n) (hα_deriv n) h_invariant t ht
+  have hα_consistent : ∀ n m : ℕ, 0 < n → n ≤ m →
+      ∀ t ∈ Icc (0 : ℝ) (n * ε), α n t = α m t := by
+    intro n m hn hnm t ht
+    have hm_pos : 0 < m := lt_of_lt_of_le hn hnm
+    have hnε_pos : (0 : ℝ) < (n : ℝ) * ε :=
+      mul_pos (by exact_mod_cast hn) hε
+    have hnm_ε : (n : ℝ) * ε ≤ (m : ℝ) * ε :=
+      mul_le_mul_of_nonneg_right (by exact_mod_cast hnm) hε.le
+    have hαm_deriv_n : ∀ s ∈ Icc (0 : ℝ) (n * ε),
+        HasDerivWithinAt (α m) (f (α m s)) (Icc 0 (n * ε)) s := by
+      intro s hs
+      apply (hα_deriv m s ⟨hs.1, le_trans hs.2 hnm_ε⟩).mono
+      intro x hx
+      exact ⟨hx.1, le_trans hx.2 hnm_ε⟩
+    have hαm_bound_n : ∀ s ∈ Icc (0 : ℝ) (n * ε), ‖α m s‖ ≤ M := fun s hs =>
+      hα_bound_pos m hm_pos s ⟨hs.1, le_trans hs.2 hnm_ε⟩
+    exact solutions_agree_on_Icc hnε_pos hM_nn h_lip
+      (hα0 n) (hα0 m) (hα_deriv n) hαm_deriv_n
+      (hα_bound_pos n hn) hαm_bound_n ht
+  let n_of : ℝ → ℕ := fun t => Nat.ceil (t / ε) + 1
+  have h_n_pos : ∀ t : ℝ, 0 < n_of t := fun t => Nat.succ_pos _
+  have h_t_lt_nε : ∀ t : ℝ, 0 ≤ t → t ≤ ((n_of t : ℕ) : ℝ) * ε - ε := by
+    intro t _ht
+    have h_ceil_ge : (Nat.ceil (t / ε) : ℝ) * ε ≥ t := by
+      have h1 : (t / ε : ℝ) ≤ (Nat.ceil (t / ε) : ℝ) := Nat.le_ceil _
+      have h2 : (t / ε : ℝ) * ε ≤ (Nat.ceil (t / ε) : ℝ) * ε :=
+        mul_le_mul_of_nonneg_right h1 hε.le
+      rwa [div_mul_cancel₀ _ (ne_of_gt hε)] at h2
+    show t ≤ ((Nat.ceil (t / ε) + 1 : ℕ) : ℝ) * ε - ε
+    have h_eq : ((Nat.ceil (t / ε) + 1 : ℕ) : ℝ) * ε - ε = (Nat.ceil (t / ε) : ℝ) * ε := by
+      push_cast; ring
+    linarith
+  let y : ℝ → Fin d → ℝ := fun t => if 0 ≤ t then α (n_of t) t else y₀ + t • f y₀
+  have y_eq_αN : ∀ N : ℕ, 0 < N → ∀ s : ℝ, 0 ≤ s → s ≤ (N : ℝ) * ε →
+      y s = α N s := by
+    intro N hN s hs_nn hs_N
+    simp only [y, if_pos hs_nn]
+    have h_ceil_le : Nat.ceil (s / ε) ≤ N := by
+      rw [Nat.ceil_le]
+      rw [div_le_iff₀ hε]
+      exact hs_N
+    have hn_of_le : n_of s ≤ N + 1 := by
+      show Nat.ceil (s / ε) + 1 ≤ N + 1
+      omega
+    by_cases h_le : n_of s ≤ N
+    · have hs_in_nof : s ≤ ((n_of s : ℕ) : ℝ) * ε := by
+        have h1 := h_t_lt_nε s hs_nn
+        linarith
+      exact hα_consistent (n_of s) N (h_n_pos s) h_le s ⟨hs_nn, hs_in_nof⟩
+    · have h_gt : N < n_of s := Nat.lt_of_not_le h_le
+      have h_eq : n_of s = N + 1 := by omega
+      rw [h_eq]
+      have := hα_consistent N (N + 1) hN (by omega) s ⟨hs_nn, hs_N⟩
+      exact this.symm
+  have hy0_eq : y 0 = y₀ := by
+    simp only [y, le_refl, if_true]
+    exact hα0 _
+  -- Forward-time HasDerivAt (same as existing theorem — we re-prove it rather than
+  -- duplicate the whole file).
+  have h_deriv_nn : ∀ t : ℝ, 0 ≤ t → HasDerivAt y (f (y t)) t := by
+    intro t ht
+    rcases eq_or_lt_of_le ht with ht_zero | ht_pos
+    · subst ht_zero
+      have h_lin : HasDerivAt (fun s : ℝ => y₀ + s • f y₀) (f y₀) 0 := by
+        have h1 : HasDerivAt (fun s : ℝ => s • f y₀) (f y₀) 0 := by
+          simpa using (hasDerivAt_id (0 : ℝ)).smul_const (f y₀)
+        simpa using h1.const_add y₀
+      have h_left : HasDerivWithinAt y (f y₀) (Iic 0) 0 := by
+        refine h_lin.hasDerivWithinAt.congr_of_eventuallyEq ?_ ?_
+        · rw [eventuallyEq_nhdsWithin_iff]
+          filter_upwards with s hs
+          simp only [mem_Iic] at hs
+          by_cases hs0 : 0 ≤ s
+          · have hs_eq : s = 0 := le_antisymm hs hs0
+            simp [y, hs_eq, hα0, h_n_pos]
+          · simp [y, hs0]
+        · simp [y, hα0, h_n_pos]
+      have h_1N_eq : ((1 : ℕ) : ℝ) * ε = ε := by push_cast; ring
+      have h_y_eq_α1 : ∀ s : ℝ, 0 ≤ s → s ≤ ε → y s = α 1 s := by
+        intro s hs_nn hs_ε
+        apply y_eq_αN 1 Nat.one_pos s hs_nn
+        rw [h_1N_eq]; exact hs_ε
+      have hα1_at0 : HasDerivWithinAt (α 1) (f (α 1 0)) (Icc 0 ((1 : ℕ) * ε)) 0 :=
+        hα_deriv 1 0 ⟨le_refl _, by rw [h_1N_eq]; exact hε.le⟩
+      have hα1_0_eq : α 1 0 = y₀ := hα0 1
+      have hα1_at0' : HasDerivWithinAt (α 1) (f y₀) (Icc 0 ε) 0 := by
+        have h_icc_eq : (Icc 0 ((1 : ℕ) * ε) : Set ℝ) = Icc 0 ε := by
+          rw [h_1N_eq]
+        rw [← hα1_0_eq]
+        rw [← h_icc_eq]
+        exact hα1_at0
+      have hα1_Ici : HasDerivWithinAt (α 1) (f y₀) (Ici 0) 0 := by
+        apply hα1_at0'.mono_of_mem_nhdsWithin
+        rw [mem_nhdsWithin_iff_exists_mem_nhds_inter]
+        refine ⟨Iio ε, Iio_mem_nhds hε, ?_⟩
+        intro x hx
+        obtain ⟨hx_iio, hx_ici⟩ := hx
+        exact ⟨hx_ici, le_of_lt hx_iio⟩
+      have h_right : HasDerivWithinAt y (f y₀) (Ici 0) 0 := by
+        refine hα1_Ici.congr_of_eventuallyEq ?_ ?_
+        · rw [eventuallyEq_nhdsWithin_iff]
+          filter_upwards [Iio_mem_nhds hε] with s hs_lt hs_ici
+          simp only [mem_Ici] at hs_ici
+          simp only [mem_Iio] at hs_lt
+          exact h_y_eq_α1 s hs_ici (le_of_lt hs_lt)
+        · show y 0 = α 1 0
+          simp [y, hα0]
+      have h_union := h_left.union h_right
+      have h_univ : (Iic 0 ∪ Ici 0 : Set ℝ) = univ := by
+        ext x; simp only [mem_union, mem_Iic, mem_Ici, mem_univ, iff_true]
+        exact le_total x 0
+      rw [h_univ] at h_union
+      have : HasDerivAt y (f y₀) 0 := h_union.hasDerivAt Filter.univ_mem
+      have hy0_eq' : y 0 = y₀ := hy0_eq
+      rw [hy0_eq']; exact this
+    · set N : ℕ := n_of t + 1 with hN_def
+      have hN_pos : 0 < N := Nat.succ_pos _
+      have ht_lt_Nε : t < (N : ℝ) * ε := by
+        have h1 : t ≤ (n_of t : ℕ) * ε - ε := h_t_lt_nε t ht
+        have h2 : ((N : ℕ) : ℝ) * ε = ((n_of t : ℕ) : ℝ) * ε + ε := by
+          show ((n_of t + 1 : ℕ) : ℝ) * ε = ((n_of t : ℕ) : ℝ) * ε + ε
+          push_cast; ring
+        linarith
+      set δ : ℝ := min (t / 2) ((N * ε - t) / 2) with hδ_def
+      have hδ_pos : 0 < δ := by
+        apply lt_min_iff.mpr
+        exact ⟨by linarith, by linarith⟩
+      have hδ_lt_t : δ < t := by
+        have : δ ≤ t / 2 := min_le_left _ _
+        linarith
+      have hδ_lt_Nε_t : δ < N * ε - t := by
+        have : δ ≤ (N * ε - t) / 2 := min_le_right _ _
+        linarith
+      have h_y_eq_αN_nhds : y =ᶠ[𝓝 t] α N := by
+        filter_upwards [Ioo_mem_nhds (show t - δ < t by linarith) (show t < t + δ by linarith)]
+          with s hs
+        obtain ⟨h1, h2⟩ := hs
+        have hs_nn : 0 ≤ s := by linarith
+        have hs_Nε : s ≤ (N : ℝ) * ε := by linarith
+        exact y_eq_αN N hN_pos s hs_nn hs_Nε
+      have hαN_within : HasDerivWithinAt (α N) (f (α N t)) (Icc 0 (N * ε)) t :=
+        hα_deriv N t ⟨le_of_lt ht_pos, le_of_lt ht_lt_Nε⟩
+      have h_icc_nhds : Icc (0 : ℝ) (N * ε) ∈ 𝓝 t := by
+        rw [mem_nhds_iff]
+        exact ⟨Ioo 0 (N * ε), Ioo_subset_Icc_self, isOpen_Ioo, ⟨ht_pos, ht_lt_Nε⟩⟩
+      have hαN_at : HasDerivAt (α N) (f (α N t)) t := hαN_within.hasDerivAt h_icc_nhds
+      have hy_t : y t = α N t := by
+        have ht_Nε : t ≤ (N : ℝ) * ε := le_of_lt ht_lt_Nε
+        exact y_eq_αN N hN_pos t (le_of_lt ht_pos) ht_Nε
+      have hf_eq : f (α N t) = f (y t) := by rw [hy_t]
+      rw [← hf_eq]
+      exact hαN_at.congr_of_eventuallyEq h_y_eq_αN_nhds
+  -- HasDerivAt at t < 0 via the affine branch.
+  have h_deriv_neg : ∀ t : ℝ, t < 0 → HasDerivAt y (f y₀) t := by
+    intro t ht_lt
+    -- y equals `fun s => y₀ + s • f y₀` on the open ray `s < 0`, a neighborhood of t.
+    have h_lin_s : HasDerivAt (fun s : ℝ => y₀ + s • f y₀) (f y₀) t := by
+      have h1 : HasDerivAt (fun s : ℝ => s • f y₀) (f y₀) t := by
+        simpa using (hasDerivAt_id t).smul_const (f y₀)
+      simpa using h1.const_add y₀
+    -- Congruence on a neighborhood of t (s < 0).
+    have h_eq : y =ᶠ[𝓝 t] fun s : ℝ => y₀ + s • f y₀ := by
+      filter_upwards [Iio_mem_nhds ht_lt] with s hs
+      simp only [mem_Iio] at hs
+      have hs_not_nn : ¬ (0 ≤ s) := not_le.mpr hs
+      simp only [y, if_neg hs_not_nn]
+    exact h_lin_s.congr_of_eventuallyEq h_eq
+  refine ⟨y, hy0_eq, h_deriv_nn, ?_⟩
+  -- Continuity: every point has HasDerivAt, hence ContinuousAt.
+  rw [continuous_iff_continuousAt]
+  intro t
+  by_cases ht : 0 ≤ t
+  · exact (h_deriv_nn t ht).continuousAt
+  · exact (h_deriv_neg t (lt_of_not_ge ht)).continuousAt
+
 lemma conservative_local_sum_const {d : ℕ} {field : (Fin d → ℝ) → Fin d → ℝ}
     (h_cons : IsConservative field) (T : ℝ) (_hT : 0 < T)
     (y : ℝ → Fin d → ℝ)
