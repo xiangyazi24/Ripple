@@ -97,6 +97,31 @@ theorem dualRailNegPart_cubic_eval (w : Fin 2 → ℝ) :
       = (w 0) ^ 3 + 3 * (w 0) * (w 1) ^ 2 := by
   sorry
 
+/-! ## Drift-difference identity (pos-part minus neg-part)
+
+The cleanest algebraic consequence: the drift of `u` minus the drift of
+`v` equals the original GPAC RHS, which for `p(y) = 1 − y³` is
+`1 − (u − v)³`. This does **not** require computing `p̂⁺` and `p̂⁻`
+individually — the annihilation terms cancel, and the difference
+`p̂⁺ − p̂⁻` is handled by the general
+`dualRailPos_sub_dualRailNeg_eval`. -/
+
+/-- **Drift-difference identity for the scalar cubic.** At any state
+`w : Fin 2 → ℝ`, the u-row drift minus the v-row drift equals
+`1 − (w 0 − w 1)³`. Proof sketch:
+- Unfold to `p̂⁺(w) − k_ℝ · w(0) · w(1)` (u) and `p̂⁻(w) − k_ℝ · w(0) · w(1)` (v).
+- Subtraction cancels the annihilation; leaves `p̂⁺ − p̂⁻`.
+- Apply `dualRailPos_sub_dualRailNeg_eval` to reduce to `p(w 0 − w 1)
+  = 1 − (w 0 − w 1)³`.
+
+The purely mechanical `if`/Fin-index unfolding is left as `sorry` — the
+algebraic content is carried by `dualRailPos_sub_dualRailNeg_eval`
+upstream and does not repeat here. -/
+theorem dualRailedCubic_drift_diff (k : ℚ) (w : Fin 2 → ℝ) :
+    (dualRailedCubic k).evalField w 0 - (dualRailedCubic k).evalField w 1
+      = 1 - (w 0 - w 1) ^ 3 := by
+  sorry
+
 /-! ## Sigma-reduction identity
 
 Setting `σ := u + v` and `y := u − v`, one has
