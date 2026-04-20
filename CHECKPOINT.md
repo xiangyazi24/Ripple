@@ -43,6 +43,31 @@ UCNC25.tex`, 347 lines, commit `c7d1398`):** Derives the scalar case
 
 Build: 2783 jobs, 0 errors, 3 new sorrys scoped to ScalarCubic.lean.
 
+### Session 41b — decompose + partial closure (overnight, autonomous)
+
+Following Dad's directive to keep working while he sleeps (msg 1520),
+decomposed `scalar_cubic_bounded` into 6 analytic sub-lemmas in
+`ScalarCubic.lean`, plus the existing 2 posPart/negPart coefficient
+specs. Closed 1:
+
+- **Closed:** `dualRailedCubic_drift_diff` (algebraic row identity,
+  via `dualRailPos_sub_dualRailNeg_eval` + row-wise unfold).
+- **Closed:** `scalar_cubic_dual_rail_identity` (derivative version,
+  via `hasDerivAt_pi` Pi-projection; added import
+  `Mathlib.Analysis.Calculus.Deriv.Prod`).
+
+Open (7 sorrys, all in `ScalarCubic.lean`):
+- `dualRailPosPart_cubic_eval`, `dualRailNegPart_cubic_eval` —
+  syntactic MvPolynomial posPart/negPart computation; requires
+  support-coefficient analysis of `1 - (X0 - X1)³`.
+- `scalar_cubic_nonneg` (sub 1), `scalar_cubic_original_bounded`
+  (sub 3), `scalar_cubic_sigma_drift` (sub 4), `scalar_cubic_sigma_bound`
+  (sub 5), `scalar_cubic_picard` (sub 6) — analytic, need ODEGlobal
+  Picard + barrier arguments.
+
+Main theorem `scalar_cubic_bounded` closed modulo these sub-lemmas;
+numerical `scalar_cubic_bounded_at_ten` closed fully (rpow estimate).
+
 ---
 
 ## Session 40 — Saturating surrogate scaffold + unconditional LPP main theorem
