@@ -222,10 +222,119 @@ theorem apery_ratio_converges_exponentially
           ≤ K * Real.exp (-(κ * t)) := by
   sorry
 
+/-! ### Helpers for (c)
+
+  The sub-lemma (c) is a scalar linear-ODE estimate: from
+  `ζ̇(t) = ε (ρ(t) − ζ(t))` and `|ρ(t) − ζ(3)| ≤ K e^(−κt)` we derive
+  `|ζ(t) − ζ(3)| ≤ K' e^(−κ' t)` for suitable `K', κ' > 0`.  The
+  proof uses the integrating-factor / fencing lemma
+  `image_norm_le_of_norm_deriv_right_le_deriv_boundary` applied to
+  `w(t) := e^(εt) · (ζ(t) − ζ(3))`.
+-/
+
+/-- The ζ-component of the Apéry PIVP satisfies
+`HasDerivAt (ζ·) (ε(ρ − ζ)) t`.  This is just the projection of the
+full `is_solution` onto the output index, combined with the explicit
+polynomial field expression. -/
+private lemma apery_zeta_hasDerivAt
+    (init : Fin 8 → ℚ)
+    (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
+    (t : ℝ) (ht : 0 ≤ t) :
+    HasDerivAt (fun s => sol.trajectory s iZeta)
+      ((aperyEps : ℝ) *
+        (sol.trajectory t iR - sol.trajectory t iZeta)) t := by
+  have h := (hasDerivAt_pi.mp (sol.is_solution t ht)) iZeta
+  -- Simplify the field at iZeta to the closed polynomial expression.
+  have hfield : (apery8VarPolyPIVP init).toPIVP.field (sol.trajectory t) iZeta =
+      (aperyEps : ℝ) *
+        (sol.trajectory t iR - sol.trajectory t iZeta) := by
+    -- Unfold through the toPIVP / evalField / apery8VarField layer.
+    show (apery8VarPolyPIVP init).evalField (sol.trajectory t) iZeta = _
+    unfold PolyPIVP.evalField apery8VarPolyPIVP
+    simp [apery8VarField, iZeta, iR, MvPolynomial.eval₂_C,
+      MvPolynomial.eval₂_X, MvPolynomial.eval₂_sub, MvPolynomial.eval₂_mul]
+  rw [hfield] at h
+  exact h
+
+/-- The abbreviated scalar error `u(t) := ζ(t) − ζ(3)` satisfies
+`u̇ = ε(ρ − ζ(3)) − ε u`. -/
+private lemma apery_u_hasDerivAt
+    (init : Fin 8 → ℚ)
+    (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
+    (t : ℝ) (ht : 0 ≤ t) :
+    HasDerivAt (fun s => sol.trajectory s iZeta -
+          (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3)))
+      ((aperyEps : ℝ) *
+        (sol.trajectory t iR -
+          (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))) -
+        (aperyEps : ℝ) *
+          (sol.trajectory t iZeta -
+            (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3)))) t := by
+  set ζ3 : ℝ := ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3)
+  have h0 := apery_zeta_hasDerivAt init sol t ht
+  have h1 := h0.sub_const ζ3
+  -- Rewrite the rate to the desired algebraic form.
+  convert h1 using 1
+  ring
+
+/-- `w(t) := e^(εt) · u(t)` has derivative `e^(εt) · ε · (ρ − ζ(3))`. -/
+private lemma apery_w_hasDerivAt
+    (init : Fin 8 → ℚ)
+    (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
+    (t : ℝ) (ht : 0 ≤ t) :
+    HasDerivAt
+      (fun s => Real.exp ((aperyEps : ℝ) * s) *
+        (sol.trajectory s iZeta -
+          (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))))
+      (Real.exp ((aperyEps : ℝ) * t) * (aperyEps : ℝ) *
+        (sol.trajectory t iR -
+          (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3)))) t := by
+  set ε : ℝ := (aperyEps : ℝ)
+  set ζ3 : ℝ := ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3)
+  have hLin : HasDerivAt (fun s : ℝ => ε * s) ε t := by
+    simpa using (hasDerivAt_id t).const_mul ε
+  have hExp : HasDerivAt (fun s => Real.exp (ε * s))
+      (Real.exp (ε * t) * ε) t := by
+    have h := (Real.hasDerivAt_exp (ε * t)).comp t hLin
+    -- h : HasDerivAt (fun s => Real.exp (ε * s)) (Real.exp (ε * t) * ε) t
+    convert h using 1
+  have hU := apery_u_hasDerivAt init sol t ht
+  have hProd := hExp.mul hU
+  convert hProd using 1
+  -- Rate: e^(εt) · ε · (ρ − ζ3)
+  --   vs e^(εt)*ε · u + e^(εt)·(ε(ρ−ζ3) − ε·u) = e^(εt)·ε·(ρ−ζ3).
+  ring
+
+/-- Helper: `t · e^(-α t) ≤ 1/α` for `t ≥ 0`, `α > 0`. -/
+private lemma t_mul_exp_neg_le (α : ℝ) (hα : 0 < α) (t : ℝ) (ht : 0 ≤ t) :
+    t * Real.exp (-(α * t)) ≤ 1 / α := by
+  -- Equivalent to `α · t ≤ e^(α t)`, standard.
+  have hαt_nn : 0 ≤ α * t := mul_nonneg hα.le ht
+  have h_add_one : α * t + 1 ≤ Real.exp (α * t) := by
+    have := Real.add_one_le_exp (α * t)
+    linarith
+  have h1 : α * t ≤ Real.exp (α * t) := by linarith
+  -- Multiply by e^(-α t) > 0:
+  have hExpPos : 0 < Real.exp (α * t) := Real.exp_pos _
+  have hNeg_exp : Real.exp (-(α * t)) = (Real.exp (α * t))⁻¹ := by
+    rw [← Real.exp_neg]
+  calc t * Real.exp (-(α * t))
+      = t * (Real.exp (α * t))⁻¹ := by rw [hNeg_exp]
+    _ = (α * t) * (α * Real.exp (α * t))⁻¹ := by
+        field_simp
+    _ ≤ Real.exp (α * t) * (α * Real.exp (α * t))⁻¹ := by
+        apply mul_le_mul_of_nonneg_right h1
+        positivity
+    _ = 1 / α := by
+        have hne : Real.exp (α * t) ≠ 0 := ne_of_gt hExpPos
+        have hαne : α ≠ 0 := ne_of_gt hα
+        field_simp
+
 /-- **(c)** The linear adaptation law ζ̇ = ε(ρ − ζ) drives ζ to ρ
 exponentially.  Combined with (b), ζ(t) → ζ(3).  Proof is a scalar
-linear-ODE duhamel estimate using the exponential bound on ρ − ζ(3)
-from (b). -/
+linear-ODE fencing estimate: apply
+`image_norm_le_of_norm_deriv_right_le_deriv_boundary` to
+`w(t) = e^(εt)·(ζ(t)−ζ(3))`, then translate back through `e^(−εt)`. -/
 theorem apery_adaptation_tracks_ratio
     (init : Fin 8 → ℚ)
     (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
@@ -238,7 +347,393 @@ theorem apery_adaptation_tracks_ratio
       ∀ t : ℝ, 0 ≤ t →
         |sol.trajectory t iZeta - (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))|
           ≤ K' * Real.exp (-(κ' * t)) := by
-  sorry
+  set ε : ℝ := (aperyEps : ℝ) with hε_def
+  set ζ3 : ℝ := ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3) with hζ3_def
+  -- ε > 0 since aperyEps = 1/100 > 0.
+  have hε_pos : 0 < ε := by
+    rw [hε_def]
+    show (0 : ℝ) < ((aperyEps : ℚ) : ℝ)
+    have : (0 : ℚ) < aperyEps := by unfold aperyEps; norm_num
+    exact_mod_cast this
+  -- Initial error |u(0)| = |ζ(0) − ζ(3)|.
+  set u0 : ℝ := |sol.trajectory 0 iZeta - ζ3| with hu0_def
+  have hu0_nn : 0 ≤ u0 := abs_nonneg _
+  -- Case split on κ vs ε.
+  by_cases hcase : ε ≤ κ
+  · -- Case A: ε ≤ κ.  Pick κ' = ε/2, K' = u0 + 2 K ε / ε + 1 = u0 + 2 K + 1.
+    -- Boundary for w(t) = e^(εt) u(t): B(t) = u0 + ε K · t,
+    -- valid because B'(t) = ε K ≥ ε K · e^((ε − κ)t) (since ε ≤ κ).
+    refine ⟨u0 + 2 * K + 1, ε / 2, by positivity, by positivity, ?_⟩
+    intro t ht
+    -- Apply the fencing lemma on [0, t].
+    set a : ℝ := 0
+    set b : ℝ := t
+    -- f := w = e^(εs) * u(s).
+    let fW : ℝ → ℝ := fun s =>
+      Real.exp (ε * s) * (sol.trajectory s iZeta - ζ3)
+    -- f' := ẇ = e^(εs) · ε · (ρ(s) − ζ3).
+    let fW' : ℝ → ℝ := fun s =>
+      Real.exp (ε * s) * ε * (sol.trajectory s iR - ζ3)
+    -- Boundary B(s) := u0 + ε K · s, B'(s) = ε K.
+    let BB : ℝ → ℝ := fun s => u0 + ε * K * s
+    let BB' : ℝ → ℝ := fun _ => ε * K
+    have hfW_deriv : ∀ s ∈ Set.Ico (a : ℝ) b,
+        HasDerivWithinAt fW (fW' s) (Set.Ici s) s := by
+      intro s hs
+      have hs_nn : 0 ≤ s := hs.1
+      exact (apery_w_hasDerivAt init sol s hs_nn).hasDerivWithinAt
+    have hfW_cont : ContinuousOn fW (Set.Icc a b) := by
+      intro s hs
+      by_cases hs0 : s = b ∧ s = a
+      · -- degenerate, falls back below
+        exact ((apery_w_hasDerivAt init sol s hs.1).continuousAt).continuousWithinAt
+      · exact ((apery_w_hasDerivAt init sol s hs.1).continuousAt).continuousWithinAt
+    have hBB_deriv : ∀ s, HasDerivAt BB (BB' s) s := by
+      intro s
+      show HasDerivAt (fun x => u0 + ε * K * x) (ε * K) s
+      have h1 : HasDerivAt (fun x : ℝ => ε * K * x) (ε * K) s := by
+        simpa using (hasDerivAt_id s).const_mul (ε * K)
+      have h2 : HasDerivAt (fun x : ℝ => u0 + ε * K * x) (0 + ε * K) s :=
+        (hasDerivAt_const s u0).add h1
+      simpa using h2
+    have hInit : ‖fW a‖ ≤ BB a := by
+      show |fW 0| ≤ u0 + ε * K * 0
+      simp only [fW, Real.norm_eq_abs]
+      rw [mul_zero, Real.exp_zero, one_mul]
+      show |sol.trajectory 0 iZeta - ζ3| ≤ u0 + ε * K * 0
+      rw [mul_zero, add_zero, hu0_def]
+    have hBound : ∀ s ∈ Set.Ico a b, ‖fW' s‖ ≤ BB' s := by
+      intro s hs
+      have hs_nn : 0 ≤ s := hs.1
+      show |Real.exp (ε * s) * ε * (sol.trajectory s iR - ζ3)| ≤ ε * K
+      have hρBound : |sol.trajectory s iR - ζ3| ≤ K * Real.exp (-(κ * s)) :=
+        _hρ s hs_nn
+      have hExpPos : 0 < Real.exp (ε * s) := Real.exp_pos _
+      have h1 : |Real.exp (ε * s) * ε * (sol.trajectory s iR - ζ3)|
+          = Real.exp (ε * s) * ε * |sol.trajectory s iR - ζ3| := by
+        rw [abs_mul, abs_of_pos (by positivity : 0 < Real.exp (ε * s) * ε)]
+      rw [h1]
+      have h2 : Real.exp (ε * s) * ε * |sol.trajectory s iR - ζ3|
+          ≤ Real.exp (ε * s) * ε * (K * Real.exp (-(κ * s))) := by
+        apply mul_le_mul_of_nonneg_left hρBound
+        positivity
+      -- Now bound Real.exp (ε s) * ε * K * exp(-κ s) ≤ ε * K
+      -- via exp((ε-κ)s) ≤ 1 when ε ≤ κ and s ≥ 0.
+      have hExpCombine : Real.exp (ε * s) * Real.exp (-(κ * s))
+          = Real.exp ((ε - κ) * s) := by
+        rw [← Real.exp_add]
+        congr 1; ring
+      have h3 : Real.exp (ε * s) * ε * (K * Real.exp (-(κ * s)))
+          = ε * K * Real.exp ((ε - κ) * s) := by
+        rw [show Real.exp (ε * s) * ε * (K * Real.exp (-(κ * s)))
+            = ε * K * (Real.exp (ε * s) * Real.exp (-(κ * s))) from by ring,
+          hExpCombine]
+      rw [h3] at h2
+      have h4 : Real.exp ((ε - κ) * s) ≤ 1 := by
+        apply Real.exp_le_one_iff.mpr
+        have : (ε - κ) ≤ 0 := by linarith
+        exact mul_nonpos_of_nonpos_of_nonneg this hs_nn
+      calc Real.exp (ε * s) * ε * |sol.trajectory s iR - ζ3|
+          ≤ ε * K * Real.exp ((ε - κ) * s) := h2
+        _ ≤ ε * K * 1 := by
+            apply mul_le_mul_of_nonneg_left h4
+            positivity
+        _ = ε * K := mul_one _
+    have hab : (a : ℝ) ≤ b := ht
+    have hw_bound : ∀ ⦃s⦄, s ∈ Set.Icc a b → ‖fW s‖ ≤ BB s :=
+      image_norm_le_of_norm_deriv_right_le_deriv_boundary hfW_cont hfW_deriv
+        hInit hBB_deriv hBound
+    have h_at_t : ‖fW t‖ ≤ BB t := hw_bound (Set.right_mem_Icc.mpr hab)
+    -- Translate back: |u(t)| ≤ e^(-εt) · (u0 + ε K t).
+    have hw_eq : fW t = Real.exp (ε * t) *
+        (sol.trajectory t iZeta - ζ3) := rfl
+    have hAbsW : |fW t| = Real.exp (ε * t) *
+        |sol.trajectory t iZeta - ζ3| := by
+      rw [hw_eq, abs_mul, abs_of_pos (Real.exp_pos _)]
+    have hExpPos_t : 0 < Real.exp (ε * t) := Real.exp_pos _
+    have h_at_t' :
+        Real.exp (ε * t) * |sol.trajectory t iZeta - ζ3|
+          ≤ u0 + ε * K * t := by
+      have := h_at_t
+      rw [Real.norm_eq_abs, hAbsW] at this
+      show Real.exp (ε * t) * |sol.trajectory t iZeta - ζ3|
+          ≤ u0 + ε * K * t
+      exact this
+    have habs_bound :
+        |sol.trajectory t iZeta - ζ3|
+          ≤ (u0 + ε * K * t) * Real.exp (-(ε * t)) := by
+      -- from h_at_t' : e^(εt) * |u(t)| ≤ u0 + εKt, divide both sides by e^(εt).
+      have h_div : |sol.trajectory t iZeta - ζ3|
+          ≤ (u0 + ε * K * t) / Real.exp (ε * t) := by
+        rw [le_div_iff₀ hExpPos_t, mul_comm]
+        exact h_at_t'
+      have h_eq : (u0 + ε * K * t) / Real.exp (ε * t)
+          = (u0 + ε * K * t) * Real.exp (-(ε * t)) := by
+        rw [Real.exp_neg, div_eq_mul_inv]
+      linarith [h_div, h_eq]
+    -- Now bound (u0 + ε K t) * exp(-εt) by (u0 + 2K + 1) * exp(-εt/2).
+    -- |u(t)| ≤ u0 · exp(-εt) + εKt · exp(-εt)
+    --       ≤ u0 · exp(-εt/2) + 2K · exp(-εt/2)
+    -- using t·exp(-εt/2) ≤ 2/ε.
+    have hexp_split : Real.exp (-(ε * t))
+        = Real.exp (-(ε/2 * t)) * Real.exp (-(ε/2 * t)) := by
+      rw [← Real.exp_add]; congr 1; ring
+    have hε2_pos : 0 < ε / 2 := by linarith
+    have hExp_half_pos : 0 < Real.exp (-(ε / 2 * t)) := Real.exp_pos _
+    have hExp_half_le_one : Real.exp (-(ε / 2 * t)) ≤ 1 := by
+      apply Real.exp_le_one_iff.mpr
+      have : 0 ≤ ε / 2 * t := by positivity
+      linarith
+    have h_texp : t * Real.exp (-(ε / 2 * t)) ≤ 2 / ε := by
+      have h := t_mul_exp_neg_le (ε/2) hε2_pos t ht
+      have : 1 / (ε / 2) = 2 / ε := by field_simp
+      rw [this] at h
+      exact h
+    have hfinal :
+        (u0 + ε * K * t) * Real.exp (-(ε * t))
+          ≤ (u0 + 2 * K + 1) * Real.exp (-(ε / 2 * t)) := by
+      rw [hexp_split]
+      have h_distr : (u0 + ε * K * t) *
+          (Real.exp (-(ε / 2 * t)) * Real.exp (-(ε / 2 * t)))
+          = u0 * Real.exp (-(ε / 2 * t)) * Real.exp (-(ε / 2 * t))
+            + ε * K * (t * Real.exp (-(ε / 2 * t))) *
+              Real.exp (-(ε / 2 * t)) := by ring
+      rw [h_distr]
+      have hA : u0 * Real.exp (-(ε / 2 * t)) * Real.exp (-(ε / 2 * t))
+          ≤ u0 * Real.exp (-(ε / 2 * t)) := by
+        have : u0 * Real.exp (-(ε / 2 * t)) * Real.exp (-(ε / 2 * t))
+            ≤ u0 * Real.exp (-(ε / 2 * t)) * 1 := by
+          apply mul_le_mul_of_nonneg_left hExp_half_le_one
+          exact mul_nonneg hu0_nn hExp_half_pos.le
+        linarith
+      have hB : ε * K * (t * Real.exp (-(ε / 2 * t))) *
+          Real.exp (-(ε / 2 * t)) ≤ 2 * K * Real.exp (-(ε / 2 * t)) := by
+        have hεK_nn : 0 ≤ ε * K := mul_nonneg hε_pos.le _hK.le
+        have h1 : ε * K * (t * Real.exp (-(ε / 2 * t)))
+            ≤ ε * K * (2 / ε) := by
+          exact mul_le_mul_of_nonneg_left h_texp hεK_nn
+        have h2 : ε * K * (2 / ε) = 2 * K := by
+          have hne : ε ≠ 0 := ne_of_gt hε_pos
+          field_simp
+        rw [h2] at h1
+        have h3 : ε * K * (t * Real.exp (-(ε / 2 * t))) *
+            Real.exp (-(ε / 2 * t))
+            ≤ 2 * K * Real.exp (-(ε / 2 * t)) := by
+          have hne : 0 ≤ Real.exp (-(ε / 2 * t)) := Real.exp_pos _ |>.le
+          exact mul_le_mul_of_nonneg_right h1 hne
+        exact h3
+      have hC : (u0 + 2 * K + 1) * Real.exp (-(ε / 2 * t))
+          = u0 * Real.exp (-(ε / 2 * t)) +
+            2 * K * Real.exp (-(ε / 2 * t)) +
+            Real.exp (-(ε / 2 * t)) := by ring
+      have hSlack : 0 ≤ Real.exp (-(ε / 2 * t)) := hExp_half_pos.le
+      linarith
+    -- Conclude.
+    have : |sol.trajectory t iZeta - ζ3|
+        ≤ (u0 + 2 * K + 1) * Real.exp (-(ε / 2 * t)) :=
+      le_trans habs_bound hfinal
+    -- Now rewrite the target bound with κ' = ε/2.
+    show |sol.trajectory t iZeta - ζ3|
+        ≤ (u0 + 2 * K + 1) * Real.exp (-(ε / 2 * t))
+    exact this
+  · -- Case B: κ < ε.
+    push_neg at hcase
+    -- Take κ' = κ/2, K' = u0 + ε K / (ε − κ) + 1.
+    have hdiff_pos : 0 < ε - κ := by linarith
+    refine ⟨u0 + ε * K / (ε - κ) + 1, κ / 2,
+      by positivity, by positivity, ?_⟩
+    intro t ht
+    set a : ℝ := 0
+    set b : ℝ := t
+    let fW : ℝ → ℝ := fun s =>
+      Real.exp (ε * s) * (sol.trajectory s iZeta - ζ3)
+    let fW' : ℝ → ℝ := fun s =>
+      Real.exp (ε * s) * ε * (sol.trajectory s iR - ζ3)
+    -- Boundary: B(s) := u0 + ε K / (ε−κ) · (e^((ε−κ)s) − 1),
+    -- B'(s) = ε K · e^((ε−κ)s).
+    let BB : ℝ → ℝ := fun s =>
+      u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * s) - 1)
+    let BB' : ℝ → ℝ := fun s =>
+      ε * K * Real.exp ((ε - κ) * s)
+    have hfW_deriv : ∀ s ∈ Set.Ico (a : ℝ) b,
+        HasDerivWithinAt fW (fW' s) (Set.Ici s) s := by
+      intro s hs
+      exact (apery_w_hasDerivAt init sol s hs.1).hasDerivWithinAt
+    have hfW_cont : ContinuousOn fW (Set.Icc a b) := fun s hs =>
+      ((apery_w_hasDerivAt init sol s hs.1).continuousAt).continuousWithinAt
+    have hBB_deriv : ∀ s, HasDerivAt BB (BB' s) s := by
+      intro s
+      show HasDerivAt
+        (fun x => u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * x) - 1))
+        (ε * K * Real.exp ((ε - κ) * s)) s
+      have hLin : HasDerivAt (fun x : ℝ => (ε - κ) * x) (ε - κ) s := by
+        simpa using (hasDerivAt_id s).const_mul (ε - κ)
+      have hExp : HasDerivAt (fun x => Real.exp ((ε - κ) * x))
+          (Real.exp ((ε - κ) * s) * (ε - κ)) s := by
+        have := (Real.hasDerivAt_exp ((ε - κ) * s)).comp s hLin
+        convert this using 1
+      have h1 : HasDerivAt (fun x => Real.exp ((ε - κ) * x) - 1)
+          (Real.exp ((ε - κ) * s) * (ε - κ)) s := hExp.sub_const 1
+      have h2 : HasDerivAt
+          (fun x => ε * K / (ε - κ) * (Real.exp ((ε - κ) * x) - 1))
+          (ε * K / (ε - κ) * (Real.exp ((ε - κ) * s) * (ε - κ))) s :=
+        h1.const_mul (ε * K / (ε - κ))
+      have hrewrite :
+          ε * K / (ε - κ) * (Real.exp ((ε - κ) * s) * (ε - κ))
+            = ε * K * Real.exp ((ε - κ) * s) := by
+        have hne : ε - κ ≠ 0 := ne_of_gt hdiff_pos
+        field_simp
+      rw [hrewrite] at h2
+      have h3 : HasDerivAt
+          (fun x => u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * x) - 1))
+          (0 + ε * K * Real.exp ((ε - κ) * s)) s :=
+        (hasDerivAt_const s u0).add h2
+      simpa using h3
+    have hInit : ‖fW a‖ ≤ BB a := by
+      show |fW 0| ≤ u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * 0) - 1)
+      show |Real.exp (ε * 0) * (sol.trajectory 0 iZeta - ζ3)|
+          ≤ u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * 0) - 1)
+      rw [mul_zero, Real.exp_zero, one_mul, mul_zero, Real.exp_zero,
+        sub_self, mul_zero, add_zero, hu0_def]
+    have hBound : ∀ s ∈ Set.Ico a b, ‖fW' s‖ ≤ BB' s := by
+      intro s hs
+      have hs_nn : 0 ≤ s := hs.1
+      show |Real.exp (ε * s) * ε * (sol.trajectory s iR - ζ3)|
+          ≤ ε * K * Real.exp ((ε - κ) * s)
+      have hρBound : |sol.trajectory s iR - ζ3| ≤ K * Real.exp (-(κ * s)) :=
+        _hρ s hs_nn
+      have h1 : |Real.exp (ε * s) * ε * (sol.trajectory s iR - ζ3)|
+          = Real.exp (ε * s) * ε * |sol.trajectory s iR - ζ3| := by
+        rw [abs_mul, abs_of_pos (by positivity : 0 < Real.exp (ε * s) * ε)]
+      rw [h1]
+      have h2 : Real.exp (ε * s) * ε * |sol.trajectory s iR - ζ3|
+          ≤ Real.exp (ε * s) * ε * (K * Real.exp (-(κ * s))) := by
+        apply mul_le_mul_of_nonneg_left hρBound
+        positivity
+      have hExpCombine : Real.exp (ε * s) * Real.exp (-(κ * s))
+          = Real.exp ((ε - κ) * s) := by
+        rw [← Real.exp_add]; congr 1; ring
+      have h3 : Real.exp (ε * s) * ε * (K * Real.exp (-(κ * s)))
+          = ε * K * Real.exp ((ε - κ) * s) := by
+        rw [show Real.exp (ε * s) * ε * (K * Real.exp (-(κ * s)))
+            = ε * K * (Real.exp (ε * s) * Real.exp (-(κ * s))) from by ring,
+          hExpCombine]
+      linarith [h2.trans_eq h3]
+    have hab : (a : ℝ) ≤ b := ht
+    have hw_bound : ∀ ⦃s⦄, s ∈ Set.Icc a b → ‖fW s‖ ≤ BB s :=
+      image_norm_le_of_norm_deriv_right_le_deriv_boundary hfW_cont hfW_deriv
+        hInit hBB_deriv hBound
+    have h_at_t : ‖fW t‖ ≤ BB t := hw_bound (Set.right_mem_Icc.mpr hab)
+    have hw_eq : fW t = Real.exp (ε * t) *
+        (sol.trajectory t iZeta - ζ3) := rfl
+    have hAbsW : |fW t| = Real.exp (ε * t) *
+        |sol.trajectory t iZeta - ζ3| := by
+      rw [hw_eq, abs_mul, abs_of_pos (Real.exp_pos _)]
+    have hExpPos_t : 0 < Real.exp (ε * t) := Real.exp_pos _
+    have h_at_t' :
+        Real.exp (ε * t) * |sol.trajectory t iZeta - ζ3|
+          ≤ u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * t) - 1) := by
+      have := h_at_t
+      rw [Real.norm_eq_abs, hAbsW] at this
+      exact this
+    have habs_bound :
+        |sol.trajectory t iZeta - ζ3|
+          ≤ (u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * t) - 1))
+            * Real.exp (-(ε * t)) := by
+      have h_div : |sol.trajectory t iZeta - ζ3|
+          ≤ (u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * t) - 1))
+              / Real.exp (ε * t) := by
+        rw [le_div_iff₀ hExpPos_t, mul_comm]
+        exact h_at_t'
+      have h_eq : (u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * t) - 1))
+            / Real.exp (ε * t)
+          = (u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * t) - 1))
+            * Real.exp (-(ε * t)) := by
+        rw [Real.exp_neg, div_eq_mul_inv]
+      linarith [h_div, h_eq]
+    -- Simplify: (u0 + ε K/(ε−κ)·(e^((ε−κ)t) − 1)) · e^(−εt)
+    --   = u0 · e^(−εt) + ε K/(ε−κ)·(e^(−κt) − e^(−εt))
+    --   ≤ u0 · e^(−κt/2) + ε K/(ε−κ)·e^(−κt/2)
+    have hE_identity : Real.exp ((ε - κ) * t) * Real.exp (-(ε * t))
+        = Real.exp (-(κ * t)) := by
+      rw [← Real.exp_add]; congr 1; ring
+    have habs_bound2 :
+        |sol.trajectory t iZeta - ζ3|
+          ≤ u0 * Real.exp (-(ε * t))
+            + ε * K / (ε - κ) *
+              (Real.exp (-(κ * t)) - Real.exp (-(ε * t))) := by
+      have hrewrite :
+          (u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * t) - 1))
+              * Real.exp (-(ε * t))
+            = u0 * Real.exp (-(ε * t))
+              + ε * K / (ε - κ) *
+                (Real.exp (-(κ * t)) - Real.exp (-(ε * t))) := by
+        have h := hE_identity
+        have : (u0 + ε * K / (ε - κ) * (Real.exp ((ε - κ) * t) - 1))
+                * Real.exp (-(ε * t))
+              = u0 * Real.exp (-(ε * t))
+                + ε * K / (ε - κ) *
+                  (Real.exp ((ε - κ) * t) * Real.exp (-(ε * t))
+                    - Real.exp (-(ε * t))) := by ring
+        rw [this, h]
+      linarith [habs_bound, hrewrite]
+    -- Further: both e^(−εt), e^(−κt) ≤ e^(−κt/2). Also e^(−κt) − e^(−εt) ≤ e^(−κt).
+    have hε_ge_κ : κ ≤ ε := hcase.le
+    have hκ_pos : (0 : ℝ) < κ := _hκ
+    have hExp_neg_ε_le : Real.exp (-(ε * t)) ≤ Real.exp (-(κ / 2 * t)) := by
+      apply Real.exp_le_exp.mpr
+      have : κ / 2 * t ≤ ε * t := by
+        apply mul_le_mul_of_nonneg_right _ ht
+        linarith
+      linarith
+    have hExp_neg_κ_le : Real.exp (-(κ * t)) ≤ Real.exp (-(κ / 2 * t)) := by
+      apply Real.exp_le_exp.mpr
+      have : κ / 2 * t ≤ κ * t := by
+        apply mul_le_mul_of_nonneg_right _ ht
+        linarith
+      linarith
+    have hExp_neg_ε_pos : 0 < Real.exp (-(ε * t)) := Real.exp_pos _
+    have hExp_neg_κ_pos : 0 < Real.exp (-(κ * t)) := Real.exp_pos _
+    have hDiff_nonneg : 0 ≤ Real.exp (-(κ * t)) - Real.exp (-(ε * t)) := by
+      have : Real.exp (-(ε * t)) ≤ Real.exp (-(κ * t)) := by
+        apply Real.exp_le_exp.mpr
+        have : κ * t ≤ ε * t := by
+          apply mul_le_mul_of_nonneg_right hε_ge_κ ht
+        linarith
+      linarith
+    have hDiff_le : Real.exp (-(κ * t)) - Real.exp (-(ε * t))
+        ≤ Real.exp (-(κ / 2 * t)) := by
+      calc Real.exp (-(κ * t)) - Real.exp (-(ε * t))
+          ≤ Real.exp (-(κ * t)) := by linarith
+        _ ≤ Real.exp (-(κ / 2 * t)) := hExp_neg_κ_le
+    have hcoef_nn : 0 ≤ ε * K / (ε - κ) :=
+      div_nonneg (mul_nonneg hε_pos.le _hK.le) hdiff_pos.le
+    have habs_bound3 :
+        |sol.trajectory t iZeta - ζ3|
+          ≤ u0 * Real.exp (-(κ / 2 * t))
+            + ε * K / (ε - κ) * Real.exp (-(κ / 2 * t)) := by
+      have hA : u0 * Real.exp (-(ε * t))
+          ≤ u0 * Real.exp (-(κ / 2 * t)) :=
+        mul_le_mul_of_nonneg_left hExp_neg_ε_le hu0_nn
+      have hB : ε * K / (ε - κ) *
+          (Real.exp (-(κ * t)) - Real.exp (-(ε * t)))
+          ≤ ε * K / (ε - κ) * Real.exp (-(κ / 2 * t)) :=
+        mul_le_mul_of_nonneg_left hDiff_le hcoef_nn
+      linarith
+    -- Finally: u0 · e + εK/(ε−κ) · e ≤ (u0 + εK/(ε−κ) + 1) · e.
+    have hfinal :
+        u0 * Real.exp (-(κ / 2 * t))
+          + ε * K / (ε - κ) * Real.exp (-(κ / 2 * t))
+          ≤ (u0 + ε * K / (ε - κ) + 1) * Real.exp (-(κ / 2 * t)) := by
+      have hExp_pos : 0 < Real.exp (-(κ / 2 * t)) := Real.exp_pos _
+      have : (u0 + ε * K / (ε - κ) + 1) * Real.exp (-(κ / 2 * t))
+          = u0 * Real.exp (-(κ / 2 * t))
+            + ε * K / (ε - κ) * Real.exp (-(κ / 2 * t))
+            + Real.exp (-(κ / 2 * t)) := by ring
+      linarith
+    show |sol.trajectory t iZeta - ζ3|
+        ≤ (u0 + ε * K / (ε - κ) + 1) * Real.exp (-(κ / 2 * t))
+    linarith [habs_bound3, hfinal]
 
 /-- **(d)** Combined modulus is linear in `r`.  From (a)–(c) there
 exist `K', κ' > 0` with `|ζ(t) − ζ(3)| ≤ K' exp(−κ' t)`; solving
