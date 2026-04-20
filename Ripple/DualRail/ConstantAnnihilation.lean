@@ -567,5 +567,136 @@ theorem not_conjecture_of_counterexample :
   obtain ⟨k, hk, hsol⟩ := hconj n p y₀ ySol β hBd
   exact hnone k hk hsol
 
+/-! ## PolyCRNDecomposition for `polynomialScaleDualRail`
+
+The polynomial-scale dual-rail system (Option (a)) admits a purely
+syntactic CRN decomposition with non-negative rational coefficients.  For
+row `k = 2i` (the `uᵢ` row) the field
+
+  `p̂ᵢ⁺ − X_{2i}·X_{2i+1}·(p̂ᵢ⁺ + p̂ᵢ⁻)`
+
+factors as `prod − degr · X_{2i}` with `prod = p̂ᵢ⁺` and
+`degr = X_{2i+1} · (p̂ᵢ⁺ + p̂ᵢ⁻)`.  Row `k = 2i+1` (the `vᵢ` row) factors
+symmetrically with `prod = p̂ᵢ⁻` and `degr = X_{2i} · (p̂ᵢ⁺ + p̂ᵢ⁻)`.
+
+Non-negativity of all coefficients is immediate from
+`posPart_coeff_nonneg` and `negPart_coeff_nonneg`: `p̂ᵢ⁺` and `p̂ᵢ⁻` have
+non-negative coefficients by construction, so do the single variables
+`X_{2i}`, `X_{2i+1}`, their sum, and their products.  No hypothesis on the
+signs of the coefficients of the input `p` is needed. -/
+
+/-- Coefficient-level non-negativity for the bare variable `X j`. -/
+private lemma coeff_X_nonneg_aux {d : ℕ} (j : Fin d) (σ : Fin d →₀ ℕ) :
+    0 ≤ ((X j : MvPolynomial (Fin d) ℚ)).coeff σ := by
+  classical
+  rw [MvPolynomial.coeff_X']
+  split_ifs <;> norm_num
+
+/-- Coefficient-level non-negativity for products of non-negative-coeff
+polynomials. -/
+private lemma coeff_mul_nonneg_aux {d : ℕ} (p q : MvPolynomial (Fin d) ℚ)
+    (hp : ∀ σ, 0 ≤ p.coeff σ) (hq : ∀ σ, 0 ≤ q.coeff σ) :
+    ∀ σ, 0 ≤ (p * q).coeff σ := by
+  classical
+  intro σ
+  rw [MvPolynomial.coeff_mul]
+  apply Finset.sum_nonneg
+  intro ⟨a, b⟩ _
+  exact mul_nonneg (hp a) (hq b)
+
+/-- Coefficient-level non-negativity for sums. -/
+private lemma coeff_add_nonneg_aux {d : ℕ} (p q : MvPolynomial (Fin d) ℚ)
+    (hp : ∀ σ, 0 ≤ p.coeff σ) (hq : ∀ σ, 0 ≤ q.coeff σ) :
+    ∀ σ, 0 ≤ (p + q).coeff σ := by
+  intro σ
+  rw [MvPolynomial.coeff_add]
+  exact add_nonneg (hp σ) (hq σ)
+
+/-- **PolyCRNDecomposition for the polynomial-scale dual-rail system.**
+
+Each field decomposes as `prod_k − degr_k · X_k` with both
+`prod_k` and `degr_k` having non-negative ℚ-coefficients.  The
+construction is uniform in `k` with a single branch on parity
+of `k.val`. -/
+noncomputable def polynomialScaleDualRail_pcd (n : ℕ) [NeZero n]
+    (p : Fin n → MvPolynomial (Fin n) ℚ) :
+    PolyCRNDecomposition (2 * n) (polynomialScaleDualRail n p) where
+  prod := fun k =>
+    if k.val % 2 = 0 then
+      dualRailPosPart n p ⟨k.val / 2, by
+        have : k.val < 2 * n := k.isLt; omega⟩
+    else
+      dualRailNegPart n p ⟨k.val / 2, by
+        have : k.val < 2 * n := k.isLt; omega⟩
+  degr := fun k =>
+    if k.val % 2 = 0 then
+      MvPolynomial.X (σ := Fin (2 * n)) (R := ℚ) ⟨2 * (k.val / 2) + 1, by
+        have : k.val < 2 * n := k.isLt; omega⟩
+        * (dualRailPosPart n p ⟨k.val / 2, by
+            have : k.val < 2 * n := k.isLt; omega⟩
+          + dualRailNegPart n p ⟨k.val / 2, by
+            have : k.val < 2 * n := k.isLt; omega⟩)
+    else
+      MvPolynomial.X (σ := Fin (2 * n)) (R := ℚ) ⟨2 * (k.val / 2), by
+        have : k.val < 2 * n := k.isLt; omega⟩
+        * (dualRailPosPart n p ⟨k.val / 2, by
+            have : k.val < 2 * n := k.isLt; omega⟩
+          + dualRailNegPart n p ⟨k.val / 2, by
+            have : k.val < 2 * n := k.isLt; omega⟩)
+  prod_nonneg := by
+    intro k σ
+    split_ifs with h
+    · exact posPart_coeff_nonneg _ σ
+    · exact negPart_coeff_nonneg _ σ
+  degr_nonneg := by
+    intro k σ
+    have hPos : ∀ τ, 0 ≤ (dualRailPosPart n p ⟨k.val / 2, by
+        have : k.val < 2 * n := k.isLt; omega⟩).coeff τ :=
+      fun τ => posPart_coeff_nonneg _ τ
+    have hNeg : ∀ τ, 0 ≤ (dualRailNegPart n p ⟨k.val / 2, by
+        have : k.val < 2 * n := k.isLt; omega⟩).coeff τ :=
+      fun τ => negPart_coeff_nonneg _ τ
+    have hSum : ∀ τ, 0 ≤ ((dualRailPosPart n p ⟨k.val / 2, by
+        have : k.val < 2 * n := k.isLt; omega⟩)
+        + dualRailNegPart n p ⟨k.val / 2, by
+          have : k.val < 2 * n := k.isLt; omega⟩).coeff τ :=
+      coeff_add_nonneg_aux _ _ hPos hNeg
+    split_ifs with h
+    · exact coeff_mul_nonneg_aux _ _ (coeff_X_nonneg_aux _) hSum σ
+    · exact coeff_mul_nonneg_aux _ _ (coeff_X_nonneg_aux _) hSum σ
+  init_nonneg := by
+    intro k
+    change (0 : ℚ) ≤ 0
+    exact le_refl _
+  field_eq := by
+    intro k
+    -- Both sides share the `if k.val % 2 = 0` branching. Reduce the Bool
+    -- `is_u` on the LHS to the `decide` form so both `if`s align.
+    have hBoolProp : (k.val % 2 = 0 : Bool) = decide (k.val % 2 = 0) := rfl
+    change (if ((k.val % 2 = 0 : Bool)) then _ else _)
+        = (if k.val % 2 = 0 then _ else _) -
+          (if k.val % 2 = 0 then _ else _) * MvPolynomial.X k
+    rw [hBoolProp]
+    by_cases h : k.val % 2 = 0
+    · -- u row.
+      have hkv : k.val = 2 * (k.val / 2) := by omega
+      simp only [h, decide_true, if_true]
+      -- Rewrite `X k` to `X ⟨2 * (k.val/2), _⟩`.
+      have hkX : (MvPolynomial.X k : MvPolynomial (Fin (2 * n)) ℚ)
+          = MvPolynomial.X ⟨2 * (k.val / 2), by
+              have : k.val < 2 * n := k.isLt; omega⟩ := by
+        congr 1; exact Fin.ext hkv
+      rw [hkX]
+      ring
+    · -- v row.
+      have hkv : k.val = 2 * (k.val / 2) + 1 := by omega
+      simp only [h, decide_false, if_false, Bool.false_eq_true]
+      have hkX : (MvPolynomial.X k : MvPolynomial (Fin (2 * n)) ℚ)
+          = MvPolynomial.X ⟨2 * (k.val / 2) + 1, by
+              have : k.val < 2 * n := k.isLt; omega⟩ := by
+        congr 1; exact Fin.ext hkv
+      rw [hkX]
+      ring
+
 end DualRail
 end Ripple
