@@ -40,6 +40,7 @@
 import Ripple.Core.PIVP
 import Ripple.DualRail.ConstantAnnihilation
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Analysis.Calculus.Deriv.Prod
 
 namespace Ripple
 namespace DualRail
@@ -235,7 +236,16 @@ theorem scalar_cubic_dual_rail_identity (k : ℚ) (sol : ℝ → Fin 2 → ℝ)
     ∀ t ≥ (0 : ℝ),
       HasDerivAt (fun s => sol s 0 - sol s 1)
         (1 - (sol t 0 - sol t 1) ^ 3) t := by
-  sorry
+  intro t ht
+  have h := h_deriv t ht
+  have hpi := (hasDerivAt_pi (φ := fun s => sol s)
+    (φ' := (dualRailedCubic k).evalField (sol t))).1 h
+  have hu := hpi 0
+  have hv := hpi 1
+  have hdiff := hu.sub hv
+  have heq := dualRailedCubic_drift_diff k (sol t)
+  rw [heq] at hdiff
+  exact hdiff
 
 /-- **Sub-lemma 3: original GPAC is bounded in [0, 1].** For
 `y(0) = 0`, the solution of `y' = 1 − y³` stays in `[0, 1]` forever.
