@@ -42,6 +42,8 @@
 import Ripple.Core.BoundedTime
 import Ripple.LPP.Defs
 import Ripple.LPP.AddRationalPos
+import Ripple.DualRail.Lemma8StageA
+import Ripple.DualRail.Lemma8StageB
 import Mathlib.Algebra.MvPolynomial.Rename
 
 -- Some reductions between syntactic field/init projections and their explicit
@@ -483,28 +485,26 @@ noncomputable def subtractionPCD {d₁ d₂ : ℕ}
         · rw [Fin.append_right, Fin.append_right, Fin.append_right]
           exact liftY_field_eq pcdY iR
 
-/-! ## Main theorem (statement)
+/-! ## Main theorem
 
 Given two CBTC+PCD witnesses for `α, β ∈ (0, 1)` with `α > β ≥ 0`, the
 DNA25 two-stage gadget defined above is itself a CBTC+PCD witness for
-`α − β`.  The PCD non-negativity is fully proved; the analytic content —
-existence of a bounded solution, trajectory continuity, and exponential
-convergence of `z(t)` to `α − β` — is the DNA25 Lemma 8 statement, whose
-Duhamel-style proof mirrors `Ripple.Algebraic.relaxation_tracker_convergence`
-in `AddRationalPos.lean` but for a *coupled* two-stage non-linear ODE and is
-considerably heavier.  We state the full assembly below and leave the
-semantic-solution component as a single clearly-scoped `sorry`.
+`α − β`.  The PCD non-negativity is fully proved (above).  The analytic
+content — existence of a bounded solution, trajectory continuity, and
+exponential convergence of `z(t)` to `α − β` — is now also fully proved
+by glueing the two scalar-level stages from `Lemma8StageA` (reciprocal
+tracker `z_r → 1/γ`) and `Lemma8StageB` (subtraction layer `z → γ`),
+where `γ := α − β`, into a full `PIVP.Solution` on the combined system.
 -/
 
-/-- **DNA25 Lemma 8 analytic content (loosened hypothesis, scoped `sorry`).**
+/-- **DNA25 Lemma 8 analytic content (loosened hypothesis, axiom-clean).**
 
-This is the refactored form of the analytic core of DNA25 Lemma 8.  Per
-[RTCRN2] Lemma 8, the hypothesis needed is *not* that each of `x(t)` and
-`y(t)` individually converges to its target (with individual moduli),
-but only that the *difference* `x(t) − y(t)` converges to `α − β`.
-The two-stage Duhamel argument (below) only ever uses the convergence
-of the difference `x − y` (via `δ(t) := (x(t) − y(t)) − γ`), never the
-two components separately.
+The analytic core of DNA25 Lemma 8.  Per [RTCRN2] Lemma 8, the hypothesis
+needed is *not* that each of `x(t)` and `y(t)` individually converges to
+its target (with individual moduli), but only that the *difference*
+`x(t) − y(t)` converges to `α − β`.  The two-stage Duhamel argument only
+ever uses the convergence of the difference `x − y`, never the two
+components separately.
 
 Inputs:
   * `Px`, `Py` : syntactic polynomial PIVPs computing `α`, `β`
@@ -514,29 +514,26 @@ Inputs:
   * the hypotheses `0 < α < 1`, `0 ≤ β < 1`, `β < α` that ensure the
     reciprocal stage is well-conditioned (`γ := α − β ∈ (0, 1)`).
 
-Proof (sketch; two-stage Duhamel, reducing to `relaxation_tracker_convergence`):
+Proof structure (fully formalised):
 
-  Stage A (`z_r`):  `z_r' = 1 − γ·z_r − δ·z_r` where `δ := (x − y) − γ`.
-    Since `|δ| → 0`, the linear scalar ODE `z_r' + γ·z_r = 1 − δ·z_r` has
-    `z_r(t) → 1/γ` via Duhamel + a uniform apriori bound on `z_r`.
+  Stage A (`z_r`):  `z_r' = 1 − (x − y) · z_r`.  The scalar Duhamel/
+    integrating-factor analysis lives in `Lemma8StageA.zr_tracker_exists`,
+    producing a continuous, nonneg, uniformly bounded `z_r → 1/γ`.
 
-  Stage B (`z`):    `z' = 1 − z_r·z`.  Since `z_r → 1/γ`, we have
-    `(z − γ)' = (1 − γ·z_r) − z_r·(z − γ)`, where the coefficient of
-    `z − γ` tends to `−1/γ < 0` (exponential decay) and the forcing
-    `1 − γ·z_r → 0`, so `z(t) → γ = α − β`.
+  Stage B (`z`):    `z' = 1 − z_r · z`.  A second Duhamel analysis
+    (`Lemma8StageB.z_tracker_exists`) produces a continuous, nonneg,
+    uniformly bounded `z → γ`, given the Stage A output.
 
-The full formalisation requires constructing the semantic solution to
-this coupled two-stage nonlinear ODE (existence via `polyPIVP_field_locally_lipschitz`
-+ apriori bound + `locally_lipschitz_bounded_global_ode_proved_continuous`,
-as in `DNA25Bounded.lean`), then running a two-layer Grönwall/Duhamel
-estimate analogous to `Ripple.Algebraic.relaxation_tracker_convergence`.
-This is a substantial infrastructure build on top of the one-stage case;
-we state it with the now-correct (loosened) hypothesis and scope it as
-a single `sorry`. Downstream consumers (`subtraction_cbtc_pcd`) build
-the joint-difference convergence `h_diff_conv` from two individual CBTC
-convergences via triangle inequality, so this refactor tightens *nothing*
-at the API level; it only aligns the internal statement with the actual
-mathematical scope of [RTCRN2] Lemma 8.
+  Combined PIVP solution:  using `Fin.snoc`, we glue the two new scalar
+    trajectories on top of the appended `solX`/`solY` input trajectories
+    (on the `d₁ + d₂` sub-block), producing a full `PIVP.Solution` on the
+    combined `(d₁+d₂)+1+1`-dimensional system.  Each coordinate's ODE is
+    verified componentwise via `hasDerivAt_pi` + `MvPolynomial.eval₂_rename`
+    for the lifted input block.
+
+Downstream consumers (`subtraction_cbtc_pcd`) build the joint-difference
+convergence `h_diff_conv` from two individual CBTC convergences via
+triangle inequality.
 
 [RTCRN2] Huang–Klinge–Lathrop, DNA 25 (2019), Lemma 8. -/
 theorem subtraction_lemma8_analytic {α β : ℝ} {d₁ d₂ : ℕ}
@@ -559,7 +556,416 @@ theorem subtraction_lemma8_analytic {α β : ℝ} {d₁ d₂ : ℕ}
       (∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
         |sol'.trajectory t (idxZ d₁ d₂) - (α - β)| < Real.exp (-(r : ℝ))) ∧
       Continuous sol'.trajectory := by
-  sorry
+  -- Set γ = α − β, verify 0 < γ < 1.
+  set γ : ℝ := α - β with hγ_def
+  have hγ_lo : 0 < γ := by rw [hγ_def]; linarith
+  have hγ_hi : γ < 1 := by rw [hγ_def]; linarith
+  -- Extract bounds on solX, solY.
+  obtain ⟨Mx, hMx_pos, hMx_bd⟩ := _hXbd
+  obtain ⟨My, hMy_pos, hMy_bd⟩ := _hYbd
+  -- Build Stage-A DriverData.
+  let driver : ℝ → ℝ := fun t =>
+    solX.trajectory t Px.output - solY.trajectory t Py.output
+  have driver_cont : Continuous driver :=
+    ((continuous_apply Px.output).comp _hXcont).sub
+      ((continuous_apply Py.output).comp _hYcont)
+  -- The driver is bounded by Mx + My on [0,∞).
+  have driver_abs_bd : ∀ t, 0 ≤ t → |driver t| ≤ Mx + My := by
+    intro t ht
+    have hxle : |solX.trajectory t Px.output| ≤ Mx := by
+      have := norm_le_pi_norm (solX.trajectory t) Px.output
+      rw [Real.norm_eq_abs] at this
+      exact le_trans this (hMx_bd t ht)
+    have hyle : |solY.trajectory t Py.output| ≤ My := by
+      have := norm_le_pi_norm (solY.trajectory t) Py.output
+      rw [Real.norm_eq_abs] at this
+      exact le_trans this (hMy_bd t ht)
+    -- |x - y| ≤ |x| + |y|
+    have habs_tri : |driver t| ≤ |solX.trajectory t Px.output| +
+            |solY.trajectory t Py.output| :=
+      abs_sub (solX.trajectory t Px.output) (solY.trajectory t Py.output)
+    linarith
+  let D : Lemma8StageA.DriverData γ :=
+    { driver := driver
+      driver_cont := driver_cont
+      driver_bound := Mx + My
+      driver_bound_nn := by linarith
+      driver_abs_bd := driver_abs_bd
+      diffMod := _diffMod
+      diffMod_conv := fun r t ht ht' => _h_diff_conv r t ht ht' }
+  -- Run Stage A.
+  obtain ⟨zr, B_zr, zrMod, hBzr_pos, hzr_cont, hzr_zero,
+      hzr_ode, hzr_nn, hzr_bd, hzr_conv⟩ :=
+    Lemma8StageA.zr_tracker_exists hγ_lo hγ_hi D
+  -- Build Stage-B ZrData.
+  let Z : Lemma8StageB.ZrData γ :=
+    { zr := zr
+      zr_cont := hzr_cont
+      zr_nonneg := hzr_nn
+      zr_bound := B_zr
+      zr_bound_pos := hBzr_pos
+      zr_abs_bd := hzr_bd
+      zrModulus := zrMod
+      zr_conv := fun r t _ht ht' => hzr_conv r t ht' }
+  -- Run Stage B.
+  obtain ⟨z, B_z, zMod, hBz_pos, hz_cont, hz_zero, hz_ode, hz_nn, hz_bd, hz_conv⟩ :=
+    Lemma8StageB.z_tracker_exists hγ_lo hγ_hi Z
+  -- Build the full trajectory.
+  let xyBlock : ℝ → Fin (d₁ + d₂) → ℝ := fun t =>
+    Fin.append (fun i => solX.trajectory t i) (fun j => solY.trajectory t j)
+  let T : ℝ → Fin ((d₁ + d₂) + 1 + 1) → ℝ := fun t =>
+    Fin.snoc (Fin.snoc (xyBlock t) (zr t)) (z t)
+  -- Unfolding lemmas. We use the non-dependent specialisation of Fin.snoc.
+  have T_idxZ : ∀ t, T t (idxZ d₁ d₂) = z t := by
+    intro t
+    change (Fin.snoc (α := fun _ => ℝ)
+              (Fin.snoc (α := fun _ => ℝ) (xyBlock t) (zr t)) (z t))
+              (idxZ d₁ d₂) = z t
+    unfold idxZ
+    exact Fin.snoc_last _ _
+  have T_idxZR : ∀ t, T t (idxZR d₁ d₂) = zr t := by
+    intro t
+    change (Fin.snoc (α := fun _ => ℝ)
+              (Fin.snoc (α := fun _ => ℝ) (xyBlock t) (zr t)) (z t))
+              (idxZR d₁ d₂) = zr t
+    unfold idxZR
+    rw [show ((Fin.last (d₁+d₂)).castSucc : Fin ((d₁+d₂)+1+1))
+          = Fin.castSucc (Fin.last (d₁+d₂)) from rfl]
+    rw [Fin.snoc_castSucc]
+    exact Fin.snoc_last _ _
+  have T_injX : ∀ t (i : Fin d₁),
+      T t (injX d₁ d₂ i) = solX.trajectory t i := by
+    intro t i
+    change (Fin.snoc (α := fun _ => ℝ)
+              (Fin.snoc (α := fun _ => ℝ) (xyBlock t) (zr t)) (z t))
+              (injX d₁ d₂ i) = solX.trajectory t i
+    unfold injX
+    rw [show ((Fin.castAdd d₂ i).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+          = Fin.castSucc (Fin.castSucc (Fin.castAdd d₂ i)) from rfl]
+    rw [Fin.snoc_castSucc, Fin.snoc_castSucc]
+    change Fin.append (fun i => solX.trajectory t i)
+              (fun j => solY.trajectory t j) (Fin.castAdd d₂ i)
+          = solX.trajectory t i
+    rw [Fin.append_left]
+  have T_injY : ∀ t (j : Fin d₂),
+      T t (injY d₁ d₂ j) = solY.trajectory t j := by
+    intro t j
+    change (Fin.snoc (α := fun _ => ℝ)
+              (Fin.snoc (α := fun _ => ℝ) (xyBlock t) (zr t)) (z t))
+              (injY d₁ d₂ j) = solY.trajectory t j
+    unfold injY
+    rw [show ((Fin.natAdd d₁ j).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+          = Fin.castSucc (Fin.castSucc (Fin.natAdd d₁ j)) from rfl]
+    rw [Fin.snoc_castSucc, Fin.snoc_castSucc]
+    change Fin.append (fun i => solX.trajectory t i)
+              (fun j => solY.trajectory t j) (Fin.natAdd d₁ j)
+          = solY.trajectory t j
+    rw [Fin.append_right]
+  -- Helper: subtractionInit on inputs equals the respective PIVPs' init on
+  -- the corresponding index.
+  have subInit_injX : ∀ (iL : Fin d₁),
+      subtractionInit Px Py (injX d₁ d₂ iL) = Px.init iL := by
+    intro iL
+    change (Fin.snoc (α := fun _ => ℚ)
+              (Fin.snoc (α := fun _ => ℚ) (Fin.append Px.init Py.init) (0 : ℚ))
+              (0 : ℚ)) (injX d₁ d₂ iL) = Px.init iL
+    unfold injX
+    rw [show ((Fin.castAdd d₂ iL).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+          = Fin.castSucc (Fin.castSucc (Fin.castAdd d₂ iL)) from rfl]
+    rw [Fin.snoc_castSucc, Fin.snoc_castSucc]
+    rw [Fin.append_left]
+  have subInit_injY : ∀ (iR : Fin d₂),
+      subtractionInit Px Py (injY d₁ d₂ iR) = Py.init iR := by
+    intro iR
+    change (Fin.snoc (α := fun _ => ℚ)
+              (Fin.snoc (α := fun _ => ℚ) (Fin.append Px.init Py.init) (0 : ℚ))
+              (0 : ℚ)) (injY d₁ d₂ iR) = Py.init iR
+    unfold injY
+    rw [show ((Fin.natAdd d₁ iR).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+          = Fin.castSucc (Fin.castSucc (Fin.natAdd d₁ iR)) from rfl]
+    rw [Fin.snoc_castSucc, Fin.snoc_castSucc]
+    rw [Fin.append_right]
+  -- Initial condition: T 0 = subtractionInit Px Py (as real-valued).
+  have T_init : T 0 = (subtractionPIVP Px Py).toPIVP.init := by
+    funext k
+    show T 0 k = ((subtractionInit Px Py k : ℚ) : ℝ)
+    -- Case split on k.
+    refine Fin.lastCases ?_ (fun i' => ?_) k
+    · -- k = Fin.last ((d₁+d₂)+1) = idxZ
+      have h1 : T 0 (idxZ d₁ d₂) = z 0 := T_idxZ 0
+      have h2 := subtractionPIVP_init_z Px Py
+      show T 0 (idxZ d₁ d₂) = ((subtractionInit Px Py (idxZ d₁ d₂) : ℚ) : ℝ)
+      rw [h1, hz_zero]
+      -- h2 : (subtractionPIVP Px Py).init (idxZ d₁ d₂) = 0
+      -- which is subtractionInit Px Py (idxZ d₁ d₂) = 0
+      have h2' : subtractionInit Px Py (idxZ d₁ d₂) = 0 := h2
+      rw [h2']; simp
+    · refine Fin.lastCases ?_ (fun i'' => ?_) i'
+      · -- i'.castSucc = idxZR
+        have h1 : T 0 (idxZR d₁ d₂) = zr 0 := T_idxZR 0
+        have h2' : subtractionInit Px Py (idxZR d₁ d₂) = 0 :=
+          subtractionPIVP_init_zr Px Py
+        show T 0 (idxZR d₁ d₂) = ((subtractionInit Px Py (idxZR d₁ d₂) : ℚ) : ℝ)
+        rw [h1, hzr_zero, h2']; simp
+      · -- i''.castSucc.castSucc : input block
+        refine Fin.addCases (fun iL => ?_) (fun iR => ?_) i''
+        · -- injX iL
+          have h1 : T 0 (injX d₁ d₂ iL) = solX.trajectory 0 iL := T_injX 0 iL
+          have h2 : subtractionInit Px Py (injX d₁ d₂ iL) = Px.init iL :=
+            subInit_injX iL
+          show T 0 (injX d₁ d₂ iL) = ((subtractionInit Px Py (injX d₁ d₂ iL) : ℚ) : ℝ)
+          rw [h1, h2]
+          have hsx := solX.init_cond
+          have hxy : solX.trajectory 0 iL = ((Px.init iL : ℚ) : ℝ) := by
+            rw [hsx]; rfl
+          exact hxy
+        · -- injY iR
+          have h1 : T 0 (injY d₁ d₂ iR) = solY.trajectory 0 iR := T_injY 0 iR
+          have h2 : subtractionInit Px Py (injY d₁ d₂ iR) = Py.init iR :=
+            subInit_injY iR
+          show T 0 (injY d₁ d₂ iR) = ((subtractionInit Px Py (injY d₁ d₂ iR) : ℚ) : ℝ)
+          rw [h1, h2]
+          have hsy := solY.init_cond
+          have hxy : solY.trajectory 0 iR = ((Py.init iR : ℚ) : ℝ) := by
+            rw [hsy]; rfl
+          exact hxy
+  -- is_solution: for each t ≥ 0, HasDerivAt T ((subtractionPIVP Px Py).toPIVP.field (T t)) t.
+  have T_is_solution : ∀ t : ℝ, 0 ≤ t →
+      HasDerivAt T ((subtractionPIVP Px Py).toPIVP.field (T t)) t := by
+    intro t ht
+    refine hasDerivAt_pi.mpr ?_
+    intro k
+    -- Establish the per-coord derivative, matching each case.
+    refine Fin.lastCases ?_ (fun i' => ?_) k
+    · -- k = Fin.last ((d₁+d₂)+1) = idxZ: derivative from z_ode.
+      -- Goal: HasDerivAt (fun s => T s (Fin.last ((d₁+d₂)+1)))
+      --   ((subtractionPIVP Px Py).toPIVP.field (T t) (Fin.last ((d₁+d₂)+1))) t
+      have hFz : (fun s => T s (Fin.last ((d₁+d₂)+1)))
+          = fun s => z s := by
+        funext s; exact T_idxZ s
+      rw [hFz]
+      have hFval : (subtractionPIVP Px Py).toPIVP.field (T t)
+            (Fin.last ((d₁+d₂)+1)) = 1 - zr t * z t := by
+        show ((subtractionPIVP Px Py).field (Fin.last ((d₁+d₂)+1))).eval₂
+              (Rat.castHom ℝ) (T t) = _
+        rw [show (Fin.last ((d₁+d₂)+1) : Fin ((d₁+d₂)+1+1))
+              = idxZ d₁ d₂ from rfl]
+        rw [subtractionPIVP_field_last]
+        unfold zField zProd zDegr
+        simp only [MvPolynomial.eval₂_sub, MvPolynomial.eval₂_mul,
+                   MvPolynomial.eval₂_X, MvPolynomial.eval₂_one]
+        rw [T_idxZR t, T_idxZ t]
+      rw [hFval]
+      exact hz_ode t ht
+    · refine Fin.lastCases ?_ (fun i'' => ?_) i'
+      · -- i'.castSucc = (Fin.last (d₁+d₂)).castSucc = idxZR: derivative from zr_ode.
+        have hFzr : (fun s => T s (Fin.castSucc (Fin.last (d₁+d₂))))
+            = fun s => zr s := by
+          funext s
+          show T s ((Fin.last (d₁+d₂)).castSucc) = zr s
+          have := T_idxZR s
+          exact this
+        rw [hFzr]
+        have hFval : (subtractionPIVP Px Py).toPIVP.field (T t)
+              (Fin.castSucc (Fin.last (d₁+d₂))) = 1 - driver t * zr t := by
+          show ((subtractionPIVP Px Py).field (Fin.castSucc (Fin.last (d₁+d₂)))).eval₂
+                (Rat.castHom ℝ) (T t) = _
+          rw [show (Fin.castSucc (Fin.last (d₁+d₂)) : Fin ((d₁+d₂)+1+1))
+                = idxZR d₁ d₂ from rfl]
+          rw [subtractionPIVP_field_zr]
+          unfold zrField zrProd zrDegr
+          simp only [MvPolynomial.eval₂_sub, MvPolynomial.eval₂_add,
+                     MvPolynomial.eval₂_mul, MvPolynomial.eval₂_X,
+                     MvPolynomial.eval₂_one]
+          rw [T_idxZR t, T_injX t, T_injY t]
+          -- Goal: 1 + solY.traj(Py.output) * zr t - solX.traj(Px.output) * zr t
+          --       = 1 - (solX.traj(Px.output) - solY.traj(Py.output)) * zr t
+          show (1 : ℝ) + solY.trajectory t Py.output * zr t
+              - solX.trajectory t Px.output * zr t = 1 - driver t * zr t
+          show (1 : ℝ) + solY.trajectory t Py.output * zr t
+              - solX.trajectory t Px.output * zr t
+            = 1 - (solX.trajectory t Px.output - solY.trajectory t Py.output) * zr t
+          ring
+        rw [hFval]
+        -- hzr_ode gives HasDerivAt zr (1 - D.driver t * zr t) t; D.driver = driver.
+        have := hzr_ode t ht
+        exact this
+      · -- i''.castSucc.castSucc: input block via Fin.addCases
+        refine Fin.addCases (fun iL => ?_) (fun iR => ?_) i''
+        · -- injX iL: inherit from solX.is_solution
+          have hF : (fun s => T s ((Fin.castAdd d₂ iL).castSucc.castSucc))
+              = fun s => solX.trajectory s iL := by
+            funext s
+            show T s ((Fin.castAdd d₂ iL).castSucc.castSucc) = _
+            have := T_injX s iL
+            show T s (injX d₁ d₂ iL) = solX.trajectory s iL
+            exact this
+          rw [hF]
+          -- Original solution gives HasDerivAt (fun s => solX.trajectory s iL)
+          --    ((Px.field iL).eval₂ (Rat.castHom ℝ) (solX.trajectory t)) t.
+          have hDer_orig := hasDerivAt_pi.mp (solX.is_solution t ht) iL
+          -- Match the field on the combined system.
+          have hFval :
+              (subtractionPIVP Px Py).toPIVP.field (T t)
+                  ((Fin.castAdd d₂ iL).castSucc.castSucc)
+                = (Px.field iL).eval₂ (Rat.castHom ℝ) (solX.trajectory t) := by
+            show ((subtractionPIVP Px Py).field ((Fin.castAdd d₂ iL).castSucc.castSucc)).eval₂
+                  (Rat.castHom ℝ) (T t) = _
+            -- subtractionField at injX iL = liftX (Px.field iL).
+            have h_fe :
+                (subtractionPIVP Px Py).field ((Fin.castAdd d₂ iL).castSucc.castSucc)
+                  = liftX d₁ d₂ (Px.field iL) := by
+              show subtractionField Px Py ((Fin.castAdd d₂ iL).castSucc.castSucc) = _
+              unfold subtractionField
+              rw [show ((Fin.castAdd d₂ iL).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+                    = Fin.castSucc (Fin.castSucc (Fin.castAdd d₂ iL)) from rfl,
+                  Fin.snoc_castSucc, Fin.snoc_castSucc]
+              show inputFields Px Py (Fin.castAdd d₂ iL) = _
+              unfold inputFields
+              rw [Fin.append_left]
+            rw [h_fe]
+            unfold liftX
+            rw [MvPolynomial.eval₂_rename]
+            congr 1
+            funext j
+            show T t ((injX d₁ d₂) j) = solX.trajectory t j
+            exact T_injX t j
+          rw [hFval]
+          -- Cast Px.toPIVP.field (solX.trajectory t) iL to eval₂ form.
+          show HasDerivAt (fun s => solX.trajectory s iL)
+              ((Px.field iL).eval₂ (Rat.castHom ℝ) (solX.trajectory t)) t
+          -- hDer_orig gives this directly, since Px.toPIVP.field = evalField.
+          have : Px.toPIVP.field (solX.trajectory t) iL
+              = (Px.field iL).eval₂ (Rat.castHom ℝ) (solX.trajectory t) := rfl
+          rw [← this]
+          exact hDer_orig
+        · -- injY iR: inherit from solY.is_solution
+          have hF : (fun s => T s ((Fin.natAdd d₁ iR).castSucc.castSucc))
+              = fun s => solY.trajectory s iR := by
+            funext s
+            show T s ((Fin.natAdd d₁ iR).castSucc.castSucc) = _
+            have := T_injY s iR
+            show T s (injY d₁ d₂ iR) = solY.trajectory s iR
+            exact this
+          rw [hF]
+          have hDer_orig := hasDerivAt_pi.mp (solY.is_solution t ht) iR
+          have hFval :
+              (subtractionPIVP Px Py).toPIVP.field (T t)
+                  ((Fin.natAdd d₁ iR).castSucc.castSucc)
+                = (Py.field iR).eval₂ (Rat.castHom ℝ) (solY.trajectory t) := by
+            show ((subtractionPIVP Px Py).field ((Fin.natAdd d₁ iR).castSucc.castSucc)).eval₂
+                  (Rat.castHom ℝ) (T t) = _
+            have h_fe :
+                (subtractionPIVP Px Py).field ((Fin.natAdd d₁ iR).castSucc.castSucc)
+                  = liftY d₁ d₂ (Py.field iR) := by
+              show subtractionField Px Py ((Fin.natAdd d₁ iR).castSucc.castSucc) = _
+              unfold subtractionField
+              rw [show ((Fin.natAdd d₁ iR).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+                    = Fin.castSucc (Fin.castSucc (Fin.natAdd d₁ iR)) from rfl,
+                  Fin.snoc_castSucc, Fin.snoc_castSucc]
+              show inputFields Px Py (Fin.natAdd d₁ iR) = _
+              unfold inputFields
+              rw [Fin.append_right]
+            rw [h_fe]
+            unfold liftY
+            rw [MvPolynomial.eval₂_rename]
+            congr 1
+            funext j
+            show T t ((injY d₁ d₂) j) = solY.trajectory t j
+            exact T_injY t j
+          rw [hFval]
+          show HasDerivAt (fun s => solY.trajectory s iR)
+              ((Py.field iR).eval₂ (Rat.castHom ℝ) (solY.trajectory t)) t
+          have : Py.toPIVP.field (solY.trajectory t) iR
+              = (Py.field iR).eval₂ (Rat.castHom ℝ) (solY.trajectory t) := rfl
+          rw [← this]
+          exact hDer_orig
+  -- Build the PIVP.Solution.
+  let sol' : PIVP.Solution (subtractionPIVP Px Py).toPIVP :=
+    { trajectory := T
+      init_cond := T_init
+      is_solution := T_is_solution }
+  refine ⟨sol', zMod, ?_, ?_, ?_⟩
+  · -- IsBounded: ‖T t‖ ≤ Mx + My + B_zr + B_z + 1 for t ≥ 0.
+    refine ⟨Mx + My + B_zr + B_z + 1, by linarith, ?_⟩
+    intro t ht
+    -- Pi-norm is sup over components.
+    rw [pi_norm_le_iff_of_nonneg (by linarith)]
+    intro k
+    rw [Real.norm_eq_abs]
+    -- Case split.
+    refine Fin.lastCases ?_ (fun i' => ?_) k
+    · -- k = idxZ: |z t| = z t ≤ B_z.
+      show |T t (Fin.last ((d₁+d₂)+1))| ≤ _
+      rw [show (Fin.last ((d₁+d₂)+1) : Fin ((d₁+d₂)+1+1)) = idxZ d₁ d₂ from rfl,
+          T_idxZ]
+      have h_nn := hz_nn t ht
+      have h_bd := hz_bd t ht
+      rw [abs_of_nonneg h_nn]
+      linarith
+    · refine Fin.lastCases ?_ (fun i'' => ?_) i'
+      · -- k = idxZR: |zr t| ≤ B_zr.
+        show |T t ((Fin.last (d₁+d₂)).castSucc)| ≤ _
+        rw [show ((Fin.last (d₁+d₂)).castSucc : Fin ((d₁+d₂)+1+1))
+              = idxZR d₁ d₂ from rfl, T_idxZR]
+        have h_nn := hzr_nn t ht
+        have h_bd := hzr_bd t ht
+        rw [abs_of_nonneg h_nn]
+        linarith
+      · refine Fin.addCases (fun iL => ?_) (fun iR => ?_) i''
+        · -- k = injX iL: |solX.traj t iL| ≤ ‖solX.traj t‖ ≤ Mx.
+          show |T t ((Fin.castAdd d₂ iL).castSucc.castSucc)| ≤ _
+          rw [show ((Fin.castAdd d₂ iL).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+                = injX d₁ d₂ iL from rfl, T_injX]
+          have hx_coord : |solX.trajectory t iL| ≤ Mx := by
+            have := norm_le_pi_norm (solX.trajectory t) iL
+            rw [Real.norm_eq_abs] at this
+            exact le_trans this (hMx_bd t ht)
+          linarith
+        · -- k = injY iR: |solY.traj t iR| ≤ My.
+          show |T t ((Fin.natAdd d₁ iR).castSucc.castSucc)| ≤ _
+          rw [show ((Fin.natAdd d₁ iR).castSucc.castSucc : Fin ((d₁+d₂)+1+1))
+                = injY d₁ d₂ iR from rfl, T_injY]
+          have hy_coord : |solY.trajectory t iR| ≤ My := by
+            have := norm_le_pi_norm (solY.trajectory t) iR
+            rw [Real.norm_eq_abs] at this
+            exact le_trans this (hMy_bd t ht)
+          linarith
+  · -- Convergence at idxZ: from hz_conv.
+    intro r t ht_gt
+    show |sol'.trajectory t (idxZ d₁ d₂) - (α - β)| < Real.exp (-(r : ℝ))
+    have h1 : sol'.trajectory t (idxZ d₁ d₂) = z t := T_idxZ t
+    rw [h1, ← hγ_def]
+    exact hz_conv r t ht_gt
+  · -- Continuity: componentwise via continuous_pi.
+    refine continuous_pi (fun k => ?_)
+    refine Fin.lastCases ?_ (fun i' => ?_) k
+    · -- idxZ
+      have hF : (fun t : ℝ => sol'.trajectory t (Fin.last ((d₁+d₂)+1)))
+          = z := by
+        funext t; exact T_idxZ t
+      rw [hF]; exact hz_cont
+    · refine Fin.lastCases ?_ (fun i'' => ?_) i'
+      · -- idxZR
+        have hF : (fun t : ℝ => sol'.trajectory t ((Fin.last (d₁+d₂)).castSucc))
+            = zr := by
+          funext t; exact T_idxZR t
+        rw [hF]; exact hzr_cont
+      · refine Fin.addCases (fun iL => ?_) (fun iR => ?_) i''
+        · -- injX iL
+          have hF : (fun t : ℝ =>
+              sol'.trajectory t ((Fin.castAdd d₂ iL).castSucc.castSucc))
+              = fun t : ℝ => solX.trajectory t iL := by
+            funext t; exact T_injX t iL
+          rw [hF]
+          exact (continuous_apply iL).comp _hXcont
+        · -- injY iR
+          have hF : (fun t : ℝ =>
+              sol'.trajectory t ((Fin.natAdd d₁ iR).castSucc.castSucc))
+              = fun t : ℝ => solY.trajectory t iR := by
+            funext t; exact T_injY t iR
+          rw [hF]
+          exact (continuous_apply iR).comp _hYcont
 
 /-- **DNA25 Lemma 8, subtraction gadget with CBTC + PCD.**
 
