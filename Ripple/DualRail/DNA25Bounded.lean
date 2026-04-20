@@ -227,7 +227,143 @@ private theorem dna25_dualRail_identity {d : ℕ} [NeZero d] {α : ℝ}
     ∀ t, 0 ≤ t → ∀ j : Fin d,
       y t ⟨2 * j.val, by omega⟩ - y t ⟨2 * j.val + 1, by omega⟩
         = btc.sol.trajectory t j := by
-  sorry
+  -- Define the difference function w t j = y t ⟨2j,_⟩ - y t ⟨2j+1,_⟩.
+  set w : ℝ → Fin d → ℝ :=
+    fun t j => y t ⟨2 * j.val, by omega⟩ - y t ⟨2 * j.val + 1, by omega⟩ with hw_def
+  -- Define the 1-dim-level polynomial field as a PolyPIVP (init all 0, any output).
+  let P : PolyPIVP d :=
+    { field := p, init := fun _ => 0, output := ⟨0, (NeZero.pos d)⟩ }
+  -- The field of P at x : Fin d → ℝ.
+  have hP_field : ∀ v : Fin d → ℝ, P.toPIVP.field v
+      = fun j => (p j).eval₂ (Rat.castHom ℝ) v := by
+    intro v; funext j; rfl
+  -- Claim A: HasDerivAt (fun t => w t) (P.toPIVP.field (w t)) t for all t ≥ 0.
+  have hw_deriv : ∀ t : ℝ, 0 ≤ t →
+      HasDerivAt w (P.toPIVP.field (w t)) t := by
+    intro t ht
+    have hy_t := _hy_deriv t ht
+    -- Extract per-coord derivatives from hy_t via hasDerivAt_pi.
+    have hy_coord : ∀ k : Fin (2 * d),
+        HasDerivAt (fun s => y s k)
+          ((polynomialScaleDualRail d p).toPIVP.field (y t) k) t :=
+      hasDerivAt_pi.mp hy_t
+    -- Use hasDerivAt_pi to assemble w's derivative from per-j derivatives.
+    rw [hasDerivAt_pi]
+    intro j
+    -- w · j = (fun s => y s ⟨2j,_⟩) - (fun s => y s ⟨2j+1,_⟩).
+    have h_u := hy_coord ⟨2 * j.val, by omega⟩
+    have h_v := hy_coord ⟨2 * j.val + 1, by omega⟩
+    have h_diff :
+        HasDerivAt (fun s => y s ⟨2 * j.val, by omega⟩ - y s ⟨2 * j.val + 1, by omega⟩)
+          ((polynomialScaleDualRail d p).toPIVP.field (y t) ⟨2 * j.val, by omega⟩
+            - (polynomialScaleDualRail d p).toPIVP.field (y t) ⟨2 * j.val + 1, by omega⟩)
+          t := h_u.sub h_v
+    -- The target derivative value equals (p j).eval₂ _ (w t).
+    -- Use polynomialScaleDualRail_field_u / _v and dualRailPos_sub_dualRailNeg_eval.
+    have h_u_id := polynomialScaleDualRail_field_u p j (y t)
+    have h_v_id := polynomialScaleDualRail_field_v p j (y t)
+    have h_sub_id :
+        (polynomialScaleDualRail d p).toPIVP.field (y t) ⟨2 * j.val, by omega⟩
+          - (polynomialScaleDualRail d p).toPIVP.field (y t) ⟨2 * j.val + 1, by omega⟩
+        = (dualRailPosPart d p j).eval₂ (Rat.castHom ℝ) (y t)
+          - (dualRailNegPart d p j).eval₂ (Rat.castHom ℝ) (y t) := by
+      rw [h_u_id, h_v_id]; ring
+    have h_alg := dualRailPos_sub_dualRailNeg_eval d p j (y t)
+    have h_target :
+        (polynomialScaleDualRail d p).toPIVP.field (y t) ⟨2 * j.val, by omega⟩
+          - (polynomialScaleDualRail d p).toPIVP.field (y t) ⟨2 * j.val + 1, by omega⟩
+        = (p j).eval₂ (Rat.castHom ℝ) (w t) := by
+      rw [h_sub_id, h_alg]
+    rw [h_target] at h_diff
+    -- Rewrite P.toPIVP.field (w t) j = (p j).eval₂ _ (w t).
+    show HasDerivAt (fun s => w s j) (P.toPIVP.field (w t) j) t
+    have : P.toPIVP.field (w t) j = (p j).eval₂ (Rat.castHom ℝ) (w t) := rfl
+    rw [this]
+    convert h_diff using 1
+  -- Claim B: w 0 = fun _ => 0.
+  have hw_init : w 0 = fun _ => 0 := by
+    funext j
+    show y 0 ⟨2 * j.val, by omega⟩ - y 0 ⟨2 * j.val + 1, by omega⟩ = 0
+    rw [_hy0]; simp
+  -- Claim C: btc.sol.trajectory has the same derivative structure.
+  have hz_deriv : ∀ t : ℝ, 0 ≤ t →
+      HasDerivAt btc.sol.trajectory (P.toPIVP.field (btc.sol.trajectory t)) t := by
+    intro t ht
+    have h := btc.sol.is_solution t ht
+    -- btc.pivp.field = P.toPIVP.field pointwise by _h_field.
+    have h_eq : btc.pivp.field (btc.sol.trajectory t)
+        = P.toPIVP.field (btc.sol.trajectory t) := by
+      funext i
+      rw [_h_field (btc.sol.trajectory t) i]
+      rfl
+    rw [← h_eq]
+    exact h
+  -- Claim D: btc.sol.trajectory 0 = fun _ => 0.
+  have hz_init : btc.sol.trajectory 0 = fun _ => 0 := by
+    have h := btc.sol.init_cond
+    funext j
+    rw [h]
+    exact _h_zero j
+  -- Local Lipschitz of P.toPIVP.field.
+  have h_lip := polyPIVP_field_locally_lipschitz P
+  -- Uniqueness on every compact [0, T] via solutions_agree_on_Icc.
+  intro t ht j
+  rcases eq_or_lt_of_le ht with ht_zero | ht_pos
+  · -- t = 0 case.
+    subst ht_zero
+    show y 0 ⟨2 * j.val, by omega⟩ - y 0 ⟨2 * j.val + 1, by omega⟩
+      = btc.sol.trajectory 0 j
+    rw [_hy0]
+    have : btc.sol.trajectory 0 j = 0 := by
+      rw [hz_init]
+    rw [this]
+    ring
+  · -- t > 0: apply uniqueness on Icc 0 T for T := t + 1.
+    set T : ℝ := t + 1 with hT_def
+    have hT_pos : 0 < T := by linarith
+    -- Continuity of w and btc.sol.trajectory on Icc 0 T (from HasDerivAt).
+    have hw_cont : ContinuousOn w (Set.Icc 0 T) := by
+      intro s hs
+      exact (hw_deriv s hs.1).continuousAt.continuousWithinAt
+    have hz_cont : ContinuousOn btc.sol.trajectory (Set.Icc 0 T) := by
+      intro s hs
+      exact (hz_deriv s hs.1).continuousAt.continuousWithinAt
+    -- Bounds on compact [0, T] via isCompact_Icc.exists_isMaxOn.
+    have h_Icc_ne : (Set.Icc (0 : ℝ) T).Nonempty := ⟨0, ⟨le_refl _, hT_pos.le⟩⟩
+    obtain ⟨u_w, _, hu_w_max⟩ :=
+      isCompact_Icc.exists_isMaxOn h_Icc_ne hw_cont.norm
+    obtain ⟨u_z, _, hu_z_max⟩ :=
+      isCompact_Icc.exists_isMaxOn h_Icc_ne hz_cont.norm
+    set Mw : ℝ := ‖w u_w‖ with hMw_def
+    set Mz : ℝ := ‖btc.sol.trajectory u_z‖ with hMz_def
+    set R : ℝ := max Mw Mz with hR_def
+    have hR_nn : 0 ≤ R := le_max_of_le_left (norm_nonneg _)
+    have hw_bd_R : ∀ s ∈ Set.Icc (0 : ℝ) T, ‖w s‖ ≤ R := fun s hs =>
+      le_trans (hu_w_max hs) (le_max_left _ _)
+    have hz_bd_R : ∀ s ∈ Set.Icc (0 : ℝ) T, ‖btc.sol.trajectory s‖ ≤ R := fun s hs =>
+      le_trans (hu_z_max hs) (le_max_right _ _)
+    -- Package HasDerivWithinAt on Icc 0 T.
+    have hw_dw : ∀ s ∈ Set.Icc (0 : ℝ) T,
+        HasDerivWithinAt w (P.toPIVP.field (w s)) (Set.Icc 0 T) s := fun s hs =>
+      (hw_deriv s hs.1).hasDerivWithinAt
+    have hz_dw : ∀ s ∈ Set.Icc (0 : ℝ) T,
+        HasDerivWithinAt btc.sol.trajectory (P.toPIVP.field (btc.sol.trajectory s))
+          (Set.Icc 0 T) s := fun s hs =>
+      (hz_deriv s hs.1).hasDerivWithinAt
+    -- Both start at 0.
+    have hw_init' : w 0 = (fun _ => 0 : Fin d → ℝ) := hw_init
+    have hz_init' : btc.sol.trajectory 0 = (fun _ => 0 : Fin d → ℝ) := hz_init
+    -- Apply solutions_agree_on_Icc.
+    have h_eqOn : Set.EqOn w btc.sol.trajectory (Set.Icc 0 T) :=
+      solutions_agree_on_Icc hT_pos hR_nn h_lip hw_init' hz_init' hw_dw hz_dw
+        hw_bd_R hz_bd_R
+    have ht_in : t ∈ Set.Icc (0 : ℝ) T := ⟨ht, by linarith⟩
+    have h_eq_t : w t = btc.sol.trajectory t := h_eqOn ht_in
+    show y t ⟨2 * j.val, by omega⟩ - y t ⟨2 * j.val + 1, by omega⟩
+      = btc.sol.trajectory t j
+    have := congrArg (fun v => v j) h_eq_t
+    simp at this
+    exact this
 
 /-! ## The main theorem. -/
 
