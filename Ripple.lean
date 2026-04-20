@@ -20,5 +20,6 @@ import Ripple.Core.InitShift
 import Ripple.DualRail.ConstantAnnihilation
 import Ripple.DualRail.ExpMajorization
 import Ripple.DualRail.BTCReduction
+import Ripple.DualRail.ScalarCubic
 import Ripple.Number.Apery
 import Ripple.LPP

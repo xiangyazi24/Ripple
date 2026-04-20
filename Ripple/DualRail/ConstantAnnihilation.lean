@@ -288,7 +288,40 @@ theorem dualRailNegPart_eval_nonneg (n : ℕ)
   unfold dualRailNegPart
   exact negPart_eval_nonneg (dualRailHom n (p i)) w hw
 
-/-! ## The two constructions
+/-! ## Dual-railing variants (scope clarification)
+
+Three distinct notions of "dual-railing" appear in the literature. They
+coincide on scalar problems but differ in the multi-variable setting:
+
+  **Uniform**   — every species is dual-railed simultaneously. The whole
+                  system moves from `Fin n` to `Fin (2n)` in one shot.
+                  Positive/negative split is computed once per `pᵢ` with
+                  `yⱼ = uⱼ − vⱼ` substituted for *all* `j`.
+
+  **Single**    — one species at a time: pick index `i`, replace `yᵢ` by
+                  `uᵢ − vᵢ`, leave other `yⱼ` as-is. Iterating this
+                  one-variable-at-a-time recovers Uniform up to ordering,
+                  but intermediate systems have mixed rails.
+
+  **Selected**  — only a designated subset `S ⊆ Fin n` is dual-railed
+                  (e.g. the transitive closure of some initial "anchor"
+                  species under the dependency graph of `p`). The UCNC25
+                  paper studies this variant.
+
+The current file formalizes the **Uniform** variant as
+`constantAnnihilationDualRail`. The two constructions below (Option (a)
+and Option (b)) are both Uniform. Single-variable and Selected variants
+are deferred until the Uniform case is resolved.
+
+Note on polynomial degree: when we split `p̂ᵢ = p̂ᵢ⁺ − p̂ᵢ⁻`, the positive
+and negative parts can each have degree up to `deg(pᵢ)` in the `u, v`
+variables — substitution `yⱼ ↦ uⱼ − vⱼ` preserves total degree but
+inflates monomial count. The annihilation term `k · uᵢ · vᵢ` is degree 2,
+so the drift `pᵢ⁺ − k · uᵢ · vᵢ` has degree `max(deg pᵢ, 2)` regardless of
+polynomial size. The open question is whether this bounded drift suffices
+to keep `uᵢ, vᵢ` individually bounded.
+
+## The two constructions
 
 Option (a) — polynomial-scale annihilation (DNA25, proven bounded).
 Option (b) — constant-k annihilation (UCNC25 Problem 1, open). -/
