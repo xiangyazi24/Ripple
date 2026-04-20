@@ -19,6 +19,8 @@
 -/
 
 import Ripple.Core.Compilation
+import Ripple.DualRail.Tier1Composition
+import Ripple.LPP.Stages
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 
 namespace Ripple
@@ -30,31 +32,57 @@ structure CRN (d : ℕ) extends PIVP d where
   /-- All species concentrations are non-negative. -/
   nonneg : ∀ i : Fin d, 0 ≤ init i
 
-/-- The readout subtraction module preserves time complexity.
-  From [BAC] Thm 7.3:
-  If a bounded GPAC computes α > 0 with time modulus μ(r),
-  and μ(r) = ω(r/α) (input convergence slower than module),
-  then the CRN readout also has time modulus μ(r) + O(1).
-  Note: trivially provable with is_solution := trivial (same BTC, C = 0);
-  when is_solution is real, this will need the low-pass filter analysis. -/
-theorem crn_readout_preserves_complexity (d : ℕ) (α : ℝ) (_hα : 0 < α)
-    (btc : BoundedTimeComputable d α) :
-    ∃ d' : ℕ, ∃ btc' : BoundedTimeComputable d' α,
-      ∃ C : ℝ, ∀ r : ℕ, btc'.modulus r ≤ btc.modulus r + C :=
-  ⟨d, btc, 0, fun _ => by linarith⟩
+/-- **CRN readout closure** (honest version).
 
-/-- Exponentiation closure ([BAC] Thm 6.1):
-  If α > 0 and β are bounded-GPAC computable,
-  then α^β is also bounded-GPAC computable.
+From a `BoundedTimeComputable` for `α ∈ [0, 1]` whose underlying PIVP
+has a polynomial-field presentation with zero initial conditions, one
+obtains a `CertifiedBoundedTimeComputable` with an accompanying
+`PolyCRNDecomposition` — i.e., a concrete mass-action CRN witness for
+the same real number.
 
-  This version already requires certified inputs, so the theorem is no longer
-  vacuous on the hypothesis side. The conclusion is still the older semantic
-  `IsCRNComputable`; replacing the placeholder proof by the actual exp/log
-  composition from [BAC] §6 is the next step. -/
-theorem closure_exponentiation {α β : ℝ} (_hα : 0 < α)
-    (_ha : IsCertifiedCRNComputable α) (_hb : IsCertifiedCRNComputable β) :
+This is the [BAC] §7 readout content: the dual-rail + subtraction
+readout (DNA25 annihilation + Lemma 8) is CRN-implementable. The
+induced modulus is the explicit chain of Stage A + Stage B composed
+with the input modulus (see `Ripple.DualRail.btc_to_cbtc_pcd_of_unit_interval`).
+
+The previous "modulus ≤ input + C" signature was vacuously satisfied
+by the identity witness (C = 0) and carried no CRN content; it has been
+replaced by this honest CBTC + PCD statement. The sharpened modulus
+bound of [BAC] Thm 7.3 (asymptotic low-pass filter regimes) is a
+follow-up quantitative refinement, not part of the structural closure. -/
+theorem crn_readout_preserves_complexity {d : ℕ} [NeZero d] {α : ℝ}
+    (btc : BoundedTimeComputable d α)
+    (p : Fin d → MvPolynomial (Fin d) ℚ)
+    (h_field : ∀ y : Fin d → ℝ, ∀ i : Fin d,
+        btc.pivp.field y i = (p i).eval₂ (Rat.castHom ℝ) y)
+    (h_zero : ∀ j : Fin d, btc.pivp.init j = 0)
+    (hα_lo : 0 ≤ α) (hα_hi : α ≤ 1) :
+    ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' α)
+      (_ : PolyCRNDecomposition d' cbtc'.pivp), True :=
+  Ripple.DualRail.btc_to_cbtc_pcd_of_unit_interval btc p h_field h_zero hα_lo hα_hi
+
+/-- **Exponentiation closure** ([BAC] Thm 6.1), structural reduction.
+
+Given CRN-computability of `α, β`, closure of the CRN-computable reals
+under the real exponential (`h_exp`) and under the real logarithm on
+positive reals (`h_log`), the rpow `α^β = exp(log α · β)` is
+CRN-computable. Multiplication closure is discharged internally via
+`crn_computable_mul`.
+
+This replaces the prior placeholder which invoked `realtime_const` on
+the exact value `α^β` — a vacuous witness that presupposes the
+computation it claims to deliver. The present statement honestly
+exposes the two missing sub-closures (`exp`, `log`) as explicit
+hypotheses: when they are discharged (via the [BAC] §6 dual-rail
+construction for `exp` and the reciprocal-tracker construction for
+`log`), rpow closure follows purely by composition. -/
+theorem closure_exponentiation_via_exp_log {α β : ℝ} (hα : 0 < α)
+    (ha : IsCRNComputable α) (hb : IsCRNComputable β)
+    (h_exp : ∀ γ : ℝ, IsCRNComputable γ → IsCRNComputable (Real.exp γ))
+    (h_log : ∀ γ : ℝ, 0 < γ → IsCRNComputable γ → IsCRNComputable (Real.log γ)) :
     IsCRNComputable (Real.rpow α β) := by
-  obtain ⟨d, btc, _, _, _⟩ := realtime_const (Real.rpow α β)
-  exact ⟨d, btc, trivial⟩
+  change IsCRNComputable (α ^ β)
+  rw [Real.rpow_def_of_pos hα β]
+  exact h_exp _ (crn_computable_mul (h_log α hα ha) hb)
 
 end Ripple
