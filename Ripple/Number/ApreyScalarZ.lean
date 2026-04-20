@@ -129,15 +129,131 @@ lemma aperyKappa_pos {z₀ : ℝ} (hz₀ : 0 < z₀) : 0 < aperyKappa z₀ := by
 
 /-! ## (F6): the main exponential-convergence lemma.
 
-  Statement: Given a solution `z : ℝ → ℝ` of the scalar ODE
-  `z' = p(z)` on `[0, ∞)` with `z(0) ∈ (0, z₁)`, the quantity
-  `z₁ − z(t)` decays exponentially.
+  We split the proof into two parts:
 
-  **Status.**  Skeletal — all three proof steps (invariant region via
-  Picard uniqueness, Grönwall contraction, packaging) are left as
-  `sorry` pending dedicated follow-up.  The file compiles and fixes
-  the precise statement that future work must close.
+    * **Gronwall step** (`apery_scalar_z_gronwall_on_invariant_interval`):
+      assuming the trajectory stays inside `[z₀, z₁]` on `[0, b]`,
+      derive the exponential bound on `[0, b]` via Mathlib's scalar
+      Grönwall inequality `le_gronwallBound_of_liminf_deriv_right_le`.
+
+    * **Invariant region** (`apery_scalar_z_invariant_region`, *open*):
+      prove that `z(t) ∈ [z₀, z₁]` for all `t ≥ 0`, using ODE
+      uniqueness against the constant solution `z ≡ z₁`.
+
+  Combining the two yields the main theorem
+  `apery_scalar_z_exponential_convergence`.  Only the invariant-region
+  piece currently carries a `sorry`; the Grönwall piece is closed
+  here.
 -/
+
+/-- **(F6) Grönwall step.**  Given a solution `z` of the scalar
+Apéry ODE `z' = p(z)` on `[0, b]` that a priori stays inside
+`[z₀, z₁]`, the gap `z₁ − z(t)` decays at rate `κ := z₀² · 24 √2`. -/
+theorem apery_scalar_z_gronwall_on_invariant_interval
+    (z : ℝ → ℝ) (z₀ b : ℝ)
+    (hz₀_pos : 0 < z₀) (_hz₀_lt : z₀ < aperyZ1) (_hb : 0 ≤ b)
+    (hz_init : z 0 = z₀)
+    (hz_ode : ∀ t ∈ Icc (0 : ℝ) b, HasDerivAt z (aperyScalarP (z t)) t)
+    (hz_region : ∀ t ∈ Icc (0 : ℝ) b, z₀ ≤ z t ∧ z t ≤ aperyZ1) :
+    ∀ t ∈ Icc (0 : ℝ) b,
+      aperyZ1 - z t ≤ (aperyZ1 - z₀) * Real.exp (-(aperyKappa z₀ * t)) := by
+  -- Set up the auxiliary function `f(t) := z₁ − z(t)`.
+  set f : ℝ → ℝ := fun t => aperyZ1 - z t with hf_def
+  set K : ℝ := -aperyKappa z₀ with hK_def
+  set δ : ℝ := aperyZ1 - z₀ with hδ_def
+  -- Continuity of `z` on `[0, b]` from pointwise `HasDerivAt`.
+  have hz_cont : ContinuousOn z (Icc (0 : ℝ) b) := by
+    refine continuousOn_of_forall_continuousAt ?_
+    intro t ht
+    exact (hz_ode t ht).continuousAt
+  -- `f` is continuous on `[0, b]`.
+  have hf_cont : ContinuousOn f (Icc 0 b) := by
+    simpa [hf_def] using continuousOn_const.sub hz_cont
+  -- Right-derivative of `f` on `[0, b)`: f'(t) = −p(z(t)).
+  have hf_deriv : ∀ t ∈ Ico (0 : ℝ) b,
+      HasDerivWithinAt f (-aperyScalarP (z t)) (Ici t) t := by
+    intro t ht
+    have ht_icc : t ∈ Icc (0 : ℝ) b := ⟨ht.1, le_of_lt ht.2⟩
+    have h1 : HasDerivAt f (-aperyScalarP (z t)) t := by
+      have := (hz_ode t ht_icc).const_sub aperyZ1
+      simpa [hf_def] using this
+    exact h1.hasDerivWithinAt
+  -- Initial value: f(0) = z₁ − z₀ = δ.
+  have hf_init : f 0 ≤ δ := by simp [hf_def, hz_init, hδ_def]
+  -- Bound: f'(t) ≤ K · f(t) + 0 for t ∈ [0, b).
+  -- I.e. −p(z(t)) ≤ −κ · (z₁ − z(t)).
+  have h_bound : ∀ t ∈ Ico (0 : ℝ) b,
+      -aperyScalarP (z t) ≤ K * f t + 0 := by
+    intro t ht
+    have ht_icc : t ∈ Icc (0 : ℝ) b := ⟨ht.1, le_of_lt ht.2⟩
+    obtain ⟨hzt_ge, hzt_le⟩ := hz_region t ht_icc
+    -- p(z) = (z₁ − z)·z²·(z₂ − z)  ≥  (z₁ − z) · z₀² · 24√2  =  κ · f(t).
+    have hp_eq : aperyScalarP (z t)
+        = (aperyZ1 - z t) * (z t) ^ 2 * (aperyZ2 - z t) :=
+      aperyScalarP_factor' (z t)
+    have h_z2sq : z₀ ^ 2 ≤ (z t) ^ 2 := by
+      have hz_nn : 0 ≤ z t := le_trans (le_of_lt hz₀_pos) hzt_ge
+      have hz₀_nn : 0 ≤ z₀ := le_of_lt hz₀_pos
+      exact pow_le_pow_left₀ hz₀_nn hzt_ge 2
+    have h_z2_diff : aperyZ2 - aperyZ1 ≤ aperyZ2 - z t := by linarith
+    have h_z2_pos : 0 < aperyZ2 - z t := by
+      have : z t < aperyZ2 := lt_of_le_of_lt hzt_le aperyZ1_lt_aperyZ2
+      linarith
+    have h_ft_nn : 0 ≤ f t := by simp [hf_def]; linarith
+    have h_kappa_eq : aperyKappa z₀ = z₀ ^ 2 * (aperyZ2 - aperyZ1) := by
+      rw [aperyZ2_sub_aperyZ1]; rfl
+    -- Main inequality: p(z t) ≥ f t · κ
+    have h_pz_ge : aperyKappa z₀ * f t ≤ aperyScalarP (z t) := by
+      rw [hp_eq, h_kappa_eq]
+      have hz₀_sq_nn : 0 ≤ z₀ ^ 2 := by positivity
+      have h24_nn : 0 ≤ aperyZ2 - aperyZ1 := le_of_lt (by
+        have := aperyZ1_lt_aperyZ2; linarith)
+      -- z₀² · (z₂−z₁) · (z₁−z t) ≤ (z t)² · (z₂−z t) · (z₁−z t)
+      have h_step1 : z₀ ^ 2 * (aperyZ2 - aperyZ1) * f t ≤
+          (z t) ^ 2 * (aperyZ2 - aperyZ1) * f t :=
+        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right h_z2sq h24_nn) h_ft_nn
+      have h_step2 : (z t) ^ 2 * (aperyZ2 - aperyZ1) * f t ≤
+          (z t) ^ 2 * (aperyZ2 - z t) * f t := by
+        have hzt_sq_nn : 0 ≤ (z t) ^ 2 := by positivity
+        have : (z t) ^ 2 * (aperyZ2 - aperyZ1) ≤ (z t) ^ 2 * (aperyZ2 - z t) :=
+          mul_le_mul_of_nonneg_left h_z2_diff hzt_sq_nn
+        exact mul_le_mul_of_nonneg_right this h_ft_nn
+      have : z₀ ^ 2 * (aperyZ2 - aperyZ1) * f t ≤
+          (z t) ^ 2 * (aperyZ2 - z t) * f t :=
+        le_trans h_step1 h_step2
+      -- Rearrange the RHS to match aperyScalarP_factor'.
+      have hrhs : (aperyZ1 - z t) * (z t) ^ 2 * (aperyZ2 - z t) =
+          (z t) ^ 2 * (aperyZ2 - z t) * f t := by
+        simp [hf_def]; ring
+      linarith [this, hrhs.symm ▸ this]
+    linarith [h_pz_ge]
+  -- Apply Mathlib's scalar Grönwall.
+  have hGronwall :
+      ∀ x ∈ Icc (0 : ℝ) b, f x ≤ gronwallBound δ K 0 (x - 0) := by
+    apply le_gronwallBound_of_liminf_deriv_right_le hf_cont
+    · intro t ht r hr
+      have hd := hf_deriv t ht
+      exact hd.liminf_right_slope_le hr
+    · exact hf_init
+    · exact h_bound
+  -- Simplify `gronwallBound δ K 0 x` to `δ · exp(K · x) = δ · exp(−κ · x)`.
+  intro t ht
+  have hg := hGronwall t ht
+  rw [gronwallBound_ε0, sub_zero] at hg
+  simpa [hK_def, hδ_def, hf_def, mul_comm] using hg
+
+/-- **(F6) Invariant region.**  Any solution `z` of `z' = p(z)` starting
+at `z₀ ∈ (0, z₁)` stays in `[z₀, z₁]` for all `t ≥ 0`.
+
+**Status.**  Open.  Needs Picard uniqueness against the constant
+solution `z ≡ z₁` (Mathlib's `ODE_solution_unique` family). -/
+theorem apery_scalar_z_invariant_region
+    (z : ℝ → ℝ) (z₀ : ℝ)
+    (_hz₀_pos : 0 < z₀) (_hz₀_lt : z₀ < aperyZ1)
+    (_hz_init : z 0 = z₀)
+    (_hz_ode : ∀ t : ℝ, 0 ≤ t → HasDerivAt z (aperyScalarP (z t)) t) :
+    ∀ t : ℝ, 0 ≤ t → z₀ ≤ z t ∧ z t ≤ aperyZ1 := by
+  sorry
 
 /-- **(F6) Scalar exponential convergence of the Apéry z-coordinate.**
 Given `z : ℝ → ℝ` satisfying `z' = p(z)` on `[0, ∞)` with
@@ -150,9 +266,19 @@ theorem apery_scalar_z_exponential_convergence
     (hz_ode : ∀ t : ℝ, 0 ≤ t → HasDerivAt z (aperyScalarP (z t)) t) :
     ∃ K κ : ℝ, 0 < K ∧ 0 < κ ∧
       ∀ t : ℝ, 0 ≤ t → |aperyZ1 - z t| ≤ K * Real.exp (-(κ * t)) := by
-  refine ⟨aperyZ1 - z₀, aperyKappa z₀, ?_, aperyKappa_pos hz₀_pos, ?_⟩
-  · linarith
-  · sorry
+  refine ⟨aperyZ1 - z₀, aperyKappa z₀, by linarith, aperyKappa_pos hz₀_pos, ?_⟩
+  intro t ht
+  have h_region := apery_scalar_z_invariant_region z z₀ hz₀_pos hz₀_lt hz_init hz_ode
+  have h_gronwall := apery_scalar_z_gronwall_on_invariant_interval
+    z z₀ (t + 1) hz₀_pos hz₀_lt (by linarith) hz_init
+    (fun s hs => hz_ode s hs.1)
+    (fun s hs => h_region s hs.1)
+  have ht_in : t ∈ Icc (0 : ℝ) (t + 1) := ⟨ht, by linarith⟩
+  have ⟨_, hzt_le⟩ := h_region t ht
+  have hg := h_gronwall t ht_in
+  have h_abs : |aperyZ1 - z t| = aperyZ1 - z t := by
+    apply abs_of_nonneg; linarith
+  rw [h_abs]; exact hg
 
 end Number
 end Ripple
