@@ -496,36 +496,66 @@ considerably heavier.  We state the full assembly below and leave the
 semantic-solution component as a single clearly-scoped `sorry`.
 -/
 
-/-- **DNA25 Lemma 8 analytic content (scoped `sorry`).**
+/-- **DNA25 Lemma 8 analytic content (loosened hypothesis, scoped `sorry`).**
 
-Given two CBTC inputs `btcX` for `α`, `btcY` for `β`, under
-`0 < α < 1`, `0 ≤ β < 1`, `β < α`, the subtraction gadget's combined
-PIVP admits a semantic solution that is bounded, continuous, and whose
-output species (`z`) converges exponentially to `α − β`.
+This is the refactored form of the analytic core of DNA25 Lemma 8.  Per
+[RTCRN2] Lemma 8, the hypothesis needed is *not* that each of `x(t)` and
+`y(t)` individually converges to its target (with individual moduli),
+but only that the *difference* `x(t) − y(t)` converges to `α − β`.
+The two-stage Duhamel argument (below) only ever uses the convergence
+of the difference `x − y` (via `δ(t) := (x(t) − y(t)) − γ`), never the
+two components separately.
 
-Proof: Duhamel-style stability of the two coupled scalar stages
-(`z_r` reciprocal, `z` subtraction), analogous to
-`Ripple.Algebraic.relaxation_tracker_convergence` in `AddRationalPos.lean`
-but with two stages and time-varying coefficients.  See [RTCRN2] Lemma 8.
+Inputs:
+  * `Px`, `Py` : syntactic polynomial PIVPs computing `α`, `β`
+    (semantically — via `solX`, `solY`) and both bounded;
+  * `diffMod`  : a joint-difference modulus: past `diffMod r`, the
+    trajectory difference `x − y` is within `exp(-r)` of `α − β`;
+  * the hypotheses `0 < α < 1`, `0 ≤ β < 1`, `β < α` that ensure the
+    reciprocal stage is well-conditioned (`γ := α − β ∈ (0, 1)`).
 
-Leaving this as a single clearly-scoped `sorry`: the non-analytic, structural
-core of the gadget (PIVP, PCD, field_eq, non-negativity of coefficients,
-output index assignment) is fully proved above.  Downstream consumers can
-build CBTC+PCD witnesses for `α − β` assuming this analytic content. -/
--- TODO (per [RTCRN2] / Dad, 2026-04-20): when filling this sorry, loosen
--- the hypotheses.  Lemma 8 only requires `|x(t) − y(t) − (α−β)|` to
--- converge, not `x(t)` and `y(t)` individually.  Reformulate the analytic
--- statement around the CBTC witnesses' difference trajectory only, plus
--- boundedness of each input — drop the per-input modulus requirement.
+Proof (sketch; two-stage Duhamel, reducing to `relaxation_tracker_convergence`):
+
+  Stage A (`z_r`):  `z_r' = 1 − γ·z_r − δ·z_r` where `δ := (x − y) − γ`.
+    Since `|δ| → 0`, the linear scalar ODE `z_r' + γ·z_r = 1 − δ·z_r` has
+    `z_r(t) → 1/γ` via Duhamel + a uniform apriori bound on `z_r`.
+
+  Stage B (`z`):    `z' = 1 − z_r·z`.  Since `z_r → 1/γ`, we have
+    `(z − γ)' = (1 − γ·z_r) − z_r·(z − γ)`, where the coefficient of
+    `z − γ` tends to `−1/γ < 0` (exponential decay) and the forcing
+    `1 − γ·z_r → 0`, so `z(t) → γ = α − β`.
+
+The full formalisation requires constructing the semantic solution to
+this coupled two-stage nonlinear ODE (existence via `polyPIVP_field_locally_lipschitz`
++ apriori bound + `locally_lipschitz_bounded_global_ode_proved_continuous`,
+as in `DNA25Bounded.lean`), then running a two-layer Grönwall/Duhamel
+estimate analogous to `Ripple.Algebraic.relaxation_tracker_convergence`.
+This is a substantial infrastructure build on top of the one-stage case;
+we state it with the now-correct (loosened) hypothesis and scope it as
+a single `sorry`. Downstream consumers (`subtraction_cbtc_pcd`) build
+the joint-difference convergence `h_diff_conv` from two individual CBTC
+convergences via triangle inequality, so this refactor tightens *nothing*
+at the API level; it only aligns the internal statement with the actual
+mathematical scope of [RTCRN2] Lemma 8.
+
+[RTCRN2] Huang–Klinge–Lathrop, DNA 25 (2019), Lemma 8. -/
 theorem subtraction_lemma8_analytic {α β : ℝ} {d₁ d₂ : ℕ}
-    (btcX : CertifiedBoundedTimeComputable d₁ α)
-    (btcY : CertifiedBoundedTimeComputable d₂ β)
+    (Px : PolyPIVP d₁) (Py : PolyPIVP d₂)
+    (solX : PIVP.Solution Px.toPIVP) (solY : PIVP.Solution Py.toPIVP)
+    (_hXbd : Px.toPIVP.IsBounded solX.trajectory)
+    (_hYbd : Py.toPIVP.IsBounded solY.trajectory)
+    (_hXcont : Continuous solX.trajectory)
+    (_hYcont : Continuous solY.trajectory)
+    (_diffMod : TimeModulus)
+    (_h_diff_conv : ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > _diffMod r →
+      |solX.trajectory t Px.output - solY.trajectory t Py.output - (α - β)|
+      < Real.exp (-(r : ℝ)))
     (_hα_lo : 0 < α) (_hα_hi : α < 1)
     (_hβ_lo : 0 ≤ β) (_hβ_hi : β < 1)
     (_hαβ : β < α) :
-    ∃ (sol' : PIVP.Solution (subtractionPIVP btcX.pivp btcY.pivp).toPIVP)
+    ∃ (sol' : PIVP.Solution (subtractionPIVP Px Py).toPIVP)
       (modulus' : TimeModulus),
-      (subtractionPIVP btcX.pivp btcY.pivp).toPIVP.IsBounded sol'.trajectory ∧
+      (subtractionPIVP Px Py).toPIVP.IsBounded sol'.trajectory ∧
       (∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
         |sol'.trajectory t (idxZ d₁ d₂) - (α - β)| < Real.exp (-(r : ℝ))) ∧
       Continuous sol'.trajectory := by
@@ -552,11 +582,67 @@ theorem subtraction_cbtc_pcd {α β : ℝ} {d₁ d₂ : ℕ}
     (_hαβ : β < α) :
     ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' (α - β))
       (_ : PolyCRNDecomposition d' cbtc'.pivp), True := by
-  -- Analytic content (boundedness + continuity + convergence) deferred to a
-  -- clearly-scoped `sorry`; see `subtraction_lemma8_analytic` below for the
-  -- precise statement.  The PIVP + PCD are constructed fully above.
+  -- Build the joint-difference modulus via triangle inequality from the two
+  -- individual CBTC convergences.  At precision level `r`, we use each
+  -- sub-CBTC at level `r + 1`; then
+  --   |x(t) − y(t) − (α − β)| ≤ |x(t) − α| + |y(t) − β|
+  --                           < 2 · exp(-(r+1)) ≤ exp(-r)   (since 2 ≤ e).
+  let diffMod : TimeModulus := fun r => max (btcX.modulus (r+1)) (btcY.modulus (r+1))
+  have h_diff_conv : ∀ r : ℕ, ∀ t : ℝ, 0 ≤ t → t > diffMod r →
+      |btcX.sol.trajectory t btcX.pivp.output
+        - btcY.sol.trajectory t btcY.pivp.output - (α - β)|
+      < Real.exp (-(r : ℝ)) := by
+    intro r t _ht_nn ht_gt
+    have htX : btcX.modulus (r+1) < t := lt_of_le_of_lt (le_max_left _ _) ht_gt
+    have htY : btcY.modulus (r+1) < t := lt_of_le_of_lt (le_max_right _ _) ht_gt
+    have hXc : |btcX.sol.trajectory t btcX.pivp.output - α|
+                < Real.exp (-((r+1 : ℕ) : ℝ)) := btcX.convergence (r+1) t htX
+    have hYc : |btcY.sol.trajectory t btcY.pivp.output - β|
+                < Real.exp (-((r+1 : ℕ) : ℝ)) := btcY.convergence (r+1) t htY
+    -- Triangle: the difference bound is ≤ sum of the two individual bounds.
+    have h_triangle :
+        |btcX.sol.trajectory t btcX.pivp.output
+          - btcY.sol.trajectory t btcY.pivp.output - (α - β)|
+        ≤ |btcX.sol.trajectory t btcX.pivp.output - α|
+          + |btcY.sol.trajectory t btcY.pivp.output - β| := by
+      have hrw :
+          btcX.sol.trajectory t btcX.pivp.output
+            - btcY.sol.trajectory t btcY.pivp.output - (α - β)
+          = (btcX.sol.trajectory t btcX.pivp.output - α)
+            - (btcY.sol.trajectory t btcY.pivp.output - β) := by ring
+      rw [hrw, sub_eq_add_neg]
+      refine le_trans (abs_add_le _ _) ?_
+      rw [abs_neg]
+    -- Combine: 2 · exp(-(r+1)) ≤ exp(-r) because 2 ≤ e.
+    have h_sum : |btcX.sol.trajectory t btcX.pivp.output - α|
+                  + |btcY.sol.trajectory t btcY.pivp.output - β|
+                  < 2 * Real.exp (-((r+1 : ℕ) : ℝ)) := by linarith
+    have h_rewrite : 2 * Real.exp (-((r+1 : ℕ) : ℝ)) ≤ Real.exp (-(r : ℝ)) := by
+      -- 2·e^{-(r+1)} = 2·e^{-r}·e^{-1} = (2/e)·e^{-r} ≤ e^{-r} since 2 ≤ e.
+      have h_cancel :
+          Real.exp (-((r + 1 : ℕ) : ℝ)) = Real.exp (-(r : ℝ)) * Real.exp (-1) := by
+        rw [← Real.exp_add]; congr 1; push_cast; ring
+      rw [h_cancel]
+      have h_2_le_e : (2 : ℝ) ≤ Real.exp 1 := by
+        have := Real.add_one_lt_exp (x := (1 : ℝ)) (by norm_num)
+        linarith
+      have h_exp_neg_1_le_half : Real.exp (-1) ≤ (1 : ℝ) / 2 := by
+        rw [Real.exp_neg, show (1 : ℝ) / 2 = (2 : ℝ)⁻¹ by ring]
+        exact (inv_anti₀ (by norm_num : (0 : ℝ) < 2) h_2_le_e)
+      have hr_nn : 0 ≤ Real.exp (-(r : ℝ)) := (Real.exp_pos _).le
+      calc 2 * (Real.exp (-(r : ℝ)) * Real.exp (-1))
+          = Real.exp (-(r : ℝ)) * (2 * Real.exp (-1)) := by ring
+        _ ≤ Real.exp (-(r : ℝ)) * (2 * (1 / 2)) :=
+              mul_le_mul_of_nonneg_left
+                (by linarith [h_exp_neg_1_le_half]) hr_nn
+        _ = Real.exp (-(r : ℝ)) := by ring
+    linarith [h_triangle, h_sum, h_rewrite]
   obtain ⟨sol', mod', hbd, hconv, hcont⟩ :=
-    subtraction_lemma8_analytic btcX btcY _hα_lo _hα_hi _hβ_lo _hβ_hi _hαβ
+    subtraction_lemma8_analytic btcX.pivp btcY.pivp btcX.sol btcY.sol
+      btcX.bounded btcY.bounded
+      btcX.trajectory_continuous btcY.trajectory_continuous
+      diffMod h_diff_conv
+      _hα_lo _hα_hi _hβ_lo _hβ_hi _hαβ
   refine ⟨(d₁ + d₂) + 1 + 1,
     { pivp := subtractionPIVP btcX.pivp btcY.pivp
       sol := sol'
