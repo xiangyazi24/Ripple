@@ -76,6 +76,13 @@ structure CertifiedBoundedTimeComputable (d : ℕ) (α : ℝ) where
   modulus : TimeModulus
   /-- Boundedness of the trajectory. -/
   bounded : pivp.toPIVP.IsBounded sol.trajectory
+  /-- Continuity of the trajectory (derivable from Picard construction,
+  materialized as a field so downstream consumers can use it without
+  threading hypotheses). The `PIVP.Solution` bundle only guarantees
+  `HasDerivAt` on `[0, ∞)`; this field extends to global continuity
+  (with an arbitrary continuous extension at `t < 0` compatible with
+  the value at `t = 0`). -/
+  trajectory_continuous : Continuous sol.trajectory
   /-- Convergence to the target with the stated modulus. -/
   convergence : ∀ r : ℕ, ∀ t : ℝ, t > modulus r →
     |sol.trajectory t pivp.output - α| < Real.exp (-(r : ℝ))
@@ -482,6 +489,7 @@ theorem certified_realtime_rat_const (q : ℚ) :
         change ‖(q : ℝ)‖ ≤ |(q : ℝ)| + 1
         rw [Real.norm_eq_abs]
         linarith
+      trajectory_continuous := continuous_const
       convergence := by
         intro r t _
         simp only [Matrix.cons_val_zero, sub_self, abs_zero]

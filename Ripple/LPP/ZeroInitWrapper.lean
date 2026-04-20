@@ -68,6 +68,7 @@ theorem certified_zero_init_wrapper {β : ℝ} {d : ℕ}
       sol := extendedSolution cbtc q
       modulus := mod'
       bounded := extendedTraj_isBounded cbtc q
+      trajectory_continuous := extendedSolution_trajectory_continuous cbtc q
       convergence := by
         intro r t ht
         show |(extendedSolution cbtc q).trajectory t
@@ -108,6 +109,7 @@ theorem certified_zero_init_wrapper_sharp {β U : ℝ} {d : ℕ}
       sol := extendedSolution cbtc q
       modulus := mod'
       bounded := extendedTraj_isBounded cbtc q
+      trajectory_continuous := extendedSolution_trajectory_continuous cbtc q
       convergence := by
         intro r t ht
         show |(extendedSolution cbtc q).trajectory t

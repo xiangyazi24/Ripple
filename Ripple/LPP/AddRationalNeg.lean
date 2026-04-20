@@ -84,6 +84,7 @@ noncomputable def certifiedBTCForNegShift {β : ℝ} (q : ℚ) {d : ℕ}
   sol := extendedSolution cbtc q
   modulus := (relaxation_tracker_convergence q cbtc).choose
   bounded := extendedTraj_isBounded cbtc q
+  trajectory_continuous := extendedSolution_trajectory_continuous cbtc q
   convergence := by
     intro r t ht
     have hspec := (relaxation_tracker_convergence q cbtc).choose_spec

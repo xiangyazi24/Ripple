@@ -330,20 +330,22 @@ lemma minPolyPIVP_local_norm_bound
 
 /-! ## Assembled global existence -/
 
-/-- Global solution existence for the min-poly PIVP: the statement formerly
-axiomatized as `minPolyPIVP_exists_solution`. -/
-noncomputable def minPolyPIVP_global_solution
+/-- Global solution existence for the min-poly PIVP **with continuity**: same
+content as `minPolyPIVP_global_solution` but additionally surfaces a global
+`Continuous sol.trajectory` witness. Built on
+`locally_lipschitz_bounded_global_ode_proved_continuous`. -/
+noncomputable def minPolyPIVP_global_solution_continuous
     {α : ℝ} {P : Polynomial ℤ}
     (hα_pos : 0 < α)
     (hα_root : (Polynomial.aeval α P : ℝ) = 0)
     (hc0_nonneg : 0 ≤ P.coeff 0) :
-    PIVP.Solution (minPolyPIVP P).toPIVP := by
+    Σ' (sol : PIVP.Solution (minPolyPIVP P).toPIVP), Continuous sol.trajectory := by
   by_cases h_c0 : P.coeff 0 = 0
   · -- c₀ = 0: trajectory y = (fun _ _ => 0) is a solution
-    refine {
+    refine ⟨{
       trajectory := fun _ _ => 0
       init_cond := ?_
-      is_solution := ?_ }
+      is_solution := ?_ }, ?_⟩
     · funext i
       simp [minPolyPIVP, PolyPIVP.toPIVP]
     · intro t _
@@ -357,9 +359,11 @@ noncomputable def minPolyPIVP_global_solution
         rw [this, h_c0]; simp
       rw [h_field]
       exact hasDerivAt_const t (fun _ : Fin 1 => (0 : ℝ))
+    · -- Continuous (fun _ => fun _ => 0).
+      exact continuous_const
   · -- c₀ > 0 (we have c₀ ≥ 0 and c₀ ≠ 0)
     have hc0_pos : 0 < P.coeff 0 := lt_of_le_of_ne hc0_nonneg (Ne.symm h_c0)
-    -- Apply global existence
+    -- Apply global existence (continuous variant).
     have h_lip := polyPIVP_field_locally_lipschitz (minPolyPIVP P)
     have h_init_eq : (minPolyPIVP P).toPIVP.init = (fun _ : Fin 1 => (0 : ℝ)) := by
       funext i; simp [minPolyPIVP, PolyPIVP.toPIVP]
@@ -372,14 +376,33 @@ noncomputable def minPolyPIVP_global_solution
       have hy0 : y 0 = fun _ : Fin 1 => (0 : ℝ) := by
         rw [hy0_init, h_init_eq]
       exact minPolyPIVP_local_norm_bound hα_pos hα_root hc0_nonneg T hT y hy0 h_ode t ht
-    have h_ex := locally_lipschitz_bounded_global_ode_proved
+    have h_ex := locally_lipschitz_bounded_global_ode_proved_continuous
       (minPolyPIVP P).toPIVP.field (minPolyPIVP P).toPIVP.init h_lip
       α hα_pos h_invariant
-    exact {
+    refine ⟨{
       trajectory := Classical.choose h_ex
       init_cond := (Classical.choose_spec h_ex).1
-      is_solution := (Classical.choose_spec h_ex).2
-    }
+      is_solution := (Classical.choose_spec h_ex).2.1
+    }, (Classical.choose_spec h_ex).2.2⟩
+
+/-- Global solution existence for the min-poly PIVP: the statement formerly
+axiomatized as `minPolyPIVP_exists_solution`. -/
+noncomputable def minPolyPIVP_global_solution
+    {α : ℝ} {P : Polynomial ℤ}
+    (hα_pos : 0 < α)
+    (hα_root : (Polynomial.aeval α P : ℝ) = 0)
+    (hc0_nonneg : 0 ≤ P.coeff 0) :
+    PIVP.Solution (minPolyPIVP P).toPIVP :=
+  (minPolyPIVP_global_solution_continuous hα_pos hα_root hc0_nonneg).1
+
+/-- Continuity of the min-poly global solution trajectory. -/
+lemma minPolyPIVP_global_solution_continuous_traj
+    {α : ℝ} {P : Polynomial ℤ}
+    (hα_pos : 0 < α)
+    (hα_root : (Polynomial.aeval α P : ℝ) = 0)
+    (hc0_nonneg : 0 ≤ P.coeff 0) :
+    Continuous (minPolyPIVP_global_solution hα_pos hα_root hc0_nonneg).trajectory :=
+  (minPolyPIVP_global_solution_continuous hα_pos hα_root hc0_nonneg).2
 
 end Algebraic
 end Ripple

@@ -703,6 +703,53 @@ lemma extendedTraj_isBounded {d : ℕ} {β : ℝ}
     have h_mx : M ≤ max M Btr := le_max_left _ _
     linarith
 
+/-- Continuity of `trackerIntegral cbtc`: follows from
+`trackerIntegral_hasDerivAt`, which gives `HasDerivAt` at every `t : ℝ`,
+hence `ContinuousAt` at every `t`. -/
+lemma trackerIntegral_continuous {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    Continuous (trackerIntegral cbtc) := by
+  refine continuous_iff_continuousAt.mpr (fun t => ?_)
+  exact (trackerIntegral_hasDerivAt cbtc t).continuousAt
+
+/-- Continuity of `trackerTraj cbtc q`: as `q + e^{-t} · F(t)` with `F`
+continuous and `e^{-t}` continuous, the composition is continuous. -/
+lemma trackerTraj_continuous {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) :
+    Continuous (trackerTraj cbtc q) := by
+  unfold trackerTraj
+  have hExp : Continuous (fun t : ℝ => Real.exp (-t)) :=
+    Real.continuous_exp.comp continuous_neg
+  exact continuous_const.add (hExp.mul (trackerIntegral_continuous cbtc))
+
+/-- Continuity of `extendedTraj cbtc q`: via `Fin.snoc` assembly of
+the continuous `cbtc.sol.trajectory` (from `cbtc.trajectory_continuous`)
+and the continuous `trackerTraj`. -/
+lemma extendedTraj_continuous {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) :
+    Continuous (extendedTraj cbtc q) := by
+  -- Pointwise continuity via `continuous_pi`: each component is continuous.
+  refine continuous_pi (fun k => ?_)
+  refine Fin.lastCases ?_ (fun i => ?_) k
+  · -- Last coord: `trackerTraj cbtc q`.
+    have h1 : (fun t : ℝ => extendedTraj cbtc q t (Fin.last d))
+        = trackerTraj cbtc q := by
+      funext s; exact extendedTraj_last cbtc q s
+    rw [h1]
+    exact trackerTraj_continuous cbtc q
+  · -- castSucc coord: `cbtc.sol.trajectory t i` = `(continuous_apply i) ∘ cbtc.sol.trajectory`.
+    have h1 : (fun t : ℝ => extendedTraj cbtc q t i.castSucc)
+        = fun t : ℝ => cbtc.sol.trajectory t i := by
+      funext s; exact extendedTraj_castSucc cbtc q s i
+    rw [h1]
+    exact (continuous_apply i).comp cbtc.trajectory_continuous
+
+/-- Continuity of `extendedSolution cbtc q`'s trajectory. -/
+lemma extendedSolution_trajectory_continuous {d : ℕ} {β : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d β) (q : ℚ) :
+    Continuous (extendedSolution cbtc q).trajectory :=
+  extendedTraj_continuous cbtc q
+
 /-! ## Step 5d: relaxation tracker convergence (Grönwall/Duhamel estimate).
 
 With `extendedSolution` and `extendedTraj_isBounded` in hand, the remaining
@@ -1096,10 +1143,12 @@ theorem relaxation_tracker_solution {β : ℝ} (q : ℚ) (_hq : 0 < q) {d : ℕ}
       (modulus' : TimeModulus),
       (relaxationPIVP cbtc.pivp q).toPIVP.IsBounded sol'.trajectory ∧
       (∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
-        |sol'.trajectory t (Fin.last d) - (β + (q : ℝ))| < Real.exp (-(r : ℝ))) := by
+        |sol'.trajectory t (Fin.last d) - (β + (q : ℝ))| < Real.exp (-(r : ℝ))) ∧
+      Continuous sol'.trajectory := by
   obtain ⟨mod', hconv⟩ := relaxation_tracker_convergence q cbtc
   exact ⟨extendedSolution cbtc q, mod',
-    extendedTraj_isBounded cbtc q, hconv⟩
+    extendedTraj_isBounded cbtc q, hconv,
+    extendedSolution_trajectory_continuous cbtc q⟩
 
 /-! ## Step 6: assemble the full `CertifiedBoundedTimeComputable`. -/
 
@@ -1112,12 +1161,13 @@ theorem certified_add_rational_pos_proved {β : ℝ} (q : ℚ) (hq : 0 < q) {d :
     (pcd : PolyCRNDecomposition d cbtc.pivp) :
     ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' (β + (q : ℝ)))
       (_ : PolyCRNDecomposition d' cbtc'.pivp), True := by
-  obtain ⟨sol', mod', hbd, hconv⟩ := relaxation_tracker_solution q hq cbtc
+  obtain ⟨sol', mod', hbd, hconv, hcont⟩ := relaxation_tracker_solution q hq cbtc
   refine ⟨d + 1,
     { pivp := relaxationPIVP cbtc.pivp q
       sol := sol'
       modulus := mod'
       bounded := hbd
+      trajectory_continuous := hcont
       convergence := by
         intro r t ht
         show |sol'.trajectory t (relaxationPIVP cbtc.pivp q).output
@@ -1146,6 +1196,7 @@ theorem certified_add_rational_pos_sharp {β : ℝ} (q : ℚ) (hq : 0 < q)
       sol := extendedSolution cbtc q
       modulus := mod'
       bounded := extendedTraj_isBounded cbtc q
+      trajectory_continuous := extendedSolution_trajectory_continuous cbtc q
       convergence := by
         intro r t ht
         show |(extendedSolution cbtc q).trajectory t

@@ -2531,21 +2531,11 @@ lemma saturating_tracker_analytic_inputs {d : ℕ} {α : ℝ}
       Continuous (fun t => sol'.trajectory t (saturatingPIVP cbtc.pivp U).output) :=
     (continuous_apply _).comp h_traj_cont
   -- (2) Continuity of the driver CBTC output.
-  -- CBTC-API-GAP: continuity of `cbtc.sol.trajectory` at `t < 0` is not
-  -- determined by the `PIVP.Solution` bundle (which only carries `HasDerivAt`
-  -- on `[0, ∞)`). The downstream consumer (`saturating_tracker_tendsto`,
-  -- via `saturating_G_tendsto_atTop` / `saturating_phi_bound_from_G`) only
-  -- references `hx_cont` at points `t ≥ 0` (through FTC integrands and
-  -- exp-continuity), where `ContinuousAt x t` is readily derivable from
-  -- `HasDerivAt.continuousAt`. Bridging from pointwise `ContinuousAt` on
-  -- `[0, ∞)` to global `Continuous` requires either (a) refactoring
-  -- `CertifiedBoundedTimeComputable` to carry a `Continuous sol.trajectory`
-  -- field (parallel to the field now added to `saturating_extended_solution`
-  -- for the outer tracker), or (b) refactoring the four downstream
-  -- consumers to take `ContinuousOn (Set.Ici 0)` instead. Both touch ~10
-  -- call sites. Left as the single residual sorry in Phase D.
-  have hx_cont : Continuous (fun t => cbtc.sol.trajectory t cbtc.pivp.output) := by
-    sorry
+  -- CBTC now carries `trajectory_continuous` as a field, so `hx_cont`
+  -- is obtained by projecting the output coordinate out of the global
+  -- continuous trajectory.
+  have hx_cont : Continuous (fun t => cbtc.sol.trajectory t cbtc.pivp.output) :=
+    (continuous_apply cbtc.pivp.output).comp cbtc.trajectory_continuous
   refine ⟨h_out_cont, hx_cont, ?_⟩
   -- (3) Strict `y t < U`.
   -- Abbreviations.
@@ -2913,7 +2903,8 @@ theorem saturating_tracker_convergence {d : ℕ} {α : ℝ}
       (saturatingPIVP cbtc.pivp U).toPIVP.IsBounded sol'.trajectory ∧
       (∀ σ : ℝ, 0 ≤ σ →
         0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
-        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) := by
+        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) ∧
+      Continuous sol'.trajectory := by
   have hU_nn : (0 : ℝ) ≤ (U : ℝ) := le_trans hα_nn hU_lo.le
   have hU_pos : (0 : ℝ) < (U : ℝ) := lt_of_le_of_lt hα_nn hU_lo
   obtain ⟨sol', h_bounded, h_range, h_head, h_traj_cont⟩ :=
@@ -2923,7 +2914,7 @@ theorem saturating_tracker_convergence {d : ℕ} {α : ℝ}
   obtain ⟨μ', h_conv⟩ :=
     saturating_tracker_tendsto cbtc U hα_nn hU_lo hU_hi sol'
       h_range h_head hy_cont hx_cont hy_pos
-  exact ⟨sol', μ', h_conv, h_bounded, h_range⟩
+  exact ⟨sol', μ', h_conv, h_bounded, h_range, h_traj_cont⟩
 
 /-- Residual witness: the extended PIVP has a certified bounded-time
 computation for `α` (the same target), whose output trajectory stays
@@ -2944,7 +2935,8 @@ theorem saturating_tracker_solution {d : ℕ} {α : ℝ}
       (saturatingPIVP cbtc.pivp U).toPIVP.IsBounded sol'.trajectory ∧
       (∀ σ, 0 ≤ σ →
         0 ≤ sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ∧
-        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) :=
+        sol'.trajectory σ (saturatingPIVP cbtc.pivp U).output ≤ (U : ℝ)) ∧
+      Continuous sol'.trajectory :=
   saturating_tracker_convergence cbtc pcd U hα_nn hU_lo hU_hi
 
 /-! ## Step 6: package into a new CBTC + PCD with `output ≤ U` sharp bound.
@@ -2971,13 +2963,14 @@ theorem saturating_surrogate_cbtc {d : ℕ} {α : ℝ}
     have : (0 : ℝ) ≤ (U : ℝ) := le_trans hα_nn hU_lo.le
     exact_mod_cast this
   -- Get the analytic witness.
-  obtain ⟨sol', μ', hconv, hbdd, hrange⟩ :=
+  obtain ⟨sol', μ', hconv, hbdd, hrange, hcont⟩ :=
     saturating_tracker_solution cbtc pcd U hα_nn hU_lo hU_hi
   refine ⟨d + 1,
     { pivp := saturatingPIVP cbtc.pivp U
       sol := sol'
       modulus := μ'
       bounded := hbdd
+      trajectory_continuous := hcont
       convergence := hconv },
     saturatingPIVP_polyCRN U hU_nn pcd,
     (U : ℝ), hU_lo.le, hU_hi, ?_⟩

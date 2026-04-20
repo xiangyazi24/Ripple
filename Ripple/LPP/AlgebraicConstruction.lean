@@ -55,6 +55,17 @@ noncomputable def minPolyPIVP_exists_solution {α : ℝ} {P : Polynomial ℤ}
     PIVP.Solution (minPolyPIVP P).toPIVP :=
   minPolyPIVP_global_solution hα_pos hα_root (le_of_lt hc0_pos)
 
+/-- Continuity of the min-poly solution trajectory. Surfaces the
+`Continuous` witness needed to populate the `trajectory_continuous`
+field of `CertifiedBoundedTimeComputable`. -/
+lemma minPolyPIVP_exists_solution_continuous {α : ℝ} {P : Polynomial ℤ}
+    (hα_pos : 0 < α)
+    (hα_root : (Polynomial.aeval α P : ℝ) = 0)
+    (hα_smallest : ∀ β : ℝ, 0 < β → β < α → (Polynomial.aeval β P : ℝ) ≠ 0)
+    (hc0_pos : 0 < P.coeff 0) :
+    Continuous (minPolyPIVP_exists_solution hα_pos hα_root hα_smallest hc0_pos).trajectory :=
+  minPolyPIVP_global_solution_continuous_traj hα_pos hα_root (le_of_lt hc0_pos)
+
 /-- RTCRN1 Lemma 5.1 convergence: the trajectory converges to α with
 exponential rate bounded by `-P'(α) > 0`. Time modulus is therefore
 linear in the bit-precision r. Strict `0 < P.coeff 0` ensures the
@@ -102,6 +113,8 @@ theorem minPolyPIVP_certified {α : ℝ} {P : Polynomial ℤ}
     ∃ (cbtc : CertifiedBoundedTimeComputable 1 α)
       (_ : PolyCRNDecomposition 1 cbtc.pivp), True := by
   let sol := minPolyPIVP_exists_solution hα_pos hα_root hα_smallest hc0_pos
+  have h_sol_cont : Continuous sol.trajectory :=
+    minPolyPIVP_exists_solution_continuous hα_pos hα_root hα_smallest hc0_pos
   obtain ⟨mod, hb, hconv⟩ :=
     minPolyPIVP_convergence_modulus hα_pos hα_root hα_smallest hc0_pos hα_simple sol
   refine ⟨{
@@ -109,6 +122,7 @@ theorem minPolyPIVP_certified {α : ℝ} {P : Polynomial ℤ}
     sol := sol
     modulus := mod
     bounded := hb
+    trajectory_continuous := h_sol_cont
     convergence := hconv },
     { prod := fun _ => minPolyProd P
       degr := fun _ => minPolyDegr P
@@ -946,6 +960,9 @@ noncomputable def trivialZeroCBTC : CertifiedBoundedTimeComputable 1 (0 : ℝ) w
   bounded := ⟨1, by norm_num, fun t _ => by
     show ‖(fun _ : Fin 1 => (0 : ℝ))‖ ≤ 1
     simp [Pi.norm_def]⟩
+  trajectory_continuous := by
+    show Continuous (fun _ : ℝ => (fun _ : Fin 1 => (0 : ℝ)))
+    exact continuous_const
   convergence := by
     intro r t _
     show |(0 : ℝ) - 0| < Real.exp (-(r : ℝ))
@@ -1046,6 +1063,8 @@ theorem algebraic_reduction_to_minpoly_sharp {α : ℝ}
     -- Inline construction of the min-poly CBTC so that `cbtc.pivp = minPolyPIVP P`
     -- definitionally (avoids the opaque `.pivp` coming out of `obtain`).
     let sol := minPolyPIVP_exists_solution hpos hroot hsmallest hc0
+    have h_sol_cont : Continuous sol.trajectory :=
+      minPolyPIVP_exists_solution_continuous hpos hroot hsmallest hc0
     obtain ⟨mod, hb, hconv⟩ :=
       minPolyPIVP_convergence_modulus hpos hroot hsmallest hc0 hsimple sol
     let cbtc : CertifiedBoundedTimeComputable 1 (α - (q : ℝ)) :=
@@ -1053,6 +1072,7 @@ theorem algebraic_reduction_to_minpoly_sharp {α : ℝ}
         sol := sol
         modulus := mod
         bounded := hb
+        trajectory_continuous := h_sol_cont
         convergence := hconv }
     let pcd : PolyCRNDecomposition 1 cbtc.pivp :=
       { prod := fun _ => minPolyProd P
