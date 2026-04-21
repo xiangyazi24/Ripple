@@ -1396,7 +1396,13 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
               omega
             rw [show ((apery_P (n - 1) (k + 1) : ℤ) : ℚ) = 0 by rw [hPm]; rfl]
             -- Residual: 2-term version of the vdPoorten identity (no Δ₋).
-            -- Deferred.
+            -- Scaffolding (assembled but not closed — the final
+            -- linear_combination coefficient must be hand-derived from the
+            -- algebraic residual at k+1 = n, analogous to Case C below):
+            --   (n+1)³·P(n+1, k+1)·Δ₊ - B(n, k)·Δe = q(n, k) - q(n, k+1)
+            -- with P(n+1, n) = (n+1)²·C(2n+1,n)², B(n,k) = B(n,n-1), and
+            -- Pascal ratios (n+1)·C(2n+1,n) = (2n+1)·C(2n,n) and
+            -- 2·C(2n-1, n-1) = C(2n, n).  Deferred.
             sorry
         · -- k ≥ n.  Combined with hkN (k ≤ n), this forces k = n.
           have hkeq : k = n := le_antisymm (by omega) hkn
