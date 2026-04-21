@@ -1268,20 +1268,76 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
       field_simp
       ring
   | succ k _ih =>
-      -- Inductive step (axiom-free route):
-      --   1. Rewrite c(m, k+1) = c(m, k) + Δe(m, k) via `aperyE_succ` for
-      --      each m ∈ {n+1, n, n-1}, where
-      --      Δe(m, k) = (-1)^k / (2(k+1)³ · C(m, k+1) · C(m+k+1, k+1)).
-      --   2. Expand aperyW n (k+2) via `aperyW_succ`; unfold apery_B, apery_P.
-      --   3. Apply IH to eliminate the c(·, k)-weighted terms.
-      --   4. The remaining identity is a pure rational-function identity in
-      --      (n, k, and the four binomials C(m, k+1) for m ∈ {n-1, n, n+1, n+k+1}),
-      --      closable by `field_simp; ring` after multiplying through by the
-      --      common denominator (using Pascal ratios to link the four binomials).
-      -- Full axiom-free write-out deferred: this is the residual algebraic
-      -- work that vdPoorten 1979 §8 describes as "massive reorganization".
-      -- Numerical verification: /tmp/verify_witness.py (24/24 cases at
-      -- 1 ≤ n ≤ 4, 0 ≤ k ≤ n+2, exact rationals).
+      -- Inductive step.  Strategy:
+      --   • Expand aperyW n (k+2) and aperyW n (k+1) via `aperyW_succ`.
+      --   • The target after cancelling `B·c` terms is a difference of
+      --     four pieces [1..4] described in the docstring below.  Each
+      --     piece has a closed form coming from `aperyE_diff_*_closed`
+      --     and `apery_telescoping`.
+      --
+      -- Rather than carrying out the full multi-case factorial algebra
+      -- inline, we split on the three canonical regimes (A: k ≤ n-2,
+      -- B: k = n-1, C: k ≥ n) and handle the edge cases where P(·, k+1)
+      -- vanishes directly.  For case A the residual is a pure
+      -- rational-function identity in n, k and four binomials.
+      --
+      -- Abbreviations used below:
+      --   Δe(n,k)    = c(n,k+1) − c(n,k)                              (right diff of c)
+      --   Δ₊(n,k+1)  = c(n+1,k+1) − c(n,k+1)                          (upward n-diff)
+      --   Δ₋(n,k+1)  = c(n,k+1) − c(n-1,k+1)                          (downward n-diff)
+      --   q(n,k)     = 5(2n+1)(-1)^k k / (n(n+1)) · C(n,k) · C(n+k,k)
+      -- Then
+      --   LHS − RHS
+      --     = -B(n,k)·Δe(n,k)                              [1]
+      --       + (n+1)³·P(n+1,k+1)·Δ₊(n,k+1)               [2]
+      --       − n³·P(n-1,k+1)·Δ₋(n,k+1)                   [3]
+      --       + q(n,k+1) − q(n,k).                         [4]
+      -- using `apery_telescoping` at k+1 and `aperyW_succ` twice.
+      -- Helper: expand W values.
+      have hW₂ : aperyW n (k + 2) =
+          ((apery_B n (k + 1) : ℤ) : ℚ) * aperyC n (k + 1)
+            - 5 * (2 * (n : ℚ) + 1) * (-1 : ℚ) ^ (k + 1) * ((k : ℚ) + 1)
+                / ((n : ℚ) * ((n : ℚ) + 1))
+                * (Nat.choose n (k + 1) : ℚ) * (Nat.choose (n + (k + 1)) (k + 1) : ℚ) := by
+        have := aperyW_succ n (k + 1)
+        -- aperyW n (k+2) = B(n,k+1)·c(n,k+1) - correction at (k+1)
+        convert this using 2
+        push_cast; ring
+      have hW₁ : aperyW n (k + 1) =
+          ((apery_B n k : ℤ) : ℚ) * aperyC n k
+            - 5 * (2 * (n : ℚ) + 1) * (-1 : ℚ) ^ k * (k : ℚ)
+                / ((n : ℚ) * ((n : ℚ) + 1))
+                * (Nat.choose n k : ℚ) * (Nat.choose (n + k) k : ℚ) :=
+        aperyW_succ n k
+      -- Helper: closed form of Δe(n,k) = c(n,k+1) − c(n,k).
+      have hΔe : aperyC n (k + 1) - aperyC n k =
+          (-1 : ℚ) ^ k / (2 * ((k + 1 : ℚ) ^ 3) *
+              (Nat.choose n (k + 1) : ℚ) * (Nat.choose (n + k + 1) (k + 1) : ℚ)) := by
+        simp only [aperyC_split]
+        have := aperyE_diff_right_closed n k
+        linarith
+      -- Positivity facts for n.
+      have hnQ_pos : (0 : ℚ) < (n : ℚ) := by exact_mod_cast (Nat.lt_of_lt_of_le Nat.zero_lt_one hn)
+      have hnQ_ne : (n : ℚ) ≠ 0 := ne_of_gt hnQ_pos
+      have hn1Q_ne : ((n : ℚ) + 1) ≠ 0 := by positivity
+      have hn3_ne : (n : ℚ) ^ 3 ≠ 0 := pow_ne_zero 3 hnQ_ne
+      have hn13_ne : ((n : ℚ) + 1) ^ 3 ≠ 0 := pow_ne_zero 3 hn1Q_ne
+      -- Case split on (k+1) vs n.
+      -- Regime C: k + 1 > n (k ≥ n).  Here P(n+1, k+1), P(n, k+1), P(n-1, k+1) might
+      -- still be nonzero only for specific values.  P(m, k+1) = 0 when m < k+1.
+      -- So for k ≥ n+1: all three P vanish.  For k = n: P(n+1, n+1) ≠ 0 only.
+      -- Regime B: k + 1 = n (k = n-1).  Then P(n-1, n) = 0 since C(n-1, n) = 0.
+      -- Regime A: k + 1 ≤ n - 1 (k ≤ n - 2).  All three closed forms apply.
+      -- We handle the residual algebra as a single rational identity via
+      -- `field_simp; ring` after massaging binomials.  The core factorial
+      -- identity is deferred — numerically verified at /tmp/verify_witness.py
+      -- (24/24 cases at 1 ≤ n ≤ 4, 0 ≤ k ≤ n+2).
+      -- REMAINING SORRY: the residual factorial identity from
+      -- vdPoorten 1979 §8 "massive reorganization".  Specifically:
+      -- after substituting hW₂, hW₁, hΔe, and the closed forms for
+      -- Δ₊, Δ₋ (which require sub-case handling for the vanishing of
+      -- P(n-1, k+1) when k+1 > n-1), the remainder is a pure
+      -- rational identity in n, k, and four binomials.
       sorry
 
 /-- **Summed form of the vdPoorten witness identity.**
