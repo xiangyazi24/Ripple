@@ -1011,6 +1011,52 @@ lemma aperyD_recurrence_three_sum_form (n : ℕ) (hn : 1 ≤ n) :
   push_cast
   ring
 
+/-- **Abel-reduced form of the `F_D` recurrence.**
+
+    Combining `aperyD_recurrence_three_sum_form` (three-sum expansion)
+    with `aperyD_abel_telescope` (Abel summation on the T·e sum), the
+    `F_D(n)` quantity equals
+
+    `−Σ_{k∈range(n+1)} B(n,k) · Δe(n,k)
+        + Σ_{k∈range(n+2)} (n+1)³ P(n+1,k) · δ₊(n,k)
+        − Σ_{k∈range(n+2)} n³ P(n-1,k) · δ₋(n,k)`,
+
+    where `Δe(n,k) := e(n,k+1) − e(n,k)`,
+    `δ₊(n,k) := e(n+1,k) − e(n,k)`, and
+    `δ₋(n,k) := e(n,k) − e(n-1,k)`.
+
+    Proving that this quantity equals `a(n-1) − a(n+1)` is the
+    remaining sum-level factorial identity in `aperyD_recurrence`. -/
+lemma aperyD_recurrence_abel_form (n : ℕ) (hn : 1 ≤ n) :
+    ((n + 1 : ℚ) ^ 3) * aperyD (n + 1)
+      - (2 * n + 1 : ℚ) * (17 * n ^ 2 + 17 * n + 5) * aperyD n
+      + (n : ℚ) ^ 3 * aperyD (n - 1)
+    = - ∑ k ∈ Finset.range (n + 1),
+            ((apery_B n k : ℤ) : ℚ) * (aperyE n (k + 1) - aperyE n k)
+      + ∑ k ∈ Finset.range (n + 2),
+          ((n + 1 : ℚ) ^ 3) * ((apery_P (n + 1) k : ℤ) : ℚ)
+            * (aperyE (n + 1) k - aperyE n k)
+      - ∑ k ∈ Finset.range (n + 2),
+          ((n : ℚ) ^ 3) * ((apery_P (n - 1) k : ℤ) : ℚ)
+            * (aperyE n k - aperyE (n - 1) k) := by
+  -- Coefficient identity: (2n+1)(17n²+17n+5) = 34n³+51n²+27n+5.
+  have hcoef : (2 * (n : ℚ) + 1) * (17 * n ^ 2 + 17 * n + 5)
+      = 34 * (n : ℚ) ^ 3 + 51 * n ^ 2 + 27 * n + 5 := by ring
+  -- Replace the "(2n+1)(17n²+17n+5)" coefficient with the expanded form
+  -- to match `aperyD_recurrence_three_sum_form`.
+  have hLHS : ((n + 1 : ℚ) ^ 3) * aperyD (n + 1)
+        - (2 * (n : ℚ) + 1) * (17 * n ^ 2 + 17 * n + 5) * aperyD n
+        + (n : ℚ) ^ 3 * aperyD (n - 1)
+      = ((n + 1 : ℚ) ^ 3) * aperyD (n + 1)
+        - (34 * (n : ℚ) ^ 3 + 51 * n ^ 2 + 27 * n + 5) * aperyD n
+        + (n : ℚ) ^ 3 * aperyD (n - 1) := by
+    rw [hcoef]
+  rw [hLHS]
+  -- Apply the three-sum decomposition.
+  rw [aperyD_recurrence_three_sum_form n hn]
+  -- Apply Abel summation on the T·e sum.
+  rw [aperyD_abel_telescope n hn]
+
 /-- **Error-sequence recurrence (irreducible core — Zeilberger witness).**
 
     The error series `dₙ = Σ_k P(n,k) · e(n,k)` satisfies the
