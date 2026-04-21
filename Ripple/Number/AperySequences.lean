@@ -378,6 +378,129 @@ lemma aperyB_zero : aperyB 0 = 0 := by
   unfold aperyB aperyC
   simp
 
+/-! ### Decomposition `bₙ = H₃(n) · aₙ + dₙ`
+
+The correction `c(n,k) = H₃(n) + e(n,k)` splits `bₙ` into a harmonic part
+and an "error-series" part `dₙ := Σ_k P(n,k) · e(n,k)`.  The harmonic
+part satisfies the Apéry recurrence *with inhomogeneity* `aₙ₊₁ − aₙ₋₁`
+(from the shifts `H₃(n+1) − H₃(n) = 1/(n+1)³` and `H₃(n) − H₃(n-1) = 1/n³`),
+and the miracle of Apéry's proof is that `dₙ` satisfies the *opposite*
+inhomogeneity, so `bₙ` satisfies the homogeneous recurrence.
+-/
+
+/-- Harmonic-cubic partial sum `H₃(n) = Σ_{j=1..n} 1/j³`. -/
+noncomputable def aperyH3 (n : ℕ) : ℚ :=
+  ∑ j ∈ range n, (1 : ℚ) / ((j + 1 : ℚ) ^ 3)
+
+/-- The "error" part of `aperyC`:
+    `e(n, k) := Σ_{j=1..k} (−1)^(j−1) / (2 j³ C(n,j) C(n+j, j))`. -/
+noncomputable def aperyE (n k : ℕ) : ℚ :=
+  ∑ j ∈ range k,
+    ((-1 : ℚ) ^ j) /
+      (2 * ((j + 1 : ℚ) ^ 3) *
+        (Nat.choose n (j + 1) : ℚ) * (Nat.choose (n + j + 1) (j + 1) : ℚ))
+
+lemma aperyC_split (n k : ℕ) : aperyC n k = aperyH3 n + aperyE n k := by
+  unfold aperyC aperyH3 aperyE
+  rfl
+
+/-- Rational sum version of `aperyA n`, over ℚ instead of ℤ. -/
+lemma aperyA_rat_eq (n : ℕ) :
+    (aperyA n : ℚ) = ∑ k ∈ range (n + 1),
+        (Nat.choose n k : ℚ) ^ 2 * (Nat.choose (n + k) k : ℚ) ^ 2 := by
+  unfold aperyA
+  push_cast
+  rfl
+
+/-- The "error sequence"
+    `dₙ := Σ_{k = 0}^{n} C(n,k)² · C(n+k,k)² · e(n, k)`. -/
+noncomputable def aperyD (n : ℕ) : ℚ :=
+  ∑ k ∈ range (n + 1),
+    (Nat.choose n k : ℚ) ^ 2 * (Nat.choose (n + k) k : ℚ) ^ 2 * aperyE n k
+
+/-- **Linearity decomposition.** `bₙ = H₃(n) · aₙ + dₙ`. -/
+lemma aperyB_eq_decomp (n : ℕ) :
+    aperyB n = aperyH3 n * (aperyA n : ℚ) + aperyD n := by
+  unfold aperyB aperyD
+  simp_rw [aperyC_split, mul_add]
+  rw [Finset.sum_add_distrib]
+  congr 1
+  -- Goal 1: ∑ k, P(n,k) * H₃(n) = H₃(n) * aperyA n
+  · rw [← Finset.sum_mul, aperyA_rat_eq, mul_comm]
+
+/-- Harmonic increment: `H₃(n+1) = H₃(n) + 1/(n+1)³`. -/
+lemma aperyH3_succ (n : ℕ) :
+    aperyH3 (n + 1) = aperyH3 n + 1 / ((n + 1 : ℚ) ^ 3) := by
+  unfold aperyH3
+  rw [Finset.sum_range_succ]
+
+/-- Harmonic decrement (for `n ≥ 1`): `H₃(n) = H₃(n-1) + 1/n³`. -/
+lemma aperyH3_pred (n : ℕ) (hn : 1 ≤ n) :
+    aperyH3 n = aperyH3 (n - 1) + 1 / ((n : ℚ) ^ 3) := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  have : m + 1 - 1 = m := by omega
+  rw [this, aperyH3_succ]
+  push_cast; ring
+
+/-- **Harmonic-part recurrence.** The "`H₃ · aₙ` piece" of `F_B` equals
+    `aₙ₊₁ - aₙ₋₁`, by combining F1 with the harmonic shifts. -/
+lemma aperyHA_recurrence (n : ℕ) (hn : 1 ≤ n) :
+    ((n + 1 : ℚ) ^ 3) * (aperyH3 (n + 1) * (aperyA (n + 1) : ℚ))
+      - (2 * n + 1 : ℚ) * (17 * n ^ 2 + 17 * n + 5)
+          * (aperyH3 n * (aperyA n : ℚ))
+      + (n : ℚ) ^ 3 * (aperyH3 (n - 1) * (aperyA (n - 1) : ℚ))
+    = (aperyA (n + 1) : ℚ) - (aperyA (n - 1) : ℚ) := by
+  -- Substitute harmonic shifts.
+  have hSucc : aperyH3 (n + 1) = aperyH3 n + 1 / ((n + 1 : ℚ) ^ 3) :=
+    aperyH3_succ n
+  have hPred : aperyH3 n = aperyH3 (n - 1) + 1 / ((n : ℚ) ^ 3) :=
+    aperyH3_pred n hn
+  have hPred' : aperyH3 (n - 1) = aperyH3 n - 1 / ((n : ℚ) ^ 3) := by
+    rw [hPred]; ring
+  rw [hSucc, hPred']
+  -- Use F1 over ℚ, derived from `aperyA_recurrence`.
+  have hrec := aperyA_recurrence n hn
+  have hrecQ :
+      ((n : ℚ) + 1) ^ 3 * (aperyA (n + 1) : ℚ)
+        = (2 * (n : ℚ) + 1) * (17 * (n : ℚ) ^ 2 + 17 * n + 5) * (aperyA n : ℚ)
+            - (n : ℚ) ^ 3 * (aperyA (n - 1) : ℚ) := by
+    have := congrArg ((↑·) : ℤ → ℚ) hrec
+    push_cast at this
+    linarith
+  -- Cancel 1/(n+1)³ against (n+1)³ and 1/n³ against n³.
+  have hn1 : ((n : ℚ) + 1) ^ 3 ≠ 0 := by positivity
+  have hnn : (n : ℚ) ≠ 0 := by
+    have : (1 : ℚ) ≤ (n : ℚ) := by exact_mod_cast hn
+    linarith
+  have hnn3 : (n : ℚ) ^ 3 ≠ 0 := pow_ne_zero 3 hnn
+  field_simp
+  -- After field_simp, the goal is a polynomial identity modulo hrecQ.
+  linear_combination (aperyH3 n) * hrecQ
+
+/-- **Error-sequence recurrence (irreducible core — Zeilberger witness).**
+
+    The error series `dₙ = Σ_k P(n,k) · e(n,k)` satisfies the
+    inhomogeneous recurrence
+    `(n+1)³ dₙ₊₁ − (34n³+51n²+27n+5) dₙ + n³ dₙ₋₁ = aₙ₋₁ − aₙ₊₁`.
+
+    Proof: van der Poorten 1979 §8, pp. 201–203.  The extended
+    Zeilberger certificate
+    `B_e(n, k) := 4(2n+1)(k(2k+1) − (2n+1)²) · P(n,k) · e(n,k)
+                 + (−1)^(k−1) / (k · C(n,k) C(n+k,k))`
+    gives a telescoping identity whose `k`-sum yields `F_D(n) = aₙ₋₁ − aₙ₊₁`.
+
+    This is the *irreducible* combinatorial core of F1' — a separate
+    Zeilberger-style telescoping proof in the style of
+    `AperyCertificate.apery_telescoping`, but over ℚ with the
+    correction-term factors.  Left as `sorry` pending the extended
+    certificate; everything else in the F1' pipeline is closed. -/
+lemma aperyD_recurrence (n : ℕ) (hn : 1 ≤ n) :
+    ((n + 1 : ℚ) ^ 3) * aperyD (n + 1)
+      - (2 * n + 1 : ℚ) * (17 * n ^ 2 + 17 * n + 5) * aperyD n
+      + (n : ℚ) ^ 3 * aperyD (n - 1)
+    = (aperyA (n - 1) : ℚ) - (aperyA (n + 1) : ℚ) := by
+  sorry
+
 /-- **(F1', rational companion) — Apéry three-term recurrence for `bₙ`.**
 
     `bₙ` satisfies the *same* homogeneous three-term recurrence as `aₙ`
@@ -385,15 +508,36 @@ lemma aperyB_zero : aperyB 0 = 0 := by
     `bₙ / aₙ → ζ(3)`: both are solutions of a single linear recurrence,
     so the ratio stabilizes.
 
-    The certificate is an extension of `apery_telescoping` to the
-    rational summand `P(n,k) · c(n,k)`: the correction-term differences
-    `c(n+1,k) − c(n,k)` and `c(n,k) − c(n,k−1)` cancel exactly inside the
-    Zeilberger witness. -/
+    **Proof structure (axiom-free reduction).**  Decompose
+    `bₙ = H₃(n) · aₙ + dₙ` (lemma `aperyB_eq_decomp`).  The
+    harmonic piece's recurrence inhomogeneity is `aₙ₊₁ − aₙ₋₁`
+    (lemma `aperyHA_recurrence`); the error piece's recurrence
+    inhomogeneity is `aₙ₋₁ − aₙ₊₁` (lemma `aperyD_recurrence`, which
+    is the only residual `sorry` — the Zeilberger witness for the
+    correction-term series, vdPoorten 1979 §8).  The two
+    inhomogeneities cancel, yielding the homogeneous recurrence. -/
 lemma aperyB_recurrence (n : ℕ) (hn : 1 ≤ n) :
     ((n + 1 : ℚ) ^ 3) * aperyB (n + 1)
       = (2 * n + 1 : ℚ) * (17 * n ^ 2 + 17 * n + 5) * aperyB n
           - (n : ℚ) ^ 3 * aperyB (n - 1) := by
-  sorry
+  -- Expand `bₙ = H₃(n) · aₙ + dₙ` at all three indices.
+  rw [aperyB_eq_decomp (n + 1), aperyB_eq_decomp n, aperyB_eq_decomp (n - 1)]
+  -- Combine the harmonic and error recurrences.
+  have hHA := aperyHA_recurrence n hn
+  have hD := aperyD_recurrence n hn
+  linarith
+
+/-- Sanity check: `b₁ = 6`. -/
+example : aperyB 1 = 6 := by
+  unfold aperyB aperyC
+  simp [Finset.sum_range_succ, Finset.sum_range_one]
+  norm_num
+
+/-- Sanity check: `b₂ = 351/4`. -/
+example : aperyB 2 = 351 / 4 := by
+  unfold aperyB aperyC
+  simp [Finset.sum_range_succ, Finset.sum_range_one, Nat.choose]
+  norm_num
 
 /-! ## Generating functions `A(z)`, `B(z)` (formal power series)
 
