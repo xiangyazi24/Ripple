@@ -1386,7 +1386,58 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
             --   [3] = -n³ · P(n-1, k+1) · Δ₋
             --   [4] = q(n, k+1) - q(n, k)
             -- (vdPoorten 1979 §8 p. 201 "massive reorganization").
-            -- Deferred: final factorial identity (field_simp + Pascal ratios).
+            --
+            -- PROOF STRATEGY (parallel to Case B):
+            -- 1. Obtain apery_telescoping at (k+1) giving the coefficient of c(n, k+1).
+            -- 2. Rewrite c(n+1, k+1), c(n-1, k+1), c(n, k) in terms of c(n, k+1).
+            -- 3. After field_simp, the c(n, k+1) coefficient cancels via hTele, and the
+            --    residual is a Pascal/factorial identity in n, k.
+            --
+            -- Because the residual identity involves BOTH n- and k-Pascal relations
+            -- (four binomials C(n,k), C(n+1,k+1), C(n-1,k+1), C(n+k,k), C(n+k+1,k+1),
+            -- C(n+k+2,k+1) all interlinked), we decompose step by step.
+            have hkge1 : 1 ≤ k + 1 := Nat.le_add_left 1 k
+            have hTele := apery_telescoping n (k + 1) hkge1 hkplusn
+            rw [show k + 1 - 1 = k from by omega] at hTele
+            have hTeleQ : ((apery_B n (k + 1) : ℤ) : ℚ) - ((apery_B n k : ℤ) : ℚ)
+                = ((n : ℚ) + 1) ^ 3 * ((apery_P (n + 1) (k + 1) : ℤ) : ℚ)
+                  - (34 * (n : ℚ) ^ 3 + 51 * n ^ 2 + 27 * n + 5)
+                      * ((apery_P n (k + 1) : ℤ) : ℚ)
+                  + (n : ℚ) ^ 3 * ((apery_P (n - 1) (k + 1) : ℤ) : ℚ) := by
+              have := congrArg ((↑·) : ℤ → ℚ) hTele
+              push_cast at this; linarith
+            have hTeleQ' : ((n : ℚ) + 1) ^ 3 * ((apery_P (n + 1) (k + 1) : ℤ) : ℚ)
+                - (2 * (n : ℚ) + 1) * (17 * (n : ℚ) ^ 2 + 17 * n + 5)
+                    * ((apery_P n (k + 1) : ℤ) : ℚ)
+                + (n : ℚ) ^ 3 * ((apery_P (n - 1) (k + 1) : ℤ) : ℚ)
+                = ((apery_B n (k + 1) : ℤ) : ℚ) - ((apery_B n k : ℤ) : ℚ) := by
+              have hcoef : (2 * (n : ℚ) + 1) * (17 * (n : ℚ) ^ 2 + 17 * n + 5)
+                  = 34 * (n : ℚ) ^ 3 + 51 * n ^ 2 + 27 * n + 5 := by ring
+              rw [hcoef]; linarith
+            -- c-rewrites.
+            have hC_plus : aperyC (n + 1) (k + 1) = aperyC n (k + 1)
+                + ((-1 : ℚ) ^ (k + 1) * (Nat.factorial (k + 1) : ℚ) ^ 2
+                    * (Nat.factorial (n - k - 1) : ℚ)
+                  / (((n : ℚ) + 1) ^ 2 * (Nat.factorial (n + 1 + (k + 1)) : ℚ))) := by
+              linarith [hDplus]
+            have hC_minus : aperyC (n - 1) (k + 1) = aperyC n (k + 1)
+                - ((-1 : ℚ) ^ (k + 1) * (Nat.factorial (k + 1) : ℚ) ^ 2
+                    * (Nat.factorial (n - (k + 1) - 1) : ℚ)
+                  / ((n : ℚ) ^ 2 * (Nat.factorial (n + (k + 1)) : ℚ))) := by
+              linarith [hDminus]
+            have hC_right : aperyC n k = aperyC n (k + 1)
+                - ((-1 : ℚ) ^ k / (2 * ((k + 1 : ℚ) ^ 3)
+                    * (Nat.choose n (k + 1) : ℚ)
+                    * (Nat.choose (n + k + 1) (k + 1) : ℚ))) := by
+              linarith [hDe]
+            rw [hW₁, hW₂, hC_plus, hC_minus, hC_right]
+            -- Case A residual identity (C-free after using hTeleQ' to kill c(n,k+1) coef):
+            --   (n+1)³·P_{n+1}·Δ₊ − n³·P_{n-1}·Δ₋ = B_{n,k}·Δe + q_{n,k} − q_{n,k+1}
+            -- Numerical verification: /tmp/verify_witness.py passes 24/24 cases.
+            -- The explicit Groebner decomposition for this 4-term Pascal/factorial
+            -- identity spans many basis elements.  Deferred — see forthcoming
+            -- case-A helper lemma `apery_caseA_residual` expected to close this via
+            -- dedicated factorial simplifications.
             sorry
           · -- k + 1 = n (i.e., k = n - 1).  Then P(n-1, k+1) = P(n-1, n) = 0
             -- since C(n-1, n) = 0.  Δ₋ closed form doesn't apply, but the
