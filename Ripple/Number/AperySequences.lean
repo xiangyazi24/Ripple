@@ -1193,30 +1193,41 @@ lemma aperyE_delta_plus_boundary (n : ℕ) :
       k-telescope for `P` weighted by `B(n,k)`.
     * `aperyD_abel_telescope` (proved) — Abel summation transforms
       `Σ_{k∈range(n+2)} T(n,k) e(n,k) = −Σ_{k∈range(n+1)} B(n,k) Δe(n,k)`.
-    * `aperyA_int_extended` — range-extension lemma used in F1.
+    * `aperyA_int_extended`, `aperyD_range_extended` (proved) — range-
+      extension lemmas unifying the three aperyD sums onto range (n+2).
+    * `aperyD_recurrence_three_sum_form` (proved) — algebraic split of
+      `F_D(n)` into (T·e) + (n+1)³ P(n+1) δ₊ − n³ P(n-1) δ₋.
+    * `aperyD_recurrence_abel_form` (proved) — combines the above two
+      to reduce F_D(n) to `−Σ B·Δe + Σ (n+1)³ P(n+1) δ₊ − Σ n³ P(n-1) δ₋`.
+    * `aperyD_delta_minus_range` (proved) — restricts the δ₋ sum to
+      `range n` (the regime where `aperyE_diff_pred_closed` applies).
+    * `aperyD_delta_plus_split` (proved) — peels off the k=n+1 boundary
+      term of the δ₊ sum, leaving `range (n+1)` where
+      `aperyE_diff_succ_closed` applies.
+    * `aperyE_succ_at_top`, `aperyE_delta_plus_boundary` (proved) —
+      explicit closed form for the k=n+1 boundary value
+      `aperyE (n+1) (n+1) − aperyE n (n+1)`.
 
     **Remaining residual (what the `sorry` below covers):** after
-    expanding `F_D(n)` via the three-sum decomposition
-    `F_D = Σ T·e + Σ (n+1)³ p(n+1,k) δ₊ − Σ n³ p(n-1,k) δ₋` and
-    applying `aperyD_abel_telescope`, the target reduces to
+    applying `aperyD_recurrence_abel_form`, restricting the δ₋ sum via
+    `aperyD_delta_minus_range`, splitting off the boundary via
+    `aperyD_delta_plus_split`, substituting the three closed-form
+    lemmas (`aperyE_diff_{right,succ,pred}_closed` and
+    `aperyE_delta_plus_boundary`), and using `aperyA_int_eq_sum` to
+    identify the `−1/(n+1)³` and `−1/n³` constant pieces with
+    `−a(n+1) + P(n+1,n+1)` and `−a(n-1)` respectively, the target
+    reduces to a pure-factorial sum-level identity
 
-        `Σ_{k∈range(n+2)} [(n+1)³ P(n+1,k) δ₊(n,k) − n³ P(n-1,k) δ₋(n,k)]
-                − Σ_{k∈range(n+1)} B(n,k) Δe(n,k)
-            = a(n-1) − a(n+1)`.
+        `CR(n) = −P(n+1,n+1) · [(n+1)³ · δ₊(n,n+1) + 1]`,
 
-    Substituting the closed forms for δ₊, δ₋, Δe and reducing using
-    `aperyA_int_extended` leaves a purely rational identity in factorials
-    / binomial coefficients that does NOT hold pointwise in k — the
-    telescope is genuinely sum-level.  Numerical check (via Python) at
-    n ∈ {1, 2, 3, 4} confirms the identity holds but per-k residuals are
-    nonzero; the identity is recovered only after summation.
-
-    The remaining grind is: unfold closed forms of δ₊, δ₋, Δe, split the
-    −1/(n+1)³, −1/n³ pieces from each closed form (these sum to
-    ±a(n±1) using `aperyA_int_extended`), boundary-separate k=n+1 in the
-    δ₊ sum, then establish the resulting pure-factorial identity
-    `Σ k!²(n-k)!·{...}/[(n+1+k)!(n+k+1)!] = ...`.  This is van der
-    Poorten's "massive reorganization" (1979, p. 201). -/
+    where `CR(n)` is the sum of three closed-form residuals (verified
+    numerically at n ∈ {1, ..., 5}: CR(1)=15, CR(2)=−50, CR(3)=175,
+    CR(4)=−630, CR(5)=2310).  This is van der Poorten's "massive
+    reorganization" (1979 §8, p. 201): a sum-level identity (the
+    per-k residuals are nonzero — the identity is recovered only
+    after summation).  A rigorous proof requires either a Zeilberger
+    witness W(n,k) such that the CR summand equals W(n,k) − W(n,k−1),
+    or manual factorial simplification using Pascal ratios. -/
 lemma aperyD_recurrence (n : ℕ) (hn : 1 ≤ n) :
     ((n + 1 : ℚ) ^ 3) * aperyD (n + 1)
       - (2 * n + 1 : ℚ) * (17 * n ^ 2 + 17 * n + 5) * aperyD n
