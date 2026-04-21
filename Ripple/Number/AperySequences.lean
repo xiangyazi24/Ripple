@@ -1110,6 +1110,73 @@ lemma aperyD_delta_plus_split (n : ℕ) :
             * (aperyE (n + 1) (n + 1) - aperyE n (n + 1)) := by
   rw [Finset.sum_range_succ]
 
+/-- **Boundary collapse:** `aperyE n (n+1) = aperyE n n`.
+
+    The `j = n` term in the `aperyE n (n+1)` sum involves `C(n, n+1)`
+    in the denominator; since `C(n, n+1) = 0` and Lean's convention is
+    `1/0 = 0`, this extra term vanishes.  This is a key simplification
+    for the `k = n+1` boundary of the δ₊ sum in `aperyD_recurrence`. -/
+lemma aperyE_succ_at_top (n : ℕ) :
+    aperyE n (n + 1) = aperyE n n := by
+  rw [aperyE_succ]
+  -- Remaining increment: (-1)^n / (2(n+1)³ · C(n, n+1) · C(2n+1, n+1)).
+  -- C(n, n+1) = 0, so the whole term is (... / 0) = 0.
+  have hC0 : Nat.choose n (n + 1) = 0 := Nat.choose_eq_zero_of_lt (Nat.lt_succ_self _)
+  rw [hC0]
+  push_cast
+  ring
+
+/-- **Boundary value of the `δ₊` sum at `k = n+1`.**
+
+    Using `aperyE_succ_at_top` (which reduces `aperyE n (n+1)` to
+    `aperyE n n`), then `aperyE_succ` to unfold
+    `aperyE (n+1) (n+1) = aperyE (n+1) n + Δ`, and finally
+    `aperyE_diff_succ_closed` at `k = n` to express
+    `aperyE (n+1) n − aperyE n n` in closed form, we obtain:
+
+    `aperyE (n+1) (n+1) − aperyE n (n+1)
+      = −1/(n+1)³
+        + (−1)^n · (n!)² / ((n+1)² · (2n+1)!)
+        + (−1)^n / (2·(n+1)³ · C(2n+2, n+1))`.
+
+    (The first two terms come from `aperyE_diff_succ_closed` at `k = n`,
+    simplified using `n - n = 0` and `0! = 1`; the third term is the
+    increment from `aperyE_succ` at `(n+1, n+1)` with `C(n+1, n+1) = 1`.) -/
+lemma aperyE_delta_plus_boundary (n : ℕ) :
+    aperyE (n + 1) (n + 1) - aperyE n (n + 1)
+      = -(1 / (((n : ℚ) + 1) ^ 3))
+        + (-1 : ℚ) ^ n * (Nat.factorial n : ℚ) ^ 2
+            / (((n : ℚ) + 1) ^ 2 * (Nat.factorial (2 * n + 1) : ℚ))
+        + (-1 : ℚ) ^ n
+            / (2 * (((n : ℚ) + 1) ^ 3)
+                * (Nat.choose (2 * n + 2) (n + 1) : ℚ)) := by
+  -- Reduce `aperyE n (n+1)` to `aperyE n n`.
+  rw [aperyE_succ_at_top]
+  -- Unfold `aperyE (n+1) (n+1) = aperyE (n+1) n + Δ`.
+  rw [aperyE_succ]
+  -- Apply `aperyE_diff_succ_closed` at `k = n`.
+  have h := aperyE_diff_succ_closed n n (le_refl _)
+  -- `n - n = 0`, `Nat.factorial 0 = 1`.
+  have hsub : n - n = 0 := Nat.sub_self n
+  rw [hsub] at h
+  simp only [Nat.factorial_zero, Nat.cast_one, mul_one] at h
+  -- Rewrite `n + 1 + n` as `2n + 1` in h.
+  have h2n1 : n + 1 + n = 2 * n + 1 := by ring
+  rw [h2n1] at h
+  -- Now `h : aperyE (n+1) n − aperyE n n + 1/(n+1)³ = rhs_closed`.
+  -- Simplify the increment's denominator using `C(n+1, n+1) = 1`.
+  have hCnn : Nat.choose (n + 1) (n + 1) = 1 := Nat.choose_self _
+  rw [hCnn]
+  -- The `n + 1 + n + 1` inside the increment's `Nat.choose` becomes `2n + 2`.
+  have h2n2 : n + 1 + n + 1 = 2 * n + 2 := by ring
+  rw [h2n2]
+  -- Now the goal (after these rewrites) states:
+  --   aperyE (n+1) n + Δ_new − aperyE n n = closed_form_rhs
+  -- where Δ_new = (−1)^n / (2(n+1)³ · 1 · C(2n+2, n+1)).
+  -- Use `linear_combination` with `h`.
+  push_cast
+  linear_combination h
+
 /-- **Error-sequence recurrence (irreducible core — Zeilberger witness).**
 
     The error series `dₙ = Σ_k P(n,k) · e(n,k)` satisfies the
