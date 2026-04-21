@@ -2483,14 +2483,26 @@ lemma aperyB_recurrence (n : ℕ) (hn : 1 ≤ n) :
   have hD := aperyD_recurrence n hn
   linarith
 
-/-- Sanity check: `b₁ = 6`. -/
-example : aperyB 1 = 6 := by
+/-- `b₁ = 6`. -/
+lemma aperyB_one : aperyB 1 = 6 := by
   unfold aperyB aperyC
   simp [Finset.sum_range_succ, Finset.sum_range_one]
   norm_num
 
-/-- Sanity check: `b₂ = 351/4`. -/
-example : aperyB 2 = 351 / 4 := by
+/-- `b₂ = 351/4`. -/
+lemma aperyB_two : aperyB 2 = 351 / 4 := by
+  unfold aperyB aperyC
+  simp [Finset.sum_range_succ, Finset.sum_range_one, Nat.choose]
+  norm_num
+
+/-- `b₃ = 62531/36`. -/
+lemma aperyB_three : aperyB 3 = 62531 / 36 := by
+  unfold aperyB aperyC
+  simp [Finset.sum_range_succ, Finset.sum_range_one, Nat.choose]
+  norm_num
+
+/-- `b₄ = 11424695/288`. -/
+lemma aperyB_four : aperyB 4 = 11424695 / 288 := by
   unfold aperyB aperyC
   simp [Finset.sum_range_succ, Finset.sum_range_one, Nat.choose]
   norm_num
@@ -2788,6 +2800,176 @@ lemma aperyGFA_satisfies_ode :
   by_cases hN : 4 ≤ N
   · exact aperyGFA_ode_coeff_ge4 N hN
   · exact aperyGFA_ode_coeff_small N (by omega)
+
+
+/-- Unified coefficient form of Apéry's B-recurrence.
+
+    **Unlike the A-series**, the B-series is an *inhomogeneous* solution of
+    the Apéry recurrence at `n = 0`: because `b₀ = 0` and `b₁ = 6`, the
+    `n = 0` instance of the three-term identity evaluates to `6` rather
+    than `0`.  (For A the initial values `a₀ = 1`, `a₁ = 5` make the
+    `n = 0` case vanish automatically.)  This asymmetry is the source of
+    the `PowerSeries.C ℚ 6` inhomogeneity in `aperyGFB_satisfies_ode`. -/
+lemma aperyB_ode_coefficient (n : ℕ) :
+    ((n + 1 : ℚ) ^ 3) * aperyB (n + 1)
+      - (2 * n + 1 : ℚ) * (17 * n ^ 2 + 17 * n + 5) * aperyB n
+      + (n : ℚ) ^ 3 * aperyB (n - 1)
+      = (if n = 0 then 6 else 0) := by
+  rcases n with _ | m
+  · simp [aperyB_zero, aperyB_one]
+  · have hrec := aperyB_recurrence (m + 1) (Nat.le_add_left 1 m)
+    have hsub : (m + 1 - 1 : ℕ) = m := by omega
+    rw [hsub] at hrec
+    simp only [Nat.succ_ne_zero, if_false]
+    push_cast at hrec
+    push_cast
+    linear_combination hrec
+
+/-- The N-th coefficient of `aperyP.toPowerSeries * (Σ (b_{n+3}·(n+3)(n+2)(n+1)) zⁿ)`
+    is the sum of the three contributing monomials' terms, for N ≥ 4. -/
+private lemma aperyP_conv_coeff_ge4_B (N : ℕ) (hN : 4 ≤ N) :
+    PowerSeries.coeff (R := ℚ) N
+        (aperyP.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 3) *
+            ((n + 3) * (n + 2) * (n + 1) : ℚ))))
+      = 1 * (aperyB (N - 2 + 3) *
+              (((N - 2 : ℕ) + 3) * ((N - 2 : ℕ) + 2) * ((N - 2 : ℕ) + 1) : ℚ))
+        + (-34) * (aperyB (N - 3 + 3) *
+              (((N - 3 : ℕ) + 3) * ((N - 3 : ℕ) + 2) * ((N - 3 : ℕ) + 1) : ℚ))
+        + 1 * (aperyB (N - 4 + 3) *
+              (((N - 4 : ℕ) + 3) * ((N - 4 : ℕ) + 2) * ((N - 4 : ℕ) + 1) : ℚ)) := by
+  rw [coeff_toPS_mul_mk]
+  simp_rw [aperyP_coeff_explicit, add_mul]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  rw [sum_ite_eq_select N 2 1 _ (by omega),
+      sum_ite_eq_select N 3 (-34) _ (by omega),
+      sum_ite_eq_select N 4 1 _ (by omega)]
+
+private lemma aperyQ_conv_coeff_ge3_B (N : ℕ) (hN : 3 ≤ N) :
+    PowerSeries.coeff (R := ℚ) N
+        (aperyQ.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 2) *
+            ((n + 2) * (n + 1) : ℚ))))
+      = 3 * (aperyB (N - 1 + 2) *
+              (((N - 1 : ℕ) + 2) * ((N - 1 : ℕ) + 1) : ℚ))
+        + (-153) * (aperyB (N - 2 + 2) *
+              (((N - 2 : ℕ) + 2) * ((N - 2 : ℕ) + 1) : ℚ))
+        + 6 * (aperyB (N - 3 + 2) *
+              (((N - 3 : ℕ) + 2) * ((N - 3 : ℕ) + 1) : ℚ)) := by
+  rw [coeff_toPS_mul_mk]
+  simp_rw [aperyQ_coeff_explicit, add_mul]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  rw [sum_ite_eq_select N 1 3 _ (by omega),
+      sum_ite_eq_select N 2 (-153) _ (by omega),
+      sum_ite_eq_select N 3 6 _ (by omega)]
+
+private lemma aperyR_conv_coeff_ge2_B (N : ℕ) (hN : 2 ≤ N) :
+    PowerSeries.coeff (R := ℚ) N
+        (aperyRcoef.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 1) *
+            ((n + 1) : ℚ))))
+      = 1 * (aperyB (N - 0 + 1) * (((N - 0 : ℕ) + 1) : ℚ))
+        + (-112) * (aperyB (N - 1 + 1) * (((N - 1 : ℕ) + 1) : ℚ))
+        + 7 * (aperyB (N - 2 + 1) * (((N - 2 : ℕ) + 1) : ℚ)) := by
+  rw [coeff_toPS_mul_mk]
+  simp_rw [aperyRcoef_coeff_explicit, add_mul]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  rw [sum_ite_eq_select N 0 1 _ (by omega),
+      sum_ite_eq_select N 1 (-112) _ (by omega),
+      sum_ite_eq_select N 2 7 _ (by omega)]
+
+private lemma aperyS_conv_coeff_ge1_B (N : ℕ) (hN : 1 ≤ N) :
+    PowerSeries.coeff (R := ℚ) N
+        (aperyScoef.toPowerSeries * aperyGFB)
+      = (-5) * aperyB (N - 0) + 1 * aperyB (N - 1) := by
+  unfold aperyGFB
+  rw [coeff_toPS_mul_mk]
+  simp_rw [aperyScoef_coeff_explicit, add_mul]
+  rw [Finset.sum_add_distrib]
+  rw [sum_ite_eq_select N 0 (-5) _ (by omega),
+      sum_ite_eq_select N 1 1 _ (by omega)]
+
+/-- Helper: for N ≥ 4, the sum of the four convolutions matches the B-ODE coefficient. -/
+private lemma aperyGFB_ode_coeff_ge4 (N : ℕ) (hN : 4 ≤ N) :
+    PowerSeries.coeff (R := ℚ) N
+      (aperyP.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 3) *
+          ((n + 3) * (n + 2) * (n + 1) : ℚ)))
+        + aperyQ.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 2) *
+          ((n + 2) * (n + 1) : ℚ)))
+        + aperyRcoef.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 1) *
+          ((n + 1) : ℚ)))
+        + aperyScoef.toPowerSeries * aperyGFB) = 0 := by
+  rw [map_add, map_add, map_add,
+      aperyP_conv_coeff_ge4_B N hN,
+      aperyQ_conv_coeff_ge3_B N (by omega),
+      aperyR_conv_coeff_ge2_B N (by omega),
+      aperyS_conv_coeff_ge1_B N (by omega)]
+  obtain ⟨m, rfl⟩ : ∃ m, N = m + 4 := ⟨N - 4, by omega⟩
+  have h1 : m + 4 - 0 = m + 4 := by omega
+  have h2 : m + 4 - 1 = m + 3 := by omega
+  have h3 : m + 4 - 2 = m + 2 := by omega
+  have h4 : m + 4 - 3 = m + 1 := by omega
+  have h5 : m + 4 - 4 = m := by omega
+  simp only [h1, h2, h3, h4, h5]
+  have e1 : m + 2 + 3 = m + 5 := by omega
+  have e2 : m + 1 + 3 = m + 4 := by omega
+  have e3 : m + 3 + 2 = m + 5 := by omega
+  have e4 : m + 2 + 2 = m + 4 := by omega
+  have e5 : m + 1 + 2 = m + 3 := by omega
+  simp only [e1, e2, e3, e4, e5]
+  have hode := aperyB_ode_coefficient (m + 4)
+  have heq1 : m + 4 + 1 = m + 5 := by omega
+  have heq2 : m + 4 - 1 = m + 3 := by omega
+  rw [heq1, heq2] at hode
+  simp only [Nat.add_eq_zero, Nat.reduceEqDiff, and_false, if_false] at hode
+  push_cast at hode
+  push_cast
+  linarith [hode]
+
+/-- Helper: for N ∈ {0, 1, 2, 3}, verify the B-ODE coefficient matches the
+    inhomogeneity `if N = 0 then 6 else 0`.  (At `N = 0` the constant
+    contribution comes from `aperyRcoef.coeff 0 · b₁ = 1 · 6 = 6`; for
+    `1 ≤ N < 4` the coefficient vanishes by direct computation.) -/
+private lemma aperyGFB_ode_coeff_small (N : ℕ) (hN : N < 4) :
+    PowerSeries.coeff (R := ℚ) N
+      (aperyP.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 3) *
+          ((n + 3) * (n + 2) * (n + 1) : ℚ)))
+        + aperyQ.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 2) *
+          ((n + 2) * (n + 1) : ℚ)))
+        + aperyRcoef.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 1) *
+          ((n + 1) : ℚ)))
+        + aperyScoef.toPowerSeries * aperyGFB)
+      = (if N = 0 then 6 else 0) := by
+  rw [map_add, map_add, map_add]
+  unfold aperyGFB
+  simp only [coeff_toPS_mul_mk, PowerSeries.coeff_mk]
+  interval_cases N <;>
+    (simp [Finset.sum_range_succ, aperyP_coeff_explicit, aperyQ_coeff_explicit,
+           aperyRcoef_coeff_explicit, aperyScoef_coeff_explicit,
+           aperyB_zero, aperyB_one, aperyB_two, aperyB_three, aperyB_four]) <;>
+    norm_num
+
+/-- **(F2) — Apéry ODE for `B(z)` as a formal power series identity.**
+
+    Unlike the A-series (which satisfies the *homogeneous* Apéry ODE), the
+    B-series satisfies the Apéry ODE with a constant inhomogeneity `6` at
+    `z⁰` — because the recurrence only holds for `n ≥ 1`, and B's initial
+    values `b₀ = 0`, `b₁ = 6` fail to satisfy the `n = 0` instance
+    (whereas A's `a₀ = 1`, `a₁ = 5` do, by coincidence of the constants).
+
+    Reduces coefficient-by-coefficient to `aperyB_ode_coefficient`. -/
+lemma aperyGFB_satisfies_ode :
+    aperyP.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 3) *
+        ((n + 3) * (n + 2) * (n + 1) : ℚ)))
+      + aperyQ.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 2) *
+        ((n + 2) * (n + 1) : ℚ)))
+      + aperyRcoef.toPowerSeries * (PowerSeries.mk (fun n => aperyB (n + 1) *
+        ((n + 1) : ℚ)))
+      + aperyScoef.toPowerSeries * aperyGFB
+    = (PowerSeries.C (R := ℚ)) 6 := by
+  apply PowerSeries.ext
+  intro N
+  by_cases hN : 4 ≤ N
+  · rw [aperyGFB_ode_coeff_ge4 N hN, PowerSeries.coeff_C]
+    simp [show N ≠ 0 by omega]
+  · rw [aperyGFB_ode_coeff_small N (by omega), PowerSeries.coeff_C]
 
 end Number
 end Ripple
