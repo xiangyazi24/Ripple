@@ -498,7 +498,270 @@ lemma aperyE_succ (n k : ℕ) :
 lemma aperyE_zero (n : ℕ) : aperyE n 0 = 0 := by
   unfold aperyE; simp
 
-/-- `d(0) = 0` (the sum range is just `k = 0`, with `e(0,0) = 0`). -/
+/-- **(vdPoorten's closed-form miracle.)** The n-difference of `aperyE` has a
+    simple rational closed form. For `1 ≤ n` and `k ≤ n - 1`:
+
+    `aperyE n k - aperyE (n-1) k + 1/n³
+      = (-1)^k · (k!)² · (n-k-1)! / (n² · (n+k)!)`
+
+    Proved by induction on `k` using `aperyE_succ` and explicit factorial
+    algebra.  Source: vdPoorten 1979 §8, p. 201, column 1 ("After some massive
+    reorganization"). -/
+lemma aperyE_diff_pred_closed (n k : ℕ) (hn : 1 ≤ n) (hk : k ≤ n - 1) :
+    aperyE n k - aperyE (n - 1) k + 1 / ((n : ℚ) ^ 3)
+      = (-1 : ℚ) ^ k * (Nat.factorial k : ℚ) ^ 2 * (Nat.factorial (n - k - 1) : ℚ)
+          / ((n : ℚ) ^ 2 * (Nat.factorial (n + k) : ℚ)) := by
+  -- Basic positivity facts for `n`.
+  have hn_pos : 0 < n := hn
+  have hnQ_pos : (0 : ℚ) < (n : ℚ) := by exact_mod_cast hn_pos
+  have hnQ_ne : (n : ℚ) ≠ 0 := ne_of_gt hnQ_pos
+  induction k with
+  | zero =>
+      -- Base: both E-terms are 0; reduces to 1/n³ = (n-1)! / (n² · n!).
+      have hnfac_pos : 0 < Nat.factorial n := Nat.factorial_pos n
+      have hnfacQ_ne : (Nat.factorial n : ℚ) ≠ 0 := by
+        exact_mod_cast Nat.factorial_pos n |>.ne'
+      -- `n! = n · (n-1)!` (as ℕ) since `n ≥ 1`.
+      have hfac_unfold : Nat.factorial n = n * Nat.factorial (n - 1) := by
+        obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+        simp [Nat.factorial_succ]
+      have hfac_unfoldQ : (Nat.factorial n : ℚ)
+          = (n : ℚ) * (Nat.factorial (n - 1) : ℚ) := by
+        exact_mod_cast hfac_unfold
+      simp only [aperyE_zero, sub_self, zero_add, pow_zero, Nat.factorial_zero,
+        Nat.cast_one, one_pow, one_mul, Nat.sub_zero, Nat.add_zero]
+      -- Goal: 1 / n³ = (n-1)! / (n² · n!)
+      rw [hfac_unfoldQ]
+      have hfacnm1_ne : (Nat.factorial (n - 1) : ℚ) ≠ 0 := by
+        exact_mod_cast (Nat.factorial_pos _).ne'
+      field_simp
+  | succ k ih =>
+      -- Induction step: `k+1 ≤ n-1`, i.e. `k ≤ n - 2`.
+      have hk1 : k ≤ n - 1 := by omega
+      have ih' := ih hk1
+      -- Useful arithmetic: `k + 1 ≤ n - 1`, `k + 2 ≤ n`, etc.
+      have hk_plus : k + 1 ≤ n - 1 := hk
+      have hk_plus' : k + 2 ≤ n := by omega
+      have hk_leq_n : k + 1 ≤ n := by omega
+      have hk_succ_leq : k + 1 ≤ n - 1 := hk
+      -- Expand (k+1) in aperyE recursively at n and n-1.
+      rw [aperyE_succ n k, aperyE_succ (n - 1) k]
+      -- Collect the new increments; the algebraic target splits into:
+      --   (diff at k increments) - (closed form difference at k+1 vs k).
+      -- First move: factor out the IH, reducing to a factorial identity.
+      -- Key positivity facts.
+      have hk1Q_pos : (0 : ℚ) < ((k : ℚ) + 1) := by positivity
+      have hk1Q_ne : ((k : ℚ) + 1) ≠ 0 := ne_of_gt hk1Q_pos
+      have hk1Q_pow3_ne : ((k : ℚ) + 1) ^ 3 ≠ 0 := pow_ne_zero _ hk1Q_ne
+      -- Choose values are positive for the indices in range.
+      have hCn : 0 < Nat.choose n (k + 1) := Nat.choose_pos hk_leq_n
+      have hCnQ_ne : (Nat.choose n (k + 1) : ℚ) ≠ 0 := by exact_mod_cast hCn.ne'
+      have hCnk : 0 < Nat.choose (n + k + 1) (k + 1) := by
+        apply Nat.choose_pos; omega
+      have hCnkQ_ne : (Nat.choose (n + k + 1) (k + 1) : ℚ) ≠ 0 := by
+        exact_mod_cast hCnk.ne'
+      have hn1_pos : 0 < n - 1 := by omega
+      have hCnm : 0 < Nat.choose (n - 1) (k + 1) := by
+        apply Nat.choose_pos; omega
+      have hCnmQ_ne : (Nat.choose (n - 1) (k + 1) : ℚ) ≠ 0 := by
+        exact_mod_cast hCnm.ne'
+      have hCmk : 0 < Nat.choose (n - 1 + k + 1) (k + 1) := by
+        apply Nat.choose_pos; omega
+      have hCmkQ_ne : (Nat.choose (n - 1 + k + 1) (k + 1) : ℚ) ≠ 0 := by
+        exact_mod_cast hCmk.ne'
+      -- Factorial positivity / nonzero.
+      have hfac_nk_ne : (Nat.factorial (n + k) : ℚ) ≠ 0 := by
+        exact_mod_cast (Nat.factorial_pos _).ne'
+      have hfac_nk1_ne : (Nat.factorial (n + k + 1) : ℚ) ≠ 0 := by
+        exact_mod_cast (Nat.factorial_pos _).ne'
+      have hfac_k_ne : (Nat.factorial k : ℚ) ≠ 0 := by
+        exact_mod_cast (Nat.factorial_pos _).ne'
+      have hfac_k1_ne : (Nat.factorial (k + 1) : ℚ) ≠ 0 := by
+        exact_mod_cast (Nat.factorial_pos _).ne'
+      have hfac_nmk1_ne : (Nat.factorial (n - k - 1) : ℚ) ≠ 0 := by
+        exact_mod_cast (Nat.factorial_pos _).ne'
+      have hfac_nmk2_ne : (Nat.factorial (n - k - 2) : ℚ) ≠ 0 := by
+        exact_mod_cast (Nat.factorial_pos _).ne'
+      -- Key binomial-to-factorial identities (as ℚ).
+      -- (1) C(n, k+1) · (k+1)! · (n-k-1)! = n!
+      have hCn_id : (Nat.choose n (k + 1) : ℚ) * (Nat.factorial (k + 1) : ℚ)
+                        * (Nat.factorial (n - (k + 1)) : ℚ)
+                      = (Nat.factorial n : ℚ) := by
+        have := Nat.choose_mul_factorial_mul_factorial hk_leq_n
+        exact_mod_cast this
+      -- (2) C(n+k+1, k+1) · (k+1)! · (n+k+1 - (k+1))! = (n+k+1)!
+      have hCnk_id : (Nat.choose (n + k + 1) (k + 1) : ℚ)
+                        * (Nat.factorial (k + 1) : ℚ)
+                        * (Nat.factorial ((n + k + 1) - (k + 1)) : ℚ)
+                      = (Nat.factorial (n + k + 1) : ℚ) := by
+        have h : k + 1 ≤ n + k + 1 := by omega
+        have := Nat.choose_mul_factorial_mul_factorial h
+        exact_mod_cast this
+      -- (3) C(n-1, k+1) · (k+1)! · (n-1-(k+1))! = (n-1)!
+      have hCnm_id : (Nat.choose (n - 1) (k + 1) : ℚ)
+                        * (Nat.factorial (k + 1) : ℚ)
+                        * (Nat.factorial ((n - 1) - (k + 1)) : ℚ)
+                      = (Nat.factorial (n - 1) : ℚ) := by
+        have h : k + 1 ≤ n - 1 := hk
+        have := Nat.choose_mul_factorial_mul_factorial h
+        exact_mod_cast this
+      -- (4) C(n-1+k+1, k+1) · (k+1)! · (n-1+k+1-(k+1))! = (n-1+k+1)!
+      have hCmk_id : (Nat.choose (n - 1 + k + 1) (k + 1) : ℚ)
+                        * (Nat.factorial (k + 1) : ℚ)
+                        * (Nat.factorial ((n - 1 + k + 1) - (k + 1)) : ℚ)
+                      = (Nat.factorial (n - 1 + k + 1) : ℚ) := by
+        have h : k + 1 ≤ n - 1 + k + 1 := by omega
+        have := Nat.choose_mul_factorial_mul_factorial h
+        exact_mod_cast this
+      -- Simplify nat subtractions.
+      have hsub1 : n - (k + 1) = n - k - 1 := by omega
+      have hsub2 : (n + k + 1) - (k + 1) = n := by omega
+      have hsub3 : (n - 1) - (k + 1) = n - k - 2 := by omega
+      have hsub4 : (n - 1 + k + 1) - (k + 1) = n - 1 := by omega
+      have hsub5 : n - 1 + k + 1 = n + k := by omega
+      rw [hsub1] at hCn_id
+      rw [hsub2] at hCnk_id
+      rw [hsub3] at hCnm_id
+      rw [hsub4, hsub5] at hCmk_id
+      -- Replace `n - 1 + k + 1` everywhere with `n + k` so the binomial matches `(n+k)`.
+      have h_nmk : n - 1 + k + 1 = n + k := by omega
+      -- For hCmk the argument was already `(n - 1 + k + 1)`; rewrite to `(n + k)`
+      -- in both the choose and the factorial.
+      rw [h_nmk] at hCmk hCmkQ_ne
+      -- Also rewrite the LHS aperyE arguments for consistency: `(n - 1) + k + 1 = n + k`.
+      -- In the goal after `aperyE_succ (n-1) k`, we have `Nat.choose ((n-1) + k + 1) (k+1)`;
+      -- it should become `Nat.choose (n + k) (k + 1)`.
+      -- We do not need to rewrite in the goal; we'll handle with linear_combination below.
+      -- Expand `n!` in terms of `(n-1)!` and similar for `(n+k+1)!` vs `(n+k)!`.
+      have hfac_n_unfold : (Nat.factorial n : ℚ)
+          = (n : ℚ) * (Nat.factorial (n - 1) : ℚ) := by
+        obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+        simp [Nat.factorial_succ]
+      have hfac_nk1_unfold : (Nat.factorial (n + k + 1) : ℚ)
+          = ((n + k + 1 : ℕ) : ℚ) * (Nat.factorial (n + k) : ℚ) := by
+        have : Nat.factorial (n + k + 1) = (n + k + 1) * Nat.factorial (n + k) := by
+          rw [Nat.factorial_succ]
+        exact_mod_cast this
+      -- Unfold `(n - k - 1)! = (n - k - 1) · (n - k - 2)!` using `k+1 ≤ n-1`, so `n-k-1 ≥ 1`.
+      have hnk1_pos : 1 ≤ n - k - 1 := by omega
+      have hfac_nmk1_unfold : (Nat.factorial (n - k - 1) : ℚ)
+          = ((n - k - 1 : ℕ) : ℚ) * (Nat.factorial (n - k - 2) : ℚ) := by
+        have h : n - k - 1 = (n - k - 2) + 1 := by omega
+        rw [h, Nat.factorial_succ]
+        push_cast; ring
+      -- Key arithmetic: (n - k - 1 : ℕ) cast to ℚ equals (n : ℚ) - k - 1.
+      have hnkQ : ((n - k - 1 : ℕ) : ℚ) = (n : ℚ) - (k : ℚ) - 1 := by
+        have : (n - k - 1 : ℕ) + (k + 1) = n := by omega
+        have h1 := congrArg (fun m : ℕ => (m : ℚ)) this
+        push_cast at h1
+        linarith
+      have hnk1Q : ((n + k + 1 : ℕ) : ℚ) = (n : ℚ) + k + 1 := by push_cast; ring
+      -- Now close the proof. Strategy:
+      -- After the two `aperyE_succ` rewrites, the LHS of the goal is:
+      --   (e(n,k) + Δ_n) - (e(n-1,k) + Δ_{n-1}) + 1/n³
+      -- where Δ_n = (-1)^k / (2(k+1)³ · C(n,k+1) · C(n+k+1,k+1))
+      --       Δ_{n-1} = (-1)^k / (2(k+1)³ · C(n-1,k+1) · C(n-1+k+1,k+1))
+      -- The RHS is the closed form at (k+1).
+      -- Using IH, rearrange: LHS = RHS_ih + (Δ_n - Δ_{n-1}), need = RHS_{k+1}.
+      -- So need: Δ_n - Δ_{n-1} = RHS_{k+1} - RHS_ih.
+      -- We'll reduce everything to the common denominator via linear_combination.
+      --
+      -- Push `(n-1) + k + 1 = n + k` in the goal.
+      have hsum_rewrite : (n - 1) + k + 1 = n + k := by omega
+      rw [hsum_rewrite]
+      -- Now the goal involves choose arguments:
+      --   C(n, k+1), C(n+k+1, k+1), C(n-1, k+1), C(n+k, k+1).
+      -- We have identities relating these to factorials.  Clear the denominators
+      -- with field_simp then close by linear_combination of the four identities.
+      -- First, rewrite factorial on RHS: `(n + (k+1))! = (n+k+1)!`.
+      have h_nkk : n + (k + 1) = n + k + 1 := by ring
+      rw [h_nkk]
+      -- And `n - (k + 1) - 1 = n - k - 2`.
+      have h_nm2 : n - (k + 1) - 1 = n - k - 2 := by omega
+      rw [h_nm2]
+      -- Multiply through. Clear all fractions.
+      -- Strategy: multiply by common denominator and use ring after substituting
+      -- the four factorial identities.
+      -- Use `linear_combination` with explicit coefficients.
+      --
+      -- Express Δ_n and Δ_{n-1} rationally using the identities.
+      -- Define shorthand (as hypotheses) to tame the expression sizes.
+      set A : ℚ := (Nat.factorial k : ℚ) with hA
+      set Fn : ℚ := (Nat.factorial n : ℚ) with hFn
+      set Fnm : ℚ := (Nat.factorial (n - 1) : ℚ) with hFnm
+      set Fnk : ℚ := (Nat.factorial (n + k) : ℚ) with hFnk
+      set Fnk1 : ℚ := (Nat.factorial (n + k + 1) : ℚ) with hFnk1
+      set Fmk1 : ℚ := (Nat.factorial (n - k - 1) : ℚ) with hFmk1
+      set Fmk2 : ℚ := (Nat.factorial (n - k - 2) : ℚ) with hFmk2
+      set Fk1 : ℚ := (Nat.factorial (k + 1) : ℚ) with hFk1
+      -- Relate Fk1 to A: (k+1)! = (k+1) · k!
+      have hFk1_eq : Fk1 = ((k : ℚ) + 1) * A := by
+        simp [hFk1, hA, Nat.factorial_succ]
+      -- Relate Fn to Fnm: n! = n · (n-1)!
+      have hFn_eq : Fn = (n : ℚ) * Fnm := hfac_n_unfold
+      -- Relate Fnk1 to Fnk: (n+k+1)! = (n+k+1) · (n+k)!
+      have hFnk1_eq : Fnk1 = ((n : ℚ) + k + 1) * Fnk := by
+        rw [hfac_nk1_unfold, hnk1Q]
+      -- Relate Fmk1 to Fmk2: (n-k-1)! = (n-k-1) · (n-k-2)!
+      have hFmk1_eq : Fmk1 = ((n : ℚ) - k - 1) * Fmk2 := by
+        rw [hfac_nmk1_unfold, hnkQ]
+      -- Rewrite all factorial-ids via set.
+      have hCn_id' : (Nat.choose n (k + 1) : ℚ) * Fk1 * Fmk1 = Fn := hCn_id
+      have hCnk_id' : (Nat.choose (n + k + 1) (k + 1) : ℚ) * Fk1 * Fn = Fnk1 := hCnk_id
+      have hCnm_id' : (Nat.choose (n - 1) (k + 1) : ℚ) * Fk1 * Fmk2 = Fnm := hCnm_id
+      have hCmk_id' : (Nat.choose (n + k) (k + 1) : ℚ) * Fk1 * Fnm = Fnk := hCmk_id
+      -- Short names for the binomial values (to avoid cast noise).
+      set b1 : ℚ := (Nat.choose n (k + 1) : ℚ) with hb1
+      set b2 : ℚ := (Nat.choose (n + k + 1) (k + 1) : ℚ) with hb2
+      set b3 : ℚ := (Nat.choose (n - 1) (k + 1) : ℚ) with hb3
+      set b4 : ℚ := (Nat.choose (n + k) (k + 1) : ℚ) with hb4
+      have hb1_ne : b1 ≠ 0 := hCnQ_ne
+      have hb2_ne : b2 ≠ 0 := hCnkQ_ne
+      have hb3_ne : b3 ≠ 0 := hCnmQ_ne
+      have hb4_ne : b4 ≠ 0 := hCmkQ_ne
+      have hFn_ne : Fn ≠ 0 := by
+        simp [hFn]; exact_mod_cast (Nat.factorial_pos n).ne'
+      have hFnm_ne : Fnm ≠ 0 := by
+        simp [hFnm]; exact_mod_cast (Nat.factorial_pos _).ne'
+      have hFnk_ne : Fnk ≠ 0 := by
+        simp [hFnk]; exact_mod_cast (Nat.factorial_pos _).ne'
+      have hFnk1_ne : Fnk1 ≠ 0 := by
+        simp [hFnk1]; exact_mod_cast (Nat.factorial_pos _).ne'
+      have hFmk1_ne : Fmk1 ≠ 0 := by
+        simp [hFmk1]; exact_mod_cast (Nat.factorial_pos _).ne'
+      have hFmk2_ne : Fmk2 ≠ 0 := by
+        simp [hFmk2]; exact_mod_cast (Nat.factorial_pos _).ne'
+      have hFk1_ne : Fk1 ≠ 0 := by
+        simp [hFk1]; exact_mod_cast (Nat.factorial_pos _).ne'
+      have hA_ne : A ≠ 0 := by
+        simp [hA]; exact_mod_cast (Nat.factorial_pos _).ne'
+      -- From the four binomial-factorial identities, solve for each binomial.
+      have hb1_val : b1 = Fn / (Fk1 * Fmk1) := by
+        rw [eq_div_iff (mul_ne_zero hFk1_ne hFmk1_ne), ← mul_assoc]; exact hCn_id'
+      have hb2_val : b2 = Fnk1 / (Fk1 * Fn) := by
+        rw [eq_div_iff (mul_ne_zero hFk1_ne hFn_ne), ← mul_assoc]; exact hCnk_id'
+      have hb3_val : b3 = Fnm / (Fk1 * Fmk2) := by
+        rw [eq_div_iff (mul_ne_zero hFk1_ne hFmk2_ne), ← mul_assoc]; exact hCnm_id'
+      have hb4_val : b4 = Fnk / (Fk1 * Fnm) := by
+        rw [eq_div_iff (mul_ne_zero hFk1_ne hFnm_ne), ← mul_assoc]; exact hCmk_id'
+      -- Now the goal is a rational function equation in (n, k, and the set
+      -- variables).  Substitute binomial values and reduce.
+      rw [hb1_val, hb2_val, hb3_val, hb4_val]
+      -- Substitute Fk1, Fn, Fnk1, Fmk1 — both in the goal and in the IH.
+      rw [hFk1_eq, hFn_eq, hFnk1_eq, hFmk1_eq]
+      rw [hFmk1_eq] at ih'
+      -- Use `linear_combination` with IH to avoid `field_simp`'s blow-up.
+      -- First, introduce shortnames for the two "big" denominators on LHS.
+      -- After substitutions, the goal is purely rational in n, k, A, Fnm, Fnk, Fmk2.
+      -- Nonzero facts needed for field_simp:
+      have hnkp1_ne : ((n : ℚ) + k + 1) ≠ 0 := by
+        have : (0 : ℚ) < (n : ℚ) + k + 1 := by positivity
+        linarith
+      have hnkm1_ne : ((n : ℚ) - k - 1) ≠ 0 := by
+        have h1 : (1 : ℚ) ≤ ((n - k - 1 : ℕ) : ℚ) := by exact_mod_cast hnk1_pos
+        have h2 : ((n - k - 1 : ℕ) : ℚ) = (n : ℚ) - k - 1 := hnkQ
+        linarith
+      linear_combination (norm := (field_simp; ring)) ih'
 @[simp]
 lemma aperyD_zero : aperyD 0 = 0 := by
   unfold aperyD
