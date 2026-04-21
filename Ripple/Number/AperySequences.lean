@@ -1434,11 +1434,301 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
             -- Case A residual identity (C-free after using hTeleQ' to kill c(n,k+1) coef):
             --   (n+1)³·P_{n+1}·Δ₊ − n³·P_{n-1}·Δ₋ = B_{n,k}·Δe + q_{n,k} − q_{n,k+1}
             -- Numerical verification: /tmp/verify_witness.py passes 24/24 cases.
-            -- The explicit Groebner decomposition for this 4-term Pascal/factorial
-            -- identity spans many basis elements.  Deferred — see forthcoming
-            -- case-A helper lemma `apery_caseA_residual` expected to close this via
-            -- dedicated factorial simplifications.
-            sorry
+            --
+            -- STRATEGY: unfold all P/B to choose², convert choose to factorial form via
+            -- Nat.choose_mul_factorial_mul_factorial, apply factorial recurrences, then ring.
+            -- The residual is identically 0 modulo the factorial recurrences R1–R6:
+            --   Fk1 = (k+1)·Fk, Fn = n·FnmA, Fnk = (n-k)(n-k-1)·Fnk2,
+            --   Fnk1 = (n-k-1)·Fnk2, FN1 = (n+k+1)·FN, FN2 = (n+k+2)(n+k+1)·FN.
+            -- Verified symbolically via sympy (numerator = 0 after substitution).
+            --
+            -- First, bind all P values to their choose² expansions.
+            have hPn1_def : ((apery_P (n + 1) (k + 1) : ℤ) : ℚ)
+                = (Nat.choose (n + 1) (k + 1) : ℚ) ^ 2
+                  * (Nat.choose (n + 1 + (k + 1)) (k + 1) : ℚ) ^ 2 := by
+              unfold apery_P; push_cast; ring
+            have hPn_def : ((apery_P n (k + 1) : ℤ) : ℚ)
+                = (Nat.choose n (k + 1) : ℚ) ^ 2
+                  * (Nat.choose (n + (k + 1)) (k + 1) : ℚ) ^ 2 := by
+              unfold apery_P; push_cast; ring
+            have hPnm_def : ((apery_P (n - 1) (k + 1) : ℤ) : ℚ)
+                = (Nat.choose (n - 1) (k + 1) : ℚ) ^ 2
+                  * (Nat.choose ((n - 1) + (k + 1)) (k + 1) : ℚ) ^ 2 := by
+              unfold apery_P; push_cast; ring
+            have hBnk_def : ((apery_B n k : ℤ) : ℚ)
+                = 4 * (2 * (n : ℚ) + 1) * ((k : ℚ) * (2 * k + 1) - (2 * n + 1) ^ 2)
+                  * ((Nat.choose n k : ℚ) ^ 2 * (Nat.choose (n + k) k : ℚ) ^ 2) := by
+              unfold apery_B apery_P; push_cast; ring
+            have hBnk1_def : ((apery_B n (k + 1) : ℤ) : ℚ)
+                = 4 * (2 * (n : ℚ) + 1) * (((k : ℚ) + 1) * (2 * (k + 1) + 1) - (2 * n + 1) ^ 2)
+                  * ((Nat.choose n (k + 1) : ℚ) ^ 2 * (Nat.choose (n + (k + 1)) (k + 1) : ℚ) ^ 2) := by
+              unfold apery_B apery_P; push_cast; ring
+            -- Build an expanded version of hTeleQ' that uses choose² form directly.
+            -- This will be used via linear_combination at the end, after all rewrites.
+            have hTeleQ'_exp : ((n : ℚ) + 1) ^ 3
+                  * ((Nat.choose (n + 1) (k + 1) : ℚ) ^ 2
+                      * (Nat.choose (n + 1 + (k + 1)) (k + 1) : ℚ) ^ 2)
+                - (2 * (n : ℚ) + 1) * (17 * (n : ℚ) ^ 2 + 17 * n + 5)
+                    * ((Nat.choose n (k + 1) : ℚ) ^ 2
+                        * (Nat.choose (n + (k + 1)) (k + 1) : ℚ) ^ 2)
+                + (n : ℚ) ^ 3
+                    * ((Nat.choose (n - 1) (k + 1) : ℚ) ^ 2
+                        * (Nat.choose ((n - 1) + (k + 1)) (k + 1) : ℚ) ^ 2)
+                = (4 * (2 * (n : ℚ) + 1)
+                      * (((k : ℚ) + 1) * (2 * (k + 1) + 1) - (2 * n + 1) ^ 2)
+                      * ((Nat.choose n (k + 1) : ℚ) ^ 2
+                          * (Nat.choose (n + (k + 1)) (k + 1) : ℚ) ^ 2))
+                  - (4 * (2 * (n : ℚ) + 1) * ((k : ℚ) * (2 * k + 1) - (2 * n + 1) ^ 2)
+                      * ((Nat.choose n k : ℚ) ^ 2 * (Nat.choose (n + k) k : ℚ) ^ 2)) := by
+              have h1 := hTeleQ'
+              rw [hPn1_def, hPn_def, hPnm_def, hBnk_def, hBnk1_def] at h1
+              linarith [h1]
+            rw [hPn1_def, hPn_def, hPnm_def, hBnk_def, hBnk1_def]
+            -- Key observation: n-1 ≥ 0 since hn : 1 ≤ n. Also k+1 ≤ n-1 since hk2 : k+1 < n.
+            have hkpn : k + 1 ≤ n := hkplusn
+            have hkpnm : k + 1 ≤ n - 1 := by omega
+            have hnm_eq : (n - 1) + (k + 1) = n + k := by omega
+            have hn1k1 : n + 1 + (k + 1) = n + k + 2 := by ring
+            have hnk1 : n + (k + 1) = n + k + 1 := by ring
+            -- Normalize the factorial-index from hDminus: (n - (k+1) - 1) = (n - k - 2).
+            have hnkk2 : n - (k + 1) - 1 = n - k - 2 := by omega
+            rw [show (n - 1 + (k + 1)) = n + k from hnm_eq,
+                show n + 1 + (k + 1) = n + k + 2 from hn1k1,
+                show n + (k + 1) = n + k + 1 from hnk1,
+                show n - (k + 1) - 1 = n - k - 2 from hnkk2]
+            rw [show (n - 1 + (k + 1)) = n + k from hnm_eq,
+                show n + 1 + (k + 1) = n + k + 2 from hn1k1,
+                show n + (k + 1) = n + k + 1 from hnk1] at hTeleQ'_exp
+            -- Express C(n-1, k+1) in terms of factorials directly:
+            -- We'll use Nat.choose_mul_factorial_mul_factorial to rewrite every choose(m, j)
+            -- as m! / (j! * (m-j)!), then factorial recurrences reduce everything to a common base.
+            --
+            -- Set factorial abbreviations.
+            set Fk : ℚ := (Nat.factorial k : ℚ) with hFk_def
+            set Fk1 : ℚ := (Nat.factorial (k + 1) : ℚ) with hFk1_def
+            set Fn : ℚ := (Nat.factorial n : ℚ) with hFn_def
+            set FnmA : ℚ := (Nat.factorial (n - 1) : ℚ) with hFnmA_def
+            set Fnk2 : ℚ := (Nat.factorial (n - k - 2) : ℚ) with hFnk2_def
+            set Fnk1 : ℚ := (Nat.factorial (n - k - 1) : ℚ) with hFnk1_def
+            set Fnk : ℚ := (Nat.factorial (n - k) : ℚ) with hFnk_def
+            set FN : ℚ := (Nat.factorial (n + k) : ℚ) with hFN_def
+            set FN1 : ℚ := (Nat.factorial (n + k + 1) : ℚ) with hFN1_def
+            set FN2 : ℚ := (Nat.factorial (n + k + 2) : ℚ) with hFN2_def
+            -- Also capture the opaque C.
+            set C := aperyC n (k + 1) with hC_def
+            -- Factorial recurrences.
+            have hR_Fk1 : Fk1 = ((k : ℚ) + 1) * Fk := by
+              simp only [hFk1_def, hFk_def]
+              have := Nat.factorial_succ k
+              have := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at this; linarith
+            have hR_Fn : Fn = (n : ℚ) * FnmA := by
+              simp only [hFn_def, hFnmA_def]
+              have h1 : Nat.factorial n = n * Nat.factorial (n - 1) := by
+                have hEq : n = (n - 1) + 1 := by omega
+                conv_lhs => rw [hEq]
+                rw [Nat.factorial_succ, show n - 1 + 1 = n from by omega]
+              have hh := congrArg ((↑·) : ℕ → ℚ) h1
+              push_cast at hh; linarith
+            have hR_Fnk1 : Fnk1 = ((n : ℚ) - k - 1) * Fnk2 := by
+              simp only [hFnk1_def, hFnk2_def]
+              have h1 : Nat.factorial (n - k - 1) = (n - k - 1) * Nat.factorial (n - k - 2) := by
+                have hEq : n - k - 1 = (n - k - 2) + 1 := by omega
+                conv_lhs => rw [hEq]
+                rw [Nat.factorial_succ, show n - k - 2 + 1 = n - k - 1 from by omega]
+              have hh := congrArg ((↑·) : ℕ → ℚ) h1
+              push_cast at hh
+              have hcast : ((n - k - 1 : ℕ) : ℚ) = (n : ℚ) - k - 1 := by
+                have h2 : n - k - 1 + k + 1 = n := by omega
+                have h3 : ((n - k - 1 + k + 1 : ℕ) : ℚ) = (n : ℚ) := by
+                  rw [h2]
+                push_cast at h3; linarith
+              rw [hcast] at hh
+              linarith
+            have hR_Fnk : Fnk = ((n : ℚ) - k) * Fnk1 := by
+              simp only [hFnk_def, hFnk1_def]
+              have h1 : Nat.factorial (n - k) = (n - k) * Nat.factorial (n - k - 1) := by
+                have hEq : n - k = (n - k - 1) + 1 := by omega
+                conv_lhs => rw [hEq]
+                rw [Nat.factorial_succ, show n - k - 1 + 1 = n - k from by omega]
+              have hh := congrArg ((↑·) : ℕ → ℚ) h1
+              push_cast at hh
+              have hcast : ((n - k : ℕ) : ℚ) = (n : ℚ) - k := by
+                have h2 : n - k + k = n := by omega
+                have h3 : ((n - k + k : ℕ) : ℚ) = (n : ℚ) := by rw [h2]
+                push_cast at h3; linarith
+              rw [hcast] at hh
+              linarith
+            have hR_FN1 : FN1 = ((n : ℚ) + k + 1) * FN := by
+              simp only [hFN1_def, hFN_def]
+              have := Nat.factorial_succ (n + k)
+              have hh := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh; linarith
+            have hR_FN2 : FN2 = ((n : ℚ) + k + 2) * FN1 := by
+              simp only [hFN2_def, hFN1_def]
+              have hh : n + k + 2 = (n + k + 1) + 1 := by ring
+              rw [show n + k + 2 = (n + k + 1) + 1 from hh]
+              have := Nat.factorial_succ (n + k + 1)
+              have hh2 := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh2; linarith
+            -- Now convert each Nat.choose to factorial form.
+            -- C(n, k) · k! · (n-k)! = n!
+            have hCnk_fact : (Nat.choose n k : ℚ) * Fk * Fnk = Fn := by
+              simp only [hFk_def, hFnk_def, hFn_def]
+              have hle : k ≤ n := by omega
+              have := Nat.choose_mul_factorial_mul_factorial hle
+              have hh := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh; linarith
+            -- C(n, k+1) · (k+1)! · (n-k-1)! = n!
+            have hCnk1_fact : (Nat.choose n (k + 1) : ℚ) * Fk1 * Fnk1 = Fn := by
+              simp only [hFk1_def, hFnk1_def, hFn_def]
+              have hle : k + 1 ≤ n := hkpn
+              have hsub : n - (k + 1) = n - k - 1 := by omega
+              have := Nat.choose_mul_factorial_mul_factorial hle
+              rw [hsub] at this
+              have hh := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh; linarith
+            -- C(n+1, k+1) · (k+1)! · (n-k)! = (n+1)!
+            have hCn1k1_fact : (Nat.choose (n + 1) (k + 1) : ℚ) * Fk1 * Fnk
+                = ((n : ℚ) + 1) * Fn := by
+              simp only [hFk1_def, hFnk_def, hFn_def]
+              have hle : k + 1 ≤ n + 1 := by omega
+              have hsub : n + 1 - (k + 1) = n - k := by omega
+              have h1 := Nat.choose_mul_factorial_mul_factorial hle
+              rw [hsub] at h1
+              have hfn1 : Nat.factorial (n + 1) = (n + 1) * Nat.factorial n := Nat.factorial_succ n
+              rw [hfn1] at h1
+              have hh := congrArg ((↑·) : ℕ → ℚ) h1
+              push_cast at hh; linarith
+            -- C(n-1, k+1) · (k+1)! · (n-k-2)! = (n-1)!
+            have hCnmk1_fact : (Nat.choose (n - 1) (k + 1) : ℚ) * Fk1 * Fnk2 = FnmA := by
+              simp only [hFk1_def, hFnk2_def, hFnmA_def]
+              have hle : k + 1 ≤ n - 1 := hkpnm
+              have hsub : (n - 1) - (k + 1) = n - k - 2 := by omega
+              have := Nat.choose_mul_factorial_mul_factorial hle
+              rw [hsub] at this
+              have hh := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh; linarith
+            -- C(n+k, k) · k! · n! = (n+k)!
+            have hCNk_fact : (Nat.choose (n + k) k : ℚ) * Fk * Fn = FN := by
+              simp only [hFk_def, hFn_def, hFN_def]
+              have hle : k ≤ n + k := by omega
+              have hsub : n + k - k = n := by omega
+              have := Nat.choose_mul_factorial_mul_factorial hle
+              rw [hsub] at this
+              have hh := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh; linarith
+            -- C(n+k+1, k+1) · (k+1)! · n! = (n+k+1)!
+            have hCN1k1_fact : (Nat.choose (n + k + 1) (k + 1) : ℚ) * Fk1 * Fn = FN1 := by
+              simp only [hFk1_def, hFn_def, hFN1_def]
+              have hle : k + 1 ≤ n + k + 1 := by omega
+              have hsub : n + k + 1 - (k + 1) = n := by omega
+              have := Nat.choose_mul_factorial_mul_factorial hle
+              rw [hsub] at this
+              have hh := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh; linarith
+            -- C(n+k+2, k+1) · (k+1)! · (n+1)! = (n+k+2)!
+            have hCN2k1_fact : (Nat.choose (n + k + 2) (k + 1) : ℚ) * Fk1
+                * ((n : ℚ) + 1) * Fn = FN2 := by
+              simp only [hFk1_def, hFn_def, hFN2_def]
+              have hle : k + 1 ≤ n + k + 2 := by omega
+              have hsub : n + k + 2 - (k + 1) = n + 1 := by omega
+              have h1 := Nat.choose_mul_factorial_mul_factorial hle
+              rw [hsub] at h1
+              have hfn1 : Nat.factorial (n + 1) = (n + 1) * Nat.factorial n := Nat.factorial_succ n
+              rw [hfn1] at h1
+              have hh := congrArg ((↑·) : ℕ → ℚ) h1
+              push_cast at hh; linarith
+            -- C(n+k, k+1) · (k+1)! · (n-1)! = (n+k)!   (needs n ≥ 1, which we have)
+            have hCN_k1_fact : (Nat.choose (n + k) (k + 1) : ℚ) * Fk1 * FnmA = FN := by
+              simp only [hFk1_def, hFnmA_def, hFN_def]
+              have hle : k + 1 ≤ n + k := by omega
+              have hsub : n + k - (k + 1) = n - 1 := by omega
+              have := Nat.choose_mul_factorial_mul_factorial hle
+              rw [hsub] at this
+              have hh := congrArg ((↑·) : ℕ → ℚ) this
+              push_cast at hh; linarith
+            -- Nonzero facts.
+            have hFk_pos : 0 < Nat.factorial k := Nat.factorial_pos _
+            have hFk_ne : Fk ≠ 0 := by simp only [hFk_def]; exact_mod_cast hFk_pos.ne'
+            have hFk1_pos : 0 < Nat.factorial (k + 1) := Nat.factorial_pos _
+            have hFk1_ne : Fk1 ≠ 0 := by simp only [hFk1_def]; exact_mod_cast hFk1_pos.ne'
+            have hFn_pos : 0 < Nat.factorial n := Nat.factorial_pos _
+            have hFn_ne : Fn ≠ 0 := by simp only [hFn_def]; exact_mod_cast hFn_pos.ne'
+            have hFnmA_pos : 0 < Nat.factorial (n - 1) := Nat.factorial_pos _
+            have hFnmA_ne : FnmA ≠ 0 := by simp only [hFnmA_def]; exact_mod_cast hFnmA_pos.ne'
+            have hFnk2_pos : 0 < Nat.factorial (n - k - 2) := Nat.factorial_pos _
+            have hFnk2_ne : Fnk2 ≠ 0 := by simp only [hFnk2_def]; exact_mod_cast hFnk2_pos.ne'
+            have hFN_pos : 0 < Nat.factorial (n + k) := Nat.factorial_pos _
+            have hFN_ne : FN ≠ 0 := by simp only [hFN_def]; exact_mod_cast hFN_pos.ne'
+            have hnm1Q_ne : ((n : ℚ) - k - 1) ≠ 0 := by
+              have hh : (1 : ℕ) ≤ n - k - 1 := by omega
+              have hh1 : ((n - k - 1 : ℕ) : ℚ) ≥ 1 := by exact_mod_cast hh
+              have hh2 : ((n - k - 1 : ℕ) : ℚ) = (n : ℚ) - k - 1 := by
+                have h2 : n - k - 1 + k + 1 = n := by omega
+                have h3 : ((n - k - 1 + k + 1 : ℕ) : ℚ) = (n : ℚ) := by rw [h2]
+                push_cast at h3; linarith
+              linarith [hh1, hh2]
+            have hnmkQ_ne : ((n : ℚ) - k) ≠ 0 := by
+              have : (0 : ℚ) < (n : ℚ) - k := by
+                have : (k : ℚ) + 1 ≤ (n : ℚ) := by exact_mod_cast hkpn
+                linarith
+              linarith
+            -- Rewrite all Nat.choose in the goal via the factorial identities (as ratios).
+            -- Each choose gets replaced: C(m,j) = numerator / (denom₁ · denom₂).
+            -- We achieve this by field_simp once all are connected via hC*_fact.
+            --
+            -- Strategy: introduce Cnk_val, etc. as ℚ values equal to the binomials, then
+            -- field_simp using the fact relations to turn them into factorial ratios.
+            -- Equivalently, we multiply through: replace (Nat.choose m j : ℚ) by its value
+            -- from hC*_fact via dividing.
+            have hFnk_pos : 0 < Nat.factorial (n - k) := Nat.factorial_pos _
+            have hFnk_ne : Fnk ≠ 0 := by simp only [hFnk_def]; exact_mod_cast hFnk_pos.ne'
+            have hFnk1_pos : 0 < Nat.factorial (n - k - 1) := Nat.factorial_pos _
+            have hFnk1_ne : Fnk1 ≠ 0 := by simp only [hFnk1_def]; exact_mod_cast hFnk1_pos.ne'
+            have hCnk_val : (Nat.choose n k : ℚ) = Fn / (Fk * Fnk) := by
+              have hd_ne : Fk * Fnk ≠ 0 := mul_ne_zero hFk_ne hFnk_ne
+              rw [eq_div_iff hd_ne]; linarith [hCnk_fact]
+            have hCnk1_val : (Nat.choose n (k + 1) : ℚ) = Fn / (Fk1 * Fnk1) := by
+              have hd_ne : Fk1 * Fnk1 ≠ 0 := mul_ne_zero hFk1_ne hFnk1_ne
+              rw [eq_div_iff hd_ne]; linarith [hCnk1_fact]
+            have hCn1k1_val : (Nat.choose (n + 1) (k + 1) : ℚ)
+                = ((n : ℚ) + 1) * Fn / (Fk1 * Fnk) := by
+              have hd_ne : Fk1 * Fnk ≠ 0 := mul_ne_zero hFk1_ne hFnk_ne
+              rw [eq_div_iff hd_ne]; linarith [hCn1k1_fact]
+            have hCnmk1_val : (Nat.choose (n - 1) (k + 1) : ℚ) = FnmA / (Fk1 * Fnk2) := by
+              have hd_ne : Fk1 * Fnk2 ≠ 0 := mul_ne_zero hFk1_ne hFnk2_ne
+              rw [eq_div_iff hd_ne]; linarith [hCnmk1_fact]
+            have hCNk_val : (Nat.choose (n + k) k : ℚ) = FN / (Fk * Fn) := by
+              have hd_ne : Fk * Fn ≠ 0 := mul_ne_zero hFk_ne hFn_ne
+              rw [eq_div_iff hd_ne]; linarith [hCNk_fact]
+            have hCN1k1_val : (Nat.choose (n + k + 1) (k + 1) : ℚ) = FN1 / (Fk1 * Fn) := by
+              have hd_ne : Fk1 * Fn ≠ 0 := mul_ne_zero hFk1_ne hFn_ne
+              rw [eq_div_iff hd_ne]; linarith [hCN1k1_fact]
+            have hCN2k1_val : (Nat.choose (n + k + 2) (k + 1) : ℚ)
+                = FN2 / (Fk1 * ((n : ℚ) + 1) * Fn) := by
+              have hd_ne : Fk1 * ((n : ℚ) + 1) * Fn ≠ 0 :=
+                mul_ne_zero (mul_ne_zero hFk1_ne hn1Q_ne) hFn_ne
+              rw [eq_div_iff hd_ne]; linarith [hCN2k1_fact]
+            have hCN_k1_val : (Nat.choose (n + k) (k + 1) : ℚ) = FN / (Fk1 * FnmA) := by
+              have hd_ne : Fk1 * FnmA ≠ 0 := mul_ne_zero hFk1_ne hFnmA_ne
+              rw [eq_div_iff hd_ne]; linarith [hCN_k1_fact]
+            rw [hCnk_val, hCnk1_val, hCn1k1_val, hCnmk1_val,
+                hCNk_val, hCN1k1_val, hCN2k1_val, hCN_k1_val]
+            rw [hCnk_val, hCnk1_val, hCn1k1_val, hCnmk1_val,
+                hCNk_val, hCN1k1_val, hCN2k1_val, hCN_k1_val] at hTeleQ'_exp
+            -- Now the goal is a rational expression in Fk, Fk1, Fn, FnmA, Fnk, Fnk1, Fnk2,
+            -- FN, FN1, FN2, C, and (n, k : ℚ).
+            -- Apply the factorial recurrences to reduce to (Fk, FnmA, Fnk2, FN) as base.
+            rw [hR_Fk1, hR_Fn, hR_Fnk, hR_Fnk1, hR_FN2, hR_FN1]
+            rw [hR_Fk1, hR_Fn, hR_Fnk, hR_Fnk1, hR_FN2, hR_FN1] at hTeleQ'_exp
+            -- All factorial symbols are now in {Fk, FnmA, Fnk2, FN}. The expression is a
+            -- rational function in these plus polynomial in (n, k, sigma, C). By the sympy
+            -- verification, the numerator is identically 0 in this basis modulo hTeleQ'_exp.
+            -- We use linear_combination to inject hTeleQ'_exp scaled by C.
+            push_cast
+            push_cast at hTeleQ'_exp
+            linear_combination (norm := (field_simp; ring)) C * hTeleQ'_exp
           · -- k + 1 = n (i.e., k = n - 1).  Then P(n-1, k+1) = P(n-1, n) = 0
             -- since C(n-1, n) = 0.  Δ₋ closed form doesn't apply, but the
             -- term with P(n-1, k+1) vanishes anyway.
