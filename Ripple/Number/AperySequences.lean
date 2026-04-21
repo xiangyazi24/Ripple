@@ -1310,7 +1310,7 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
                 * (Nat.choose n k : ℚ) * (Nat.choose (n + k) k : ℚ) :=
         aperyW_succ n k
       -- Helper: closed form of Δe(n,k) = c(n,k+1) − c(n,k).
-      have hΔe : aperyC n (k + 1) - aperyC n k =
+      have hDe : aperyC n (k + 1) - aperyC n k =
           (-1 : ℚ) ^ k / (2 * ((k + 1 : ℚ) ^ 3) *
               (Nat.choose n (k + 1) : ℚ) * (Nat.choose (n + k + 1) (k + 1) : ℚ)) := by
         simp only [aperyC_split]
@@ -1340,11 +1340,64 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
       · -- hkN : k < n + 1, i.e., k ≤ n.  Nontrivial regime.
         -- Further split on k = n vs k ≤ n - 1.
         rcases Nat.lt_or_ge k n with hkn | hkn
-        · -- k < n, i.e. k ≤ n - 1.  Sub-cases k = n-1 vs k ≤ n-2 are
-          -- handled uniformly below via the full vdPoorten reorganization.
-          -- This is the "massive reorganization" residual (1979 §8, p. 201).
-          -- Numerically verified at /tmp/verify_witness.py (24/24 cases).
-          sorry
+        · -- k < n, i.e. k ≤ n - 1.  Closed forms for Δ₊(n, k+1) apply
+          -- (since k + 1 ≤ n).  For Δ₋(n, k+1) the closed form requires
+          -- k + 1 ≤ n - 1, i.e., k ≤ n - 2 — we split further below.
+          -- Δ₊(n, k+1) = c(n+1, k+1) − c(n, k+1)
+          --            = 1/(n+1)³ + [e(n+1, k+1) − e(n, k+1)]
+          --            = (−1)^(k+1) · ((k+1)!)² · (n−k−1)! / ((n+1)² · (n+k+2)!)
+          -- via aperyE_diff_succ_closed.
+          have hkplusn : k + 1 ≤ n := hkn
+          have hDplus : aperyC (n + 1) (k + 1) - aperyC n (k + 1) =
+              (-1 : ℚ) ^ (k + 1) * (Nat.factorial (k + 1) : ℚ) ^ 2
+                  * (Nat.factorial (n - k - 1) : ℚ)
+                / (((n : ℚ) + 1) ^ 2 * (Nat.factorial (n + 1 + (k + 1)) : ℚ)) := by
+            simp only [aperyC_split]
+            have hE := aperyE_diff_succ_closed n (k + 1) hkplusn
+            have hH : aperyH3 (n + 1) = aperyH3 n + 1 / ((n + 1 : ℚ) ^ 3) :=
+              aperyH3_succ n
+            -- (aperyH3(n+1) + aperyE(n+1)(k+1)) − (aperyH3 n + aperyE n (k+1))
+            --   = 1/(n+1)³ + (aperyE(n+1)(k+1) − aperyE n (k+1))
+            -- And by hE: aperyE(n+1)(k+1) − aperyE n (k+1) + 1/(n+1)³ = closed.
+            -- So LHS = 1/(n+1)³ + (closed − 1/(n+1)³) = closed.
+            -- Also (n+1-(k+1)) = n-k.  But we want `(n-k-1)!` where k ≤ n-1 so
+            -- `n - (k+1) = n - k - 1` as naturals when k+1 ≤ n.
+            have hsub : n - (k + 1) = n - k - 1 := by omega
+            rw [hsub] at hE
+            linarith
+          -- Now split on k+1 ≤ n-1 (so Δ₋ closed form applies) vs k = n-1.
+          rcases Nat.lt_or_ge (k + 1) n with hk2 | hk2
+          · -- k + 1 < n, i.e. k ≤ n - 2.  Δ₋ closed form applies.
+            have hk2' : k + 1 ≤ n - 1 := by omega
+            have hDminus : aperyC n (k + 1) - aperyC (n - 1) (k + 1) =
+                (-1 : ℚ) ^ (k + 1) * (Nat.factorial (k + 1) : ℚ) ^ 2
+                    * (Nat.factorial (n - (k + 1) - 1) : ℚ)
+                  / (((n : ℚ)) ^ 2 * (Nat.factorial (n + (k + 1)) : ℚ)) := by
+              simp only [aperyC_split]
+              have hE := aperyE_diff_pred_closed n (k + 1) hn hk2'
+              have hH : aperyH3 n = aperyH3 (n - 1) + 1 / ((n : ℚ) ^ 3) :=
+                aperyH3_pred n hn
+              linarith
+            -- Now all three closed forms apply.  The residual is the pure
+            -- rational-function identity [1]+[2]+[3]+[4] = 0 where
+            --   [1] = -B(n,k) · Δe(n, k)
+            --   [2] = (n+1)³ · P(n+1, k+1) · Δ₊
+            --   [3] = -n³ · P(n-1, k+1) · Δ₋
+            --   [4] = q(n, k+1) - q(n, k)
+            -- (vdPoorten 1979 §8 p. 201 "massive reorganization").
+            -- Deferred: final factorial identity (field_simp + Pascal ratios).
+            sorry
+          · -- k + 1 = n (i.e., k = n - 1).  Then P(n-1, k+1) = P(n-1, n) = 0
+            -- since C(n-1, n) = 0.  Δ₋ closed form doesn't apply, but the
+            -- term with P(n-1, k+1) vanishes anyway.
+            have hkeq2 : k + 1 = n := le_antisymm hkplusn hk2
+            have hPm : apery_P (n - 1) (k + 1) = 0 := by
+              apply apery_P_k_gt
+              omega
+            rw [show ((apery_P (n - 1) (k + 1) : ℤ) : ℚ) = 0 by rw [hPm]; rfl]
+            -- Residual: 2-term version of the vdPoorten identity (no Δ₋).
+            -- Deferred.
+            sorry
         · -- k ≥ n.  Combined with hkN (k ≤ n), this forces k = n.
           have hkeq : k = n := le_antisymm (by omega) hkn
           -- At k = n: P(n, k+1) = 0 and P(n-1, k+1) = 0; only P(n+1, k+1) nonzero.
@@ -1364,9 +1417,11 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
               Nat.choose_eq_zero_of_lt (by omega)
             rw [hB, hC]; push_cast; ring
           rw [hWtop]
-          -- Residual: (n+1)³ · P(n+1, k+1) · c(n+1, k+1) = -aperyW n (k+1).
-          -- = (n+1)³ · P(n+1, n+1) · c(n+1, n+1) = -(B(n,n)·c(n,n) - q(n,n)).
-          -- Deferred: the k = n factorial identity.
+          -- Residual at k = n: (n+1)³ · P(n+1, n+1) · c(n+1, n+1) = -aperyW n (n+1)
+          --   = -(B(n,n)·c(n,n) - q(n,n))
+          --   = q(n,n) - B(n,n)·c(n,n).
+          -- Substitute k = n, expand aperyW n (k+1) via hW₁, rewrite c(n+1,n+1)
+          -- relative to c(n, n).  Deferred: the k = n factorial identity.
           sorry
       · -- Regime: k ≥ n + 1.  LHS = 0 and RHS = 0.
         have hP1 : apery_P (n + 1) (k + 1) = 0 :=
