@@ -37,6 +37,10 @@ The goal is to treat these as one unified pipeline rather than four disjoint pap
 - **Stage-by-stage LPP pipeline.** `stage1_quadraticization`, `stage2_*`, `tpp_to_lpp`, `stage4_to_plpp`, reverse `lpp_to_gpac`.
 - **Dual-rail and exp-shift constructions.** `dualRail_semantic_solution`, axiom-free.
 
+### Catalan's constant G
+
+`catalan_is_lpp_computable` in `Ripple/Number/CatalanCertified.lean` — G is LPP-computable via `G = ∫₀^∞ s·exp(−s)/(1 + exp(−2s)) ds`, compiled as a 4-variable bounded polynomial IVP (E, R, W = 1−V, G) with convergence bound `|G(t) − G| ≤ (t+1)·exp(−t)`.
+
 ### Foundational
 
 - **e, π, ln 2, γ, ½e⁻¹.** Famous constants packaged as CRN-computable with zero sorries. `EulerGamma` is the most intricate.
@@ -46,7 +50,6 @@ The goal is to treat these as one unified pipeline rather than four disjoint pap
 ## What remains open
 
 - **Conifold Frobenius witness for the Apéry ODE** — `apery_conifold_frobenius_witness` at `Ripple/Number/ApreyBounded.lean:338`. The regular-singular-point Frobenius theory needed to pass from the formal ODE to the analytic exponential-rate convergence is not in Mathlib and is effectively a standalone formalization project. The rest of the Apéry chain is axiom-free modulo this witness.
-- **Catalan's constant.** Stated, not yet proved.
 
 ## Building
 
