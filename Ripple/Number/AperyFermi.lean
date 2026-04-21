@@ -52,9 +52,13 @@ import Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Topology.Algebra.InfiniteSum.Basic
+import Mathlib.Topology.Algebra.InfiniteSum.NatInt
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
+import Mathlib.Analysis.PSeries
+import Mathlib.MeasureTheory.Integral.DominatedConvergence
+import Mathlib.MeasureTheory.Integral.IntegralEqImproper
 
 namespace Ripple
 namespace Number
@@ -520,19 +524,511 @@ noncomputable def fermiSolution : PIVP.Solution fermiPIVP where
   init_cond := fermiTrajectory_init
   is_solution := fermiTrajectory_is_solution
 
-/-- **Sorry 4** (the mathematical heart). The (2/3)-scaled Fermi-Dirac
-    integral evaluates to ζ(3) directly. The unscaled identity is classical:
-        ∫₀^∞ x^(s-1) / (eˣ + 1) dx = Γ(s) · η(s),    η(s) = (1-2^(1-s))·ζ(s)
-    with s = 3: Γ(3) = 2, η(3) = (3/4)·ζ(3), product = (3/2)·ζ(3).
-    Multiplying by (2/3) lands exactly on ζ(3). Proof route: expand
-    1/(1+eˣ) = Σ(-1)^k·e^(-(k+1)x), integrate termwise, use
-    ∫₀^∞ x²·e^(-(k+1)x) dx = 2/(k+1)³. -/
+/-! ### Closed-form moments of the exponential
+
+The proof of `fermi_integral_eq_zeta3` uses:
+  `∫_{Ioi 0} x^2 · exp(-(k+1)·x) dx = 2 / (k+1)^3`
+and then termwise integration of the geometric expansion
+  `1/(1+eˣ) = Σ_{k≥0} (-1)^k · e^(-(k+1)x)`
+for `x > 0`. -/
+
+/-- Primitive for `x ↦ x² · e^(−c·x)` when `c > 0`:
+`F(x) = −((c·x)² + 2·(c·x) + 2) · e^(−c·x) / c³`,
+`F'(x) = x² · e^(−c·x)`. -/
+lemma hasDerivAt_xsq_exp_neg_mul_primitive (c : ℝ) (hc : 0 < c) (x : ℝ) :
+    HasDerivAt (fun y : ℝ => -((c*y)^2 + 2*(c*y) + 2) * Real.exp (-(c*y)) / c^3)
+      (x^2 * Real.exp (-(c*x))) x := by
+  -- d/dy (c·y) = c
+  have hcy : HasDerivAt (fun y : ℝ => c * y) c x := by
+    simpa using (hasDerivAt_id x).const_mul c
+  -- d/dy exp(-(c·y)) = -c · exp(-(c·y))
+  have hexp : HasDerivAt (fun y : ℝ => Real.exp (-(c*y)))
+      (-c * Real.exp (-(c*x))) x := by
+    have h1 : HasDerivAt (fun y : ℝ => -(c*y)) (-c) x := hcy.neg
+    have h2 : HasDerivAt (fun y : ℝ => Real.exp (-(c*y)))
+        (Real.exp (-(c*x)) * (-c)) x := by
+      have := (Real.hasDerivAt_exp (-(c*x))).comp x h1
+      simpa [Function.comp] using this
+    convert h2 using 1; ring
+  -- d/dy ((c·y)² + 2·(c·y) + 2) = 2·(c·y)·c + 2·c = 2·c·(c·y + 1)
+  have hpoly : HasDerivAt (fun y : ℝ => (c*y)^2 + 2*(c*y) + 2)
+      (2*(c*x)*c + 2*c) x := by
+    have hsq : HasDerivAt (fun y : ℝ => (c*y)^2) (2*(c*x)*c) x := by
+      have := (hcy.pow 2)
+      -- (hcy.pow 2) : HasDerivAt (fun y => (c*y)^2) (↑2 * (c*x)^(2-1) * c) x
+      simpa [pow_one, two_mul] using this
+    have hlin : HasDerivAt (fun y : ℝ => 2*(c*y)) (2*c) x := by
+      have := hcy.const_mul (2 : ℝ)
+      simpa using this
+    have := (hsq.add hlin).add_const (2 : ℝ)
+    simpa using this
+  have hneg : HasDerivAt (fun y : ℝ => -((c*y)^2 + 2*(c*y) + 2))
+      (-(2*(c*x)*c + 2*c)) x := hpoly.neg
+  have hprod := hneg.mul hexp
+  -- hprod : HasDerivAt (fun y => -((c*y)^2+2*(c*y)+2) * exp(-(c*y)))
+  --   (-(2*(c*x)*c+2*c)*exp(-(c*x)) + -((c*x)^2+2*(c*x)+2)*(-c*exp(-(c*x)))) x
+  have hfinal := hprod.div_const (c^3)
+  convert hfinal using 1
+  have hc3 : c^3 ≠ 0 := pow_ne_zero _ hc.ne'
+  field_simp
+  ring
+
+/-- `exp(−c·x)` tends to `0` at `+∞` for `c > 0` (and so does the polynomial times it). -/
+lemma tendsto_xsq_primitive_atTop (c : ℝ) (hc : 0 < c) :
+    Filter.Tendsto
+      (fun x : ℝ => -((c*x)^2 + 2*(c*x) + 2) * Real.exp (-(c*x)) / c^3)
+      Filter.atTop (nhds 0) := by
+  -- The function (c*x)² + 2(c*x) + 2 grows polynomially in c*x; multiplied
+  -- by exp(-(c*x)) it tends to 0 at +∞ (because c*x → +∞).
+  have hcx : Filter.Tendsto (fun x : ℝ => c * x) Filter.atTop Filter.atTop := by
+    exact Filter.Tendsto.const_mul_atTop hc Filter.tendsto_id
+  -- Use `tendsto_pow_mul_exp_neg_atTop_nhds_zero` composed with c*x.
+  have h1 : Filter.Tendsto (fun y : ℝ => y^2 * Real.exp (-y)) Filter.atTop (nhds 0) :=
+    Real.tendsto_pow_mul_exp_neg_atTop_nhds_zero 2
+  have h2 : Filter.Tendsto (fun y : ℝ => y * Real.exp (-y)) Filter.atTop (nhds 0) := by
+    simpa using Real.tendsto_pow_mul_exp_neg_atTop_nhds_zero 1
+  have h3 : Filter.Tendsto (fun y : ℝ => Real.exp (-y)) Filter.atTop (nhds 0) := by
+    simpa using Real.tendsto_exp_neg_atTop_nhds_zero
+  -- Compose each with cx → ∞.
+  have H1 : Filter.Tendsto (fun x : ℝ => (c*x)^2 * Real.exp (-(c*x))) Filter.atTop (nhds 0) :=
+    h1.comp hcx
+  have H2 : Filter.Tendsto (fun x : ℝ => 2 * (c*x) * Real.exp (-(c*x))) Filter.atTop (nhds 0) := by
+    have hh := h2.comp hcx
+    have hhh := hh.const_mul (2 : ℝ)
+    -- hhh : Tendsto (fun x => 2 * ((h2 ∘ cx) x)) = 2 * (c*x * exp(-(c*x)))
+    have heq : (fun x : ℝ => 2 * (c * x) * Real.exp (-(c*x)))
+        = fun x : ℝ => 2 * ((fun y : ℝ => y * Real.exp (-y)) (c * x)) := by
+      funext x; ring
+    rw [heq]
+    simpa [Function.comp] using hhh
+  have H3 : Filter.Tendsto (fun x : ℝ => 2 * Real.exp (-(c*x))) Filter.atTop (nhds 0) := by
+    have := h3.comp hcx
+    have := this.const_mul (2 : ℝ)
+    simpa using this
+  have Hsum : Filter.Tendsto
+      (fun x : ℝ => ((c*x)^2 + 2*(c*x) + 2) * Real.exp (-(c*x)))
+      Filter.atTop (nhds 0) := by
+    have hpw : (fun x : ℝ => ((c*x)^2 + 2*(c*x) + 2) * Real.exp (-(c*x))) =
+        (fun x : ℝ => (c*x)^2 * Real.exp (-(c*x))
+                    + 2*(c*x) * Real.exp (-(c*x))
+                    + 2 * Real.exp (-(c*x))) := by
+      funext x; ring
+    rw [hpw]
+    have := (H1.add H2).add H3
+    simpa using this
+  -- Now negate and divide by c^3.
+  have Hneg : Filter.Tendsto
+      (fun x : ℝ => -(((c*x)^2 + 2*(c*x) + 2) * Real.exp (-(c*x))))
+      Filter.atTop (nhds (0 : ℝ)) := by
+    have := Hsum.neg
+    simpa using this
+  have Hdiv : Filter.Tendsto
+      (fun x : ℝ => -(((c*x)^2 + 2*(c*x) + 2) * Real.exp (-(c*x))) / c^3)
+      Filter.atTop (nhds ((0 : ℝ) / c^3)) := Hneg.div_const _
+  have hzero : (0 : ℝ) / c^3 = 0 := by simp
+  rw [hzero] at Hdiv
+  -- Rewrite shape
+  convert Hdiv using 1
+  funext x; ring
+
+/-- Integrability of `x² · exp(-c·x)` on `Ioi 0` for `c > 0`. -/
+lemma integrableOn_xsq_exp_neg_mul (c : ℝ) (hc : 0 < c) :
+    IntegrableOn (fun x : ℝ => x^2 * Real.exp (-(c*x))) (Set.Ioi 0) := by
+  -- Use `integrableOn_Ioi_deriv_of_nonneg` or direct dominated/integrable combo.
+  -- Simpler: use `HasCompactSupport`? No. Use FTC approach:
+  -- f' := x²·e^(-cx), F := primitive above. Integrability follows from
+  -- `integrableOn_Ioi_deriv_of_nonneg'`.
+  have hderiv : ∀ x ∈ Set.Ici (0 : ℝ),
+      HasDerivAt (fun y : ℝ => -((c*y)^2 + 2*(c*y) + 2) * Real.exp (-(c*y)) / c^3)
+        (x^2 * Real.exp (-(c*x))) x := fun x _ => hasDerivAt_xsq_exp_neg_mul_primitive c hc x
+  have hnn : ∀ x ∈ Set.Ioi (0 : ℝ), 0 ≤ x^2 * Real.exp (-(c*x)) := by
+    intro x _; exact mul_nonneg (sq_nonneg _) (Real.exp_pos _).le
+  have hlim : Filter.Tendsto
+      (fun x : ℝ => -((c*x)^2 + 2*(c*x) + 2) * Real.exp (-(c*x)) / c^3)
+      Filter.atTop (nhds 0) := tendsto_xsq_primitive_atTop c hc
+  exact integrableOn_Ioi_deriv_of_nonneg' hderiv hnn hlim
+
+/-- Closed-form value: `∫_{Ioi 0} x² · exp(-c·x) dx = 2/c³` for `c > 0`. -/
+lemma integral_xsq_exp_neg_mul_Ioi (c : ℝ) (hc : 0 < c) :
+    ∫ x in Set.Ioi (0 : ℝ), x^2 * Real.exp (-(c*x)) = 2 / c^3 := by
+  have hderiv : ∀ x ∈ Set.Ici (0 : ℝ),
+      HasDerivAt (fun y : ℝ => -((c*y)^2 + 2*(c*y) + 2) * Real.exp (-(c*y)) / c^3)
+        (x^2 * Real.exp (-(c*x))) x := fun x _ => hasDerivAt_xsq_exp_neg_mul_primitive c hc x
+  have hint : IntegrableOn (fun x : ℝ => x^2 * Real.exp (-(c*x))) (Set.Ioi 0) :=
+    integrableOn_xsq_exp_neg_mul c hc
+  have hlim : Filter.Tendsto
+      (fun x : ℝ => -((c*x)^2 + 2*(c*x) + 2) * Real.exp (-(c*x)) / c^3)
+      Filter.atTop (nhds 0) := tendsto_xsq_primitive_atTop c hc
+  have hEq := MeasureTheory.integral_Ioi_of_hasDerivAt_of_tendsto' hderiv hint hlim
+  -- hEq : ∫ x in Ioi 0, x^2 * exp(-(c*x)) = 0 - (primitive at 0) = 2/c^3
+  rw [hEq]
+  have hc3 : c^3 ≠ 0 := pow_ne_zero _ hc.ne'
+  simp
+  field_simp
+
+/-! ### Termwise expansion of `x²/(1+eˣ)` -/
+
+/-- For `x > 0`, the geometric series `Σ_{k≥0} (-e^(-x))^k` sums to `1/(1+e^(-x))`. -/
+lemma hasSum_alt_exp_neg {x : ℝ} (hx : 0 < x) :
+    HasSum (fun k : ℕ => (-1 : ℝ)^k * Real.exp (-((k+1 : ℕ) * x)))
+      (1 / (1 + Real.exp x)) := by
+  -- Set r := -exp(-x), |r| < 1; Σ r^k = 1/(1-r) = 1/(1+exp(-x)) = exp(x)/(exp(x)+1).
+  -- We want Σ (-1)^k exp(-(k+1)x) = exp(-x) · Σ (-exp(-x))^k = exp(-x)/(1+exp(-x)) = 1/(1+exp(x)).
+  set r : ℝ := -Real.exp (-x) with hr_def
+  have hexp_pos : 0 < Real.exp (-x) := Real.exp_pos _
+  have hexp_lt_one : Real.exp (-x) < 1 := by
+    have : Real.exp (-x) < Real.exp 0 := Real.exp_lt_exp.mpr (by linarith)
+    simpa using this
+  have hr_abs : |r| < 1 := by
+    rw [hr_def]; rw [abs_neg, abs_of_pos hexp_pos]; exact hexp_lt_one
+  have hgeom : HasSum (fun k : ℕ => r^k) (1 / (1 - r)) := by
+    have := hasSum_geometric_of_abs_lt_one hr_abs
+    simpa [div_eq_inv_mul, one_div] using this
+  -- Multiply by exp(-x):
+  have hscaled : HasSum (fun k : ℕ => Real.exp (-x) * r^k) (Real.exp (-x) * (1 / (1 - r))) :=
+    hgeom.mul_left (Real.exp (-x))
+  -- Simplify RHS: exp(-x) / (1 - (-exp(-x))) = exp(-x) / (1 + exp(-x)) = 1 / (1 + exp(x)).
+  have hden_pos : 0 < 1 + Real.exp (-x) := one_add_exp_neg_pos x
+  have hrhs : Real.exp (-x) * (1 / (1 - r)) = 1 / (1 + Real.exp x) := by
+    rw [hr_def]
+    have hexp_mul : Real.exp (-x) * Real.exp x = 1 := by
+      rw [← Real.exp_add]; simp
+    have h1 : 1 - -Real.exp (-x) = 1 + Real.exp (-x) := by ring
+    rw [h1, mul_one_div]
+    rw [div_eq_div_iff hden_pos.ne' (one_add_exp_pos x).ne']
+    -- Goal: exp(-x) * (1 + exp x) = 1 * (1 + exp(-x))
+    -- exp(-x) + exp(-x)*exp(x) = 1 + exp(-x); using hexp_mul:
+    rw [mul_add, hexp_mul, mul_one, one_mul]; ring
+  rw [hrhs] at hscaled
+  -- Rewrite exp(-x) * r^k = exp(-x) * (-exp(-x))^k = (-1)^k * exp(-x)^(k+1) = (-1)^k * exp(-(k+1)x)
+  have heq : ∀ k : ℕ, Real.exp (-x) * r^k = (-1 : ℝ)^k * Real.exp (-((k+1 : ℕ) * x)) := by
+    intro k
+    -- (-exp(-x))^k = (-1)^k * exp(-x)^k
+    have h1 : r^k = (-1 : ℝ)^k * Real.exp (-x)^k := by
+      rw [hr_def, neg_eq_neg_one_mul, mul_pow]
+    -- exp(-x) * r^k = (-1)^k * exp(-x)^(k+1)
+    have h2 : Real.exp (-x) * r^k = (-1 : ℝ)^k * Real.exp (-x)^(k+1) := by
+      rw [h1]; ring
+    -- exp(-x)^(k+1) = exp(-((k+1)·x))
+    have h3 : Real.exp (-x)^(k+1) = Real.exp (-((k+1 : ℕ) * x)) := by
+      rw [← Real.exp_nat_mul]
+      congr 1
+      push_cast; ring
+    rw [h2, h3]
+  -- Apply the rewrite to hscaled
+  have : (fun k : ℕ => Real.exp (-x) * r^k) = fun k : ℕ => (-1 : ℝ)^k * Real.exp (-((k+1 : ℕ) * x)) :=
+    funext heq
+  rw [this] at hscaled
+  exact hscaled
+
+/-- The pointwise expansion: for `x > 0`,
+`x² / (1 + eˣ) = Σ_{k≥0} (-1)^k · x² · e^(-(k+1)·x)`. -/
+lemma hasSum_xsq_fermi {x : ℝ} (hx : 0 < x) :
+    HasSum (fun k : ℕ => (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x)))
+      (x^2 / (1 + Real.exp x)) := by
+  have hbase := hasSum_alt_exp_neg hx
+  -- Multiply by x² on the left
+  have := hbase.mul_left (x^2)
+  -- this : HasSum (fun k => x^2 * ((-1)^k * exp(-(k+1)*x))) (x^2 * (1/(1+exp x)))
+  have heq : (fun k : ℕ => x^2 * ((-1 : ℝ)^k * Real.exp (-((k+1 : ℕ) * x))))
+      = fun k : ℕ => (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x)) := by
+    funext k; ring
+  rw [heq] at this
+  have hrhs : x^2 * (1 / (1 + Real.exp x)) = x^2 / (1 + Real.exp x) := by
+    rw [mul_one_div]
+  rw [hrhs] at this
+  exact this
+
+/-- `(-1)^k · x^2 · e^(-(k+1)·x)` is integrable on `Ioi 0` for every `k : ℕ`. -/
+lemma integrableOn_termwise (k : ℕ) :
+    IntegrableOn (fun x : ℝ => (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x))) (Set.Ioi 0) := by
+  have hkp : (0 : ℝ) < (k + 1 : ℕ) := by exact_mod_cast Nat.succ_pos k
+  have hbase := integrableOn_xsq_exp_neg_mul ((k+1 : ℕ) : ℝ) hkp
+  have hconst := hbase.const_mul ((-1 : ℝ)^k)
+  have heq : (fun x : ℝ => (-1 : ℝ)^k * (x^2 * Real.exp (-(((k+1 : ℕ) : ℝ) * x))))
+      = fun x : ℝ => (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x)) := by
+    funext x; ring
+  rw [heq] at hconst
+  exact hconst
+
+/-- Integral of the k-th term on `(0, ∞)`: `(-1)^k · 2/(k+1)^3`. -/
+lemma integral_termwise (k : ℕ) :
+    ∫ x in Set.Ioi (0 : ℝ), (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x))
+      = (-1 : ℝ)^k * (2 / ((k+1 : ℕ) : ℝ)^3) := by
+  have hkp : (0 : ℝ) < (k + 1 : ℕ) := by exact_mod_cast Nat.succ_pos k
+  have hbase := integral_xsq_exp_neg_mul_Ioi ((k+1 : ℕ) : ℝ) hkp
+  have heq1 : (fun x : ℝ => (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x)))
+      = fun x : ℝ => (-1 : ℝ)^k * (x^2 * Real.exp (-((k+1 : ℕ) * x))) := by
+    funext x; ring
+  rw [heq1]
+  rw [MeasureTheory.integral_const_mul]
+  rw [hbase]
+
+/-- `|(-1)^k · x² · e^(-(k+1)·x)| = x² · e^(-(k+1)·x)`. -/
+lemma norm_termwise_eq (k : ℕ) (x : ℝ) :
+    ‖(-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x))‖
+      = x^2 * Real.exp (-((k+1 : ℕ) * x)) := by
+  rw [Real.norm_eq_abs]
+  rw [show (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x))
+        = (-1 : ℝ)^k * (x^2 * Real.exp (-((k+1 : ℕ) * x))) by ring]
+  rw [abs_mul]
+  rw [abs_pow, abs_neg, abs_one, one_pow, one_mul]
+  rw [abs_of_nonneg (mul_nonneg (sq_nonneg _) (Real.exp_pos _).le)]
+
+/-- `∫_{Ioi 0} |(-1)^k · x² · e^(-(k+1)x)| = 2/(k+1)^3`. -/
+lemma integral_norm_termwise (k : ℕ) :
+    ∫ x in Set.Ioi (0 : ℝ), ‖(-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x))‖
+      = 2 / ((k+1 : ℕ) : ℝ)^3 := by
+  have heq : (fun x : ℝ => ‖(-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x))‖)
+      = fun x : ℝ => x^2 * Real.exp (-((k+1 : ℕ) * x)) := by
+    funext x; exact norm_termwise_eq k x
+  rw [heq]
+  have hkp : (0 : ℝ) < (k + 1 : ℕ) := by exact_mod_cast Nat.succ_pos k
+  exact integral_xsq_exp_neg_mul_Ioi ((k+1 : ℕ) : ℝ) hkp
+
+/-- Summability of `Σ 1/(k+1)^3`. -/
+lemma summable_one_div_succ_cube :
+    Summable (fun k : ℕ => 1 / ((k + 1 : ℝ) ^ 3)) := by
+  have h : Summable (fun n : ℕ => 1 / ((n : ℝ) ^ 3)) :=
+    (Real.summable_one_div_nat_pow (p := 3)).mpr (by norm_num)
+  have := (summable_nat_add_iff (f := fun n : ℕ => 1 / ((n : ℝ) ^ 3)) 1).mpr h
+  convert this using 1
+  funext k
+  push_cast; ring
+
+/-- Summability of `Σ 2/(k+1)^3`. -/
+lemma summable_two_div_succ_cube :
+    Summable (fun k : ℕ => 2 / ((k + 1 : ℝ) ^ 3)) := by
+  have := summable_one_div_succ_cube.mul_left (2 : ℝ)
+  convert this using 1
+  funext k; ring
+
+/-- `∫_{Ioi 0} x²/(1+eˣ) dx = Σ_{k≥0} (-1)^k · 2/(k+1)^3`. -/
+lemma integral_fermi_Ioi_eq_tsum :
+    ∫ x in Set.Ioi (0 : ℝ), x^2 / (1 + Real.exp x)
+      = ∑' k : ℕ, (-1 : ℝ)^k * (2 / ((k+1 : ℕ) : ℝ)^3) := by
+  -- Define F k x := (-1)^k · x² · e^(-(k+1)·x).
+  set F : ℕ → ℝ → ℝ := fun k x => (-1 : ℝ)^k * x^2 * Real.exp (-((k+1 : ℕ) * x))
+  -- (1) F k is integrable on Ioi 0 for every k.
+  have hF_int : ∀ k, IntegrableOn (F k) (Set.Ioi 0) := integrableOn_termwise
+  -- (2) Σ_k ∫ |F k| is summable (= Σ 2/(k+1)^3).
+  have hF_sum : Summable (fun k => ∫ x in Set.Ioi (0 : ℝ), ‖F k x‖) := by
+    have heq : (fun k => ∫ x in Set.Ioi (0 : ℝ), ‖F k x‖)
+        = fun k : ℕ => 2 / ((k+1 : ℕ) : ℝ)^3 := by
+      funext k; exact integral_norm_termwise k
+    rw [heq]
+    -- Summable (fun k => 2 / ((k+1 : ℕ) : ℝ)^3) — identify the casts
+    have hs := summable_two_div_succ_cube
+    convert hs using 1
+    funext k; push_cast; ring
+  -- (3) Apply hasSum_integral_of_summable_integral_norm, restricted to Ioi 0.
+  -- We need F k : ℝ → ℝ viewed under measure μ = volume.restrict (Ioi 0).
+  -- Use `MeasureTheory.hasSum_integral_of_summable_integral_norm` with
+  -- μ := volume.restrict (Set.Ioi 0) and α := ℝ.
+  have h_meas_int : ∀ k : ℕ, Integrable (F k) (MeasureTheory.volume.restrict (Set.Ioi (0:ℝ))) := by
+    intro k
+    exact hF_int k
+  have h_meas_sum : Summable
+      (fun k : ℕ => ∫ x, ‖F k x‖ ∂(MeasureTheory.volume.restrict (Set.Ioi (0:ℝ)))) := by
+    -- same as hF_sum by rewriting integral-on-set as integral w.r.t. restricted measure
+    exact hF_sum
+  -- Apply the theorem
+  have hhs := MeasureTheory.hasSum_integral_of_summable_integral_norm h_meas_int h_meas_sum
+  -- hhs : HasSum (fun k => ∫ x, F k x ∂(...restrict Ioi 0)) (∫ x, (∑' k, F k x) ∂(...restrict))
+  -- Simplify: ∫ x, f(x) ∂(vol.restrict S) = ∫ x in S, f(x) (by definition).
+  -- ∑' k, ∫ x in Ioi 0, F k x = ∫ x in Ioi 0, ∑' k, F k x.
+  have htsum := hhs.tsum_eq
+  -- Evaluate ∑' k, ∫ x in Ioi 0, F k x = ∑' k, (-1)^k * 2/(k+1)^3
+  have hLHS_eq : (fun k : ℕ => ∫ x, F k x ∂(MeasureTheory.volume.restrict (Set.Ioi (0:ℝ))))
+      = fun k : ℕ => (-1 : ℝ)^k * (2 / ((k+1 : ℕ) : ℝ)^3) := by
+    funext k
+    have : ∫ x, F k x ∂(MeasureTheory.volume.restrict (Set.Ioi (0:ℝ)))
+        = ∫ x in Set.Ioi (0:ℝ), F k x := rfl
+    rw [this]
+    exact integral_termwise k
+  -- Evaluate ∫ x in Ioi 0, ∑' k, F k x:
+  -- For x > 0, ∑' k, F k x = x² / (1 + exp x); for x ≤ 0 it could be anything,
+  -- but Ioi 0 excludes that set so it suffices to rewrite on Ioi 0.
+  -- Use setIntegral_congr_fun.
+  have hRHS_eq : ∫ x, (∑' k, F k x) ∂(MeasureTheory.volume.restrict (Set.Ioi (0:ℝ)))
+      = ∫ x in Set.Ioi (0 : ℝ), x^2 / (1 + Real.exp x) := by
+    have : ∫ x, (∑' k, F k x) ∂(MeasureTheory.volume.restrict (Set.Ioi (0:ℝ)))
+        = ∫ x in Set.Ioi (0:ℝ), ∑' k, F k x := rfl
+    rw [this]
+    apply MeasureTheory.setIntegral_congr_fun measurableSet_Ioi
+    intro x hx
+    have hx' : 0 < x := hx
+    exact (hasSum_xsq_fermi hx').tsum_eq
+  -- Combine:
+  -- htsum : ∑' k, ∫ x, F k x ∂μ = ∫ x, ∑' k, F k x ∂μ, where μ = vol.restrict (Ioi 0)
+  rw [hLHS_eq] at htsum
+  rw [hRHS_eq] at htsum
+  exact htsum.symm
+
+/-! ### Even-odd decomposition of the alternating ζ(3)-like series -/
+
+/-- Even/odd decomposition: `Σ (-1)^k · f(k) = Σ f(2k) - Σ f(2k+1)` when both RHS sums converge
+    and the alternating series converges. We state for `f n = 2/(n+1)^3`. -/
+lemma alt_sum_eq_three_quarter_zeta :
+    ∑' k : ℕ, (-1 : ℝ)^k * (2 / ((k+1 : ℕ) : ℝ)^3)
+      = (3/2 : ℝ) * ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3) := by
+  -- Define a k := 2/(k+1)^3. Then Σ(-1)^k a k = Σ a(2k) - Σ a(2k+1).
+  -- And Σ a(2k) = Σ 2/(2k+1)^3 = (odd part); Σ a(2k+1) = Σ 2/(2k+2)^3 = (1/4) Σ 1/(k+1)^3.
+  -- Claim: Σ a(2k) + Σ a(2k+1) = Σ a(k) = Σ 2/(k+1)^3 = 2 · ζ(3).
+  -- Σ a(2k+1) = (1/4) · ζ(3).
+  -- So Σ a(2k) = 2ζ(3) − (1/4)ζ(3) = (7/4)ζ(3).
+  -- Hence Σ (-1)^k a(k) = (7/4)ζ(3) − (1/4)ζ(3) = (3/2)ζ(3). ✓
+  set ζ : ℝ := ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3) with hζ_def
+  set a : ℕ → ℝ := fun k => 2 / ((k+1 : ℕ) : ℝ)^3 with ha_def
+  -- Sanity: a k ≥ 0
+  have ha_nn : ∀ k, 0 ≤ a k := by
+    intro k; simp only [a]
+    apply div_nonneg (by norm_num)
+    positivity
+  -- Summability of a (Σ 2/(k+1)^3).
+  have ha_sum : Summable a := by
+    simp only [a]
+    have := summable_two_div_succ_cube
+    convert this using 1; funext k; push_cast; ring
+  -- ∑ a = 2 · ζ
+  have ha_tsum : ∑' k, a k = 2 * ζ := by
+    show (∑' k : ℕ, 2 / ((k+1 : ℕ) : ℝ)^3) = 2 * ζ
+    simp only [ζ]
+    rw [← tsum_mul_left]
+    congr 1; funext k; push_cast; ring
+  -- Summability of a(2k+1):
+  have ha_odd_sum : Summable (fun k => a (2 * k + 1)) := by
+    apply ha_sum.comp_injective
+    intros i j h
+    have : 2 * i + 1 = 2 * j + 1 := h
+    omega
+  -- Summability of a(2k):
+  have ha_even_sum : Summable (fun k => a (2 * k)) := by
+    apply ha_sum.comp_injective
+    intros i j h
+    have : 2 * i = 2 * j := h
+    omega
+  -- a(2k+1) = 2/(2k+2)^3 = (1/4) · 1/(k+1)^3
+  have ha_odd_eq : ∀ k : ℕ, a (2 * k + 1) = (1/4 : ℝ) * (1 / ((k + 1 : ℝ)^3)) := by
+    intro k
+    simp only [a]
+    have hk1 : ((2 * k + 1 + 1 : ℕ) : ℝ) = 2 * (k + 1) := by push_cast; ring
+    rw [hk1]
+    rw [mul_pow]
+    have h2pow : (2 : ℝ)^3 = 8 := by norm_num
+    rw [h2pow]
+    have hk1ne : ((k : ℝ) + 1)^3 ≠ 0 := by
+      apply pow_ne_zero
+      have : (0 : ℝ) < (k : ℝ) + 1 := by positivity
+      linarith
+    field_simp
+    ring
+  have ha_odd_tsum : ∑' k, a (2 * k + 1) = (1/4 : ℝ) * ζ := by
+    simp only [ζ]
+    rw [← tsum_mul_left]
+    congr 1; funext k
+    exact ha_odd_eq k
+  -- From ∑ a(even) + ∑ a(odd) = ∑ a:
+  have htotal : ∑' k, a (2 * k) + ∑' k, a (2 * k + 1) = ∑' k, a k := by
+    exact tsum_even_add_odd ha_even_sum ha_odd_sum
+  have ha_even_tsum : ∑' k, a (2 * k) = 2 * ζ - (1/4 : ℝ) * ζ := by
+    have := htotal
+    rw [ha_tsum, ha_odd_tsum] at this
+    linarith
+  -- Summability of (-1)^k * a k
+  have halt_sum : Summable (fun k => (-1 : ℝ)^k * a k) := by
+    have := ha_sum.abs
+    have := Summable.alternating (by
+      -- Summable.alternating takes Summable f and produces Summable (fun n => (-1)^n * f n)
+      exact ha_sum)
+    -- Hmm actually Summable.alternating gives (-1)^n * f n — that's what we want!
+    exact this
+  -- ∑ (-1)^k * a k = Σ a(2k) - Σ a(2k+1)
+  have halt_split :
+      ∑' k, (-1 : ℝ)^k * a k = ∑' k, a (2 * k) - ∑' k, a (2 * k + 1) := by
+    -- Use tsum_even_add_odd on the function b k := (-1)^k * a k.
+    set b : ℕ → ℝ := fun k => (-1 : ℝ)^k * a k with hb_def
+    have hb_even : ∀ k, b (2 * k) = a (2 * k) := by
+      intro k; simp only [b]
+      rw [show (-1 : ℝ)^(2*k) = 1 from by
+        rw [pow_mul]; simp]
+      ring
+    have hb_odd : ∀ k, b (2 * k + 1) = -(a (2 * k + 1)) := by
+      intro k; simp only [b]
+      rw [show (-1 : ℝ)^(2*k+1) = -1 from by
+        rw [pow_succ, pow_mul]; simp]
+      ring
+    have hb_even_sum : Summable (fun k => b (2 * k)) := by
+      have heq : (fun k => b (2 * k)) = fun k => a (2 * k) := by funext k; exact hb_even k
+      rw [heq]; exact ha_even_sum
+    have hb_odd_sum : Summable (fun k => b (2 * k + 1)) := by
+      have heq : (fun k => b (2 * k + 1)) = fun k => -(a (2 * k + 1)) := by
+        funext k; exact hb_odd k
+      rw [heq]; exact ha_odd_sum.neg
+    have hb_total : ∑' k, b (2 * k) + ∑' k, b (2 * k + 1) = ∑' k, b k :=
+      tsum_even_add_odd hb_even_sum hb_odd_sum
+    have hb_even_tsum : ∑' k, b (2 * k) = ∑' k, a (2 * k) := by
+      congr 1; funext k; exact hb_even k
+    have hb_odd_tsum : ∑' k, b (2 * k + 1) = -∑' k, a (2 * k + 1) := by
+      rw [← tsum_neg]
+      congr 1; funext k; exact hb_odd k
+    rw [hb_even_tsum, hb_odd_tsum] at hb_total
+    -- hb_total : Σ a(2k) + (- Σ a(2k+1)) = Σ b k
+    linarith [hb_total]
+  -- Combine:
+  -- LHS: ∑ (-1)^k * a k = Σa(2k) − Σa(2k+1) = (2ζ - ζ/4) − ζ/4 = (3/2)ζ
+  -- The goal has form: Σ (-1)^k * a k = (3/2)·ζ
+  -- We need to match the goal form with `a`.
+  show ∑' k : ℕ, (-1 : ℝ)^k * (2 / ((k+1 : ℕ) : ℝ)^3) = (3/2 : ℝ) * ζ
+  have hrewrite : (fun k : ℕ => (-1 : ℝ)^k * (2 / ((k+1 : ℕ) : ℝ)^3))
+      = fun k : ℕ => (-1 : ℝ)^k * a k := by
+    funext k; rfl
+  rw [hrewrite, halt_split, ha_even_tsum, ha_odd_tsum]
+  ring
+
+/-- `∫_{Ioi 0} x²/(1+eˣ) dx = (3/2) · ζ(3)`. -/
+lemma integral_fermi_Ioi :
+    ∫ x in Set.Ioi (0 : ℝ), x^2 / (1 + Real.exp x)
+      = (3/2 : ℝ) * ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3) := by
+  rw [integral_fermi_Ioi_eq_tsum, alt_sum_eq_three_quarter_zeta]
+
+/-- The integrand `x²/(1+eˣ)` is integrable on `Ioi 0`. -/
+lemma integrableOn_fermi_Ioi :
+    IntegrableOn (fun x : ℝ => x^2 / (1 + Real.exp x)) (Set.Ioi 0) := by
+  -- Dominate by x² · e^(-x) which is integrable on Ioi 0.
+  have hdom : IntegrableOn (fun x : ℝ => x^2 * Real.exp (-x)) (Set.Ioi 0) := by
+    have hbase := integrableOn_xsq_exp_neg_mul 1 (by norm_num : (0:ℝ) < 1)
+    have heq : (fun x : ℝ => x^2 * Real.exp (-(1 * x))) = fun x => x^2 * Real.exp (-x) := by
+      funext x; congr 1; rw [one_mul]
+    rw [heq] at hbase; exact hbase
+  -- Use Integrable.mono or equivalent
+  refine MeasureTheory.Integrable.mono' hdom ?_ ?_
+  · -- AEStronglyMeasurable on Ioi 0
+    exact continuous_fermiIntegrand.aestronglyMeasurable.restrict
+  · -- ‖f x‖ ≤ x²·e^(-x)
+    filter_upwards with x
+    rw [Real.norm_eq_abs]
+    rw [abs_of_nonneg (fermiIntegrand_nonneg x)]
+    exact fermiIntegrand_le_exp_neg x
+
 theorem fermi_integral_eq_zeta3 :
     Filter.Tendsto
       (fun t : ℝ => (2/3 : ℝ) * ∫ x in (0 : ℝ)..t, x^2 / (1 + Real.exp x))
       Filter.atTop
       (nhds (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))) := by
-  sorry
+  -- Step 1: ∫₀..t → ∫_{Ioi 0} as t → ∞.
+  have hbase : Filter.Tendsto
+      (fun t : ℝ => ∫ x in (0 : ℝ)..t, x^2 / (1 + Real.exp x))
+      Filter.atTop (nhds (∫ x in Set.Ioi (0:ℝ), x^2 / (1 + Real.exp x))) :=
+    MeasureTheory.intervalIntegral_tendsto_integral_Ioi 0 integrableOn_fermi_Ioi
+      Filter.tendsto_id
+  -- Step 2: ∫_{Ioi 0} x²/(1+eˣ) = (3/2)·ζ(3), so (2/3)·∫ → (2/3)·(3/2)·ζ(3) = ζ(3).
+  have hscale := hbase.const_mul (2/3 : ℝ)
+  rw [integral_fermi_Ioi] at hscale
+  have heq : (2/3 : ℝ) * ((3/2 : ℝ) * ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))
+      = ∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3) := by ring
+  rw [heq] at hscale
+  exact hscale
 
 /-- The PIVP output S converges to ζ(3) directly (no trailing
     rational scaling needed — the factor 2/3 was absorbed into Ṡ). -/
