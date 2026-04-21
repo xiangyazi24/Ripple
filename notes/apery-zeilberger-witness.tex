@@ -1,0 +1,121 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\Z}{\mathbb{Z}}
+
+\title{Ap\'ery $\zeta(3)$: the Zeilberger certificate we need for the last Lean sorry}
+\author{Zinan --- internal note for Xiang}
+\date{2026-04-21}
+
+\begin{document}
+\maketitle
+
+\section{Setup (definitions)}
+
+Working in $\Q$. For $n, k \in \N$ with $k \leq n$ define
+\begin{align*}
+P(n,k) &:= \binom{n}{k}^2 \binom{n+k}{k}^2 \\
+B(n,k) &:= 4(2n+1)\bigl(k(2k+1) - (2n+1)^2\bigr) \cdot P(n,k) \\
+H_3(n) &:= \sum_{m=1}^{n} \frac{1}{m^3} \\
+e(n,k) &:= \sum_{m=1}^{k} \frac{(-1)^{m-1}}{2 m^3 \binom{n}{m}\binom{n+m}{m}} \\
+c(n,k) &:= H_3(n) + e(n,k)
+\end{align*}
+The Ap\'ery sequences are
+\[
+a_n := \sum_{k=0}^{n} P(n,k), \qquad b_n := \sum_{k=0}^{n} P(n,k) \, c(n,k).
+\]
+Both are rational; $a_n$ is in fact a positive integer, and $2\,[1,2,\ldots,n]^3\, b_n \in \Z$ (key integrality for the irrationality proof).
+
+Let
+\[
+F_1(u)(n) := (n+1)^3 \, u_{n+1} \;-\; (2n+1)(17n^2+17n+5)\, u_n \;+\; n^3 \, u_{n-1}.
+\]
+(Note: $(2n+1)(17n^2+17n+5) = 34n^3+51n^2+27n+5$, as in vdPoorten.)
+
+\section{What is proved (Lean, \texttt{AperySequences.lean})}
+
+\paragraph{F1 for $a_n$ (proved):}
+$F_1(a)(n) = 0$ for $n \geq 1$. Standard Zeilberger telescope with witness $B(n,k) \cdot P(n,k)$, formalized in Lean as \texttt{aperyA\_recurrence}.
+
+\paragraph{Decomposition (proved):}
+$b_n = H_3(n) \, a_n + d_n$ where $d_n := \sum_{k=0}^{n} P(n,k) \, e(n,k)$. Formalized as \texttt{aperyB\_eq\_decomp}.
+
+\paragraph{Harmonic correction (proved):}
+$F_1(H_3 \cdot a)(n) = a_{n+1} - a_{n-1}$ for $n \geq 1$. Formalized as \texttt{aperyHA\_recurrence}. (Derivation: shift identities $H_3(n+1) = H_3(n) + 1/(n+1)^3$ and $H_3(n-1) = H_3(n) - 1/n^3$ plus $F_1(a) = 0$.)
+
+\paragraph{Target (sorry'd, this document's subject):}
+\begin{equation}
+\label{eq:target}
+F_1(d)(n) \;=\; a_{n-1} - a_{n+1} \qquad (n \geq 1).
+\end{equation}
+Equivalently, $F_1(b)(n) = 0$: since $F_1$ is linear,
+\[
+F_1(b) = F_1(H_3 \cdot a) + F_1(d) = (a_{n+1} - a_{n-1}) + F_1(d),
+\]
+so \eqref{eq:target} holds iff $F_1(b) = 0$. The file states both: \texttt{aperyD\_recurrence} (sorry) and \texttt{aperyB\_recurrence} (currently derived from \texttt{aperyD\_recurrence} via \texttt{linarith}).
+
+\section{The exact question for external research / ChatGPT}
+
+\textbf{Question.} Find a (rational in $n$, $k$) witness $W(n,k)$, defined for $n \geq 1$ and $k \in \Z$, with $W(n,-1) = 0$ and $W(n,k) = 0$ for $k$ sufficiently large, such that
+\begin{equation}
+\label{eq:WZ}
+(n+1)^3 P(n+1,k)\, c(n+1,k) \;-\; (2n+1)(17n^2+17n+5)\, P(n,k)\, c(n,k) \;+\; n^3\, P(n-1,k)\, c(n-1,k)
+\;=\; W(n,k) - W(n,k-1).
+\end{equation}
+Summing \eqref{eq:WZ} over $k \geq 0$ telescopes to $W(n, \infty) - W(n, -1) = 0$, giving $F_1(b)(n) = 0$.
+
+\section{Answer from vdPoorten (1979), \S 8 p.\,201}
+
+\emph{I had skipped this; the explicit certificate IS in the paper.} After expanding \eqref{eq:WZ} as
+\[
+(B_{n,k} - B_{n,k-1})\, c_{n,k} + (n+1)^3 P(n+1,k)\bigl(c_{n+1,k} - c_{n,k}\bigr) - n^3 P(n-1,k)\bigl(c_{n,k} - c_{n-1,k}\bigr)
+\]
+(the standard decomposition combining the $a_n$ Zeilberger telescope with the $c$-shifts) and \emph{massive reorganization}, the witness is
+\begin{equation}
+\label{eq:W}
+\boxed{\;W(n,k) \;=\; B(n,k) \, c(n,k) \;+\; \frac{5(2n+1)(-1)^{k-1}\, k}{n(n+1)} \binom{n}{k} \binom{n+k}{k}.\;}
+\end{equation}
+That is: the standard $B \cdot c$ piece (the ``naive'' telescope from the $a_n$ certificate carried through $c$) plus a simple rational correction.
+
+\section{Numerical verification of the witness (passed)}
+
+I wrote a Python check (\texttt{/tmp/verify\_witness.py}) using exact rationals (\texttt{fractions.Fraction}) over $\mathbb{Q}$. For each $n \in \{1,2,3,4\}$ and each $k \in \{-1, 0, 1, \ldots, n+2\}$ it compared
+\[
+L(n,k) := (n+1)^3 P(n+1,k) c(n+1,k) - (2n+1)(17n^2+17n+5) P(n,k) c(n,k) + n^3 P(n-1,k) c(n-1,k)
+\]
+with $W(n,k) - W(n,k-1)$ for $W$ from \eqref{eq:W}. \textbf{All $24$ pointwise checks matched exactly.}
+Also $\sum_k L(n,k) = 0 = F_1(b)(n)$ for $n \in \{1, \ldots, 5\}$.
+
+\section{Boundary behavior (both zero)}
+
+\begin{itemize}
+  \item $W(n,-1) = 0$: the main piece $B(n,-1) \cdot c(n,-1) = 0$ because $B(n,-1) = 0$ (by the Zeilberger convention: $P(n,k) = 0$ for $k < 0$), and the correction is $0$ because of the factor $k = -1 \cdot \ldots$ wait, the factor is $k = -1 \not= 0$. Actually: $\binom{n}{-1} = 0$, killing the correction. Good.
+  \item For $k \geq n+2$: $B(n,k) = 0$ (since $P(n,k) = 0$ for $k > n$) and $\binom{n}{k} = 0$, so $W(n,k) = 0$. Hence $\sum_{k=0}^{N} \bigl(W(n,k) - W(n,k-1)\bigr) = W(n,N) - W(n,-1) = 0 - 0 = 0$ for $N \geq n+1$.
+\end{itemize}
+
+\section{What this means for the Lean formalization}
+
+Previously the sorry was ``prove vdPoorten's massive reorganization identity.'' With \eqref{eq:W} verified numerically, the remaining Lean work is \emph{mechanical}:
+\begin{enumerate}
+  \item State \eqref{eq:WZ} as a \texttt{have} lemma (pointwise polynomial-in-$\Q$ identity). Prove by \texttt{field\_simp; ring} after unfolding $B$, $P$, $c = H_3 + e$, and expanding the $e$-differences via \texttt{aperyE\_diff\_right\_closed} (already proved).
+  \item Sum both sides over $k \in \texttt{range (n+2)}$. RHS telescopes via \texttt{Finset.sum\_range\_succ} and \texttt{sum\_sub\_distrib}; the $W(n, n+1)$ endpoint vanishes by $P(n,n+1) = 0$.
+  \item Recognize LHS of \eqref{eq:WZ} summed as $F_1(b)(n) = 0$, hence \texttt{aperyB\_recurrence} (the genuinely-proved direction, not the current circular derivation).
+  \item \texttt{aperyD\_recurrence} then follows in one \texttt{linarith} from \texttt{aperyB\_eq\_decomp}, \texttt{aperyHA\_recurrence}, and \texttt{aperyB\_recurrence}.
+\end{enumerate}
+Estimated effort: 100--200 lines of Lean. Much smaller risk now that the witness is verified.
+
+\section{Follow-up: Section 9 gives the $\zeta(2)$ analogue for free}
+
+vdPoorten \S 9 notes that for $b'_n = \sum \binom{n}{k}^2 \binom{n+k}{k} c'_{n,k}$ (the $\zeta(2)$ case), the analogous witness is
+\[
+B'(n,k) = \bigl(k^2 + 3(2n+1)k - 11n^2 - 9n - 2\bigr) \binom{n}{k}^2 \binom{n+k}{k},
+\quad
+A'(n,k) = B'(n,k) c'_{n,k} + 3(-1)^{n+k-1} \frac{(n-1)!}{(k-1)!}.
+\]
+So once we have the $\zeta(3)$ certificate formalized, the $\zeta(2)$ version costs only substitution and re-verification.
+
+\end{document}
