@@ -498,6 +498,16 @@ lemma aperyE_succ (n k : ℕ) :
 lemma aperyE_zero (n : ℕ) : aperyE n 0 = 0 := by
   unfold aperyE; simp
 
+/-- Closed form for the k-difference of `aperyE`:
+    `e(n, k+1) − e(n, k) = (−1)^k / (2(k+1)³ · C(n, k+1) · C(n+k+1, k+1))`.
+
+    Direct corollary of `aperyE_succ`. -/
+lemma aperyE_diff_right_closed (n k : ℕ) :
+    aperyE n (k + 1) - aperyE n k
+      = (-1 : ℚ) ^ k / (2 * ((k + 1 : ℚ) ^ 3)
+          * (Nat.choose n (k + 1) : ℚ) * (Nat.choose (n + k + 1) (k + 1) : ℚ)) := by
+  rw [aperyE_succ]; ring
+
 /-- **(vdPoorten's closed-form miracle.)** The n-difference of `aperyE` has a
     simple rational closed form. For `1 ≤ n` and `k ≤ n - 1`:
 
