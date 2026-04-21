@@ -812,6 +812,110 @@ lemma aperyE_diff_succ_closed (n k : ℕ) (hk : k ≤ n) :
   rw [h3] at h
   exact h
 
+/-! ### Abel-telescoping for the e-weighted T sum
+
+The Zeilberger identity `T(n,k) = B(n,k) − B(n,k−1)` (from
+`apery_telescoping`) does NOT give a pointwise identity when summed
+against `e(n,k)` to produce `F_D(n) − [a(n−1) − a(n+1)]`.  Instead,
+summing by parts (Abel summation) transforms the `T·e` sum into
+`−Σ B(n,k) · Δe(n,k)`, where `Δe(n,k) = e(n,k+1) − e(n,k)` has the
+closed form from `aperyE_diff_right_closed`.  This is the first
+structural step toward `aperyD_recurrence`. -/
+lemma aperyD_abel_telescope (n : ℕ) (hn : 1 ≤ n) :
+    ∑ k ∈ Finset.range (n + 2),
+        (((n + 1 : ℤ) ^ 3 * apery_P (n + 1) k
+          - (34 * (n : ℤ) ^ 3 + 51 * n ^ 2 + 27 * n + 5) * apery_P n k
+          + (n : ℤ) ^ 3 * apery_P (n - 1) k : ℤ) : ℚ) * aperyE n k
+      = - ∑ k ∈ Finset.range (n + 1),
+            ((apery_B n k : ℤ) : ℚ) * (aperyE n (k + 1) - aperyE n k) := by
+  -- Short name for the T-summand.
+  set T : ℕ → ℤ := fun k =>
+    (n + 1 : ℤ) ^ 3 * apery_P (n + 1) k
+      - (34 * (n : ℤ) ^ 3 + 51 * n ^ 2 + 27 * n + 5) * apery_P n k
+      + (n : ℤ) ^ 3 * apery_P (n - 1) k with hT_def
+  -- Peel off k = 0 using e(n,0) = 0.
+  rw [Finset.sum_range_succ']
+  simp only [aperyE_zero, mul_zero, add_zero]
+  -- Now the sum is over `range (n+1)`, with shifted index (k+1). Peel off top.
+  rw [Finset.sum_range_succ]
+  -- T(k+1) for k ∈ range n uses apery_telescoping.
+  have htele : ∀ k ∈ Finset.range n,
+      ((T (k + 1) : ℤ) : ℚ) * aperyE n (k + 1)
+        = ((apery_B n (k + 1) - apery_B n k : ℤ) : ℚ) * aperyE n (k + 1) := by
+    intro k hk
+    simp only [Finset.mem_range] at hk
+    have hk1 : 1 ≤ k + 1 := Nat.succ_le_succ (Nat.zero_le _)
+    have hkn : k + 1 ≤ n := hk
+    have hAT := apery_telescoping n (k + 1) hk1 hkn
+    have hsub : (k + 1) - 1 = k := by omega
+    rw [hsub] at hAT
+    have hTeq : T (k + 1) = apery_B n (k + 1) - apery_B n k := by
+      simp only [hT_def]; linarith
+    rw [hTeq]
+  rw [Finset.sum_congr rfl htele]
+  -- Now goal: (Σ k ∈ range n, (B(n,k+1) − B(n,k)) · e(n,k+1)) + T(n+1) · e(n,n+1)
+  --          = −Σ k ∈ range (n+1), B(n,k) · Δe(n,k).
+  -- T(n+1) = −B(n,n) (by T_at_top).
+  have hTtop : T (n + 1) = - apery_B n n := by
+    simp only [hT_def]; exact T_at_top n hn
+  have hTtopQ : ((T (n + 1) : ℤ) : ℚ) = ((- apery_B n n : ℤ) : ℚ) := by
+    rw [hTtop]
+  rw [hTtopQ]
+  -- Split out middle sum: (B(n,k+1) − B(n,k)) · e(n,k+1)
+  --   = B(n,k+1) · e(n,k+1) − B(n,k) · e(n,k+1)
+  have hmid_rw : ∀ k ∈ Finset.range n,
+      ((apery_B n (k + 1) - apery_B n k : ℤ) : ℚ) * aperyE n (k + 1)
+        = ((apery_B n (k + 1) : ℤ) : ℚ) * aperyE n (k + 1)
+          - ((apery_B n k : ℤ) : ℚ) * aperyE n (k + 1) := by
+    intro k _; push_cast; ring
+  rw [Finset.sum_congr rfl hmid_rw, Finset.sum_sub_distrib]
+  -- Reindex: Σ_{k ∈ range n} B(n, k+1) · e(n, k+1) = Σ_{k ∈ range n} B(n, k+1) · e(n, k+1).
+  -- Use Finset.sum_range_succ' to shift on the first sum: Σ B(n,k+1) e(n,k+1) is the sum
+  -- from k=0..n-1 of the "B·e shifted up". Equivalently this equals (Σ over k=1..n of B(n,k)·e(n,k)).
+  -- Strategy: rewrite everything over a common range(n+1) with indices.
+  -- Denote f(k) := B(n,k)·e(n,k) over ℚ. Then:
+  --   Σ_{k∈range n} B(n,k+1) e(n,k+1) = Σ_{k∈range (n+1)} f(k) − f(0) = f(n) + Σ_{k∈range n} f(k) − f(0).
+  -- Hmm let's do it cleanly via sum_range_succ'.
+  -- Rewrite LHS sum A: ∑_{k ∈ range n}, B(n,k+1) e(n,k+1).
+  -- We claim: ∑_{k ∈ range n}, B(n,k+1) e(n,k+1) = ∑_{k ∈ range (n+1)}, B(n,k) e(n,k).
+  -- This is because B(n,0) e(n,0) = 0, and reindex k+1 = k'.
+  have hsumA :
+      ∑ k ∈ Finset.range n, ((apery_B n (k + 1) : ℤ) : ℚ) * aperyE n (k + 1)
+        = ∑ k ∈ Finset.range (n + 1), ((apery_B n k : ℤ) : ℚ) * aperyE n k := by
+    rw [Finset.sum_range_succ' (fun k => ((apery_B n k : ℤ) : ℚ) * aperyE n k) n]
+    simp [aperyE_zero]
+  rw [hsumA]
+  -- Goal now:
+  --   (∑ k ∈ range (n+1), B(n,k) e(n,k) − ∑ k ∈ range n, B(n,k) e(n,k+1))
+  --     + (−B(n,n)) · e(n,n+1)
+  --   = −∑ k ∈ range (n+1), B(n,k) · Δe(n,k)
+  -- where Δe(n,k) = e(n,k+1) − e(n,k).
+  -- Expand RHS: −∑ B(n,k) · Δe(n,k) = ∑ B(n,k) e(n,k) − ∑ B(n,k) e(n,k+1).
+  -- So we need:
+  --   ∑ range(n+1) B(n,k) e(n,k) − ∑ range(n) B(n,k) e(n,k+1) − B(n,n) e(n,n+1)
+  --     = ∑ range(n+1) B(n,k) e(n,k) − ∑ range(n+1) B(n,k) e(n,k+1).
+  -- That is: ∑ range(n) B(n,k) e(n,k+1) + B(n,n) e(n,n+1) = ∑ range(n+1) B(n,k) e(n,k+1).
+  -- Which is just peeling off k=n on the right via sum_range_succ.
+  have : ∑ k ∈ Finset.range (n + 1),
+            ((apery_B n k : ℤ) : ℚ) * (aperyE n (k + 1) - aperyE n k)
+          = ∑ k ∈ Finset.range (n + 1),
+              ((apery_B n k : ℤ) : ℚ) * aperyE n (k + 1)
+            - ∑ k ∈ Finset.range (n + 1),
+              ((apery_B n k : ℤ) : ℚ) * aperyE n k := by
+    rw [← Finset.sum_sub_distrib]
+    apply Finset.sum_congr rfl
+    intro k _; ring
+  rw [this]
+  -- Peel off k = n from ∑ range (n+1), B(n,k) e(n,k+1):
+  have hRsplit : ∑ k ∈ Finset.range (n + 1),
+            ((apery_B n k : ℤ) : ℚ) * aperyE n (k + 1)
+        = ∑ k ∈ Finset.range n, ((apery_B n k : ℤ) : ℚ) * aperyE n (k + 1)
+          + ((apery_B n n : ℤ) : ℚ) * aperyE n (n + 1) := by
+    rw [Finset.sum_range_succ]
+  rw [hRsplit]
+  push_cast
+  ring
+
 /-- **Error-sequence recurrence (irreducible core — Zeilberger witness).**
 
     The error series `dₙ = Σ_k P(n,k) · e(n,k)` satisfies the
