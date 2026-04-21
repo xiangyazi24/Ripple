@@ -15,7 +15,7 @@
   * `aperyA_recurrence : (n+1)³ · aperyA (n+1)
                         = (2n+1)·(17n²+17n+5) · aperyA n
                           − n³ · aperyA (n−1)`  (n ≥ 1)
-  * `aperyB_recurrence : same with inhomogeneous correction`
+  * `aperyB_recurrence : same homogeneous three-term recurrence for `bₙ``
 
   Both recurrences admit Zeilberger / WZ-style creative-telescoping proofs;
   Mathlib does not yet have the Zeilberger algorithm, so the certificate
@@ -380,23 +380,29 @@ lemma aperyB_zero : aperyB 0 = 0 := by
 
 /-- **(F1', rational companion) — Apéry three-term recurrence for `bₙ`.**
 
-    Same shape as `aperyA_recurrence`, but with an inhomogeneous term
-    `6 / (n+1)³` on the right-hand side reflecting the derivative of the
-    correction term `c`.  (Provability: same Zeilberger certificate
-    extended to the rational summand.) -/
+    `bₙ` satisfies the *same* homogeneous three-term recurrence as `aₙ`
+    (vdPoorten 1979, Thm 2, p. 196).  This is the structural reason why
+    `bₙ / aₙ → ζ(3)`: both are solutions of a single linear recurrence,
+    so the ratio stabilizes.
+
+    The certificate is an extension of `apery_telescoping` to the
+    rational summand `P(n,k) · c(n,k)`: the correction-term differences
+    `c(n+1,k) − c(n,k)` and `c(n,k) − c(n,k−1)` cancel exactly inside the
+    Zeilberger witness. -/
 lemma aperyB_recurrence (n : ℕ) (hn : 1 ≤ n) :
     ((n + 1 : ℚ) ^ 3) * aperyB (n + 1)
       = (2 * n + 1 : ℚ) * (17 * n ^ 2 + 17 * n + 5) * aperyB n
-          - (n : ℚ) ^ 3 * aperyB (n - 1)
-          + 6 / ((n + 1 : ℚ) ^ 3) := by
+          - (n : ℚ) ^ 3 * aperyB (n - 1) := by
   sorry
 
 /-! ## Generating functions `A(z)`, `B(z)` (formal power series)
 
     The Apéry ODE
         `p(z) A''' + q(z) A'' + r(z) A' + s(z) A = 0`
-        `p(z) B''' + q(z) B'' + r(z) B' + s(z) B = 6`
-    where
+        `p(z) B''' + q(z) B'' + r(z) B' + s(z) B = 0`
+    (both *homogeneous* — `A(z)` and `B(z)` are two linearly independent
+    solutions of the same third-order operator; the ratio
+    `B(z)/A(z) → ζ(3)`) where
         `p(z) = z² − 34 z³ + z⁴`,
         `q(z) = 3 z − 153 z² + 6 z³`,
         `r(z) = 1 − 112 z + 7 z²`,
