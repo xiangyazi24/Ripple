@@ -1417,12 +1417,120 @@ lemma aperyW_pointwise (n k : ℕ) (hn : 1 ≤ n) :
               Nat.choose_eq_zero_of_lt (by omega)
             rw [hB, hC]; push_cast; ring
           rw [hWtop]
-          -- Residual at k = n: (n+1)³ · P(n+1, n+1) · c(n+1, n+1) = -aperyW n (n+1)
-          --   = -(B(n,n)·c(n,n) - q(n,n))
-          --   = q(n,n) - B(n,n)·c(n,n).
-          -- Substitute k = n, expand aperyW n (k+1) via hW₁, rewrite c(n+1,n+1)
-          -- relative to c(n, n).  Deferred: the k = n factorial identity.
-          sorry
+          -- Strategy: substitute k = n, then expand aperyW n (n+1) via hW₁.
+          -- Compute (n+1)³ · P(n+1, n+1) = -apery_B n n via T_at_top.
+          -- Expand c(n+1, n+1) and c(n, n) via aperyC_split + H₃ shift + E-diff closed forms.
+          -- Cancel, yielding a pure binomial/factorial identity.
+          -- Replace all k with n via hkeq. (Avoid `subst` which may eliminate `n` instead.)
+          -- Rewrite the goal directly.
+          rw [hkeq]
+          -- Rewrite relevant hypotheses that mention `k`.
+          rw [hkeq] at hW₁ hW₂ hDe
+          rw [hW₁]
+          simp only [zero_sub]
+          -- Pivot: (n+1)³ · P(n+1, n+1) = -apery_B n n.
+          have hT := T_at_top n hn
+          have hmid : apery_P n (n + 1) = 0 :=
+            apery_P_k_gt n (n + 1) (Nat.lt_succ_self _)
+          have hthird : apery_P (n - 1) (n + 1) = 0 :=
+            apery_P_k_gt (n - 1) (n + 1) (by omega)
+          rw [hmid, hthird] at hT
+          -- hT : (n+1)^3 * P(n+1, n+1) - ... * 0 + n^3 * 0 = -apery_B n n
+          have hpivot : ((n + 1 : ℚ) ^ 3) * ((apery_P (n + 1) (n + 1) : ℤ) : ℚ)
+              = -((apery_B n n : ℤ) : ℚ) := by
+            have hTQ : ((n + 1 : ℤ) ^ 3 * apery_P (n + 1) (n + 1)
+                - (34 * (n : ℤ) ^ 3 + 51 * n ^ 2 + 27 * n + 5) * 0
+                + (n : ℤ) ^ 3 * 0 : ℤ) = - apery_B n n := hT
+            have := congrArg ((↑·) : ℤ → ℚ) hTQ
+            push_cast at this
+            linarith
+          -- Closed form for apery_B n n.
+          have hBnnQ : ((apery_B n n : ℤ) : ℚ)
+              = -4 * ((n : ℚ) + 1) * (2 * n + 1) ^ 2 * (Nat.choose (2 * n) n : ℚ) ^ 2 := by
+            have hPnn : apery_P n n = (Nat.choose (2 * n) n : ℤ) ^ 2 := by
+              unfold apery_P
+              rw [Nat.choose_self]
+              have : n + n = 2 * n := by ring
+              rw [this]
+              push_cast; ring
+            unfold apery_B
+            rw [hPnn]
+            push_cast; ring
+          -- Expand c via aperyC_split.
+          simp only [aperyC_split]
+          -- H₃(n+1) = H₃(n) + 1/(n+1)³.
+          rw [aperyH3_succ]
+          -- e(n+1, n+1) = e(n+1, n) + (-1)^n / (2(n+1)³ · C(n+1,n+1) · C(2n+2, n+1)).
+          rw [aperyE_succ (n + 1) n]
+          -- Simplify binomials that evaluate to 1.
+          rw [show Nat.choose (n + 1) (n + 1) = 1 from Nat.choose_self _,
+              show Nat.choose n n = 1 from Nat.choose_self _]
+          -- aperyE_diff_succ_closed at k = n gives e(n+1,n) - e(n,n) + 1/(n+1)^3 = closed.
+          have hDclosed := aperyE_diff_succ_closed n n (le_refl n)
+          simp only [Nat.sub_self, Nat.factorial_zero, Nat.cast_one, mul_one] at hDclosed
+          -- hDclosed : aperyE (n + 1) n - aperyE n n + 1/(n+1)^3
+          --   = (-1)^n * (n!)^2 / ((n+1)^2 * (n + 1 + n)!)
+          -- Substitute aperyE (n + 1) n.
+          have hE_sub : aperyE (n + 1) n = aperyE n n - 1 / ((n : ℚ) + 1) ^ 3
+                          + (-1 : ℚ) ^ n * (Nat.factorial n : ℚ) ^ 2
+                              / (((n : ℚ) + 1) ^ 2 * (Nat.factorial (n + 1 + n) : ℚ)) := by
+            linarith [hDclosed]
+          rw [hE_sub]
+          -- Normalize indices in binomial/factorial arguments.
+          rw [show n + 1 + n + 1 = 2 * n + 2 from by ring,
+              show n + 1 + n = 2 * n + 1 from by ring,
+              show n + n = 2 * n from by ring]
+          -- Use hpivot and hBnnQ to translate LHS to a closed-form expression.
+          rw [hpivot, hBnnQ]
+          -- Nonzero facts.
+          have hfacn_pos : 0 < Nat.factorial n := Nat.factorial_pos _
+          have hfacn_ne : (Nat.factorial n : ℚ) ≠ 0 := by exact_mod_cast hfacn_pos.ne'
+          have hfac2n_pos : 0 < Nat.factorial (2 * n) := Nat.factorial_pos _
+          have hfac2n_ne : (Nat.factorial (2 * n) : ℚ) ≠ 0 := by exact_mod_cast hfac2n_pos.ne'
+          have hfac2n1_pos : 0 < Nat.factorial (2 * n + 1) := Nat.factorial_pos _
+          have hfac2n1_ne : (Nat.factorial (2 * n + 1) : ℚ) ≠ 0 := by
+            exact_mod_cast hfac2n1_pos.ne'
+          have h2n1_ne : ((2 : ℚ) * n + 1) ≠ 0 := by
+            have : (0 : ℚ) < 2 * n + 1 := by positivity
+            linarith
+          have hC2n_pos : 0 < Nat.choose (2 * n) n := Nat.choose_pos (by omega)
+          have hC2n_ne : (Nat.choose (2 * n) n : ℚ) ≠ 0 := by exact_mod_cast hC2n_pos.ne'
+          have hC2n2_pos : 0 < Nat.choose (2 * n + 2) (n + 1) := Nat.choose_pos (by omega)
+          have hC2n2_ne : (Nat.choose (2 * n + 2) (n + 1) : ℚ) ≠ 0 := by
+            exact_mod_cast hC2n2_pos.ne'
+          -- Factorial relation: (2n+1)! = (2n+1) · (2n)!.
+          have hfac2n1_unfold : (Nat.factorial (2 * n + 1) : ℚ)
+              = (2 * (n : ℚ) + 1) * (Nat.factorial (2 * n) : ℚ) := by
+            have h : Nat.factorial (2 * n + 1) = (2 * n + 1) * Nat.factorial (2 * n) :=
+              Nat.factorial_succ (2 * n)
+            have := congrArg ((↑·) : ℕ → ℚ) h
+            push_cast at this; linarith
+          -- Binomial-factorial relation: C(2n, n) · (n!)² = (2n)!.
+          have hC2n_fact : (Nat.choose (2 * n) n : ℚ) * (Nat.factorial n : ℚ) ^ 2
+                      = (Nat.factorial (2 * n) : ℚ) := by
+            have hcmf := Nat.choose_mul_factorial_mul_factorial (show n ≤ 2 * n by omega)
+            have hsub : 2 * n - n = n := by omega
+            rw [hsub] at hcmf
+            have := congrArg ((↑·) : ℕ → ℚ) hcmf
+            push_cast at this; linarith
+          -- Pascal ratio: (n+1) · C(2n+2, n+1) = 2(2n+1) · C(2n, n).
+          have hPascalQ : ((n : ℚ) + 1) * (Nat.choose (2 * n + 2) (n + 1) : ℚ)
+              = 2 * (2 * (n : ℚ) + 1) * (Nat.choose (2 * n) n : ℚ) := by
+            have := congrArg ((↑·) : ℤ → ℚ) (choose_two_n_succ_identity n)
+            push_cast at this; linarith
+          -- Combined factorial identity: (2n+1)! = (2n+1) · C(2n, n) · (n!)².
+          have hcomb : (Nat.factorial (2 * n + 1) : ℚ)
+              = (2 * (n : ℚ) + 1) * (Nat.choose (2 * n) n : ℚ) * (Nat.factorial n : ℚ) ^ 2 := by
+            rw [hfac2n1_unfold, ← hC2n_fact]; ring
+          -- Now clear denominators and close by linear_combination.
+          field_simp
+          -- After field_simp the goal should be polynomial.  Apply the two identities.
+          linear_combination
+            (-2 * (-1 : ℚ) ^ n * (2 * (n : ℚ) + 1) ^ 2 * (Nat.choose (2 * n) n : ℚ) ^ 2
+                * (Nat.factorial n : ℚ) ^ 2) * hPascalQ
+            + ((-1 : ℚ) ^ n * (4 * (2 * (n : ℚ) + 1) ^ 2 * (Nat.choose (2 * n) n : ℚ) ^ 2
+                - 10 * ((n : ℚ) + 1) * (2 * (n : ℚ) + 1) * (Nat.choose (2 * n) n : ℚ)
+                    * (Nat.choose (2 * n + 2) (n + 1) : ℚ))) * hcomb
       · -- Regime: k ≥ n + 1.  LHS = 0 and RHS = 0.
         have hP1 : apery_P (n + 1) (k + 1) = 0 :=
           apery_P_k_gt (n + 1) (k + 1) (by omega)
