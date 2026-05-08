@@ -10,10 +10,11 @@
   Pipeline (same as algebraic branch, sharp tracker bound sourced externally):
     CertifiedBoundedTimeComputable d α + PolyCRNDecomposition
       ↓ certified_zero_init_wrapper_sharp (requires `h_sharp_up`)
-      ↓ stage1_core_with_output_eq
+      ↓ stage1_core_with_output_eq_and_modulus
       ↓ stage1_rest_bound_and_nonneg
-      ↓ stage2_to_lpp_from_bounds
-        → IsLPPComputable α.
+      ↓ stage2_to_lpp_from_bounds_with_modulus
+        → quantitative LPP witness
+        → IsLPPComputable α by forgetting the modulus.
 
   ## The one real gap: the sharp tracker bound
 
@@ -45,49 +46,52 @@ open Filter Topology
 
 The generic version stripped of the algebraic hypothesis. The small-λ
 slack closure requires a sharp uniform bound `x_out(σ) ≤ α` on the
-upstream CBTC; this is passed as an explicit hypothesis. -/
+upstream CBTC; this is passed as an explicit hypothesis.
 
-/-- **Interior case, bounded-CRN version.** For `α ∈ (0, 1)` computed by
-a generic CBTC + PCD with a sharp uniform output bound `x_out(σ) ≤ α`,
-we conclude `IsLPPComputable α`.
+The quantitative theorem
+`bounded_crn_zero_init_is_lpp_computable_interior_with_modulus`
+is the primary Stage 1/2/3 statement. The older qualitative theorem
+`bounded_crn_is_lpp_computable_interior_from_sharp` is now just its
+projection to `IsLPPComputable`. -/
 
-Proof: identical assembly to `algebraic_lpp_interior_from_sharp_bound`
-(see `Ripple/LPP/AlgebraicLPP.lean`), with the upstream CBTC taken as
-input rather than produced from the algebraic hypothesis. -/
-theorem bounded_crn_is_lpp_computable_interior_from_sharp
+/-- Quantitative interior theorem for the genuine LPP stages.
+
+Assume the input CBTC is already zero-init at the output and satisfies the
+sharp upper bound `x_out(σ) ≤ α`. Then the Stage 1/2/3 LPP pipeline computes
+the same `α` with modulus at most `max (cbtc.modulus r) 0 + 1`. This is the
+stage-by-stage complexity statement behind the LPP construction itself; it
+does not include any extra slowdown from the separate zero-init wrapper. -/
+theorem bounded_crn_zero_init_is_lpp_computable_interior_with_modulus
     {α : ℝ} {d : ℕ}
     (hα_nn : 0 ≤ α) (hα_lt : α < 1)
     (cbtc : CertifiedBoundedTimeComputable d α)
     (pcd : PolyCRNDecomposition d cbtc.pivp)
+    (h_zero_init : cbtc.pivp.init cbtc.pivp.output = 0)
     (h_sharp_up : ∀ σ, 0 ≤ σ → cbtc.sol.trajectory σ cbtc.pivp.output ≤ α) :
-    ∃ _ : IsLPPComputable α, True := by
-  -- Step 1: zero-init wrapper with sharp bound propagation (U := α).
-  obtain ⟨d', cbtc', pcd', h_zero_init', h_sharp_zero⟩ :=
-    certified_zero_init_wrapper_sharp cbtc pcd hα_nn h_sharp_up
-  -- Step 2: Stage 1 quadraticize with output equality.
-  obtain ⟨d'', btc'', A, B, hA, hB, h_field, h_init_nn, h_init_rat, h_out_eq⟩ :=
-    stage1_core_with_output_eq cbtc' pcd'
+    ∃ h : IsLPPComputable α,
+      ∀ r : ℕ, ∀ t : ℝ, t > max (cbtc.modulus r) 0 + 1 →
+        |∑ i ∈ h.marked, h.sol t i - α| < Real.exp (-(r : ℝ)) := by
+  obtain ⟨d'', btc'', A, B, hA, hB, h_field, h_init_nn, h_init_rat, h_out_eq, h_mod_eq⟩ :=
+    stage1_core_with_output_eq_and_modulus cbtc pcd
   rcases Nat.eq_zero_or_pos d'' with hd''0 | hd''pos
   · subst hd''0; exact Fin.elim0 btc''.pivp.output
   haveI : NeZero d'' := ⟨Nat.pos_iff_ne_zero.mp hd''pos⟩
-  -- Zero-init preservation on Stage 1 output.
   have h_zero_stage1 : btc''.pivp.init btc''.pivp.output = 0 := by
     have h0 := h_out_eq 0
     have h_btc''_init : btc''.sol.trajectory 0 btc''.pivp.output
         = btc''.pivp.init btc''.pivp.output :=
       congr_fun btc''.sol.init_cond btc''.pivp.output
     rw [← h_btc''_init, h0]
-    have h_cbtc'_init : cbtc'.sol.trajectory 0 cbtc'.pivp.output
-        = cbtc'.pivp.toPIVP.init cbtc'.pivp.output :=
-      congr_fun cbtc'.sol.init_cond cbtc'.pivp.output
-    change cbtc'.sol.trajectory 0 cbtc'.pivp.output = 0
-    rw [h_cbtc'_init, PolyPIVP.toPIVP_init, h_zero_init']
+    have h_cbtc_init : cbtc.sol.trajectory 0 cbtc.pivp.output
+        = cbtc.pivp.toPIVP.init cbtc.pivp.output :=
+      congr_fun cbtc.sol.init_cond cbtc.pivp.output
+    change cbtc.sol.trajectory 0 cbtc.pivp.output = 0
+    rw [h_cbtc_init, PolyPIVP.toPIVP_init, h_zero_init]
     simp
-  -- M_out = α via sharp zero-init bound composed with Stage 1 output equality.
   have h_M_out : ∀ σ, 0 ≤ σ →
       btc''.sol.trajectory σ btc''.pivp.output ≤ α := fun σ hσ => by
-    rw [h_out_eq σ]; exact h_sharp_zero σ hσ
-  -- M_rest from Stage 1 rest-species bound and non-negativity.
+    rw [h_out_eq σ]
+    exact h_sharp_up σ hσ
   obtain ⟨M_rest, hM_rest_nn, h_rest_nn_all, h_rest_le_all⟩ :=
     stage1_rest_bound_and_nonneg btc'' A B hA hB h_field h_init_nn
   set ε : ℝ := 1 - α with hε_def
@@ -178,9 +182,37 @@ theorem bounded_crn_is_lpp_computable_interior_from_sharp
   have h_rest_le_ne : ∀ σ, 0 ≤ σ → ∀ j, j ≠ btc''.pivp.output →
       btc''.sol.trajectory σ j ≤ M_rest := fun σ hσ j _ => h_rest_le_all σ hσ j
   have hα01 : 0 ≤ α ∧ α ≤ 1 := ⟨hα_nn, le_of_lt hα_lt⟩
-  exact stage2_to_lpp_from_bounds hα01 btc'' A B hA hB h_field h_init_nn h_init_rat
-    c_room hc_room_pos hc_room_le_1 hc_room_q h_sum_le_room h_zero_stage1
-    α h_M_out M_rest hM_rest_nn h_rest_nn_ne h_rest_le_ne h_small_lambda
+  obtain ⟨h, hh⟩ :=
+    stage2_to_lpp_from_bounds_with_modulus hα01 btc'' A B hA hB h_field h_init_nn h_init_rat
+      c_room hc_room_pos hc_room_le_1 hc_room_q h_sum_le_room h_zero_stage1
+      α h_M_out M_rest hM_rest_nn h_rest_nn_ne h_rest_le_ne h_small_lambda
+  refine ⟨h, ?_⟩
+  intro r t ht
+  have ht' : t > max (btc''.modulus r) 0 + 1 := by
+    rw [h_mod_eq r]
+    exact ht
+  exact hh r t ht'
+
+/-- **Interior case, bounded-CRN version.** For `α ∈ (0, 1)` computed by
+a generic CBTC + PCD with a sharp uniform output bound `x_out(σ) ≤ α`,
+we conclude `IsLPPComputable α`.
+
+Proof: identical assembly to `algebraic_lpp_interior_from_sharp_bound`
+(see `Ripple/LPP/AlgebraicLPP.lean`), with the upstream CBTC taken as
+input rather than produced from the algebraic hypothesis. -/
+theorem bounded_crn_is_lpp_computable_interior_from_sharp
+    {α : ℝ} {d : ℕ}
+    (hα_nn : 0 ≤ α) (hα_lt : α < 1)
+    (cbtc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d cbtc.pivp)
+    (h_sharp_up : ∀ σ, 0 ≤ σ → cbtc.sol.trajectory σ cbtc.pivp.output ≤ α) :
+    ∃ _ : IsLPPComputable α, True := by
+  obtain ⟨d', cbtc', pcd', h_zero_init', h_sharp_zero⟩ :=
+    certified_zero_init_wrapper_sharp cbtc pcd hα_nn h_sharp_up
+  obtain ⟨h, _hh⟩ :=
+    bounded_crn_zero_init_is_lpp_computable_interior_with_modulus
+      hα_nn hα_lt cbtc' pcd' h_zero_init' h_sharp_zero
+  exact ⟨h, trivial⟩
 
 /-- **LPP main theorem for bounded-CRN-computable reals (Theorem 13 in [LPP]).**
 
@@ -200,7 +232,7 @@ internally via `algebraic_is_certified_crn_sharp`; for a generic CBTC it
 must be propagated from the specific construction or provided by the caller.
 
 Zero new axioms — this theorem depends only on
-`[propext, Classical.choice, Quot.sound]` plus the axioms of the
+`[propext, Classical.choice, Quot.sound]` plus the proved
 `AlgebraicLPP` pipeline it reuses. -/
 theorem bounded_crn_is_lpp_computable {α : ℝ} {d : ℕ}
     (hα01 : 0 ≤ α ∧ α ≤ 1)

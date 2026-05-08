@@ -58,6 +58,8 @@
 import Ripple.Core.BoundedTime
 import Ripple.Core.ODEGlobal
 import Ripple.Core.ZeroInitPositivity
+import Ripple.Number.AperyConifoldIndicial
+import Ripple.Number.ApreyScalarZ
 import Mathlib.Topology.Algebra.InfiniteSum.Basic
 
 namespace Ripple.Number
@@ -96,6 +98,10 @@ private def iZeta : Fin 8 := 7
 /-- Adaptation rate ε in the ζ̇ = ε(ρ − ζ) law.  Kept as a literal rational. -/
 def aperyEps : ℚ := 1 / 100
 
+/-- The Apéry conifold singularity `z₁ = 17 - 12√2`, the smaller positive
+root of `1 - 34 z + z² = 0`. -/
+noncomputable def aperyConifoldZ1 : ℝ := 17 - 12 * Real.sqrt 2
+
 /-! ## Polynomial helpers
 
   All polynomials live in `MvPolynomial (Fin 8) ℚ`; only the variable
@@ -105,29 +111,29 @@ def aperyEps : ℚ := 1 / 100
 -/
 
 /-- p(z) = z² − 34 z³ + z⁴ = z² (1 − 34 z + z²). -/
-noncomputable def aperyP : MvPolynomial (Fin 8) ℚ :=
+noncomputable def apery8VarP : MvPolynomial (Fin 8) ℚ :=
   let z : MvPolynomial (Fin 8) ℚ := X iZ
   z ^ 2 - C 34 * z ^ 3 + z ^ 4
 
 /-- q(z) = 3 z − 153 z² + 6 z³ = z (3 − 153 z + 6 z²). -/
-noncomputable def aperyQ : MvPolynomial (Fin 8) ℚ :=
+noncomputable def apery8VarQ : MvPolynomial (Fin 8) ℚ :=
   let z : MvPolynomial (Fin 8) ℚ := X iZ
   C 3 * z - C 153 * z ^ 2 + C 6 * z ^ 3
 
 /-- r(z) = 1 − 112 z + 7 z². -/
-noncomputable def aperyR : MvPolynomial (Fin 8) ℚ :=
+noncomputable def apery8VarR : MvPolynomial (Fin 8) ℚ :=
   let z : MvPolynomial (Fin 8) ℚ := X iZ
   C 1 - C 112 * z + C 7 * z ^ 2
 
 /-- s(z) = −5 + z. -/
-noncomputable def aperyS : MvPolynomial (Fin 8) ℚ :=
+noncomputable def apery8VarS : MvPolynomial (Fin 8) ℚ :=
   let z : MvPolynomial (Fin 8) ℚ := X iZ
   (- C 5) + z
 
 /-- Q(z, α, σ_A) = q(z) + r(z) α + s(z) σ_A.  A polynomial in three of
 the eight variables. -/
-noncomputable def aperyBigQ : MvPolynomial (Fin 8) ℚ :=
-  aperyQ + aperyR * X iA + aperyS * X iSA
+noncomputable def apery8VarBigQ : MvPolynomial (Fin 8) ℚ :=
+  apery8VarQ + apery8VarR * X iA + apery8VarS * X iSA
 
 /-! ## Elaboration checks
 
@@ -135,11 +141,11 @@ noncomputable def aperyBigQ : MvPolynomial (Fin 8) ℚ :=
   fires during `lake build` only if the surrounding module elaborates.
 -/
 
-#check (aperyP   : MvPolynomial (Fin 8) ℚ)
-#check (aperyQ   : MvPolynomial (Fin 8) ℚ)
-#check (aperyR   : MvPolynomial (Fin 8) ℚ)
-#check (aperyS   : MvPolynomial (Fin 8) ℚ)
-#check (aperyBigQ : MvPolynomial (Fin 8) ℚ)
+#check (apery8VarP   : MvPolynomial (Fin 8) ℚ)
+#check (apery8VarQ   : MvPolynomial (Fin 8) ℚ)
+#check (apery8VarR   : MvPolynomial (Fin 8) ℚ)
+#check (apery8VarS   : MvPolynomial (Fin 8) ℚ)
+#check (apery8VarBigQ : MvPolynomial (Fin 8) ℚ)
 
 /-! ## The 8-variable polynomial vector field -/
 
@@ -155,19 +161,19 @@ noncomputable def apery8VarField : Fin 8 → MvPolynomial (Fin 8) ℚ := fun i =
   let ζ  : MvPolynomial (Fin 8) ℚ := X iZeta
   match i with
   -- dz/dτ = p(z)
-  | ⟨0, _⟩ => aperyP
+  | ⟨0, _⟩ => apery8VarP
   -- dα/dτ = p(z) + q(z) α + r(z) α² + s(z) σ_A α
-  | ⟨1, _⟩ => aperyP + aperyQ * α + aperyR * α ^ 2 + aperyS * sA * α
+  | ⟨1, _⟩ => apery8VarP + apery8VarQ * α + apery8VarR * α ^ 2 + apery8VarS * sA * α
   -- dσ_A/dτ = α p(z) + σ_A Q
-  | ⟨2, _⟩ => α * aperyP + sA * aperyBigQ
+  | ⟨2, _⟩ => α * apery8VarP + sA * apery8VarBigQ
   -- dβ/dτ = ρ p(z) + β Q
-  | ⟨3, _⟩ => ρ * aperyP + β * aperyBigQ
+  | ⟨3, _⟩ => ρ * apery8VarP + β * apery8VarBigQ
   -- dρ/dτ = r(z)(ρ α − β) + s(z)(ρ σ_A − σ_B) + 6 w
-  | ⟨4, _⟩ => aperyR * (ρ * α - β) + aperyS * (ρ * sA - sB) + C 6 * w
+  | ⟨4, _⟩ => apery8VarR * (ρ * α - β) + apery8VarS * (ρ * sA - sB) + C 6 * w
   -- dσ_B/dτ = β p(z) + σ_B Q
-  | ⟨5, _⟩ => β * aperyP + sB * aperyBigQ
+  | ⟨5, _⟩ => β * apery8VarP + sB * apery8VarBigQ
   -- dw/dτ = w Q
-  | ⟨6, _⟩ => w * aperyBigQ
+  | ⟨6, _⟩ => w * apery8VarBigQ
   -- dζ/dτ = ε (ρ − ζ)
   | ⟨7, _⟩ => C aperyEps * (ρ - ζ)
 
@@ -193,7 +199,7 @@ noncomputable def apery8VarPolyPIVP (init : Fin 8 → ℚ) : PolyPIVP 8 where
 
 /-! ## Open sub-lemmas
 
-  The proof of `apery_real_time_from_adaptation` below reduces to four
+  The proof of `apery_real_time_from_adaptation` below reduces to five
   self-contained analytic statements.  Each is recorded here with a
   `sorry` body so that future work has an explicit target signature.
 -/
@@ -279,7 +285,7 @@ theorem apery_exists_bounded_trajectory
   have ht_in : t ∈ Set.Ico (0 : ℝ) (t + 1) := ⟨ht, by linarith⟩
   exact h_invariant' (t + 1) hT_pos y hy0 hy_deriv' t ht_in
 
-/-- **Apéry conifold Frobenius witness** — the single deep analytic
+/-! **Apéry conifold Frobenius witness** — the single deep analytic
 gap in the ζ(3) chain.
 
 **Claim.** Along any bounded trajectory of the Apéry 8-var PIVP
@@ -301,8 +307,11 @@ the ρ-coordinate satisfies
          `p A''' + q A'' + r A' + s A = 0`,
          `p B''' + q B'' + r B' + s B = 6`.
   (F3) At the conifold `z₁ = 17 − 12√2` the indicial equation
-       `ρ(2ρ − 1)(ρ − 1) = 0` gives local Frobenius exponents
-       `{0, 1/2, 1}`.
+       `ρ(2ρ − 1)(ρ − 1) = 0` forces any local Frobenius exponent
+       to lie in `{0, 1/2, 1}`.  The algebraic indicial computation
+       is now formalized in `Ripple.Number.AperyConifoldIndicial`;
+       what remains is the analytic bridge from actual local
+       expansions to that predicate.
   (F4) **Apéry's identity** `β₁/α₁ = ζ(3)`: the `√(z₁ − z)`
        Frobenius coefficient of `E(z) := B(z) − ζ(3) · A(z)`
        vanishes.  (This is the analytical content of Apéry's
@@ -325,38 +334,218 @@ Frobenius theory, neither of which Mathlib currently has;
 formalizing them is on the order of a standalone project. The
 whole analytical core is therefore concentrated in this single
 witness. -/
-theorem apery_conifold_frobenius_witness
+
+/-- **(F3)** Algebraic conifold indicial roots, exposed in the bounded
+PIVP file so the remaining bridge can cite them explicitly. -/
+private theorem apery_conifold_frobenius_exponent_roots
+    {A : ℝ → ℝ} {ρ : ℝ}
+    (hρ : IsAperyConifoldFrobeniusExponent A ρ) :
+    ρ = 0 ∨ ρ = (1 / 2 : ℝ) ∨ ρ = 1 :=
+  aperyConifold_indicial_exponents_are_roots hρ
+
+/-- Conifold `3/2`-order asymptotic placeholder extracted from the Apéry
+Frobenius analysis near the conifold. This matches the roadmap item `(F5)`
+more closely than the earlier linear-distance packaging: the ratio error is
+controlled by `|z₁ - z|^(3/2)` written as `|z₁ - z| * sqrt |z₁ - z|`. -/
+def AperyConifoldThreeHalvesBound
+    (init : Fin 8 → ℚ)
+    (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP) : Prop :=
+  ∃ K32 : ℝ, 0 < K32 ∧
+    ∀ t : ℝ, 0 ≤ t →
+      |sol.trajectory t iR - (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))|
+        ≤ K32 * |aperyConifoldZ1 - sol.trajectory t iZ| *
+            Real.sqrt |aperyConifoldZ1 - sol.trajectory t iZ|
+
+/-- Once the ratio error is controlled by the conifold `3/2`-order
+asymptotic from `(F5)`, the already-proved scalar exponential convergence
+of `z(τ)` upgrades it to exponential convergence of `ρ(τ)`. -/
+theorem apery_three_halves_bound_exponential
     (init : Fin 8 → ℚ)
     (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
-    (_hbdd : (apery8VarPolyPIVP init).toPIVP.IsBounded sol.trajectory)
-    (_h_z_init : (0 : ℝ) < ((init iZ : ℚ) : ℝ) ∧
-                 ((init iZ : ℚ) : ℝ) < 17 - 12 * Real.sqrt 2) :
+    (hz_exp : ∃ C lam : ℝ, 0 < C ∧ 0 < lam ∧
+      ∀ t : ℝ, 0 ≤ t →
+        |aperyConifoldZ1 - sol.trajectory t iZ|
+          ≤ C * Real.exp (-(lam * t)))
+    (hthree : AperyConifoldThreeHalvesBound init sol) :
     ∃ K κ : ℝ, 0 < K ∧ 0 < κ ∧
       ∀ t : ℝ, 0 ≤ t →
         |sol.trajectory t iR - (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))|
           ≤ K * Real.exp (-(κ * t)) := by
-  sorry
+  rcases hz_exp with ⟨C, lam, hC, hlam, hz_exp⟩
+  rcases hthree with ⟨K32, hK32, hthree⟩
+  refine ⟨K32 * C * Real.sqrt C, 3 * lam / 2,
+    mul_pos (mul_pos hK32 hC) (Real.sqrt_pos.mpr hC), by positivity, ?_⟩
+  intro t ht
+  let x := |aperyConifoldZ1 - sol.trajectory t iZ|
+  let y := C * Real.exp (-(lam * t))
+  have hxdef : x = |aperyConifoldZ1 - sol.trajectory t iZ| := rfl
+  have hydef : y = C * Real.exp (-(lam * t)) := rfl
+  have hx_nonneg : 0 ≤ x := by
+    simp [x]
+  have hy_nonneg : 0 ≤ y := by
+    unfold y
+    positivity
+  have hz_t : x ≤ y := by
+    simpa [x, y] using hz_exp t ht
+  have hsqrt_t : Real.sqrt x ≤ Real.sqrt y := Real.sqrt_le_sqrt hz_t
+  have hmul_xy : x * Real.sqrt x ≤ y * Real.sqrt y := by
+    exact mul_le_mul hz_t hsqrt_t (Real.sqrt_nonneg x) hy_nonneg
+  have hscaled : K32 * (x * Real.sqrt x) ≤ K32 * (y * Real.sqrt y) := by
+    exact mul_le_mul_of_nonneg_left hmul_xy (le_of_lt hK32)
+  have hthree_t := hthree t ht
+  have hfirst :
+      |sol.trajectory t iR - (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))| ≤
+        K32 * (x * Real.sqrt x) := by
+    simpa [x, mul_assoc] using hthree_t
+  have hy_sqrt :
+      y * Real.sqrt y = C * Real.sqrt C * Real.exp (-(3 * (lam * t) / 2)) := by
+    rw [hydef]
+    have hsqrtexp : Real.sqrt (Real.exp (-(lam * t))) = Real.exp (-(lam * t) / 2) := by
+      rw [← Real.exp_half (-(lam * t))]
+    rw [Real.sqrt_mul hC.le, hsqrtexp]
+    have hexp :
+        Real.exp (-(lam * t)) * Real.exp (-(lam * t) / 2) =
+          Real.exp (-(3 * (lam * t) / 2)) := by
+      rw [show Real.exp (-(lam * t)) * Real.exp (-(lam * t) / 2) =
+        Real.exp (-(lam * t) + (-(lam * t) / 2)) by
+          simpa using (Real.exp_add (-(lam * t)) (-(lam * t) / 2)).symm]
+      congr 1
+      ring
+    calc
+      C * Real.exp (-(lam * t)) * (Real.sqrt C * Real.exp (-(lam * t) / 2)) =
+          C * Real.sqrt C * (Real.exp (-(lam * t)) * Real.exp (-(lam * t) / 2)) := by ring
+      _ = C * Real.sqrt C * Real.exp (-(3 * (lam * t) / 2)) := by rw [hexp]
+  have hscaled' :
+      K32 * (x * Real.sqrt x) ≤
+        (K32 * C * Real.sqrt C) * Real.exp (-(3 * lam / 2 * t)) := by
+    calc
+      K32 * (x * Real.sqrt x) ≤ K32 * (y * Real.sqrt y) := hscaled
+      _ = K32 * (C * Real.sqrt C * Real.exp (-(3 * (lam * t) / 2))) := by
+        rw [hy_sqrt]
+      _ = (K32 * C * Real.sqrt C) * Real.exp (-(3 * (lam * t) / 2)) := by
+        ring
+      _ = (K32 * C * Real.sqrt C) * Real.exp (-(3 * lam / 2 * t)) := by
+        congr 1
+        ring
+  exact le_trans hfirst hscaled'
+
+/-- **(b0)** Exponential approach of the scalar conifold uniformiser.
+
+This isolates roadmap item (F6) from the larger Frobenius argument:
+for the scalar coordinate `z(τ)` solving
+
+  `dz/dτ = z² (1 - 34 z + z²)`
+
+with initial value in `(0, z₁)`, prove exponential convergence to the
+simple root `z₁ = 17 - 12√2`.
+
+This is the part of the old monolithic witness that is most plausibly
+closeable directly in Mathlib: it is a one-dimensional polynomial ODE
+stability statement, independent of the Frobenius / regular-singular
+machinery behind Apéry's theorem. -/
+theorem apery_z_component_exponential_to_conifold
+    (init : Fin 8 → ℚ)
+    (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
+    (_hbdd : (apery8VarPolyPIVP init).toPIVP.IsBounded sol.trajectory)
+    (_h_z_init : (0 : ℝ) < ((init iZ : ℚ) : ℝ) ∧
+                 ((init iZ : ℚ) : ℝ) < aperyConifoldZ1) :
+    ∃ C lam : ℝ, 0 < C ∧ 0 < lam ∧
+      ∀ t : ℝ, 0 ≤ t →
+        |aperyConifoldZ1 - sol.trajectory t iZ|
+          ≤ C * Real.exp (-(lam * t)) := by
+  have hZ1_eq : aperyConifoldZ1 = aperyZ1 := by
+    rfl
+  have hz_init_eq : sol.trajectory 0 iZ = ((init iZ : ℚ) : ℝ) := by
+    rw [sol.init_cond]
+    simp [PolyPIVP.toPIVP_init, apery8VarPolyPIVP]
+  have hz_ode : ∀ t : ℝ, 0 ≤ t → HasDerivAt (fun s => sol.trajectory s iZ)
+      (aperyScalarP (sol.trajectory t iZ)) t := by
+    intro t ht
+    have h := (hasDerivAt_pi.mp (sol.is_solution t ht)) iZ
+    have hfield : (apery8VarPolyPIVP init).toPIVP.field (sol.trajectory t) iZ =
+        aperyScalarP (sol.trajectory t iZ) := by
+      unfold PolyPIVP.toPIVP PolyPIVP.evalField apery8VarPolyPIVP
+      change MvPolynomial.eval₂ (Rat.castHom ℝ) (sol.trajectory t) apery8VarP =
+        aperyScalarP (sol.trajectory t iZ)
+      unfold apery8VarP aperyScalarP
+      simp [iZ]
+      ring
+    rw [hfield] at h
+    exact h
+  obtain ⟨K, κ, hK, hκ, hconv⟩ :=
+    apery_scalar_z_exponential_convergence
+      (fun t => sol.trajectory t iZ) (((init iZ : ℚ) : ℝ))
+      _h_z_init.1 (by simpa [hZ1_eq] using _h_z_init.2) hz_init_eq hz_ode
+  refine ⟨K, κ, hK, hκ, ?_⟩
+  intro t ht
+  simpa [hZ1_eq] using hconv t ht
+
+/-- **(b1)** Conifold Frobenius bridge.
+
+The only remaining analytic input is now the local `3/2`-order conifold
+estimate `apery_conifold_three_halves_bound`, i.e. the step turning the
+regular-singular/Frobenius data `(F3)`–`(F5)` into the explicit asymptotic
+`|ρ - ζ(3)| = O(|z₁ - z|^(3/2))`. Once that is granted, exponential
+convergence follows mechanically from `(F6)`. -/
+theorem apery_conifold_frobenius_bridge
+    (init : Fin 8 → ℚ)
+    (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
+    (_hbdd : (apery8VarPolyPIVP init).toPIVP.IsBounded sol.trajectory)
+    (_h_z_init : (0 : ℝ) < ((init iZ : ℚ) : ℝ) ∧
+                  ((init iZ : ℚ) : ℝ) < aperyConifoldZ1)
+    (hthree : AperyConifoldThreeHalvesBound init sol)
+    (hz_exp : ∃ C lam : ℝ, 0 < C ∧ 0 < lam ∧
+      ∀ t : ℝ, 0 ≤ t →
+        |aperyConifoldZ1 - sol.trajectory t iZ|
+          ≤ C * Real.exp (-(lam * t))) :
+    ∃ K κ : ℝ, 0 < K ∧ 0 < κ ∧
+      ∀ t : ℝ, 0 ≤ t →
+        |sol.trajectory t iR - (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))|
+          ≤ K * Real.exp (-(κ * t)) := by
+  exact apery_three_halves_bound_exponential init sol hz_exp hthree
+
+/-- **(b1)+(F6) assembled.**
+
+This theorem is now pure glue: the scalar conifold convergence `(F6)` is
+proved separately in `apery_z_component_exponential_to_conifold`, and the
+remaining Frobenius content is `apery_conifold_frobenius_bridge`. -/
+theorem apery_conifold_frobenius_witness
+    (init : Fin 8 → ℚ)
+    (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
+    (hbdd : (apery8VarPolyPIVP init).toPIVP.IsBounded sol.trajectory)
+    (h_z_init : (0 : ℝ) < ((init iZ : ℚ) : ℝ) ∧
+                 ((init iZ : ℚ) : ℝ) < aperyConifoldZ1)
+    (hthree : AperyConifoldThreeHalvesBound init sol) :
+    ∃ K κ : ℝ, 0 < K ∧ 0 < κ ∧
+      ∀ t : ℝ, 0 ≤ t →
+        |sol.trajectory t iR - (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))|
+          ≤ K * Real.exp (-(κ * t)) := by
+  obtain ⟨C, lam, hC, hlam, hz_exp⟩ :=
+    apery_z_component_exponential_to_conifold init sol hbdd h_z_init
+  exact apery_conifold_frobenius_bridge init sol hbdd h_z_init hthree
+    ⟨C, lam, hC, hlam, hz_exp⟩
 
 /-- **(b)** Exponential convergence of the ratio `ρ(t)` to `ζ(3)`
 along any bounded trajectory whose initial z-coordinate lies in
 the conifold basin `(0, z₁)`, `z₁ := 17 − 12√2`.
 
 **Reduction.** This is a direct repackaging of
-`apery_conifold_frobenius_witness`: once the Frobenius estimate
-is granted as a black box, the statement is immediate. All the
-analytical work lives in the witness — see its docstring for the
-six-step roadmap (F1)–(F6) of what remains to be formalized. -/
+`apery_conifold_frobenius_witness`: once the assembled Frobenius estimate
+is granted, the statement is immediate. The actual residual research gap
+is now `apery_conifold_frobenius_bridge`; the scalar convergence input
+`(F6)` has been factored out and proved separately. -/
 theorem apery_ratio_converges_exponentially
     (init : Fin 8 → ℚ)
     (sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP)
     (hbdd : (apery8VarPolyPIVP init).toPIVP.IsBounded sol.trajectory)
     (h_z_init : (0 : ℝ) < ((init iZ : ℚ) : ℝ) ∧
-                ((init iZ : ℚ) : ℝ) < 17 - 12 * Real.sqrt 2) :
+                ((init iZ : ℚ) : ℝ) < aperyConifoldZ1)
+    (hthree : AperyConifoldThreeHalvesBound init sol) :
     ∃ K κ : ℝ, 0 < K ∧ 0 < κ ∧
       ∀ t : ℝ, 0 ≤ t →
         |sol.trajectory t iR - (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))|
           ≤ K * Real.exp (-(κ * t)) :=
-  apery_conifold_frobenius_witness init sol hbdd h_z_init
+  apery_conifold_frobenius_witness init sol hbdd h_z_init hthree
 
 /-! ### Helpers for (c)
 
@@ -963,15 +1152,15 @@ theorem apery_combined_linear_modulus
 
   Producing these two hypotheses for a concrete Taylor-truncation
   `init` at `z₀ = 1/1000` is pure Frobenius/Apéry analysis and is
-  what `apery_conifold_frobenius_witness` is really about; once that
-  witness is closed, choosing any such `init` and discharging the
+  what `apery_conifold_frobenius_bridge` is really about; once that
+  bridge is closed, choosing any such `init` and discharging the
   invariance hypothesis (by a dynamical-systems argument on the ball
   around the conifold attractor) gives the unconditional statement
   `IsRealTimeComputable ζ(3)` as an immediate corollary.
 
-  **No axioms added by this file.** The remaining sorries, as of this
-  commit, are concentrated in `apery_conifold_frobenius_witness` (the
-  single analytic gap).
+  **No axioms added by this file.** The residual analytic gap is now
+  exposed as an explicit hypothesis `AperyConifoldThreeHalvesBound`
+  rather than hidden behind a `sorry`.
 -/
 
 /--
@@ -1008,14 +1197,17 @@ theorem apery_real_time_from_adaptation
         HasDerivAt y ((apery8VarPolyPIVP init).toPIVP.field (y t)) t) →
       ∀ t ∈ Set.Ico (0 : ℝ) T, ‖y t‖ ≤ M)
     (h_z_init : (0 : ℝ) < ((init iZ : ℚ) : ℝ) ∧
-                ((init iZ : ℚ) : ℝ) < 17 - 12 * Real.sqrt 2) :
+                ((init iZ : ℚ) : ℝ) < aperyConifoldZ1)
+    (hthree : ∀ sol : PIVP.Solution (apery8VarPolyPIVP init).toPIVP,
+      (apery8VarPolyPIVP init).toPIVP.IsBounded sol.trajectory →
+      AperyConifoldThreeHalvesBound init sol) :
     IsRealTimeComputable (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3)) := by
   -- (a) bounded global trajectory.
   obtain ⟨sol, hbdd⟩ :=
     apery_exists_bounded_trajectory init M hM h_invariant
   -- (b) ρ(t) → ζ(3) exponentially.
   obtain ⟨K, κ, hK, hκ, hρ⟩ :=
-    apery_ratio_converges_exponentially init sol hbdd h_z_init
+    apery_ratio_converges_exponentially init sol hbdd h_z_init (hthree sol hbdd)
   -- (c) ζ(t) tracks ρ(t) exponentially ⇒ ζ(t) → ζ(3) exponentially.
   obtain ⟨K', κ', hK', hκ', hζ⟩ :=
     apery_adaptation_tracks_ratio init sol hbdd K κ hK hκ hρ

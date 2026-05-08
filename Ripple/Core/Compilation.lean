@@ -17,6 +17,7 @@
 -/
 
 import Ripple.Core.BoundedTime
+import Ripple.LPP.SaturatingSurrogate
 
 namespace Ripple
 
@@ -195,5 +196,25 @@ theorem bounded_compilation_rat (d : ℕ) (q : ℚ) :
   intro _
   obtain ⟨d', btc, _, _, _⟩ := certified_realtime_rat_const q
   exact ⟨d', btc, trivial⟩
+
+/-- **Bounded-surrogate compilation (CBTC form, honest bridge).**
+
+This is the substantive bounded-compilation statement currently available in
+the repository. Given a concrete `CertifiedBoundedTimeComputable + PolyCRNDecomposition`
+witness for `α ∈ [0, 1)`, compile it to a new bounded witness for the same `α`
+whose output trajectory is pointwise `≤ M_out` for some `M_out < 1`.
+
+Unlike `bounded_compilation`, this theorem genuinely consumes the input witness
+via `Ripple.Saturating.saturating_surrogate_cbtc` and returns the strengthened
+CBTC+PCD package used downstream by the LPP pipeline. -/
+theorem bounded_compilation_cbtc {d : ℕ} {α : ℝ}
+    (cbtc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d cbtc.pivp)
+    (hα_nn : 0 ≤ α) (hα_lt : α < 1) :
+    ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' α)
+      (_ : PolyCRNDecomposition d' cbtc'.pivp) (M_out : ℝ),
+      α ≤ M_out ∧ M_out < 1 ∧
+      (∀ σ, 0 ≤ σ → cbtc'.sol.trajectory σ cbtc'.pivp.output ≤ M_out) :=
+  Saturating.saturating_surrogate_cbtc cbtc pcd hα_nn hα_lt
 
 end Ripple

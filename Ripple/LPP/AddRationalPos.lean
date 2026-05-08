@@ -11,18 +11,15 @@
      convenient fixed positive rational). Lift the original polynomials via
      `MvPolynomial.rename Fin.castSucc` and `Fin.snoc` the new field for `y`.
 
-  2. **Analytic content (narrow residual axiom).** The convergence of the
-     extended trajectory to `β + q` with time modulus
-       μ'(r) := μ(r+1) + (r + 1 + log(max(2β, 1))) · log(2)⁻¹
-     under the linear relaxation ODE. This is the content Mathlib does not
-     yet provide in a directly usable form; the underlying derivation is
+  2. **Analytic content (now proved here).** The convergence of the
+     extended trajectory to `β + q` under the linear relaxation ODE,
+     with an explicit affine slowdown theorem and the derived existential
+     modulus packaging. The underlying derivation is
        |y(t) − (β + q)| ≤ |y(0) − β − q| · e^{−t} + ∫₀^t e^{−(t−s)} |x_out(s) − β| ds.
 
-  The residual axiom `relaxation_tracker_solution` is structural (existence
-  of a solution trajectory with the stated bounds), scoped to the
-  `relaxationPIVP` construction defined here. It replaces the monolithic
-  `certified_add_rational_pos` axiom.
--/
+  The old API names `relaxation_tracker_convergence` and
+  `relaxation_tracker_solution` are retained, but they are theorems, not
+  axioms. -/
 
 import Ripple.Core.BoundedTime
 import Ripple.LPP.Defs
@@ -217,8 +214,8 @@ the explicit solution
 We build the combined (d+1)-dim trajectory by `Fin.snoc`, inheriting the first
 `d` coordinates from `cbtc.sol` and using the integral formula for the last.
 
-The convergence / boundedness analysis of this tracker is the remaining analytic
-content; see `relaxation_tracker_solution` below (narrow residual axiom).
+The convergence / boundedness analysis of this tracker is the main analytic
+content of this file; see `relaxation_tracker_solution` below.
 -/
 
 /-- The output trajectory of the original BTC, as a function of time, extended
@@ -924,10 +921,10 @@ set_option maxHeartbeats 800000 in
 **Sign-independent**: the proof uses only the Duhamel/exp-decay structure of
 the linear scalar ODE `y' = x_out + q − y`, which is well-defined for any
 `q : ℚ`. -/
-theorem relaxation_tracker_convergence {β : ℝ} (q : ℚ) {d : ℕ}
+theorem relaxation_tracker_convergence_affine {β : ℝ} (q : ℚ) {d : ℕ}
     (cbtc : CertifiedBoundedTimeComputable d β) :
-    ∃ modulus' : TimeModulus,
-      ∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
+    ∃ K : ℝ,
+      ∀ r : ℕ, ∀ t : ℝ, t > max (cbtc.modulus (r+1)) 0 + (r : ℝ) + K →
         |(extendedSolution cbtc q).trajectory t (Fin.last d) - (β + (q : ℝ))|
           < Real.exp (-(r : ℝ)) := by
   -- Uniform bound M on outTraj.
@@ -937,7 +934,7 @@ theorem relaxation_tracker_convergence {β : ℝ} (q : ℚ) {d : ℕ}
   set C : ℝ := M + 2 * |β| + 1 with hC_def
   have hC_pos : 0 < C := by show 0 < M + 2 * |β| + 1; positivity
   have h2C_pos : 0 < 2 * C := by positivity
-  refine ⟨fun r => max (cbtc.modulus (r+1)) 0 + (r : ℝ) + Real.log (2 * C) + 2, ?_⟩
+  refine ⟨Real.log (2 * C) + 2, ?_⟩
   intro r t ht
   -- Define T := max (cbtc.modulus (r+1)) 0.
   set T : ℝ := max (cbtc.modulus (r+1)) 0 with hT_def
@@ -1132,6 +1129,17 @@ theorem relaxation_tracker_convergence {β : ℝ} (q : ℚ) {d : ℕ}
       mul_lt_mul_of_pos_left h_exp_neg_1 hexp_r_pos
     nlinarith [h1, h2, hexp_r_pos]
   linarith [h_piece1_bd, h_piece1_le, h_piece2, h_sum_lt]
+
+/-- Existential-modulus packaging of `relaxation_tracker_convergence_affine`. -/
+theorem relaxation_tracker_convergence {β : ℝ} (q : ℚ) {d : ℕ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    ∃ modulus' : TimeModulus,
+      ∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
+        |(extendedSolution cbtc q).trajectory t (Fin.last d) - (β + (q : ℝ))|
+          < Real.exp (-(r : ℝ)) := by
+  obtain ⟨K, hK⟩ := relaxation_tracker_convergence_affine q cbtc
+  refine ⟨fun r => max (cbtc.modulus (r+1)) 0 + (r : ℝ) + K, ?_⟩
+  exact hK
 
 /-- Discharge the original-form `relaxation_tracker_solution` axiom in terms
 of the explicit solution construction. The existence/boundedness parts are

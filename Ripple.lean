@@ -19,6 +19,7 @@ import Ripple.Core.ZeroInitPositivity
 import Ripple.Core.InitShift
 import Ripple.ODE.ScalarBarrier
 import Ripple.DualRail.ConstantAnnihilation
+import Ripple.DualRail.ConstantAnnihilationGeneral
 import Ripple.DualRail.ExpMajorization
 import Ripple.DualRail.BTCReduction
 import Ripple.DualRail.ScalarCubic
@@ -30,4 +31,14 @@ import Ripple.Number.PiCertified
 import Ripple.Number.Ln2Certified
 import Ripple.Number.InvECertified
 import Ripple.Number.CatalanCertified
+import Ripple.Number.Modular.ModularPolynomialQExpansion
+import Ripple.Number.Modular.CosetIndex
+import Ripple.Number.Modular.SturmBound
+import Ripple.Number.Modular.SturmBoundIndex
+import Ripple.Number.Modular.LevelOneSturm
+import Ripple.Number.Modular.HigherOrderDecay
+import Ripple.Number.Modular.LevelOneSturmGeneric
+import Ripple.Number.Modular.Phi41Bridge
+import Ripple.Number.Modular.Phi41ModularFormAssembly
+import Ripple.Number.Modular.Gamma0_41_SturmBound
 import Ripple.LPP

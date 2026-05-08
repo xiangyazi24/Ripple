@@ -1900,6 +1900,26 @@ theorem x0Qz_eq_on_manifold (i : Fin d) (x : Fin d → ℝ) :
     from fun a => by ring]
   rw [← Finset.mul_sum]
 
+/-- If the coefficient of the monomial `z (a,b)` in `Pz i` vanishes, then
+changing that single coordinate does not affect `Pz i`. -/
+theorem Pz_update_eq_of_A_zero (i : Fin d) (a b : Fin d)
+    (hA : s.A i a b = 0) (z : Fin d × Fin d → ℝ) (u : ℝ) :
+    s.Pz i (Function.update z (a, b) u) = s.Pz i z := by
+  unfold Pz
+  have hterm :
+      ∀ x y : Fin d,
+        s.A i x y * Function.update z (a, b) u (x, y) = s.A i x y * z (x, y) := by
+    intro x y
+    by_cases hxy : (x, y) = (a, b)
+    · cases hxy
+      simp [Function.update, hA]
+    · simp [Function.update, hxy]
+  apply Finset.sum_congr rfl
+  intro x hx
+  apply Finset.sum_congr rfl
+  intro y hy
+  exact hterm x y
+
 /-- P is non-negative on the non-negative orthant. -/
 theorem P_nonneg (i : Fin d) (x : Fin d → ℝ) (hx : ∀ k, 0 ≤ x k) :
     0 ≤ s.P i x :=
@@ -2244,6 +2264,32 @@ theorem ppDegr_nonneg (ij : Fin d × Fin d) (z : Fin d × Fin d → ℝ)
   · exact mul_nonneg (by norm_num) (s.totalPz_nonneg z hz)
   · exact add_nonneg (s.x0Qz_nonneg ij.2 z hz) (s.totalPz_nonneg z hz)
   · exact add_nonneg (s.x0Qz_nonneg ij.1 z hz) (s.totalPz_nonneg z hz)
+
+/-- Interior Case 1 self-independence of the positive part.
+
+If `ij.1, ij.2 ≠ 0` and the two potentially offending coefficients vanish,
+then changing the single coordinate `z(ij.1, ij.2)` does not change
+`ppProd ij`. This is the coefficient-level form of "no self-production"
+for the interior self-product variables. -/
+theorem ppProd_case1_update_self_eq
+    (ij : Fin d × Fin d) (z : Fin d × Fin d → ℝ) (u : ℝ)
+    (h1 : ij.1 ≠ s.zero ∧ ij.2 ≠ s.zero)
+    (hA_left : s.A ij.1 ij.1 ij.2 = 0)
+    (hA_right : s.A ij.2 ij.1 ij.2 = 0) :
+    s.ppProd ij (Function.update z ij u) = s.ppProd ij z := by
+  have hu_left : Function.update z ij u (s.zero, ij.2) = z (s.zero, ij.2) := by
+    by_cases hEq : (s.zero, ij.2) = ij
+    · exact (h1.1 (by simpa using (congrArg Prod.fst hEq).symm)).elim
+    · simp [Function.update, hEq]
+  have hu_right : Function.update z ij u (s.zero, ij.1) = z (s.zero, ij.1) := by
+    by_cases hEq : (s.zero, ij.1) = ij
+    · exact (h1.1 (by simpa using (congrArg Prod.fst hEq).symm)).elim
+    · simp [Function.update, hEq]
+  unfold ppProd
+  rw [if_pos h1, if_pos h1]
+  rw [hu_left, hu_right,
+    s.Pz_update_eq_of_A_zero ij.1 ij.1 ij.2 hA_left,
+    s.Pz_update_eq_of_A_zero ij.2 ij.1 ij.2 hA_right]
 
 end Stage2CubicForm
 
@@ -3085,13 +3131,14 @@ noncomputable def crn_simplex_global_ode_solution {d : ℕ} (P : PIVP d)
 
 /-! ## Stage Core Lemmas
 
-The pipeline stages are split into "core" lemmas (with sorry for the main
-construction) and derived theorems (proved by composition). The core lemmas
-isolate the two independent construction challenges:
-  - Stage 1: v-variable quadraticization (polynomial/algebraic)
+The pipeline stages are split into "core" lemmas and derived theorems
+(proved by composition). The core lemmas isolate the two independent
+construction challenges:
+  - Stage 1: v-variable quadraticization (polynomial/algebraic), now
+    discharged by `stage1_vvariable` in `VVariable.lean`
   - Stage 2: λ-trick + balancing dilation (analytic: ODE existence, convergence) -/
 
-/-- Axiom: v-variable quadraticization (Theorem 12 in [LPP]).
+/-- Stage 1 core interface: v-variable quadraticization (Theorem 12 in [LPP]).
 
 Any CRN-implementable polynomial ODE can be quadraticized: introduce
 variables v_α = x^α for each multi-index α appearing in the field,
@@ -3109,8 +3156,9 @@ Mathematically justified by:
 4. Init: v_α(0) = init^α (rational powers of rational inits)
 5. Boundedness: |v_α| ≤ M^{|α|} from boundedness of x
 
-The algebraic construction is in `VVariable.lean`; remaining sorry:
-ODE solution (chain rule for monomials) and boundedness transfer. -/
+Historical note: the theorem name still contains `_axiom` for compatibility,
+but the result is fully proved and simply delegates to `stage1_vvariable`
+in `VVariable.lean`. -/
 theorem stage1_core_axiom {d : ℕ} {α : ℝ}
     (btc : CertifiedBoundedTimeComputable d α)
     (pcd : PolyCRNDecomposition d btc.pivp) :
@@ -3145,6 +3193,23 @@ theorem stage1_core_with_output_eq {d : ℕ} {α : ℝ}
       (∀ t : ℝ, btc'.sol.trajectory t btc'.pivp.output
           = btc.sol.trajectory t btc.pivp.output) :=
   stage1_vvariable_with_output_eq btc pcd
+
+/-- Stage 1 core with output equality and explicit modulus preservation. -/
+theorem stage1_core_with_output_eq_and_modulus {d : ℕ} {α : ℝ}
+    (btc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d btc.pivp) :
+    ∃ (d' : ℕ) (btc' : BoundedTimeComputable d' α)
+      (A : Fin d' → Fin d' → Fin d' → ℝ) (B : Fin d' → Fin d' → ℝ),
+      (∀ i a b, 0 ≤ A i a b) ∧
+      (∀ i a, 0 ≤ B i a) ∧
+      (∀ i x, btc'.pivp.field x i =
+        (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i) ∧
+      (∀ i, 0 ≤ btc'.pivp.init i) ∧
+      (∀ i, ∃ q : ℚ, btc'.pivp.init i = ↑q) ∧
+      (∀ t : ℝ, btc'.sol.trajectory t btc'.pivp.output
+          = btc.sol.trajectory t btc.pivp.output) ∧
+      (∀ r : ℕ, btc'.modulus r = btc.modulus r) := by
+  exact stage1_vvariable_with_output_eq_and_modulus btc pcd
 
 /-- **Lemma B (Stage 1 output bound from upstream).** Given a Stage 1
 BTC that has the same output trajectory as an upstream CBTC (as
@@ -3264,7 +3329,7 @@ The construction:
 - TPP-implementable field with rational simplex initial conditions
 - Solution stays non-negative and on simplex for t ≥ 0
 - Solution satisfies the field ODE -/
-theorem tpp_to_lpp {d : ℕ} {α : ℝ}
+theorem tpp_to_lpp_with_modulus {d : ℕ} {α : ℝ}
     (_hα01 : 0 ≤ α ∧ α ≤ 1)
     (btc : BoundedTimeComputable d α)
     (_tpp : IsTPPImplementable d btc.pivp.field)
@@ -3272,7 +3337,9 @@ theorem tpp_to_lpp {d : ℕ} {α : ℝ}
     (h_simplex : ∀ t, 0 ≤ t → ∑ i, btc.sol.trajectory t i = 1)
     (h_nonneg : ∀ t, 0 ≤ t → ∀ i, 0 ≤ btc.sol.trajectory t i)
     (h_init_rat : ∀ i, ∃ q : ℚ, btc.sol.trajectory 0 i = ↑q) :
-    ∃ _ : IsLPPComputable α, True := by
+    ∃ h : IsLPPComputable α,
+      ∀ r : ℕ, ∀ t : ℝ, t > max (btc.modulus r + 1) 0 →
+        |∑ i ∈ h.marked, h.sol t i - α| < Real.exp (-(r : ℝ)) := by
   -- Abbreviations
   let x := btc.sol.trajectory
   let fld := btc.pivp.field
@@ -3332,7 +3399,7 @@ theorem tpp_to_lpp {d : ℕ} {α : ℝ}
     simp_rw [show ∀ j : Fin d, z t (e (o, j)) = x t o * x t j from fun j => by simp [z]]
     rw [← Finset.mul_sum, h_simplex t ht, mul_one]
   -- Build IsLPPComputable α
-  exact ⟨{
+  let h : IsLPPComputable α := {
     n := d * d
     field := ppfld
     sol := z
@@ -3371,7 +3438,27 @@ theorem tpp_to_lpp {d : ℕ} {α : ℝ}
             calc Real.exp (-(r : ℝ))
                 < Real.exp (Real.log ε) := Real.exp_lt_exp.mpr (by linarith)
               _ = ε := Real.exp_log hε
-  }, trivial⟩
+  }
+  refine ⟨h, ?_⟩
+  intro r t ht
+  have ht0 : 0 ≤ t := (lt_of_le_of_lt (le_max_right _ _) ht).le
+  change |∑ i ∈ marked, z t i - α| < Real.exp (-(r : ℝ))
+  rw [h_sum_marked t ht0]
+  have ht1 : t > btc.modulus r + 1 := lt_of_le_of_lt (le_max_left _ _) ht
+  exact btc.convergence r t
+    (by linarith)
+
+theorem tpp_to_lpp {d : ℕ} {α : ℝ}
+    (_hα01 : 0 ≤ α ∧ α ≤ 1)
+    (btc : BoundedTimeComputable d α)
+    (_tpp : IsTPPImplementable d btc.pivp.field)
+    (s : Stage2CubicForm d btc.pivp.field)
+    (h_simplex : ∀ t, 0 ≤ t → ∑ i, btc.sol.trajectory t i = 1)
+    (h_nonneg : ∀ t, 0 ≤ t → ∀ i, 0 ≤ btc.sol.trajectory t i)
+    (h_init_rat : ∀ i, ∃ q : ℚ, btc.sol.trajectory 0 i = ↑q) :
+    ∃ _ : IsLPPComputable α, True := by
+  obtain ⟨h, _⟩ := tpp_to_lpp_with_modulus _hα01 btc _tpp s h_simplex h_nonneg h_init_rat
+  exact ⟨h, trivial⟩
 
 theorem stage4_to_plpp {n : ℕ} (eq : SynPPBalance n) :
     ∃ tr : PLPPTransitions n, tr.balanceField = eq.toField :=
@@ -3509,6 +3596,76 @@ noncomputable def lpp_to_gpac {ν : ℝ} (h : IsLPPComputable ν) :
     change |vecSnoc (h.sol t) (∑ j ∈ h.marked, h.sol t j) (Fin.last h.n) - ν| < _
     rw [vecSnoc_last]
     exact (h_quant r).choose_spec t ht
+  exact ⟨h.n + 1, ⟨pivp, sol, modulus, h_bounded, h_mod_spec⟩, trivial⟩
+
+/-- Quantitative LPP → CRN-Computable.
+If an LPP witness comes with an explicit modulus for the marked-state sum,
+the readout-variable augmentation preserves that modulus exactly. -/
+noncomputable def lpp_to_gpac_with_modulus {ν : ℝ} (h : IsLPPComputable ν)
+    (modulus : TimeModulus)
+    (h_mod : ∀ r : ℕ, ∀ t : ℝ, t > modulus r →
+      |∑ i ∈ h.marked, h.sol t i - ν| < Real.exp (-(r : ℝ))) :
+    IsCRNComputable ν := by
+  let traj : ℝ → Fin (h.n + 1) → ℝ := fun t =>
+    vecSnoc (h.sol t) (∑ j ∈ h.marked, h.sol t j)
+  let augField : (Fin (h.n + 1) → ℝ) → Fin (h.n + 1) → ℝ := fun v =>
+    vecSnoc (h.field (Fin.init v)) (∑ j ∈ h.marked, h.field (Fin.init v) j)
+  let pivp : PIVP (h.n + 1) :=
+    { field := augField, init := traj 0, output := Fin.last h.n }
+  have h_init : ∀ t, Fin.init (traj t) = h.sol t := by
+    intro t; exact vecSnoc_init
+  have h_is_sol : ∀ t : ℝ, 0 ≤ t → HasDerivAt traj (augField (traj t)) t := by
+    intro t ht
+    have h_aug_eq : augField (traj t) = vecSnoc (h.field (h.sol t))
+        (∑ j ∈ h.marked, h.field (h.sol t) j) := by
+      simp only [augField, h_init]
+    rw [h_aug_eq]
+    refine hasDerivAt_pi.mpr (fun i => ?_)
+    refine Fin.lastCases ?_ (fun j => ?_) i
+    ·
+      have h_fn_eq : (fun s => traj s (Fin.last h.n)) =
+          (fun s => ∑ j ∈ h.marked, h.sol s j) := by
+        funext s; exact vecSnoc_last
+      rw [vecSnoc_last, h_fn_eq]
+      have h_sum := HasDerivAt.sum (fun j (_ : j ∈ h.marked) =>
+        hasDerivAt_pi.mp (h.is_solution t ht) j)
+      rwa [show (∑ j ∈ h.marked, fun s => h.sol s j) =
+          (fun s => ∑ j ∈ h.marked, h.sol s j) from
+          funext (fun s => Finset.sum_apply ..)] at h_sum
+    ·
+      have h_fn_eq : (fun s => traj s (Fin.castSucc j)) = (fun s => h.sol s j) := by
+        funext s; exact vecSnoc_castSucc
+      rw [vecSnoc_castSucc, h_fn_eq]
+      exact hasDerivAt_pi.mp (h.is_solution t ht) j
+  let sol : PIVP.Solution pivp :=
+    { trajectory := traj, init_cond := rfl, is_solution := h_is_sol }
+  have h_bounded : pivp.IsBounded sol.trajectory := by
+    refine ⟨2, two_pos, fun t ht => ?_⟩
+    rw [show sol.trajectory t = traj t from rfl,
+        (pi_norm_le_iff_of_nonneg (by norm_num : (0 : ℝ) ≤ 2))]
+    intro i
+    refine Fin.lastCases ?_ (fun j => ?_) i
+    ·
+      simp only [traj, vecSnoc_last, Real.norm_eq_abs,
+          abs_of_nonneg (Finset.sum_nonneg (fun k _ => h.nonneg t ht k))]
+      calc ∑ k ∈ h.marked, h.sol t k
+          ≤ ∑ k, h.sol t k := Finset.sum_le_sum_of_subset_of_nonneg
+            (Finset.subset_univ _) (fun k _ _ => h.nonneg t ht k)
+        _ = 1 := h.simplex t ht
+        _ ≤ 2 := by norm_num
+    ·
+      simp only [traj, vecSnoc_castSucc, Real.norm_eq_abs,
+          abs_of_nonneg (h.nonneg t ht j)]
+      calc h.sol t j ≤ ∑ k, h.sol t k :=
+            Finset.single_le_sum (fun k _ => h.nonneg t ht k) (Finset.mem_univ j)
+        _ = 1 := h.simplex t ht
+        _ ≤ 2 := by norm_num
+  have h_mod_spec : ∀ r t, modulus r < t →
+      |sol.trajectory t pivp.output - ν| < Real.exp (-(r : ℝ)) := by
+    intro r t ht
+    change |vecSnoc (h.sol t) (∑ j ∈ h.marked, h.sol t j) (Fin.last h.n) - ν| < _
+    rw [vecSnoc_last]
+    exact h_mod r t ht
   exact ⟨h.n + 1, ⟨pivp, sol, modulus, h_bounded, h_mod_spec⟩, trivial⟩
 
 /-! ## CRN-Computable Product Closure

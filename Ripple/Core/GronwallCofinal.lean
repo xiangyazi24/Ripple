@@ -201,4 +201,94 @@ theorem gronwall_eventual_lower_bound
     linarith
   linarith
 
+/-- **Scalar exponential decay from a Lyapunov inequality.**
+
+If `V` is continuous on `[0, T]`, has a right-derivative `V'(x)` on `[0, T)`
+bounded above by `−α·V(x)`, and `α > 0`, then
+`V(t) ≤ V(0)·exp(−α·t)` for all `t ∈ [0, T]`. -/
+theorem scalar_exponential_decay
+    {V V' : ℝ → ℝ} {α T : ℝ} (_hα : 0 < α) (_hT : 0 ≤ T)
+    (hV_cont : ContinuousOn V (Set.Icc 0 T))
+    (hV_deriv : ∀ x ∈ Set.Ico (0 : ℝ) T,
+      HasDerivWithinAt V (V' x) (Set.Ici x) x)
+    (h_bound : ∀ x ∈ Set.Ico (0 : ℝ) T, V' x ≤ -α * V x) :
+    ∀ t ∈ Set.Icc (0 : ℝ) T, V t ≤ V 0 * Real.exp (-α * t) := by
+  -- Integrating factor: φ(s) := V(s) · exp(α·s). Then φ' ≤ 0, so φ antitone.
+  set φ : ℝ → ℝ := fun s => V s * Real.exp (α * s) with hφ_def
+  -- Derivative of `s ↦ exp(α·s)` at `s` within `Ici s` (really, everywhere).
+  have h_exp_deriv : ∀ s,
+      HasDerivWithinAt (fun s => Real.exp (α * s)) (α * Real.exp (α * s)) (Ici s) s := by
+    intro s
+    have h1 : HasDerivAt (fun s : ℝ => α * s) α s := by
+      simpa using (hasDerivAt_id s).const_mul α
+    have h2 : HasDerivAt (fun s => Real.exp (α * s)) (Real.exp (α * s) * α) s :=
+      h1.exp
+    have h3 : HasDerivAt (fun s => Real.exp (α * s)) (α * Real.exp (α * s)) s := by
+      have : Real.exp (α * s) * α = α * Real.exp (α * s) := by ring
+      rw [this] at h2; exact h2
+    exact h3.hasDerivWithinAt
+  -- Continuity of `s ↦ exp(α·s)` on `Icc 0 T`.
+  have h_exp_cont : ContinuousOn (fun s => Real.exp (α * s)) (Icc 0 T) :=
+    (Real.continuous_exp.comp (continuous_const.mul continuous_id)).continuousOn
+  -- Continuity of φ on `Icc 0 T`.
+  have hφ_cont : ContinuousOn φ (Icc 0 T) := hV_cont.mul h_exp_cont
+  -- Right-derivative of φ on `Ico 0 T`.
+  -- φ'(x) = V'(x) · exp(α·x) + V(x) · α · exp(α·x) = (V'(x) + α·V(x)) · exp(α·x).
+  set φ' : ℝ → ℝ := fun x => (V' x + α * V x) * Real.exp (α * x) with hφ'_def
+  have hφ_deriv : ∀ x ∈ Ico (0:ℝ) T, HasDerivWithinAt φ (φ' x) (Ici x) x := by
+    intro x hx
+    have hV := hV_deriv x hx
+    have hE := h_exp_deriv x
+    -- Product rule: V · (exp ∘ (α·)) at x.
+    have hprod : HasDerivWithinAt (fun s => V s * Real.exp (α * s))
+        (V' x * Real.exp (α * x) + V x * (α * Real.exp (α * x))) (Ici x) x := hV.mul hE
+    -- Rewrite the derivative expression to match φ' x.
+    have h_eq : V' x * Real.exp (α * x) + V x * (α * Real.exp (α * x))
+              = (V' x + α * V x) * Real.exp (α * x) := by ring
+    rw [h_eq] at hprod
+    exact hprod
+  -- The derivative is nonpositive on `Ico 0 T`:
+  -- `V' x + α · V x ≤ 0` by hypothesis, and `exp(α·x) > 0`.
+  have hφ'_nonpos : ∀ x ∈ Ico (0:ℝ) T, φ' x ≤ 0 := by
+    intro x hx
+    have hbx : V' x ≤ -α * V x := h_bound x hx
+    have h_sum_nonpos : V' x + α * V x ≤ 0 := by linarith
+    have h_exp_pos : 0 < Real.exp (α * x) := Real.exp_pos _
+    have : (V' x + α * V x) * Real.exp (α * x) ≤ 0 * Real.exp (α * x) :=
+      mul_le_mul_of_nonneg_right h_sum_nonpos (le_of_lt h_exp_pos)
+    simpa using this
+  -- Apply Mathlib fencing: φ(t) ≤ φ(0) for t ∈ Icc 0 T.
+  -- Use constant boundary B := fun _ => φ 0, with B' := 0.
+  have h_antitone : ∀ t ∈ Icc (0:ℝ) T, φ t ≤ φ 0 := by
+    have := image_le_of_deriv_right_le_deriv_boundary
+      (f := φ) (f' := φ') (a := 0) (b := T)
+      (B := fun _ => φ 0) (B' := fun _ => 0)
+      hφ_cont hφ_deriv (le_refl _) continuousOn_const
+      (fun x _ => (hasDerivWithinAt_const x (Ici x) (φ 0)))
+      (fun x hx => by exact le_trans (hφ'_nonpos x hx) (le_refl 0))
+    intro t ht; exact this ht
+  -- Conclude: V(t) ≤ V(0) · exp(-α·t).
+  intro t ht
+  have hφt : φ t ≤ φ 0 := h_antitone t ht
+  -- φ 0 = V 0 · exp 0 = V 0.
+  have hφ0 : φ 0 = V 0 := by simp [hφ_def]
+  -- φ t = V t · exp(α·t).
+  have hφt_expand : φ t = V t * Real.exp (α * t) := rfl
+  rw [hφ0, hφt_expand] at hφt
+  -- V t · exp(α·t) ≤ V 0 ⇒ V t ≤ V 0 · exp(-α·t).
+  have h_exp_pos : 0 < Real.exp (α * t) := Real.exp_pos _
+  have h_exp_inv : Real.exp (α * t) * Real.exp (-α * t) = 1 := by
+    rw [← Real.exp_add]
+    have : α * t + -α * t = 0 := by ring
+    rw [this, Real.exp_zero]
+  -- Multiply both sides by exp(-α·t) > 0.
+  have h_exp_neg_pos : 0 < Real.exp (-α * t) := Real.exp_pos _
+  have hmul := mul_le_mul_of_nonneg_right hφt (le_of_lt h_exp_neg_pos)
+  -- LHS = V t · (exp(α·t) · exp(-α·t)) = V t.
+  -- RHS = V 0 · exp(-α·t).
+  have hlhs : V t * Real.exp (α * t) * Real.exp (-α * t) = V t := by
+    rw [mul_assoc, h_exp_inv, mul_one]
+  rw [hlhs] at hmul
+  exact hmul
+
 end Ripple

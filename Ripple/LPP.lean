@@ -4,6 +4,7 @@ import Ripple.LPP.Stages
 import Ripple.LPP.Example
 import Ripple.LPP.Rational
 import Ripple.LPP.NAP
+import Ripple.LPP.R2Bridge
 import Ripple.LPP.VVariable
 import Ripple.LPP.Product
 import Ripple.LPP.AlgebraicConstruction
@@ -11,3 +12,4 @@ import Ripple.LPP.Stage2Convergence
 import Ripple.LPP.ZeroInitWrapper
 import Ripple.LPP.AlgebraicLPP
 import Ripple.LPP.BoundedLPP
+import Ripple.LPP.CF24Example

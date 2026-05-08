@@ -1223,16 +1223,16 @@ lemma saturating_extended_solution {d : ℕ} {α : ℝ}
   · -- Global continuity of the full trajectory.
     exact hy_cont
 
-/-! ## Step 5b: narrow analytic axiom + packaged convergence theorem.
+/-! ## Step 5b: scalar convergence theorem + packaged witness.
 
 The existence, boundedness, range, and head-matching of the surrogate
 trajectory are all discharged by `saturating_extended_solution`
 (Phase C+E). What remains is the *scalar convergence* of the tracker
-coordinate `y(t)` to `α`. We isolate this single analytic fact as
-a narrow axiom `saturating_tracker_tendsto`, and derive the full
-packaged witness `saturating_tracker_solution` as a theorem.
+coordinate `y(t)` to `α`. This file now proves that fact as
+`saturating_tracker_tendsto`, and derives the full packaged witness
+`saturating_tracker_solution` as a theorem.
 
-**Analytic content of the narrow axiom.** Given the extended PIVP
+**Analytic content of the theorem.** Given the extended PIVP
 solution `sol'` whose head coordinates equal `cbtc.sol.trajectory`
 and whose last coordinate stays in `[0, U]`, the last coordinate
 converges to `α` as `t → ∞`, with an effective modulus derivable
@@ -1268,8 +1268,8 @@ Let `y(t) := sol'.trajectory t (Fin.last d)`,
    and the final bound is
    `μ'(r) ≤ cbtc.modulus(r + r₀) + κ⁻¹·log(2U/κ) + 1`.
 
-**Why this is axiomatized rather than proved.** Formalizing
-steps 2-5 in Lean 4 requires:
+**Why this section is substantial.** Formalizing steps 2-5 in Lean 4
+requires:
 
   * `G` defined via `intervalIntegral` with `y` continuous
     (available from `HasDerivAt`);
@@ -1281,24 +1281,22 @@ steps 2-5 in Lean 4 requires:
   * the `G → ∞` bootstrap via instability of `y = U` (an
     ad hoc lemma specific to this ODE, ~200-300 lines).
 
-Total estimated effort: 800-1500 lines of Mathlib-style analysis.
-This is deferred as the sole remaining analytic axiom. All
-*structural* content (ODE existence on `[0, ∞)`, forward-invariance
+Total estimated effort was on the order of 800-1500 lines of
+Mathlib-style analysis. That analytic work is now present below.
+All *structural* content (ODE existence on `[0, ∞)`, forward-invariance
 of `[0, U]`, head-matching with the driver, PCD non-negativity,
-quadraticization-readiness) is proved, not axiomatized.
+quadraticization-readiness) is also proved.
 
-We axiomatize the quantitative modulus directly rather than going
-through `Tendsto`, to preserve exact parity with the
-`CertifiedBoundedTimeComputable.convergence` signature consumed
-downstream. -/
+The argument is packaged directly in the quantitative modulus form used by
+`CertifiedBoundedTimeComputable.convergence`, rather than proving a
+qualitative `Tendsto` first and converting later. -/
 
 /-! ### Analytic scaffolding for `saturating_tracker_tendsto`.
 
-We replace the narrow axiom by a `theorem` whose proof is organized
-around six sub-lemmas. Each sub-lemma has a clean, self-contained
-Lean statement; bodies are `sorry` at the analytic choke points
+The proof is organized around six analytic sub-lemmas
 (unbounded-integral bootstrap, Duhamel integrating factor, integral
-bound splitting). The top-level theorem assembles them.
+bound splitting, and modulus assembly). The top-level theorem
+`saturating_tracker_tendsto` threads them together.
 
 Abbreviations used throughout (local, in-proof):
   `y(t) := sol'.trajectory t (Fin.last d)`     — tracker output
@@ -2356,8 +2354,8 @@ tracker coordinate `sol'.trajectory t (Fin.last d)` converges to
 `α` with an effective modulus `μ'`.
 
 This is the top-level assembly of the six sub-lemmas above. The
-content is all in the sub-lemmas (which contain the `sorry`s);
-this theorem just threads them together.
+content is all in the sub-lemmas proved above; this theorem just
+threads them together.
 
 The `h_head` hypothesis is used to transport the driver's
 convergence modulus onto `x(t) := sol'.trajectory t cbtc.pivp.output.castSucc`;
@@ -2921,8 +2919,7 @@ computation for `α` (the same target), whose output trajectory stays
 in `[0, U]` on `t ≥ 0`. This is now a **theorem** proved by
 `saturating_tracker_convergence`, which discharges existence,
 boundedness, and range from `saturating_extended_solution` and
-uses the narrow axiom `saturating_tracker_tendsto` only for scalar
-convergence. -/
+uses `saturating_tracker_tendsto` for the scalar convergence part. -/
 theorem saturating_tracker_solution {d : ℕ} {α : ℝ}
     (cbtc : CertifiedBoundedTimeComputable d α)
     (pcd : PolyCRNDecomposition d cbtc.pivp)

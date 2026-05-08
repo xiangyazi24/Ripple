@@ -26,12 +26,16 @@
 -/
 
 import Mathlib.Algebra.BigOperators.Intervals
+import Mathlib.Analysis.PSeries
+import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Data.Real.Sqrt
 import Mathlib.Data.Nat.Choose.Basic
 import Mathlib.Data.Nat.Choose.Sum
 import Mathlib.Data.Rat.Defs
 import Mathlib.RingTheory.PowerSeries.Basic
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.IntervalCases
+import Mathlib.Topology.Algebra.InfiniteSum.NatInt
 import Ripple.Number.AperyCertificate
 
 namespace Ripple
@@ -85,6 +89,10 @@ lemma aperyA_pos (n : ℕ) : 0 < aperyA n := by
           (s := range (n + 1)) (a := 0)
         · intro i _; exact Nat.zero_le _
         · exact Finset.mem_range.mpr (Nat.succ_pos _)
+
+/-- `1 ≤ aₙ` for all `n`. Trivial corollary of `aperyA_pos` since `aₙ ∈ ℕ`. -/
+lemma aperyA_one_le (n : ℕ) : 1 ≤ aperyA n :=
+  aperyA_pos n
 
 /- **(F1) — Apéry three-term recurrence for `aₙ`.**
     `(n+1)³ aₙ₊₁ = (2n+1)(17n²+17n+5) aₙ − n³ aₙ₋₁`  for `n ≥ 1`.
@@ -345,6 +353,215 @@ example :
       = (2 * 4 + 1 : ℤ) * (17 * 4 ^ 2 + 17 * 4 + 5) * (aperyA 4 : ℤ)
           - (4 : ℤ) ^ 3 * (aperyA 3 : ℤ) := by
   simp [aperyA_three, aperyA_four, aperyA_five]
+
+lemma aperyA_dominant_lambda_eq :
+    (1 + Real.sqrt 2 : ℝ) ^ 4 = 17 + 12 * Real.sqrt 2 := by
+  have hs : (Real.sqrt 2) ^ 2 = 2 := Real.sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)
+  have hs3 : (Real.sqrt 2) ^ 3 = 2 * Real.sqrt 2 := by
+    rw [show (Real.sqrt 2) ^ 3 = Real.sqrt 2 * (Real.sqrt 2) ^ 2 by ring, hs]
+    ring
+  have hs4 : (Real.sqrt 2) ^ 4 = 4 := by
+    rw [show (Real.sqrt 2) ^ 4 = ((Real.sqrt 2) ^ 2) ^ 2 by ring, hs]
+    norm_num
+  ring_nf
+  rw [hs4, hs3, hs]
+  ring
+
+lemma aperyA_recurrence_real_div (n : ℕ) (hn : 1 ≤ n) :
+    (aperyA (n + 1) : ℝ) =
+      ((2 * (n : ℝ) + 1) * (17 * (n : ℝ) ^ 2 + 17 * (n : ℝ) + 5) /
+          (((n : ℝ) + 1) ^ 3)) * (aperyA n : ℝ)
+        - (((n : ℝ) / ((n : ℝ) + 1)) ^ 3) * (aperyA (n - 1) : ℝ) := by
+  have hrecZ := aperyA_recurrence n hn
+  have hrecR :
+      (((n : ℝ) + 1) ^ 3) * (aperyA (n + 1) : ℝ)
+        = (2 * (n : ℝ) + 1) * (17 * (n : ℝ) ^ 2 + 17 * (n : ℝ) + 5) *
+            (aperyA n : ℝ)
+          - (n : ℝ) ^ 3 * (aperyA (n - 1) : ℝ) := by
+    have := congrArg ((↑·) : ℤ → ℝ) hrecZ
+    push_cast at this
+    nlinarith
+  have hn1_pos : 0 < (n : ℝ) + 1 := by positivity
+  field_simp [hn1_pos.ne'] at hrecR ⊢
+  nlinarith
+
+lemma aperyA_ratio_step_coeff {n : ℕ} (hn : 2 ≤ n) :
+    let lam : ℝ := (1 + Real.sqrt 2) ^ 4
+    lam * (((n : ℝ) + 1) / ((n : ℝ) + 2)) ^ 2 ≤
+      (2 * (n : ℝ) + 1) * (17 * (n : ℝ) ^ 2 + 17 * (n : ℝ) + 5) /
+          (((n : ℝ) + 1) ^ 3)
+        - (((n : ℝ) / ((n : ℝ) + 1)) ^ 3) /
+            (lam * (((n : ℝ) / ((n : ℝ) + 1)) ^ 2)) := by
+  dsimp
+  rw [aperyA_dominant_lambda_eq]
+  have hs : (Real.sqrt 2) ^ 2 = 2 := Real.sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)
+  have hnR : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  have hn_pos : 0 < (n : ℝ) := by positivity
+  have hn1_pos : 0 < (n : ℝ) + 1 := by positivity
+  have hn2_pos : 0 < (n : ℝ) + 2 := by positivity
+  have hlam_pos : 0 < 17 + 12 * Real.sqrt 2 := by positivity
+  rw [le_sub_iff_add_le]
+  field_simp [hn_pos.ne', hn1_pos.ne', hn2_pos.ne', hlam_pos.ne']
+  ring_nf
+  rw [hs]
+  ring_nf
+  set y : ℝ := (n : ℝ) - 2 with hy
+  have hy_nonneg : 0 ≤ y := by rw [hy]; linarith
+  have hdiff_nonneg : 0 ≤
+      204 * (n : ℝ) ^ 4 * Real.sqrt 2 + 288 * (n : ℝ) ^ 4 +
+        324 * (n : ℝ) ^ 3 * Real.sqrt 2 + 456 * (n : ℝ) ^ 3 -
+        276 * (n : ℝ) ^ 2 * Real.sqrt 2 - 393 * (n : ℝ) ^ 2 -
+        504 * (n : ℝ) * Real.sqrt 2 - 713 * (n : ℝ) -
+        168 * Real.sqrt 2 - 237 := by
+    have hrewrite :
+        204 * (n : ℝ) ^ 4 * Real.sqrt 2 + 288 * (n : ℝ) ^ 4 +
+          324 * (n : ℝ) ^ 3 * Real.sqrt 2 + 456 * (n : ℝ) ^ 3 -
+          276 * (n : ℝ) ^ 2 * Real.sqrt 2 - 393 * (n : ℝ) ^ 2 -
+          504 * (n : ℝ) * Real.sqrt 2 - 713 * (n : ℝ) -
+          168 * Real.sqrt 2 - 237 =
+        (204 * Real.sqrt 2 + 288) * y ^ 4 +
+          (1956 * Real.sqrt 2 + 2760) * y ^ 3 +
+          (6564 * Real.sqrt 2 + 9255) * y ^ 2 +
+          (8808 * Real.sqrt 2 + 12403) * y +
+          (3576 * Real.sqrt 2 + 5021) := by
+      rw [hy]
+      ring
+    rw [hrewrite]
+    positivity
+  nlinarith
+
+lemma aperyA_ratio_lower {n : ℕ} (hn : 3 ≤ n) :
+    (1 + Real.sqrt 2 : ℝ) ^ 4 * (((n : ℝ) / ((n : ℝ) + 1)) ^ 2) *
+        (aperyA (n - 1) : ℝ) ≤
+      (aperyA n : ℝ) := by
+  induction n, hn using Nat.le_induction with
+  | base =>
+      rw [aperyA_two, aperyA_three]
+      rw [aperyA_dominant_lambda_eq]
+      norm_num
+      have hs : (Real.sqrt 2) ^ 2 = 2 := Real.sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)
+      have hsqrt_nonneg : 0 ≤ Real.sqrt 2 := Real.sqrt_nonneg _
+      nlinarith [hs, hsqrt_nonneg, sq_nonneg (Real.sqrt 2 - 3 / 2)]
+  | succ n hn ih =>
+      have hn2 : 2 ≤ n := by omega
+      have hn1 : 1 ≤ n := by omega
+      let lam : ℝ := (1 + Real.sqrt 2) ^ 4
+      let r : ℝ := lam * (((n : ℝ) / ((n : ℝ) + 1)) ^ 2)
+      let rnext : ℝ := lam * ((((n : ℝ) + 1) / ((n : ℝ) + 2)) ^ 2)
+      let P : ℝ :=
+        (2 * (n : ℝ) + 1) * (17 * (n : ℝ) ^ 2 + 17 * (n : ℝ) + 5) /
+          (((n : ℝ) + 1) ^ 3)
+      let Q : ℝ := ((n : ℝ) / ((n : ℝ) + 1)) ^ 3
+      have hrec := aperyA_recurrence_real_div n hn1
+      have hrec' : (aperyA (n + 1) : ℝ) = P * (aperyA n : ℝ) -
+          Q * (aperyA (n - 1) : ℝ) := by
+        simpa [P, Q] using hrec
+      have hlam_pos : 0 < lam := by
+        dsimp [lam]
+        positivity
+      have hn_pos : 0 < (n : ℝ) := by positivity
+      have hn1_pos : 0 < (n : ℝ) + 1 := by positivity
+      have hr_pos : 0 < r := by
+        dsimp [r]
+        positivity
+      have ha_pos : 0 < (aperyA n : ℝ) := by exact_mod_cast aperyA_pos n
+      have hprev_bound : (aperyA (n - 1) : ℝ) ≤ (aperyA n : ℝ) / r := by
+        rw [le_div_iff₀ hr_pos]
+        simpa [r, mul_comm, mul_left_comm, mul_assoc] using ih
+      have hQ_nonneg : 0 ≤ Q := by
+        dsimp [Q]
+        positivity
+      have hneg : -Q * ((aperyA n : ℝ) / r) ≤ -Q * (aperyA (n - 1) : ℝ) :=
+        mul_le_mul_of_nonpos_left hprev_bound (by nlinarith [hQ_nonneg])
+      have hcoeff : rnext ≤ P - Q / r := by
+        dsimp [rnext, P, Q, r, lam]
+        exact aperyA_ratio_step_coeff hn2
+      have hcoeff_mul : rnext * (aperyA n : ℝ) ≤ (P - Q / r) * (aperyA n : ℝ) :=
+        mul_le_mul_of_nonneg_right hcoeff ha_pos.le
+      have hcoeff_mul' : rnext * (aperyA n : ℝ) ≤
+          P * (aperyA n : ℝ) - Q * ((aperyA n : ℝ) / r) := by
+        calc
+          rnext * (aperyA n : ℝ) ≤ (P - Q / r) * (aperyA n : ℝ) := hcoeff_mul
+          _ = P * (aperyA n : ℝ) - Q * ((aperyA n : ℝ) / r) := by
+            field_simp [hr_pos.ne']
+      rw [hrec']
+      have hgoal : rnext * (aperyA n : ℝ) ≤
+          P * (aperyA n : ℝ) - Q * (aperyA (n - 1) : ℝ) := by
+        nlinarith [hneg, hcoeff_mul']
+      have htwo : ((1 : ℝ) + 1) = 2 := by norm_num
+      simpa [rnext, lam, Nat.cast_add, add_assoc, Nat.cast_one, htwo] using hgoal
+
+lemma aperyA_lower_from_ratio {n : ℕ} (hn : 3 ≤ n) :
+    (73 : ℝ) * 9 * ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ (n - 2) /
+        (((n : ℝ) + 1) ^ 2) ≤
+      (aperyA n : ℝ) := by
+  induction n, hn using Nat.le_induction with
+  | base =>
+      rw [aperyA_three]
+      rw [show 3 - 2 = 1 by norm_num]
+      field_simp
+      rw [aperyA_dominant_lambda_eq]
+      norm_num
+      have hs : (Real.sqrt 2) ^ 2 = 2 := Real.sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)
+      have hsqrt_nonneg : 0 ≤ Real.sqrt 2 := Real.sqrt_nonneg _
+      nlinarith [hs, hsqrt_nonneg, sq_nonneg (Real.sqrt 2 - 3 / 2)]
+  | succ n hn ih =>
+      have hratio := aperyA_ratio_lower (n := n + 1) (by omega : 3 ≤ n + 1)
+      have hn1_pos : 0 < (n : ℝ) + 1 := by positivity
+      have hn2_pos : 0 < (n : ℝ) + 2 := by positivity
+      have hlam_pos : 0 < ((1 + Real.sqrt 2 : ℝ) ^ 4) := by positivity
+      have hmul := mul_le_mul_of_nonneg_left ih
+        (mul_nonneg (le_of_lt hlam_pos) (sq_nonneg (((n : ℝ) + 1) / ((n : ℝ) + 2))))
+      have hsucc_sub : n + 1 - 2 = n - 1 := by omega
+      have hpow_succ : ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ (n - 1) =
+          ((1 + Real.sqrt 2 : ℝ) ^ 4) * ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ (n - 2) := by
+        have hn_sub : n - 2 + 1 = n - 1 := by omega
+        rw [show ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ (n - 1) =
+          ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ ((n - 2) + 1) by rw [hn_sub]]
+        rw [pow_succ]
+        ring
+      calc
+        (73 : ℝ) * 9 * ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ (n + 1 - 2) /
+            (((n + 1 : ℕ) : ℝ) + 1) ^ 2
+            = ((1 + Real.sqrt 2 : ℝ) ^ 4 * (((n : ℝ) + 1) / ((n : ℝ) + 2)) ^ 2) *
+                ((73 : ℝ) * 9 * ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ (n - 2) /
+                  (((n : ℝ) + 1) ^ 2)) := by
+              rw [hsucc_sub, hpow_succ]
+              field_simp [hn1_pos.ne', hn2_pos.ne']
+              norm_num
+              ring_nf
+        _ ≤ ((1 + Real.sqrt 2 : ℝ) ^ 4 * (((n : ℝ) + 1) / ((n : ℝ) + 2)) ^ 2) *
+              (aperyA n : ℝ) := hmul
+        _ ≤ (aperyA (n + 1) : ℝ) := by
+              have htwo : ((1 : ℝ) + 1) = 2 := by norm_num
+              simpa [Nat.cast_add, add_assoc, Nat.cast_one, htwo] using hratio
+
+theorem aperyA_asymptotic_lower_bound :
+    ∃ M₀ : ℕ, 1 ≤ M₀ ∧ ∃ C : ℝ, 0 < C ∧ ∀ n, M₀ ≤ n →
+      (aperyA n : ℝ) ≥
+        C * (1 + Real.sqrt 2 : ℝ) ^ (4 * n) / (((n : ℝ) + 1) ^ 2) := by
+  refine ⟨3, by norm_num, ?_⟩
+  refine ⟨73 * 9 / ((1 + Real.sqrt 2 : ℝ) ^ 8), ?_, ?_⟩
+  · positivity
+  intro n hn
+  have hlow := aperyA_lower_from_ratio (n := n) hn
+  have hlam_pos : 0 < ((1 + Real.sqrt 2 : ℝ) ^ 4) := by positivity
+  have hbase_ne : ((1 + Real.sqrt 2 : ℝ) ^ 4) ≠ 0 := hlam_pos.ne'
+  have hpow : ((1 + Real.sqrt 2 : ℝ) ^ 4) ^ (n - 2) =
+      (1 + Real.sqrt 2 : ℝ) ^ (4 * n) / (1 + Real.sqrt 2 : ℝ) ^ 8 := by
+    have hbase : (1 + Real.sqrt 2 : ℝ) ≠ 0 := by positivity
+    rw [← pow_mul]
+    calc
+      (1 + Real.sqrt 2 : ℝ) ^ (4 * (n - 2))
+          = (1 + Real.sqrt 2 : ℝ) ^ (4 * n - 8) := by
+              congr 1
+              omega
+      _ = (1 + Real.sqrt 2 : ℝ) ^ (4 * n) / (1 + Real.sqrt 2 : ℝ) ^ 8 := by
+              rw [pow_sub₀ _ hbase (by omega : 8 ≤ 4 * n)]
+              rw [div_eq_mul_inv]
+  rw [hpow] at hlow
+  ring_nf at hlow ⊢
+  exact hlow
 
 /-! ## Sequence `bₙ` (rational, inhomogeneous)
 
@@ -2507,6 +2724,72 @@ lemma aperyB_four : aperyB 4 = 11424695 / 288 := by
   simp [Finset.sum_range_succ, Finset.sum_range_one, Nat.choose]
   norm_num
 
+lemma aperyB_recurrence_real_div (n : ℕ) (hn : 1 ≤ n) :
+    (aperyB (n + 1) : ℝ) =
+      ((2 * (n : ℝ) + 1) * (17 * (n : ℝ) ^ 2 + 17 * (n : ℝ) + 5) /
+          (((n : ℝ) + 1) ^ 3)) * (aperyB n : ℝ)
+        - (((n : ℝ) / ((n : ℝ) + 1)) ^ 3) * (aperyB (n - 1) : ℝ) := by
+  have hrecQ := aperyB_recurrence n hn
+  have hrecR :
+      (((n : ℝ) + 1) ^ 3) * (aperyB (n + 1) : ℝ)
+        = (2 * (n : ℝ) + 1) * (17 * (n : ℝ) ^ 2 + 17 * (n : ℝ) + 5) *
+            (aperyB n : ℝ)
+          - (n : ℝ) ^ 3 * (aperyB (n - 1) : ℝ) := by
+    have := congrArg ((↑·) : ℚ → ℝ) hrecQ
+    push_cast at this
+    nlinarith
+  have hn1_pos : 0 < (n : ℝ) + 1 := by positivity
+  field_simp [hn1_pos.ne'] at hrecR ⊢
+  nlinarith
+
+lemma aperyAB_casoratian {n : ℕ} (hn : 1 ≤ n) :
+    (aperyB n : ℝ) * (aperyA (n - 1) : ℝ) -
+        (aperyB (n - 1) : ℝ) * (aperyA n : ℝ) = 6 / ((n : ℝ) ^ 3) := by
+  induction n, hn using Nat.le_induction with
+  | base =>
+      simp [aperyB_zero, aperyB_one, aperyA_zero, aperyA_one]
+  | succ n hn ih =>
+      have hn1 : 1 ≤ n := hn
+      have hA := aperyA_recurrence_real_div n hn1
+      have hB := aperyB_recurrence_real_div n hn1
+      let P : ℝ :=
+        (2 * (n : ℝ) + 1) * (17 * (n : ℝ) ^ 2 + 17 * (n : ℝ) + 5) /
+          (((n : ℝ) + 1) ^ 3)
+      let Q : ℝ := ((n : ℝ) / ((n : ℝ) + 1)) ^ 3
+      have hA' : (aperyA (n + 1) : ℝ) =
+          P * (aperyA n : ℝ) - Q * (aperyA (n - 1) : ℝ) := by
+        simpa [P, Q] using hA
+      have hB' : (aperyB (n + 1) : ℝ) =
+          P * (aperyB n : ℝ) - Q * (aperyB (n - 1) : ℝ) := by
+        simpa [P, Q] using hB
+      have hn_pos : 0 < (n : ℝ) := by positivity
+      have hn1_pos : 0 < (n : ℝ) + 1 := by positivity
+      rw [hA', hB']
+      have hq : Q * (6 / (n : ℝ) ^ 3) = 6 / (((n : ℝ) + 1) ^ 3) := by
+        dsimp [Q]
+        field_simp [hn_pos.ne', hn1_pos.ne']
+      have hsub : n + 1 - 1 = n := by omega
+      rw [hsub]
+      calc
+        (P * (aperyB n : ℝ) - Q * (aperyB (n - 1) : ℝ)) * (aperyA n : ℝ) -
+            (aperyB n : ℝ) * (P * (aperyA n : ℝ) - Q * (aperyA (n - 1) : ℝ))
+            = Q * ((aperyB n : ℝ) * (aperyA (n - 1) : ℝ) -
+                (aperyB (n - 1) : ℝ) * (aperyA n : ℝ)) := by ring
+        _ = Q * (6 / (n : ℝ) ^ 3) := by rw [ih]
+        _ = 6 / (((n : ℝ) + 1) ^ 3) := hq
+        _ = 6 / (((n + 1 : ℕ) : ℝ) ^ 3) := by norm_num
+
+lemma aperyB_div_aperyA_increment {n : ℕ} (hn : 1 ≤ n) :
+    (aperyB n : ℝ) / (aperyA n : ℝ) -
+        (aperyB (n - 1) : ℝ) / (aperyA (n - 1) : ℝ) =
+      6 / ((n : ℝ) ^ 3 * (aperyA n : ℝ) * (aperyA (n - 1) : ℝ)) := by
+  have hcas := aperyAB_casoratian hn
+  have hAn : (aperyA n : ℝ) ≠ 0 := by exact_mod_cast (aperyA_pos n).ne'
+  have hAp : (aperyA (n - 1) : ℝ) ≠ 0 := by exact_mod_cast (aperyA_pos (n - 1)).ne'
+  have hnz : (n : ℝ) ≠ 0 := by positivity
+  field_simp [hAn, hAp, hnz] at hcas ⊢
+  nlinarith
+
 /-! ## Generating functions `A(z)`, `B(z)` (formal power series)
 
     The Apéry ODE
@@ -2970,6 +3253,223 @@ lemma aperyGFB_satisfies_ode :
   · rw [aperyGFB_ode_coeff_ge4 N hN, PowerSeries.coeff_C]
     simp [show N ≠ 0 by omega]
   · rw [aperyGFB_ode_coeff_small N (by omega), PowerSeries.coeff_C]
+
+private lemma choose_ge_self_of_between {N r : ℕ} (hr1 : 1 ≤ r) (hrN : r ≤ N - 1) :
+    N ≤ Nat.choose N r := by
+  induction N generalizing r with
+  | zero => omega
+  | succ N ih =>
+      rcases Nat.eq_or_lt_of_le hr1 with rfl | hrgt1
+      · simp [Nat.choose_one_right]
+      · have hr2 : 2 ≤ r := by omega
+        by_cases htop : r = N
+        · subst r
+          rw [Nat.choose_succ_self_right]
+        · have hrN' : r ≤ N - 1 := by omega
+          have hrm1_1 : 1 ≤ r - 1 := by omega
+          have hrm1_N : r - 1 ≤ N - 1 := by omega
+          have ih1 := ih hrm1_1 hrm1_N
+          have ih2 := ih (by omega : 1 ≤ r) hrN'
+          have hrpos : 0 < r := by omega
+          rw [Nat.choose_succ_left _ _ hrpos]
+          omega
+
+private lemma choose_product_ge_left {n r : ℕ} (hn : 1 ≤ n) (hr1 : 1 ≤ r) (hrn : r ≤ n) :
+    n ≤ Nat.choose n r * Nat.choose (n + r) r := by
+  by_cases htop : r = n
+  · subst r
+    have hchoose : 2 * n ≤ Nat.choose (n + n) n := by
+      have hle : n ≤ (n + n) - 1 := by omega
+      simpa [two_mul] using choose_ge_self_of_between (N := n + n) (r := n) hn hle
+    rw [Nat.choose_self, one_mul]
+    exact le_trans (by omega : n ≤ 2 * n) hchoose
+  · have hrn1 : r ≤ n - 1 := by omega
+    have hchoose : n ≤ Nat.choose n r := choose_ge_self_of_between hr1 hrn1
+    have hpos : 1 ≤ Nat.choose (n + r) r := Nat.succ_le_of_lt (Nat.choose_pos (by omega))
+    exact le_trans hchoose (Nat.le_mul_of_pos_right _ hpos)
+
+lemma apery_summable_one_div_succ_cube :
+    Summable (fun k : ℕ => 1 / ((k + 1 : ℝ) ^ 3)) := by
+  have h : Summable (fun n : ℕ => 1 / ((n : ℝ) ^ 3)) :=
+    (Real.summable_one_div_nat_pow (p := 3)).mpr (by norm_num)
+  have := (summable_nat_add_iff (f := fun n : ℕ => 1 / ((n : ℝ) ^ 3)) 1).mpr h
+  convert this using 1
+  funext k
+  push_cast
+  ring
+
+lemma aperyH3_tendsto_zeta3 :
+    Filter.Tendsto (fun n : ℕ => ((aperyH3 n : ℚ) : ℝ)) Filter.atTop
+      (nhds (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))) := by
+  have hs := apery_summable_one_div_succ_cube.hasSum
+  have ht := hs.tendsto_sum_nat
+  convert ht using 1
+  ext n
+  unfold aperyH3
+  push_cast
+  rfl
+
+private lemma aperyE_term_abs_le {n j : ℕ} (hn : 1 ≤ n) (hj : j + 1 ≤ n) :
+    |(((-1 : ℚ) ^ j /
+        (2 * ((j + 1 : ℚ) ^ 3) * (Nat.choose n (j + 1) : ℚ) *
+          (Nat.choose (n + j + 1) (j + 1) : ℚ)) : ℚ) : ℝ)|
+      ≤ (1 / (2 * (n : ℝ))) * (1 / ((j + 1 : ℝ) ^ 3)) := by
+  let r := j + 1
+  have hr1 : 1 ≤ r := by dsimp [r]; omega
+  have hrn : r ≤ n := by simpa [r] using hj
+  have hprodN : n ≤ Nat.choose n r * Nat.choose (n + r) r :=
+    choose_product_ge_left hn hr1 hrn
+  have hprodR : (n : ℝ) ≤ (Nat.choose n r : ℝ) * (Nat.choose (n + r) r : ℝ) := by
+    exact_mod_cast hprodN
+  have hr_pos : 0 < (r : ℝ) := by positivity
+  have hn_pos : 0 < (n : ℝ) := by positivity
+  have hchoose1_pos : 0 < (Nat.choose n r : ℝ) := by
+    exact_mod_cast Nat.choose_pos hrn
+  have hchoose2_pos : 0 < (Nat.choose (n + r) r : ℝ) := by
+    exact_mod_cast Nat.choose_pos (by omega : r ≤ n + r)
+  have hden_le : 2 * (r : ℝ) ^ 3 * (n : ℝ) ≤
+      2 * (r : ℝ) ^ 3 * ((Nat.choose n r : ℝ) * (Nat.choose (n + r) r : ℝ)) := by
+    gcongr
+  have hfrac := div_le_div_of_nonneg_left (a := (1 : ℝ)) (b :=
+      2 * (r : ℝ) ^ 3 * ((Nat.choose n r : ℝ) * (Nat.choose (n + r) r : ℝ)))
+      (c := 2 * (r : ℝ) ^ 3 * (n : ℝ)) (by norm_num) (by positivity) hden_le
+  dsimp [r] at hfrac ⊢
+  push_cast at hfrac ⊢
+  rw [abs_div]
+  have habs_num : |((-1 : ℝ) ^ j)| = 1 := by simp
+  rw [habs_num]
+  have hden_nonneg : 0 ≤ 2 * ((j : ℝ) + 1) ^ 3 * (Nat.choose n (j + 1) : ℝ) *
+      (Nat.choose (n + j + 1) (j + 1) : ℝ) := by positivity
+  rw [abs_of_nonneg hden_nonneg]
+  calc
+    1 / (2 * ((j : ℝ) + 1) ^ 3 * (Nat.choose n (j + 1) : ℝ) *
+        (Nat.choose (n + j + 1) (j + 1) : ℝ))
+        ≤ 1 / (2 * ((j : ℝ) + 1) ^ 3 * (n : ℝ)) := by simpa [mul_assoc] using hfrac
+    _ = (1 / (2 * (n : ℝ))) * (1 / (((j : ℝ) + 1) ^ 3)) := by
+        field_simp [hn_pos.ne', (by positivity : ((j : ℝ) + 1) ^ 3 ≠ 0)]
+
+lemma aperyE_abs_le_zeta {n k : ℕ} (hn : 1 ≤ n) (hk : k ≤ n) :
+    |((aperyE n k : ℚ) : ℝ)| ≤
+      (1 / (2 * (n : ℝ))) * (∑' j : ℕ, 1 / ((j + 1 : ℝ) ^ 3)) := by
+  have hsumm := apery_summable_one_div_succ_cube
+  unfold aperyE
+  push_cast
+  calc
+    |∑ j ∈ Finset.range k,
+        (-1 : ℝ) ^ j /
+          (2 * ((j : ℝ) + 1) ^ 3 * (Nat.choose n (j + 1) : ℝ) *
+            (Nat.choose (n + j + 1) (j + 1) : ℝ))|
+        ≤ ∑ j ∈ Finset.range k,
+          |(-1 : ℝ) ^ j /
+            (2 * ((j : ℝ) + 1) ^ 3 * (Nat.choose n (j + 1) : ℝ) *
+              (Nat.choose (n + j + 1) (j + 1) : ℝ))| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ j ∈ Finset.range k,
+          (1 / (2 * (n : ℝ))) * (1 / ((j + 1 : ℝ) ^ 3)) := by
+          apply Finset.sum_le_sum
+          intro j hj
+          simpa using aperyE_term_abs_le hn (by simpa using (Finset.mem_range.mp hj).trans_le hk)
+    _ = (1 / (2 * (n : ℝ))) * ∑ j ∈ Finset.range k, 1 / ((j + 1 : ℝ) ^ 3) := by
+          rw [Finset.mul_sum]
+    _ ≤ (1 / (2 * (n : ℝ))) * (∑' j : ℕ, 1 / ((j + 1 : ℝ) ^ 3)) := by
+          gcongr
+          exact hsumm.sum_le_tsum (Finset.range k) (by intro j hj; positivity)
+
+lemma aperyD_abs_le {n : ℕ} (hn : 1 ≤ n) :
+    |((aperyD n : ℚ) : ℝ)| ≤
+      ((1 / (2 * (n : ℝ))) * (∑' j : ℕ, 1 / ((j + 1 : ℝ) ^ 3))) *
+        (aperyA n : ℝ) := by
+  let B : ℝ := (1 / (2 * (n : ℝ))) * (∑' j : ℕ, 1 / ((j + 1 : ℝ) ^ 3))
+  unfold aperyD
+  push_cast
+  calc
+    |∑ k ∈ Finset.range (n + 1),
+        (Nat.choose n k : ℝ) ^ 2 * (Nat.choose (n + k) k : ℝ) ^ 2 *
+          ((aperyE n k : ℚ) : ℝ)|
+        ≤ ∑ k ∈ Finset.range (n + 1),
+            |(Nat.choose n k : ℝ) ^ 2 * (Nat.choose (n + k) k : ℝ) ^ 2 *
+              ((aperyE n k : ℚ) : ℝ)| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ k ∈ Finset.range (n + 1),
+            (Nat.choose n k : ℝ) ^ 2 * (Nat.choose (n + k) k : ℝ) ^ 2 * B := by
+          apply Finset.sum_le_sum
+          intro k hk
+          have hk_le : k ≤ n := by simpa [Finset.mem_range] using hk
+          have hE := aperyE_abs_le_zeta (n := n) (k := k) hn hk_le
+          have hw_nonneg : 0 ≤ (Nat.choose n k : ℝ) ^ 2 *
+              (Nat.choose (n + k) k : ℝ) ^ 2 := by positivity
+          rw [abs_mul]
+          have hw_abs : |(Nat.choose n k : ℝ) ^ 2 *
+                (Nat.choose (n + k) k : ℝ) ^ 2|
+              = (Nat.choose n k : ℝ) ^ 2 * (Nat.choose (n + k) k : ℝ) ^ 2 :=
+            abs_of_nonneg hw_nonneg
+          rw [hw_abs]
+          exact mul_le_mul_of_nonneg_left (by simpa [B] using hE) hw_nonneg
+    _ = B * (aperyA n : ℝ) := by
+          unfold aperyA
+          push_cast
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro k hk
+          ring
+    _ = ((1 / (2 * (n : ℝ))) * (∑' j : ℕ, 1 / ((j + 1 : ℝ) ^ 3))) *
+          (aperyA n : ℝ) := rfl
+
+lemma aperyD_div_aperyA_abs_le {n : ℕ} (hn : 1 ≤ n) :
+    |((aperyD n : ℚ) : ℝ) / (aperyA n : ℝ)| ≤
+      (1 / (2 * (n : ℝ))) * (∑' j : ℕ, 1 / ((j + 1 : ℝ) ^ 3)) := by
+  have hD := aperyD_abs_le hn
+  have hA_pos : 0 < (aperyA n : ℝ) := by exact_mod_cast aperyA_pos n
+  rw [abs_div, abs_of_pos hA_pos]
+  rw [div_le_iff₀ hA_pos]
+  simpa [mul_comm, mul_left_comm, mul_assoc] using hD
+
+lemma aperyD_div_aperyA_tendsto_zero :
+    Filter.Tendsto (fun n : ℕ => ((aperyD n : ℚ) : ℝ) / (aperyA n : ℝ))
+      Filter.atTop (nhds 0) := by
+  let ζ : ℝ := ∑' j : ℕ, 1 / ((j + 1 : ℝ) ^ 3)
+  have hbound_ev : ∀ᶠ n : ℕ in Filter.atTop,
+      |((aperyD n : ℚ) : ℝ) / (aperyA n : ℝ)| ≤ (1 / (2 * (n : ℝ))) * ζ := by
+    filter_upwards [Filter.eventually_ge_atTop 1] with n hn
+    simpa [ζ] using aperyD_div_aperyA_abs_le hn
+  have hnonneg_ev : ∀ᶠ n : ℕ in Filter.atTop,
+      0 ≤ |((aperyD n : ℚ) : ℝ) / (aperyA n : ℝ)| := by
+    filter_upwards with n
+    exact abs_nonneg _
+  have hrhs_tendsto : Filter.Tendsto (fun n : ℕ => (1 / (2 * (n : ℝ))) * ζ)
+      Filter.atTop (nhds 0) := by
+    have hbase : Filter.Tendsto (fun n : ℕ => (1 : ℝ) / (n : ℝ)) Filter.atTop (nhds 0) :=
+      tendsto_one_div_atTop_nhds_zero_nat
+    have hmul := hbase.const_mul (ζ / 2)
+    convert hmul using 1
+    · ext n
+      by_cases hn : (n : ℝ) = 0
+      · simp [hn]
+      · field_simp [hn]
+    · norm_num
+  have habs_tendsto : Filter.Tendsto
+      (fun n : ℕ => |((aperyD n : ℚ) : ℝ) / (aperyA n : ℝ)|) Filter.atTop (nhds 0) :=
+    squeeze_zero' hnonneg_ev hbound_ev hrhs_tendsto
+  rw [tendsto_iff_dist_tendsto_zero]
+  convert habs_tendsto using 1
+  ext n
+  rw [Real.dist_eq]
+  simp
+
+theorem aperyB_div_aperyA_tendsto_zeta3 :
+    Filter.Tendsto (fun n : ℕ => (aperyB n : ℝ) / (aperyA n : ℝ)) Filter.atTop
+      (nhds (∑' k : ℕ, 1 / ((k + 1 : ℝ) ^ 3))) := by
+  have hH := aperyH3_tendsto_zeta3
+  have hD := aperyD_div_aperyA_tendsto_zero
+  have hsum := hH.add hD
+  convert hsum using 1
+  · ext n
+    have hdecompQ := aperyB_eq_decomp n
+    have hdecompR : (aperyB n : ℝ) =
+        ((aperyH3 n : ℚ) : ℝ) * (aperyA n : ℝ) + ((aperyD n : ℚ) : ℝ) := by
+      exact_mod_cast hdecompQ
+    have hA_ne : (aperyA n : ℝ) ≠ 0 := by exact_mod_cast (aperyA_pos n).ne'
+    rw [hdecompR]
+    field_simp [hA_ne]
+  · norm_num
 
 end Number
 end Ripple

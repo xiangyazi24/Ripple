@@ -763,4 +763,139 @@ theorem stage1_vvariable_with_output_eq {d : ℕ} {α : ℝ}
     fun i => vInit_rational btc.pivp _,
     h_output_eq⟩
 
+/-- Stage 1 with output equality and explicit modulus preservation. -/
+theorem stage1_vvariable_with_output_eq_and_modulus {d : ℕ} {α : ℝ}
+    (btc : CertifiedBoundedTimeComputable d α)
+    (pcd : PolyCRNDecomposition d btc.pivp) :
+    ∃ (d' : ℕ) (btc' : BoundedTimeComputable d' α)
+      (A : Fin d' → Fin d' → Fin d' → ℝ) (B : Fin d' → Fin d' → ℝ),
+      (∀ i a b, 0 ≤ A i a b) ∧
+      (∀ i a, 0 ≤ B i a) ∧
+      (∀ i x, btc'.pivp.field x i =
+        (∑ a, ∑ b, A i a b * x a * x b) - (∑ a, B i a * x a) * x i) ∧
+      (∀ i, 0 ≤ btc'.pivp.init i) ∧
+      (∀ i, ∃ q : ℚ, btc'.pivp.init i = ↑q) ∧
+      (∀ t : ℝ, btc'.sol.trajectory t btc'.pivp.output
+          = btc.sol.trajectory t btc.pivp.output) ∧
+      (∀ r : ℕ, btc'.modulus r = btc.modulus r) := by
+  by_cases hd : d = 0
+  · subst hd
+    exact Fin.elim0 btc.pivp.output
+  have hd1 : 1 ≤ d := Nat.one_le_iff_ne_zero.mpr hd
+  let D := max 1 (Finset.sup' Finset.univ
+    ⟨⟨0, by omega⟩, Finset.mem_univ _⟩
+    (fun i => max ((pcd.prod i).totalDegree) ((pcd.degr i).totalDegree)))
+  have hD : 1 ≤ D := le_max_left 1 _
+  let d' := Fintype.card (MIndex d D)
+  let enc : MIndex d D ≃ Fin d' := Fintype.equivFin (MIndex d D)
+  let A : Fin d' → Fin d' → Fin d' → ℝ :=
+    fun i a b => vCoeffA pcd D (enc.symm i) (enc.symm a) (enc.symm b)
+  let B : Fin d' → Fin d' → ℝ :=
+    fun i a => vCoeffB pcd D (enc.symm i) (enc.symm a)
+  let vfield : (Fin d' → ℝ) → Fin d' → ℝ := fun x i =>
+    (∑ a : Fin d', ∑ b : Fin d', A i a b * x a * x b) -
+    (∑ a : Fin d', B i a * x a) * x i
+  let vinit : Fin d' → ℝ := fun i => vInit btc.pivp (enc.symm i)
+  let voutput : Fin d' := enc (MIndex.basis hD btc.pivp.output)
+  let vpivp : PIVP d' := ⟨vfield, vinit, voutput⟩
+  let vtraj : ℝ → Fin d' → ℝ := fun t i => (enc.symm i).eval (btc.sol.trajectory t)
+  have vinit_eq : vtraj 0 = vinit := by
+    ext i
+    simp only [vtraj, vinit, vInit]
+    congr 1
+    have := btc.sol.init_cond
+    ext k
+    simp [PolyPIVP.toPIVP] at this
+    exact congr_fun this k
+  let vsol : PIVP.Solution vpivp := {
+    trajectory := vtraj
+    init_cond := vinit_eq
+    is_solution := fun t ht => by
+      rw [hasDerivAt_pi]
+      intro i
+      have hx_k := fun k => (hasDerivAt_pi.mp (btc.sol.is_solution t ht)) k
+      have hmon := hasDerivAt_monomial (enc.symm i) btc.sol.trajectory _ t hx_k
+      change HasDerivAt (fun s => (enc.symm i).eval (btc.sol.trajectory s))
+        (vpivp.field (vtraj t) i) t
+      have hDprod : ∀ k, (pcd.prod k).totalDegree ≤ D := fun k =>
+        le_trans (le_max_left _ _)
+          (le_trans (Finset.le_sup'
+            (fun i => max ((pcd.prod i).totalDegree) ((pcd.degr i).totalDegree))
+            (Finset.mem_univ k)) (le_max_right 1 _))
+      have hDdegr : ∀ k, (pcd.degr k).totalDegree ≤ D := fun k =>
+        le_trans (le_max_right _ _)
+          (le_trans (Finset.le_sup'
+            (fun i => max ((pcd.prod i).totalDegree) ((pcd.degr i).totalDegree))
+            (Finset.mem_univ k)) (le_max_right 1 _))
+      have halg : vpivp.field (vtraj t) i =
+        ∑ k : Fin d, (∏ j ∈ Finset.univ.erase k,
+          btc.sol.trajectory t j ^ ((enc.symm i j : ℕ))) *
+          (((enc.symm i k : ℕ) : ℝ) * btc.sol.trajectory t k ^ ((enc.symm i k : ℕ) - 1) *
+            btc.pivp.toPIVP.field (btc.sol.trajectory t) k) := by
+        simp only [vpivp, vfield, A, B, vtraj]
+        rw [Equiv.sum_comp enc.symm (fun α =>
+              ∑ b : Fin d',
+                vCoeffA pcd D (enc.symm i) α (enc.symm b) *
+                  α.eval (btc.sol.trajectory t) *
+                  (enc.symm b).eval (btc.sol.trajectory t)),
+            Equiv.sum_comp enc.symm (fun α =>
+              vCoeffB pcd D (enc.symm i) α *
+                α.eval (btc.sol.trajectory t))]
+        conv_lhs =>
+          arg 1; arg 2; ext α
+          rw [Equiv.sum_comp enc.symm (fun β =>
+                vCoeffA pcd D (enc.symm i) α β *
+                  α.eval (btc.sol.trajectory t) *
+                  β.eval (btc.sol.trajectory t))]
+        have hcr := vfield_chain_rule_eq pcd D hDprod hDdegr
+            (enc.symm i) (btc.sol.trajectory t)
+        simp only [PolyPIVP.evalField] at hcr
+        convert hcr using 2
+      rw [halg]
+      exact hmon }
+  have vbounded : vpivp.IsBounded vsol.trajectory := by
+    obtain ⟨M₀, hM₀_pos, hM₀_bound⟩ := btc.bounded
+    let M := max 1 M₀
+    have hM1 : 1 ≤ M := le_max_left 1 M₀
+    have hM_pos : 0 < M := lt_of_lt_of_le one_pos hM1
+    refine ⟨M ^ (d * D), by positivity, fun t ht => ?_⟩
+    rw [pi_norm_le_iff_of_nonneg (by positivity)]
+    intro i
+    rw [Real.norm_eq_abs]
+    calc |(enc.symm i).eval (btc.sol.trajectory t)|
+        ≤ M ^ (enc.symm i).degree := by
+          apply MIndex.eval_bounded _ _ M hM_pos
+          intro k
+          calc |btc.sol.trajectory t k|
+              = ‖btc.sol.trajectory t k‖ := (Real.norm_eq_abs _).symm
+            _ ≤ ‖btc.sol.trajectory t‖ := norm_le_pi_norm _ k
+            _ ≤ M₀ := hM₀_bound t ht
+            _ ≤ M := le_max_right 1 M₀
+      _ ≤ M ^ (d * D) := pow_le_pow_right₀ hM1 (MIndex.degree_le _)
+  have vconv : ∀ r : ℕ, ∀ t : ℝ, t > btc.modulus r →
+      |vsol.trajectory t vpivp.output - α| < Real.exp (-(r : ℝ)) := by
+    intro r t ht
+    simp only [vsol, vtraj, vpivp, voutput]
+    rw [Equiv.symm_apply_apply, MIndex.eval_basis]
+    exact btc.convergence r t ht
+  let btc' : BoundedTimeComputable d' α :=
+    ⟨vpivp, vsol, btc.modulus, vbounded, vconv⟩
+  have h_output_eq : ∀ t : ℝ,
+      btc'.sol.trajectory t btc'.pivp.output
+        = btc.sol.trajectory t btc.pivp.output := by
+    intro t
+    show vsol.trajectory t vpivp.output = _
+    simp only [vsol, vtraj, vpivp, voutput]
+    rw [Equiv.symm_apply_apply, MIndex.eval_basis]
+  have h_mod_eq : ∀ r : ℕ, btc'.modulus r = btc.modulus r := by
+    intro r
+    rfl
+  exact ⟨d', btc', A, B,
+    fun i a b => vCoeffA_nonneg pcd D _ _ _,
+    fun i a => vCoeffB_nonneg pcd D _ _,
+    fun i x => rfl,
+    fun i => vInit_nonneg btc.pivp pcd.init_nonneg _,
+    fun i => vInit_rational btc.pivp _,
+    h_output_eq, h_mod_eq⟩
+
 end Ripple

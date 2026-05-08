@@ -105,11 +105,11 @@ The Apéry constant. Research directions from `experiments/FINDINGS.md`:
 - Open: first-floor (real-time) vs second-floor characterization
 
 ### 3.4 Catalan's Constant is CRN-Computable
-**Status: OPEN**
-
-DNA28 Corollary 19: `G = ½∫₀^∞ t/cosh(t) dt` via PIVP
-`G' = R(1-V), R' = E-R, E' = -E, V' = (1-V)²·(-2E²)`
-with `G(0)=0, R(0)=0, E(0)=1, V(0)=½`. Concrete PIVP awaiting formalization.
+**Status: CLOSED (2026-04-21).** `catalan_is_lpp_computable` in
+`Ripple/Number/CatalanCertified.lean:745`. Axiom-free (only propext, Classical.choice,
+Quot.sound). Uses the `W := 1 − V` substitution: E, R, W, G satisfy a 4-var
+bounded polynomial IVP with `|G(t) − G| ≤ (t+1)·exp(−t)`, wired through
+`bounded_crn_is_lpp_computable_unconditional`.
 
 ---
 

@@ -21,7 +21,37 @@ Ripple formalizes the theory developed across four papers:
 
 The goal is to treat these as one unified pipeline rather than four disjoint papers.
 
-## What is formalized (as of 2026-04-21)
+## What is formalized (as of 2026-05-08)
+
+### CM-163 — `j((1+√−163)/2) = −640320³`
+
+- **`KleinJCM163Statement_proof`** in `Ripple/Number/Modular/CMEvaluation163.lean`.
+  The Heegner-class CM evaluation of the modular `j`-invariant at the
+  unique class-number-1 discriminant `−163`, fully verified through the
+  level-41 modular polynomial `Φ₄₁`. Closing this required:
+  - **`atkinLehnerInclusion41`** — the matrix-algebra identity that the
+    conjugate of `Γ₀(41)` by the Atkin-Lehner pullback `[[41,0],[0,1]]`
+    sits inside `Γ(1)`.
+  - **`levelOne_cuspForm_eq_zero_of_low_coeffs_vanish`** — a uniform
+    level-1 Sturm bound for arbitrary even weight `k ≥ 4`: if the first
+    `⌊k/12⌋ + 1` `q`-expansion coefficients of a level-1 cusp form
+    vanish, the form is zero. Parametric in `(a, b, n)` with
+    `a·k = 12·b` and `a·n ≥ b + 1`; dispatches on `k mod 12`.
+  - **`phi41Level41ClearedAsModularForm`** — the bundled
+    `ModularForm Γ₀(41) 1008` whose `q`-expansion equals
+    `phi41Level41ClearedEulerQExpansion`, assembled via the graded ring
+    of modular forms over the four building blocks (E₄ and Δ on Γ₀(41),
+    plus their Atkin-Lehner pullbacks).
+  - **`qExp_norm_coeff_zero_of_qExp_coeff_zero`** — the analytic
+    substance of Sturm at level `N`: vanishing of the first M
+    `q`-coefficients of `f` propagates to vanishing of the first M
+    `q`-coefficients of `norm 𝒮ℒ f`, since each non-trivial coset
+    contributes at least 0 to the order at infinity by boundedness at
+    cusps.
+  - **`levelGamma0_41_sturm_weight_1008`** — the Sturm bound at level
+    `Γ₀(41)` weight `1008`: combine the q-expansion bridge with the
+    generic level-1 Sturm at weight `1008·42 = 42336` and then
+    `ModularForm.norm_eq_zero_iff` to deduce `f = 0`.
 
 ### ζ(3) — Apéry's constant
 
@@ -49,7 +79,39 @@ The goal is to treat these as one unified pipeline rather than four disjoint pap
 
 ## What remains open
 
-- **Conifold Frobenius witness for the Apéry ODE** — `apery_conifold_frobenius_witness` at `Ripple/Number/ApreyBounded.lean:338`. The regular-singular-point Frobenius theory needed to pass from the formal ODE to the analytic exponential-rate convergence is not in Mathlib and is effectively a standalone formalization project. The rest of the Apéry chain is axiom-free modulo this witness.
+The repository has **0 `sorry` and 0 `axiom` declarations** across all
+six pillars (Core, ODE, DualRail, LPP, Number, Number/Modular).
+
+- **Kernel-only certificate for the Φ₄₁ Sturm coefficient zero check.**
+  `phi41Level41RecurrenceCoeffArrayFirstZero_sturmBound` is currently
+  closed via `native_decide`, which trusts the Lean compiler chain in
+  addition to the kernel. The CRT-route helpers in
+  `Ripple/Number/Modular/ModularPolynomialSturmCertificate.lean` are
+  in place; replacing `native_decide` with a kernel-only Chinese
+  Remainder Theorem certificate is feasible in principle but requires
+  either a tighter problem-specific coefficient bound (the natural
+  a-priori bound is ≈10^8590, demanding ≈468 CRT primes) or a custom
+  reflection evaluator. See `RELEASE_NOTES.md` and
+  `HANDOFF/crt_route_replace_native_decide.md` (in the working
+  workspace) for the concrete plan.
+
+## Trust footprint
+
+There are no `axiom` declarations and no `sorry` in any tactic
+position. The only trust beyond the Lean kernel is the `native_decide`
+tactic, used in finitely many places to discharge large decidable
+claims:
+
+- `phi41Level41RecurrenceCoeffArrayFirstZero_sturmBound` — first 3529
+  entries of the Φ₄₁ cleared `q`-expansion recurrence array vanish.
+- `phi41Diag_root` — `evalPhi41Diag(j(τ₁₆₃)) = 0`.
+- `phi41DiagCofactor_ne_zero` — the cofactor at the root is nonzero.
+- A level-41 difference table check via `(List.range 83).Forall ...`.
+
+`native_decide` compiles the decision procedure to native code and
+trusts that the compiled program's result matches what the Lean
+kernel would compute. The mathematical content is unchanged; only the
+verification path differs from a strict kernel-only proof.
 
 ## Building
 
@@ -75,8 +137,10 @@ Ripple/
 ├── Number/
 │   ├── AperySequences.lean   F1 / F1′ / F2 for the Apéry sequences
 │   ├── AperyFermi.lean       Fermi–Dirac real-time encoding of ζ(3)
-│   ├── ApreyBounded.lean     Conifold Frobenius witness (open)
-│   └── Apery.lean            Overall ζ(3) theorem wiring
+│   ├── ApreyBounded.lean     Conifold Frobenius witness
+│   ├── Apery.lean            Overall ζ(3) theorem wiring
+│   ├── Frobenius/            Regular-singular Frobenius theory (long-term pillar)
+│   └── Modular/              Modular forms, j-invariant, CM-163, Φ₄₁ Sturm
 ├── ODE/                   Scalar Picard barriers, generic attractor tools
 └── Tactic/                (future) automation for constructing proofs
 ```

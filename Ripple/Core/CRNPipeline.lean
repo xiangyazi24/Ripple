@@ -85,4 +85,15 @@ theorem closure_exponentiation_via_exp_log {α β : ℝ} (hα : 0 < α)
   rw [Real.rpow_def_of_pos hα β]
   exact h_exp _ (crn_computable_mul (h_log α hα ha) hb)
 
+/-- `α^β` closure under explicit `exp`/`log` subclosures.
+
+This is a compatibility alias for the main structural reduction
+`closure_exponentiation_via_exp_log`. -/
+theorem closure_exponentiation {α β : ℝ} (hα : 0 < α)
+    (ha : IsCRNComputable α) (hb : IsCRNComputable β)
+    (h_exp : ∀ γ : ℝ, IsCRNComputable γ → IsCRNComputable (Real.exp γ))
+    (h_log : ∀ γ : ℝ, 0 < γ → IsCRNComputable γ → IsCRNComputable (Real.log γ)) :
+    IsCRNComputable (Real.rpow α β) :=
+  closure_exponentiation_via_exp_log hα ha hb h_exp h_log
+
 end Ripple

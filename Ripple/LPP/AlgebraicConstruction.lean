@@ -7,9 +7,12 @@
   Algebraic data and the CRN decomposition identity live in
   `Ripple.LPP.MinPolyData` (all axiom-free). The boundedness/global-
   existence content of RTCRN1 Lemma 5.1 is proved in
-  `Ripple.Core.MinPolyBounded`. Only the convergence-modulus content
-  (exponential rate via `P'(α) < 0`) remains as a focused analytic
-  axiom here.
+  `Ripple.Core.MinPolyBounded`. The convergence-modulus interface used
+  here is now also proved, via `Ripple.Core.MinPolyConvergence`.
+  The quantitative content is now the expected one: the min-poly route
+  has a linear-in-precision convergence modulus, proved in
+  `Ripple.Core.MinPolyConvergence` from the local linear lower bound
+  at the simple root and a Gronwall estimate.
 -/
 
 import Ripple.Core.BoundedTime
@@ -32,14 +35,16 @@ namespace Algebraic
 open MvPolynomial
 
 
-/-! ## Focused analytic axioms (RTCRN1 Lemma 5.1 content)
+/-! ## Focused Analytic Interfaces (RTCRN1 Lemma 5.1 content)
 
 The ODE-theoretic content of RTCRN1 Lemma 5.1 — boundedness, monotone
 convergence, and exponential rate via P'(α) < 0 — is not readily
-available in Mathlib. We expose it as named axioms corresponding
-precisely to the paper's stability analysis. Each axiom is scoped to
-the single-species min-poly construction and named to the step in
-RTCRN1 it discharges. -/
+available in Mathlib in the exact paper-ready form. We therefore expose
+named interfaces matching the min-poly construction, but these are now
+implemented by theorems in `MinPolyBounded` / `MinPolyConvergence`
+rather than axioms. In particular,
+`minPolyPIVP_convergence_modulus` is now backed by the linear-rate proof,
+not merely by an existential modulus interface. -/
 
 /-- RTCRN1 Lemma 5.1 stability (boundedness). The trajectory of
 `dx/dt = P(x), x(0) = 0` stays in `[0, α]` when `α` is a positive root
@@ -94,11 +99,10 @@ theorem minPolyPIVP_convergence_modulus {α : ℝ} {P : Polynomial ℤ}
 
 /-! ## RTCRN1 Lemma 5.1 assembled: smallest-positive-root case
 
-Combining the focused analytic axioms with the proven algebraic
+Combining the focused analytic interfaces with the proven algebraic
 decomposition, the smallest-positive-root case produces a full
 `CertifiedBoundedTimeComputable` together with a `PolyCRNDecomposition`
-— entirely without any remaining axiom gap beyond the two analytic
-axioms above. -/
+with no project-local axiom gap in this file. -/
 
 /-- RTCRN1 Lemma 5.1: if α > 0 is the smallest positive root of an
 integer polynomial `P` with `P.coeff 0 > 0`, then α is CRN-computable

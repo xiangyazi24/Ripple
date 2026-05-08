@@ -9,24 +9,22 @@
     * α = 0 — constant two-species LPP (reader's value pinned at 0).
     * α = 1 — constant one-species LPP (reader's value pinned at 1).
 
-  The α ∈ (0, 1) branch is laid out as Pipeline A:
-    algebraic_is_certified_crn  (→ CBTC for α)
-      ↓ certified_zero_init_wrapper  (→ init output = 0, tracker layer)
-      ↓ stage1_core_with_output_eq   (→ quadratic A, B tensors on bigger dim)
-      ↓ stage1_output_bound / stage1_rest_bound_and_nonneg
-      ↓ stage2_to_lpp_from_bounds    (→ IsLPPComputable α)
+  The α ∈ (0, 1) branch is now closed by the sharp-bound pipeline:
+    algebraic_is_certified_crn_sharp  (→ CBTC + PCD + x_out ≤ α)
+      ↓ certified_zero_init_wrapper_sharp
+      ↓ stage1_core_with_output_eq
+      ↓ stage1_rest_bound_and_nonneg
+      ↓ stage2_to_lpp_from_bounds
+        → IsLPPComputable α.
 
   The small-λ slack `c_room · (d - 1) · M_rest ≤ 1 - c_room - M_out` requires
   `M_out < 1` strictly. The tracker trajectory y satisfies `y(t) ≤ M_up`
   (upstream bound), which for the min-poly + positive-shift encoding is of the
   form `α + 1` — not usable as M_out < 1 without a sharper analysis.
 
-  Pipeline A's α ∈ (0, 1) closure is therefore deferred to a follow-up
-  commit that proves a tight tracker bound `y(t) ≤ α` on the relaxation
-  construction (available in principle from `minPolyPIVP_sol_in_interval`
-  at `Ripple.Core.MinPolyMonotone`, which gives `sol.trajectory ≤ α` for the
-  β = α − q branch, then propagates through `trackerTraj` as
-  `|y(t)| ≤ |q| + β < 1`).
+  That sharp tracker bound is now discharged internally by the algebraic
+  construction plus the zero-init wrapper's sharp variant, so the interior
+  branch is unconditional.
 -/
 
 import Ripple.LPP.Stages
@@ -83,16 +81,13 @@ We reduce to the boundary cases.
 
 * `α = 0`: use `zero_lpp` directly.
 * `α = 1`: use `one_lpp` directly (1 is algebraic as a root of `X - 1`).
-* `α ∈ (0, 1)`: the general Pipeline A. The axiom-free closure requires
-  a sharp tracker bound which is under construction; see the file header.
-  For this branch, we return the theorem's conclusion conditionally on
-  the sharp-bound lemma `algebraic_lpp_sharp_tracker_bound` that the
-  follow-up work supplies. -/
+* `α ∈ (0, 1)`: the sharp-bound Pipeline A, now fully closed. -/
 
 /-- **Interior case scaffold.** Structure of the α ∈ (0, 1) pipeline,
-assuming a future sharp tracker bound `h_tight : ∀ σ, 0 ≤ σ →
+parameterized by a sharp tracker bound `h_tight : ∀ σ, 0 ≤ σ →
 btc'.sol.trajectory σ btc'.pivp.output ≤ α` on the zero-init-wrapped
-Stage 1 BTC. This lemma is deferred. -/
+Stage 1 BTC. The unconditional theorem `algebraic_lpp_interior` below
+supplies this hypothesis via `algebraic_is_certified_crn_sharp`. -/
 theorem algebraic_lpp_interior_from_sharp_bound {α : ℝ}
     (hα_nn : 0 ≤ α) (hα_lt : α < 1)
     (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0)
@@ -108,7 +103,7 @@ theorem algebraic_lpp_interior_from_sharp_bound {α : ℝ}
   obtain ⟨d, cbtc, pcd, _⟩ := algebraic_is_certified_crn hα_nn halg
   -- Step 1: zero-init wrapper — now init output = 0, still CBTC for α.
   obtain ⟨d', cbtc', pcd', h_zero_init'⟩ := certified_zero_init_wrapper cbtc pcd
-  -- Sharp M_out bound (the deferred piece).
+  -- Sharp M_out bound supplied as an explicit parameter.
   have h_tight := h_sharp d cbtc pcd d' cbtc' pcd' h_zero_init'
   -- Step 2: Stage 1 quadraticize with output equality — output index same α.
   obtain ⟨d'', btc'', A, B, hA, hB, h_field, h_init_nn, h_init_rat, h_out_eq⟩ :=
@@ -281,7 +276,6 @@ theorem algebraic_lpp_interior {α : ℝ}
     (hα_nn : 0 ≤ α) (hα_lt : α < 1)
     (halg : ∃ p : Polynomial ℤ, p ≠ 0 ∧ (Polynomial.aeval α p : ℝ) = 0) :
     ∃ _ : IsLPPComputable α, True := by
-  -- Sharp upstream CBTC.
   obtain ⟨d, cbtc, pcd, h_sharp_up⟩ := algebraic_is_certified_crn_sharp hα_nn halg
   -- Sharp zero-init wrapper.
   obtain ⟨d', cbtc', pcd', h_zero_init', h_sharp_zero⟩ :=

@@ -26,6 +26,10 @@
   `relaxationPIVP_polyCRN`'s `0 ≤ q`). We build a direct `q = 0` variant
   here without modifying the existing theorems.
 
+  Quantitative status. This file now exposes both the wrapper's own
+  convergence modulus at `q = 0` and the explicit affine slowdown theorem
+  comparing the wrapped convergence time to the upstream input modulus.
+
   No new axioms: the resulting theorem depends on exactly
   `[propext, Classical.choice, Quot.sound]`.
 -/
@@ -36,6 +40,36 @@ namespace Ripple
 namespace Algebraic
 
 open MvPolynomial
+
+/-- Quantitative convergence theorem for the `q = 0` zero-init wrapper output.
+
+This is the direct `q = 0` specialization of
+`relaxation_tracker_convergence`. It gives a bona fide modulus for the new
+output coordinate `y`, but does not yet compare that modulus explicitly to
+the upstream modulus of `cbtc`. -/
+theorem zero_init_wrapper_convergence_modulus {β : ℝ} {d : ℕ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    ∃ modulus' : TimeModulus,
+      ∀ r : ℕ, ∀ t : ℝ, t > modulus' r →
+        |(extendedSolution cbtc (0 : ℚ)).trajectory t (Fin.last d) - β|
+          < Real.exp (-(r : ℝ)) := by
+  obtain ⟨modulus', hconv⟩ := relaxation_tracker_convergence (0 : ℚ) cbtc
+  refine ⟨modulus', ?_⟩
+  intro r t ht
+  simpa using hconv r t ht
+
+/-- Affine slowdown theorem for the `q = 0` zero-init wrapper output.
+
+The wrapped output coordinate converges to `β` once the original output has
+converged to `β`, with at worst a linear-in-precision overhead plus a fixed
+constant depending only on the upstream bounded witness. -/
+theorem zero_init_wrapper_convergence_affine {β : ℝ} {d : ℕ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    ∃ K : ℝ,
+      ∀ r : ℕ, ∀ t : ℝ, t > max (cbtc.modulus (r+1)) 0 + (r : ℝ) + K →
+        |(extendedSolution cbtc (0 : ℚ)).trajectory t (Fin.last d) - β|
+          < Real.exp (-(r : ℝ)) := by
+  simpa using relaxation_tracker_convergence_affine (0 : ℚ) cbtc
 
 /-- **Zero-init wrapper** at the q = 0 specialization of the relaxation tracker.
 
@@ -81,6 +115,40 @@ theorem certified_zero_init_wrapper {β : ℝ} {d : ℕ}
   -- init (output = Fin.last d) = q = 0.
   change (relaxationPIVP cbtc.pivp q).init (relaxationPIVP cbtc.pivp q).output = 0
   rw [relaxationPIVP_output, relaxationPIVP_init_last]
+
+/-- Zero-init wrapper together with an explicit affine slowdown bound.
+
+This is the quantitative form needed by downstream complexity arguments:
+the new zero-init witness computes the same `β`, and its convergence time is
+bounded by `max (cbtc.modulus (r+1)) 0 + r + K` for a fixed constant `K`. -/
+theorem certified_zero_init_wrapper_affine {β : ℝ} {d : ℕ}
+    (cbtc : CertifiedBoundedTimeComputable d β)
+    (pcd : PolyCRNDecomposition d cbtc.pivp) :
+    ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' β)
+      (_ : PolyCRNDecomposition d' cbtc'.pivp) (K : ℝ),
+      cbtc'.pivp.init cbtc'.pivp.output = 0 ∧
+      (∀ r : ℕ, ∀ t : ℝ, t > max (cbtc.modulus (r+1)) 0 + (r : ℝ) + K →
+        |cbtc'.sol.trajectory t cbtc'.pivp.output - β| < Real.exp (-(r : ℝ))) := by
+  set q : ℚ := 0 with hq_def
+  obtain ⟨K, hconv⟩ := zero_init_wrapper_convergence_affine cbtc
+  refine ⟨d + 1,
+    { pivp := relaxationPIVP cbtc.pivp q
+      sol := extendedSolution cbtc q
+      modulus := fun r => max (cbtc.modulus (r+1)) 0 + (r : ℝ) + K
+      bounded := extendedTraj_isBounded cbtc q
+      trajectory_continuous := extendedSolution_trajectory_continuous cbtc q
+      convergence := ?_ },
+    relaxationPIVP_polyCRN q (le_refl 0) pcd, K, ?_, ?_⟩
+  · intro r t ht
+    show |(extendedSolution cbtc q).trajectory t (relaxationPIVP cbtc.pivp q).output - β| < _
+    rw [relaxationPIVP_output]
+    simpa [hq_def] using hconv r t ht
+  · change (relaxationPIVP cbtc.pivp q).init (relaxationPIVP cbtc.pivp q).output = 0
+    rw [relaxationPIVP_output, relaxationPIVP_init_last]
+  · intro r t ht
+    show |(extendedSolution cbtc q).trajectory t (relaxationPIVP cbtc.pivp q).output - β| < _
+    rw [relaxationPIVP_output]
+    simpa [hq_def] using hconv r t ht
 
 /-- **Sharp variant of `certified_zero_init_wrapper`.** Additionally propagates
 a pointwise sharp upper bound: if the upstream trajectory is bounded above by
@@ -149,6 +217,26 @@ theorem certified_zero_init_wrapper {β : ℝ} {d : ℕ}
       (_ : PolyCRNDecomposition d' cbtc'.pivp),
       cbtc'.pivp.init cbtc'.pivp.output = 0 :=
   Algebraic.certified_zero_init_wrapper cbtc pcd
+
+/-- Top-level alias for the `q = 0` affine slowdown theorem. -/
+theorem zero_init_wrapper_convergence_affine {β : ℝ} {d : ℕ}
+    (cbtc : CertifiedBoundedTimeComputable d β) :
+    ∃ K : ℝ,
+      ∀ r : ℕ, ∀ t : ℝ, t > max (cbtc.modulus (r+1)) 0 + (r : ℝ) + K →
+        |(Algebraic.extendedSolution cbtc (0 : ℚ)).trajectory t (Fin.last d) - β|
+          < Real.exp (-(r : ℝ)) :=
+  Algebraic.zero_init_wrapper_convergence_affine cbtc
+
+/-- Top-level alias for the quantitative zero-init wrapper construction. -/
+theorem certified_zero_init_wrapper_affine {β : ℝ} {d : ℕ}
+    (cbtc : CertifiedBoundedTimeComputable d β)
+    (pcd : PolyCRNDecomposition d cbtc.pivp) :
+    ∃ (d' : ℕ) (cbtc' : CertifiedBoundedTimeComputable d' β)
+      (_ : PolyCRNDecomposition d' cbtc'.pivp) (K : ℝ),
+      cbtc'.pivp.init cbtc'.pivp.output = 0 ∧
+      (∀ r : ℕ, ∀ t : ℝ, t > max (cbtc.modulus (r+1)) 0 + (r : ℝ) + K →
+        |cbtc'.sol.trajectory t cbtc'.pivp.output - β| < Real.exp (-(r : ℝ))) :=
+  Algebraic.certified_zero_init_wrapper_affine cbtc pcd
 
 /-- Top-level alias for the sharp variant. -/
 theorem certified_zero_init_wrapper_sharp {β U : ℝ} {d : ℕ}

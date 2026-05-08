@@ -192,14 +192,13 @@ through three structural ingredients:
 3. **SCC induction step.** If every upstream feeder of species `i` has a
    positive asymptotic lower bound, then so does `i`.
 
-The two axioms below capture the analytic content directly. Step 1 (root
-reachability) is a *structural* lemma about positive-coefficient polynomials
-— if a species ever became positive, some production path traces back to a
-root — and is absorbed into the Step-3 SCC-induction hypothesis, so it is
-not stated as a separate axiom here. Each axiom is a *content-identifiable*
-mathematical claim (not a hand-wave restatement of the full conjecture);
-the composition is the conjecture, and that composition is done explicitly
-by `zero_init_no_collapse`. -/
+Historically this proof was factored through two named axioms. The current
+file proves both ingredients directly: Step 1 as the reachability theorem
+`everPositive_rootReachable`, and Step 3 via the analytic propagation
+theorem plus graph traversal. The composition into
+`zero_init_no_collapse` is therefore now theorem-to-theorem, except for the
+separate Mathlib-level smoothness interface handled near the top of the
+file. -/
 
 /-! ### Step 2 helpers: polynomial constant-coefficient lower bound and
 uniform upper bound on a ball.
@@ -643,11 +642,10 @@ We split the `noCollapse_step3_scc_induction` proof into two layers:
   `g(s) := prod_j(sol s) + (D - degr_j(sol s))·f(s)`, and `D` is the
   polynomial upper bound of `degr j` on the ball `‖x‖ ≤ M`.
 
-* **Combinatorial traversal (remaining axiom
-  `noCollapse_step3_graph_traversal`).** The graph-theoretic induction on
-  the production-graph condensation that feeds the analytic step its
-  hypothesis. Pure combinatorics on `PolyCRNDecomposition`; no further
-  analysis is hidden behind it.
+* **Combinatorial traversal (`noCollapse_step3_graph_traversal`, now proved).**
+  The graph-theoretic induction on the production-graph condensation that
+  feeds the analytic step its hypothesis. This is pure combinatorics on
+  `PolyCRNDecomposition`; no further analysis is hidden behind it.
 
 The top-level `noCollapse_step3_scc_induction` becomes a `theorem` that
 composes the two layers. -/
@@ -674,9 +672,9 @@ Given bounded trajectory, zero-init CRN shape, and an eventual positive lower
 bound on the production polynomial of species `j`, species `j` itself admits
 an eventual positive lower bound.
 
-This is the analytic content of the SCC induction: the only missing piece is
-the graph-theoretic certification that the production polynomial is eventually
-lower-bounded — captured by the separate combinatorial axiom below. -/
+This is the analytic content of the SCC induction. The graph-theoretic
+certification that the production polynomial is eventually lower-bounded is
+supplied separately by the proved combinatorial traversal theorems below. -/
 theorem eventualLowerBound_of_prod_eventual_lower_bound
     {d : ℕ} {P : PolyPIVP d}
     (pcd : PolyCRNDecomposition d P) (hzi : P.IsZeroInit)
