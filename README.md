@@ -14,7 +14,7 @@ This repository is the Lean 4 counterpart to that trajectory.
 
 Ripple formalizes the theory developed across four papers:
 
-1. Huang, Klinge, Lathrop, Lutz, Lutz — *Real-time computability of real numbers by chemical reaction networks*, Nat. Comput. 2018.
+1. Huang, Klinge, Lathrop, Li, Lutz — *Real-time computability of real numbers by chemical reaction networks*, Nat. Comput. 2018.
 2. Huang, Klinge, Lathrop — *Real-time equivalence of CRNs and analog computers*, DNA 25 (2019).
 3. Huang, Huls — *Computing real numbers with large-population protocols*, DNA 28 (2022).
 4. Chen, Huang — *Bounded analog complexity of real numbers* (submitted, 2026).
