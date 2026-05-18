@@ -1125,6 +1125,29 @@ theorem initial_transitionKernel_pow_nonconsensus_le_region_sum
   exact transitionKernel_pow_nonconsensus_le_region_sum hn (Config.initial n a h)
     (initial_hasOpinion h (by omega)) t
 
+/-- Boundary initial configurations (`a = 0` or `a = n`) are already
+consensus, hence the original chain stays at the same point for any finite
+number of interactions. -/
+theorem initial_consensus_transitionKernel_pow_eq_dirac
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (ha : a = n ∨ a = 0) (t : ℕ) :
+    (transitionKernel hn ^ t) (Config.initial n a h) =
+      Measure.dirac (Config.initial n a h) := by
+  exact consensus_transitionKernel_pow_eq_dirac (Config.initial n a h) hn
+    ((initial_isConsensus_iff h).2 ha) t
+
+/-- Boundary initial configurations have zero probability of being
+non-consensus after any finite number of interactions. -/
+theorem initial_consensus_transitionKernel_pow_nonconsensus_eq_zero
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (ha : a = n ∨ a = 0) (t : ℕ) :
+    (transitionKernel hn ^ t) (Config.initial n a h)
+        {c : Config n | ¬c.isConsensus} = 0 := by
+  have hc : (Config.initial n a h).isConsensus :=
+    (initial_isConsensus_iff h).2 ha
+  rw [initial_consensus_transitionKernel_pow_eq_dirac hn h ha t,
+    Measure.dirac_apply' _
+      (instDiscreteMeasurableSpaceConfig.forall_measurableSet _)]
+  simp [hc]
+
 /-- Absorbed kernel for the central region. -/
 noncomputable def absorbedKernelCentral (hn : n ≥ 2) :
     Kernel (Config n) (Config n) :=
