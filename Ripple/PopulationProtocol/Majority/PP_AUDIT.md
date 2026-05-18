@@ -35,9 +35,15 @@ decay theorems, including:
 - `consensus_transitionKernel_eq_dirac`
 - `consensus_transitionKernel_pow_eq_dirac`
 - `hasOpinion_stepOrSelf`
+- `hasOpinion_of_stepDist_support`
+- `stepDist_not_hasOpinion_eq_zero_of_hasOpinion`
+- `transitionKernel_not_hasOpinion_eq_zero_of_hasOpinion`
+- `ae_hasOpinion_transitionKernel_pow`
+- `transitionKernel_pow_not_hasOpinion_eq_zero`
 - `not_allB_of_opinionated_stepDist_support`
 - `stepDist_allB_eq_zero_of_hasOpinion`
 - `transitionKernel_allB_eq_zero_of_hasOpinion`
+- `transitionKernel_pow_allB_eq_zero_of_hasOpinion`
 - `prob_in_activeLargeX_le`
 - `prob_in_activeLargeY_le`
 - `prob_in_activeLargeB_le`

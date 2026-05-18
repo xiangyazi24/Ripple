@@ -233,6 +233,65 @@ theorem not_allB_of_opinionated_stepDist_support (c : Config n) (hn : n ≥ 2)
   rw [← hstep]
   exact not_allB_of_opinionated_stepOrSelf c i r hop
 
+/-- Every support point of the one-step distribution from an opinionated
+configuration is still opinionated. -/
+theorem hasOpinion_of_stepDist_support (c : Config n) (hn : n ≥ 2)
+    (hop : c.hasOpinion) {c' : Config n}
+    (hsupp : c' ∈ (c.stepDist hn).support) :
+    c'.hasOpinion := by
+  obtain ⟨i, r, hstep⟩ := stepDist_support c hn c' hsupp
+  rw [← hstep]
+  exact hasOpinion_stepOrSelf c i r hop
+
+/-- In one Markov step from an opinionated configuration, the set with no
+opinionated agents has probability zero. -/
+theorem stepDist_not_hasOpinion_eq_zero_of_hasOpinion (c : Config n) (hn : n ≥ 2)
+    (hop : c.hasOpinion) :
+    (c.stepDist hn).toMeasure {c' : Config n | ¬c'.hasOpinion} = 0 := by
+  rw [PMF.toMeasure_apply_eq_zero_iff
+    (p := c.stepDist hn)
+    (s := {c' : Config n | ¬c'.hasOpinion})
+    (instDiscreteMeasurableSpaceConfig.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro c' hsupp hbad
+  exact hbad (hasOpinion_of_stepDist_support c hn hop hsupp)
+
+/-- Kernel form of one-step preservation of `hasOpinion`. -/
+theorem transitionKernel_not_hasOpinion_eq_zero_of_hasOpinion
+    (c : Config n) (hn : n ≥ 2) (hop : c.hasOpinion) :
+    transitionKernel hn c {c' : Config n | ¬c'.hasOpinion} = 0 := by
+  change (c.stepDist hn).toMeasure {c' : Config n | ¬c'.hasOpinion} = 0
+  exact stepDist_not_hasOpinion_eq_zero_of_hasOpinion c hn hop
+
+/-- Starting with an opinionated configuration, after any finite number of
+Markov steps the chain is almost surely still opinionated. -/
+theorem ae_hasOpinion_transitionKernel_pow (c : Config n) (hn : n ≥ 2)
+    (hop : c.hasOpinion) (t : ℕ) :
+    ∀ᵐ c' ∂((transitionKernel hn ^ t) c), c'.hasOpinion := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      change ∀ᵐ c' ∂(Kernel.id c), c'.hasOpinion
+      rw [Kernel.id_apply, MeasureTheory.ae_dirac_iff
+        (instDiscreteMeasurableSpaceConfig.forall_measurableSet _)]
+      exact hop
+  | succ t ih =>
+      rw [MeasureTheory.ae_iff]
+      have hbad_meas : MeasurableSet {c' : Config n | ¬c'.hasOpinion} :=
+        instDiscreteMeasurableSpaceConfig.forall_measurableSet _
+      rw [Kernel.pow_succ_apply_eq_lintegral _ _ _ hbad_meas,
+        MeasureTheory.lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad_meas)]
+      filter_upwards [ih] with c' hc'
+      exact transitionKernel_not_hasOpinion_eq_zero_of_hasOpinion c' hn hc'
+
+/-- Starting with an opinionated configuration, the probability of having no
+opinionated agents after any finite number of steps is zero. -/
+theorem transitionKernel_pow_not_hasOpinion_eq_zero (c : Config n) (hn : n ≥ 2)
+    (hop : c.hasOpinion) (t : ℕ) :
+    (transitionKernel hn ^ t) c {c' : Config n | ¬c'.hasOpinion} = 0 := by
+  have h := ae_hasOpinion_transitionKernel_pow c hn hop t
+  rwa [MeasureTheory.ae_iff] at h
+
 /-- In one Markov step from an opinionated configuration, the all-blank set
 has probability zero. -/
 theorem stepDist_allB_eq_zero_of_hasOpinion (c : Config n) (hn : n ≥ 2)
@@ -252,6 +311,19 @@ theorem transitionKernel_allB_eq_zero_of_hasOpinion (c : Config n) (hn : n ≥ 2
     transitionKernel hn c {c' : Config n | c'.allB} = 0 := by
   change (c.stepDist hn).toMeasure {c' : Config n | c'.allB} = 0
   exact stepDist_allB_eq_zero_of_hasOpinion c hn hop
+
+/-- Starting with an opinionated configuration, all-blank has probability
+zero after any finite number of Markov steps. -/
+theorem transitionKernel_pow_allB_eq_zero_of_hasOpinion
+    (c : Config n) (hn : n ≥ 2) (hop : c.hasOpinion) (t : ℕ) :
+    (transitionKernel hn ^ t) c {c' : Config n | c'.allB} = 0 := by
+  refine measure_mono_null ?_
+    (transitionKernel_pow_not_hasOpinion_eq_zero c hn hop t)
+  intro c' hb hhop
+  unfold allB at hb
+  rcases hb with ⟨hx0, _hb, hy0⟩
+  unfold hasOpinion opinionated at hhop
+  omega
 
 end Config
 end PopProto
