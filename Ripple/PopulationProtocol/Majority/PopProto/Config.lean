@@ -69,6 +69,15 @@ def initial (n a : ℕ) (h : a ≤ n) : Config n where
   y_count := n - a
   sum_eq := by omega
 
+/-- Initial configurations are never all-blank when the population is
+nonempty. -/
+theorem initial_not_allB {n a : ℕ} (h : a ≤ n) (hn : 0 < n) :
+    ¬(initial n a h).allB := by
+  intro hb
+  unfold initial allB at hb
+  simp at hb
+  omega
+
 /-- A configuration is *consensus* if all agents agree on one opinion. -/
 def isConsensus (c : Config n) : Prop :=
   c.allX ∨ c.allY
@@ -83,6 +92,46 @@ def hasOpinion (c : Config n) : Prop :=
 
 instance (c : Config n) : Decidable c.hasOpinion :=
   inferInstanceAs (Decidable (_ > _))
+
+/-- A positive-size initial configuration always has at least one
+opinionated agent. -/
+theorem initial_hasOpinion {n a : ℕ} (h : a ≤ n) (hn : 0 < n) :
+    (initial n a h).hasOpinion := by
+  unfold initial hasOpinion opinionated
+  simp
+  omega
+
+/-- An initial configuration is consensus exactly when all agents start with X
+or all agents start with Y. -/
+theorem initial_isConsensus_iff {n a : ℕ} (h : a ≤ n) :
+    (initial n a h).isConsensus ↔ a = n ∨ a = 0 := by
+  constructor
+  · intro hc
+    rcases hc with hx | hy
+    · left
+      unfold initial allX at hx
+      simp at hx
+      exact hx.1
+    · right
+      unfold initial allY at hy
+      simp at hy
+      exact hy.1
+  · intro hcases
+    rcases hcases with ha | ha
+    · left
+      unfold initial allX
+      simp [ha]
+    · right
+      unfold initial allY
+      simp [ha]
+
+/-- If both initial opinions are present, the initial configuration is not a
+consensus. -/
+theorem initial_not_isConsensus_of_pos_lt {n a : ℕ} (h : a ≤ n)
+    (ha_pos : 0 < a) (ha_lt : a < n) :
+    ¬(initial n a h).isConsensus := by
+  rw [initial_isConsensus_iff h]
+  omega
 
 /-- The blank count is determined by the population size and opinionated count. -/
 theorem b_count_eq (c : Config n) : c.b_count = n - c.opinionated := by
