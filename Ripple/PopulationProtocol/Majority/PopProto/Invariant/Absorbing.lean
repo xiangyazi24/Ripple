@@ -12,7 +12,8 @@ that has at least one opinionated agent, because `hasOpinion` is preserved
 by every step.
 -/
 
-import Ripple.PopulationProtocol.Majority.PopProto.Probability.StepDist
+import Ripple.PopulationProtocol.Majority.PopProto.Probability.MarkovChain
+import Mathlib.Probability.ProbabilityMassFunction.Monad
 
 namespace PopProto
 
@@ -82,6 +83,30 @@ theorem allB_stepDist_eq_pure (c : Config n) (hn : n ≥ 2) (hb : c.allB) :
   by_cases h : c' = c
   · simp [stepDist, allB_step_eq c hb, h, interactionPMF_sum_eq_one c hn]
   · simp [stepDist, allB_step_eq c hb, h]
+
+/-- At all-X consensus, the Markov kernel is the Dirac measure at the same
+configuration. -/
+theorem allX_transitionKernel_eq_dirac (c : Config n) (hn : n ≥ 2) (hx : c.allX) :
+    transitionKernel hn c = MeasureTheory.Measure.dirac c := by
+  rw [show transitionKernel hn c = (c.stepDist hn).toMeasure from rfl,
+    allX_stepDist_eq_pure c hn hx]
+  rw [PMF.toMeasure_pure]
+
+/-- At all-Y consensus, the Markov kernel is the Dirac measure at the same
+configuration. -/
+theorem allY_transitionKernel_eq_dirac (c : Config n) (hn : n ≥ 2) (hy : c.allY) :
+    transitionKernel hn c = MeasureTheory.Measure.dirac c := by
+  rw [show transitionKernel hn c = (c.stepDist hn).toMeasure from rfl,
+    allY_stepDist_eq_pure c hn hy]
+  rw [PMF.toMeasure_pure]
+
+/-- At all-blank consensus, the Markov kernel is the Dirac measure at the same
+configuration. -/
+theorem allB_transitionKernel_eq_dirac (c : Config n) (hn : n ≥ 2) (hb : c.allB) :
+    transitionKernel hn c = MeasureTheory.Measure.dirac c := by
+  rw [show transitionKernel hn c = (c.stepDist hn).toMeasure from rfl,
+    allB_stepDist_eq_pure c hn hb]
+  rw [PMF.toMeasure_pure]
 
 set_option linter.unusedTactic false in
 set_option linter.unreachableTactic false in

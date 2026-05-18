@@ -26,6 +26,9 @@ decay theorems, including:
 - `allX_stepDist_eq_pure`
 - `allY_stepDist_eq_pure`
 - `allB_stepDist_eq_pure`
+- `allX_transitionKernel_eq_dirac`
+- `allY_transitionKernel_eq_dirac`
+- `allB_transitionKernel_eq_dirac`
 - `prob_in_activeLargeX_le`
 - `prob_in_activeLargeY_le`
 - `prob_in_activeLargeB_le`
