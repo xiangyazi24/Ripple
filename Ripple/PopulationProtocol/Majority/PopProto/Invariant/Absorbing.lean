@@ -188,6 +188,19 @@ theorem hasOpinion_preserved (c : Config n) (i r : State) (c' : Config n)
     (first | (obtain ⟨_, rfl⟩ := h) | (obtain ⟨⟨_, _⟩, rfl⟩ := h)) <;>
     simp <;> omega
 
+/-- The total one-step wrapper preserves the existence of an opinionated
+agent. In infeasible scheduler cases it returns the original configuration;
+in feasible cases this is `hasOpinion_preserved`. -/
+theorem hasOpinion_stepOrSelf (c : Config n) (i r : State)
+    (hop : c.hasOpinion) :
+    (c.stepOrSelf i r).hasOpinion := by
+  unfold stepOrSelf
+  cases h : c.step i r with
+  | none =>
+      simpa [h] using hop
+  | some c' =>
+      simpa [h] using hasOpinion_preserved c i r c' h hop
+
 /-- If the initial configuration has at least one opinionated agent,
     then all-B is unreachable in one step. -/
 theorem not_allB_of_opinionated_step (c : Config n) (i r : State) (c' : Config n)
@@ -198,6 +211,47 @@ theorem not_allB_of_opinionated_step (c : Config n) (i r : State) (c' : Config n
   unfold allB at hb
   unfold hasOpinion opinionated at hop'
   omega
+
+/-- If the current configuration has an opinionated agent, then the total
+one-step update cannot produce the all-blank configuration. -/
+theorem not_allB_of_opinionated_stepOrSelf (c : Config n) (i r : State)
+    (hop : c.hasOpinion) :
+    ¬(c.stepOrSelf i r).allB := by
+  intro hb
+  have hop' := hasOpinion_stepOrSelf c i r hop
+  unfold allB at hb
+  unfold hasOpinion opinionated at hop'
+  omega
+
+/-- Every support point of the one-step distribution from an opinionated
+configuration is still not all-blank. -/
+theorem not_allB_of_opinionated_stepDist_support (c : Config n) (hn : n ≥ 2)
+    (hop : c.hasOpinion) {c' : Config n}
+    (hsupp : c' ∈ (c.stepDist hn).support) :
+    ¬c'.allB := by
+  obtain ⟨i, r, hstep⟩ := stepDist_support c hn c' hsupp
+  rw [← hstep]
+  exact not_allB_of_opinionated_stepOrSelf c i r hop
+
+/-- In one Markov step from an opinionated configuration, the all-blank set
+has probability zero. -/
+theorem stepDist_allB_eq_zero_of_hasOpinion (c : Config n) (hn : n ≥ 2)
+    (hop : c.hasOpinion) :
+    (c.stepDist hn).toMeasure {c' : Config n | c'.allB} = 0 := by
+  rw [PMF.toMeasure_apply_eq_zero_iff
+    (p := c.stepDist hn)
+    (s := {c' : Config n | c'.allB})
+    (instDiscreteMeasurableSpaceConfig.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro c' hsupp hb
+  exact not_allB_of_opinionated_stepDist_support c hn hop hsupp hb
+
+/-- Kernel form of `stepDist_allB_eq_zero_of_hasOpinion`. -/
+theorem transitionKernel_allB_eq_zero_of_hasOpinion (c : Config n) (hn : n ≥ 2)
+    (hop : c.hasOpinion) :
+    transitionKernel hn c {c' : Config n | c'.allB} = 0 := by
+  change (c.stepDist hn).toMeasure {c' : Config n | c'.allB} = 0
+  exact stepDist_allB_eq_zero_of_hasOpinion c hn hop
 
 end Config
 end PopProto
