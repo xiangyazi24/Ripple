@@ -13,11 +13,12 @@ by every step.
 -/
 
 import Ripple.PopulationProtocol.Majority.PopProto.Probability.MarkovChain
+import Mathlib.Probability.Kernel.Composition.Comp
 import Mathlib.Probability.ProbabilityMassFunction.Monad
 
 namespace PopProto
 
-open State
+open State MeasureTheory ProbabilityTheory
 
 namespace Config
 
@@ -107,6 +108,70 @@ theorem allB_transitionKernel_eq_dirac (c : Config n) (hn : n ≥ 2) (hb : c.all
   rw [show transitionKernel hn c = (c.stepDist hn).toMeasure from rfl,
     allB_stepDist_eq_pure c hn hb]
   rw [PMF.toMeasure_pure]
+
+/-- All-X configurations stay fixed under any finite number of Markov steps. -/
+theorem allX_transitionKernel_pow_eq_dirac (c : Config n) (hn : n ≥ 2)
+    (hx : c.allX) (t : ℕ) :
+    (transitionKernel hn ^ t) c = Measure.dirac c := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      change Kernel.id c = Measure.dirac c
+      exact Kernel.id_apply c
+  | succ t ih =>
+      exact Measure.ext (fun S hS => by
+        rw [Kernel.pow_succ_apply_eq_lintegral _ _ _ hS, ih,
+            MeasureTheory.lintegral_dirac' _
+              (Kernel.measurable_coe _ hS),
+            allX_transitionKernel_eq_dirac c hn hx])
+
+/-- All-Y configurations stay fixed under any finite number of Markov steps. -/
+theorem allY_transitionKernel_pow_eq_dirac (c : Config n) (hn : n ≥ 2)
+    (hy : c.allY) (t : ℕ) :
+    (transitionKernel hn ^ t) c = Measure.dirac c := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      change Kernel.id c = Measure.dirac c
+      exact Kernel.id_apply c
+  | succ t ih =>
+      exact Measure.ext (fun S hS => by
+        rw [Kernel.pow_succ_apply_eq_lintegral _ _ _ hS, ih,
+            MeasureTheory.lintegral_dirac' _
+              (Kernel.measurable_coe _ hS),
+            allY_transitionKernel_eq_dirac c hn hy])
+
+/-- All-blank configurations stay fixed under any finite number of Markov steps. -/
+theorem allB_transitionKernel_pow_eq_dirac (c : Config n) (hn : n ≥ 2)
+    (hb : c.allB) (t : ℕ) :
+    (transitionKernel hn ^ t) c = Measure.dirac c := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      change Kernel.id c = Measure.dirac c
+      exact Kernel.id_apply c
+  | succ t ih =>
+      exact Measure.ext (fun S hS => by
+        rw [Kernel.pow_succ_apply_eq_lintegral _ _ _ hS, ih,
+            MeasureTheory.lintegral_dirac' _
+              (Kernel.measurable_coe _ hS),
+            allB_transitionKernel_eq_dirac c hn hb])
+
+/-- Consensus configurations are one-step absorbing. -/
+theorem consensus_transitionKernel_eq_dirac (c : Config n) (hn : n ≥ 2)
+    (hc : c.isConsensus) :
+    transitionKernel hn c = Measure.dirac c := by
+  rcases hc with hx | hy
+  · exact allX_transitionKernel_eq_dirac c hn hx
+  · exact allY_transitionKernel_eq_dirac c hn hy
+
+/-- Consensus configurations stay fixed under any finite number of Markov steps. -/
+theorem consensus_transitionKernel_pow_eq_dirac (c : Config n) (hn : n ≥ 2)
+    (hc : c.isConsensus) (t : ℕ) :
+    (transitionKernel hn ^ t) c = Measure.dirac c := by
+  rcases hc with hx | hy
+  · exact allX_transitionKernel_pow_eq_dirac c hn hx t
+  · exact allY_transitionKernel_pow_eq_dirac c hn hy t
 
 set_option linter.unusedTactic false in
 set_option linter.unreachableTactic false in

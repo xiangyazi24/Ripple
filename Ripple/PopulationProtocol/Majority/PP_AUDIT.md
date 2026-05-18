@@ -29,6 +29,11 @@ decay theorems, including:
 - `allX_transitionKernel_eq_dirac`
 - `allY_transitionKernel_eq_dirac`
 - `allB_transitionKernel_eq_dirac`
+- `allX_transitionKernel_pow_eq_dirac`
+- `allY_transitionKernel_pow_eq_dirac`
+- `allB_transitionKernel_pow_eq_dirac`
+- `consensus_transitionKernel_eq_dirac`
+- `consensus_transitionKernel_pow_eq_dirac`
 - `prob_in_activeLargeX_le`
 - `prob_in_activeLargeY_le`
 - `prob_in_activeLargeB_le`
