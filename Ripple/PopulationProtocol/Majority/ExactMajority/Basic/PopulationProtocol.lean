@@ -89,6 +89,16 @@ theorem stepOrSelf_eq_self_of_not_applicable {P : Protocol Λ} {c : Config Λ}
 def Reachable (c c' : Config Λ) : Prop :=
   Relation.ReflTransGen P.StepRel c c'
 
+/-- Every chosen-pair update is reachable: if the pair is applicable this is a
+single protocol step, and otherwise it is the reflexive case. -/
+theorem reachable_stepOrSelf {P : Protocol Λ} (c : Config Λ) (r₁ r₂ : Λ) :
+    P.Reachable c (stepOrSelf P c r₁ r₂) := by
+  by_cases happ : Applicable c r₁ r₂
+  · exact Relation.ReflTransGen.single
+      (stepRel_stepOrSelf_of_applicable (P := P) happ)
+  · rw [stepOrSelf_eq_self_of_not_applicable (P := P) happ]
+    exact Relation.ReflTransGen.refl
+
 /-- A single population-protocol step preserves the population size. -/
 theorem stepRel_card_eq {P : Protocol Λ} {c c' : Config Λ}
     (h_step : P.StepRel c c') :
