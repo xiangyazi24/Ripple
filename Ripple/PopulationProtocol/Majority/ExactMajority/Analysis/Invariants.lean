@@ -642,6 +642,20 @@ theorem stable_witness_of_phase10MajorityWitness
     · exact (phase10_unanimous_T_majority_witness_of_initialGap_zero
         (L := L) (K := K) init final hfinal hgap).2
 
+/-- Direct stable-output package for a Phase-10 majority witness endpoint. -/
+theorem stable_output_of_phase10MajorityWitness
+    (init final : Config (AgentState L K))
+    (hwitness : phase10MajorityWitness (L := L) (K := K) init final) :
+    (doutPartition L K).output (majorityVerdict init) final ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K) final := by
+  rcases hwitness with ⟨hgap, hfinal⟩ | ⟨hgap, hfinal⟩ | ⟨hgap, hfinal⟩
+  · exact phase10_unanimous_A_majority_witness_of_initialGap_pos
+      (L := L) (K := K) init final hfinal hgap
+  · exact phase10_unanimous_B_majority_witness_of_initialGap_neg
+      (L := L) (K := K) init final hfinal hgap
+  · exact phase10_unanimous_T_majority_witness_of_initialGap_zero
+      (L := L) (K := K) init final hfinal hgap
+
 /-- Convert a Phase-10 endpoint stated with the generic output partition into
 the concrete A/B/T endpoint witness used by the deterministic stability
 bridges. -/

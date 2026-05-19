@@ -150,6 +150,21 @@ theorem stable_witness_of_nonuniformSupportTrace_phase10MajorityWitness
     (nonuniformSupportTrace_reachable (L := L) (K := K) c trace htrace)
     hwitness
 
+/-- Direct stable-output package for a finite stochastic support trace whose
+endpoint is a Phase-10 majority witness. -/
+theorem stable_output_of_nonuniformSupportTrace_phase10MajorityWitness
+    (init c : Config (AgentState L K))
+    (trace : List (Config (AgentState L K)))
+    (hwitness :
+      phase10MajorityWitness (L := L) (K := K) init
+        (nonuniformSupportTraceEndpoint L K c trace)) :
+    (doutPartition L K).output (majorityVerdict init)
+        (nonuniformSupportTraceEndpoint L K c trace) ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K)
+        (nonuniformSupportTraceEndpoint L K c trace) :=
+  stable_output_of_phase10MajorityWitness (L := L) (K := K) init
+    (nonuniformSupportTraceEndpoint L K c trace) hwitness
+
 /-- Stable witness produced by a finite stochastic support trace whose endpoint
 is in Phase 10 and has the majority output in partition form. -/
 theorem stable_witness_of_nonuniformSupportTrace_phase10_partition_output
@@ -168,6 +183,23 @@ theorem stable_witness_of_nonuniformSupportTrace_phase10_partition_output
     (nonuniformSupportTraceEndpoint L K c trace)
     (nonuniformSupportTrace_reachable (L := L) (K := K) c trace htrace)
     hphase hout
+
+/-- Direct stable-output package for a finite stochastic support trace whose
+endpoint is in Phase 10 and has the majority output in partition form. -/
+theorem stable_output_of_nonuniformSupportTrace_phase10_partition_output
+    (init c : Config (AgentState L K))
+    (trace : List (Config (AgentState L K)))
+    (hphase :
+      ∀ a ∈ nonuniformSupportTraceEndpoint L K c trace, a.phase.val = 10)
+    (hout :
+      (doutPartition L K).output (majorityVerdict init)
+        (nonuniformSupportTraceEndpoint L K c trace)) :
+    (doutPartition L K).output (majorityVerdict init)
+        (nonuniformSupportTraceEndpoint L K c trace) ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K)
+        (nonuniformSupportTraceEndpoint L K c trace) :=
+  stable_output_of_phase10_partition_output (L := L) (K := K) init
+    (nonuniformSupportTraceEndpoint L K c trace) hphase hout
 
 /-- Correctness reduction for phase analyses that produce finite stochastic
 support traces ending at Phase-10 majority-witness configurations. -/

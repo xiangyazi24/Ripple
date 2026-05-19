@@ -155,7 +155,10 @@ It does formalize important infrastructure:
   `majorityVerdict`, and `well_formed_config`; finite support-trace Phase-10
   endpoints are bridged to stable-output witnesses and to the two correctness
   targets, in both concrete `phase10MajorityWitness` and generic
-  `doutPartition` endpoint forms;
+  `doutPartition` endpoint forms; direct endpoint packages
+  `stable_output_of_nonuniformSupportTrace_phase10MajorityWitness` and
+  `stable_output_of_nonuniformSupportTrace_phase10_partition_output` avoid
+  adding reachability assumptions when only endpoint stability is needed;
 - finite realized-schedule traces:
   `Protocol.runPairs`, `Protocol.reachable_runPairs`, generic size/additive
   invariant preservation along traces, and concrete `nonuniformRunPairs`
@@ -163,7 +166,10 @@ It does formalize important infrastructure:
   `majorityVerdict`, and `well_formed_config`; finite scheduled Phase-10
   endpoints are bridged directly to stable-output witnesses via
   `stable_witness_of_nonuniformRunPairs_phase10MajorityWitness` and
-  `stable_witness_of_nonuniformRunPairs_phase10_partition_output`;
+  `stable_witness_of_nonuniformRunPairs_phase10_partition_output`, with
+  endpoint-only packages
+  `stable_output_of_nonuniformRunPairs_phase10MajorityWitness` and
+  `stable_output_of_nonuniformRunPairs_phase10_partition_output`;
 - state-count bounds for the flat Lean encoding;
 - invariants such as small-bias preservation and well-formedness preservation,
   including one-step and reachable preservation for `well_formed_config` and
@@ -181,7 +187,8 @@ It does formalize important infrastructure:
 - Phase-10 majority witness bridges: if a Phase-10 unanimous A/B/T
   configuration matches the sign of the initial input gap, it gives both the
   required `majorityVerdict` partition output and a `Protocol.IsStable`
-  witness;
+  witness; `stable_output_of_phase10MajorityWitness` packages this endpoint
+  conclusion without an extra reachability argument;
 - a reduction from the remaining phase-reachability obligation to the generic
   `Protocol.StablyComputes` wrapper: once every valid-initial reachable
   configuration is shown to reach a matching `phase10MajorityWitness`,

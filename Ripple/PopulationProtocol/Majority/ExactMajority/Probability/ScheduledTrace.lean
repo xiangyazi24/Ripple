@@ -124,6 +124,21 @@ theorem stable_witness_of_nonuniformRunPairs_phase10MajorityWitness
     (nonuniformRunPairs_reachable (L := L) (K := K) c pairs)
     hwitness
 
+/-- Direct stable-output package for a finite realized schedule whose endpoint
+is a Phase-10 majority witness. -/
+theorem stable_output_of_nonuniformRunPairs_phase10MajorityWitness
+    (init c : Config (AgentState L K))
+    (pairs : List (AgentState L K × AgentState L K))
+    (hwitness :
+      phase10MajorityWitness (L := L) (K := K) init
+        (nonuniformRunPairs L K c pairs)) :
+    (doutPartition L K).output (majorityVerdict init)
+        (nonuniformRunPairs L K c pairs) ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K)
+        (nonuniformRunPairs L K c pairs) :=
+  stable_output_of_phase10MajorityWitness (L := L) (K := K) init
+    (nonuniformRunPairs L K c pairs) hwitness
+
 /-- Stable witness produced by a finite realized schedule whose endpoint is in
 Phase 10 and has the majority output in the generic partition form. -/
 theorem stable_witness_of_nonuniformRunPairs_phase10_partition_output
@@ -140,6 +155,22 @@ theorem stable_witness_of_nonuniformRunPairs_phase10_partition_output
     (nonuniformRunPairs L K c pairs)
     (nonuniformRunPairs_reachable (L := L) (K := K) c pairs)
     hphase hout
+
+/-- Direct stable-output package for a finite realized schedule whose endpoint
+is in Phase 10 and has the majority output in the generic partition form. -/
+theorem stable_output_of_nonuniformRunPairs_phase10_partition_output
+    (init c : Config (AgentState L K))
+    (pairs : List (AgentState L K × AgentState L K))
+    (hphase : ∀ a ∈ nonuniformRunPairs L K c pairs, a.phase.val = 10)
+    (hout :
+      (doutPartition L K).output (majorityVerdict init)
+        (nonuniformRunPairs L K c pairs)) :
+    (doutPartition L K).output (majorityVerdict init)
+        (nonuniformRunPairs L K c pairs) ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K)
+        (nonuniformRunPairs L K c pairs) :=
+  stable_output_of_phase10_partition_output (L := L) (K := K) init
+    (nonuniformRunPairs L K c pairs) hphase hout
 
 /-- Correctness reduction for phase analyses that produce finite scheduled
 Phase-10 majority-witness endpoints. -/
