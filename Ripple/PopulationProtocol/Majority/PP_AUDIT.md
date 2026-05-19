@@ -107,6 +107,9 @@ It does formalize important infrastructure:
   preservation facts (`stepDistOrSelf_support_reachable`,
   `stepDistOrSelf_support_card_eq`) using the scheduler for populations of
   size at least two and a point-mass fallback otherwise;
+- a concrete nonuniform exact-majority Markov-chain interface:
+  `nonuniformStepDistOrSelf`, `nonuniformTransitionKernel`, and the inherited
+  support-to-reachability / support-size facts for `NonuniformMajority L K`;
 - state-count bounds for the flat Lean encoding;
 - invariants such as small-bias preservation and well-formedness preservation,
   including one-step and reachable preservation for `well_formed_config` and

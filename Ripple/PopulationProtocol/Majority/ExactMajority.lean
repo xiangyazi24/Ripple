@@ -8,6 +8,7 @@ import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Epidemic
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EpidemicTime
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.JansonGeometric
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MarkovChain
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.NonuniformMarkovChain
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Scheduler
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Supermartingale
 import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Invariants
