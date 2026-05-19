@@ -180,6 +180,34 @@ theorem transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt
   intro c' hc'
   exact hS c' hc'
 
+/-- Initial-state specialization of the finite-support trace gap bound. -/
+theorem initial_supportTraceEndpoint_gap_bounded
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n)
+    (trace : List (Config n))
+    (htrace : supportTrace hn (initial n a h) trace) :
+    Int.natAbs
+      ((supportTraceEndpoint (initial n a h) trace).gap - (initial n a h).gap) ≤
+        trace.length :=
+  supportTraceEndpoint_gap_bounded hn (initial n a h) trace htrace
+
+/-- Initial-state specialization: after `t` Markov steps, the gap has moved
+by more than `t` with probability zero. -/
+theorem initial_transitionKernel_pow_gap_natAbs_sub_gt_eq_zero
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (t : ℕ) :
+    (transitionKernel hn ^ t) (initial n a h)
+        {c' : Config n |
+          t < Int.natAbs (c'.gap - (initial n a h).gap)} = 0 :=
+  transitionKernel_pow_gap_natAbs_sub_gt_eq_zero hn (initial n a h) t
+
+/-- Initial-state event wrapper for impossible finite-time gap deviations. -/
+theorem initial_transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (t : ℕ) (S : Set (Config n))
+    (hS : ∀ c' : Config n, c' ∈ S →
+      t < Int.natAbs (c'.gap - (initial n a h).gap)) :
+    (transitionKernel hn ^ t) (initial n a h) S = 0 :=
+  transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt
+    hn (initial n a h) t S hS
+
 /-- Having at least one opinionated agent is preserved along every finite
 support trace. -/
 theorem supportTraceEndpoint_hasOpinion
