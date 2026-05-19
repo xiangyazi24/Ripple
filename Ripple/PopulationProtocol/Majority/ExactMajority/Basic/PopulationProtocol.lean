@@ -59,6 +59,32 @@ def StepRel (c c' : Config Λ) : Prop :=
     let (p₁, p₂) := P.δ r₁ r₂
     c' = c - {r₁, r₂} + {p₁, p₂}
 
+/-- Deterministic one-step update for a chosen ordered pair of states. If the
+pair is not present in the configuration, the update leaves the configuration
+unchanged. -/
+noncomputable def stepOrSelf (P : Protocol Λ) (c : Config Λ) (r₁ r₂ : Λ) : Config Λ := by
+  classical
+  exact
+    if Applicable c r₁ r₂ then
+      let p := P.δ r₁ r₂
+      c - {r₁, r₂} + {p.1, p.2}
+    else c
+
+/-- Applying an applicable chosen pair with `stepOrSelf` gives a `StepRel`. -/
+theorem stepRel_stepOrSelf_of_applicable {P : Protocol Λ} {c : Config Λ}
+    {r₁ r₂ : Λ} (happ : Applicable c r₁ r₂) :
+    P.StepRel c (stepOrSelf P c r₁ r₂) := by
+  refine ⟨r₁, r₂, happ, ?_⟩
+  unfold stepOrSelf
+  rw [if_pos happ]
+
+/-- If the chosen pair is not applicable, `stepOrSelf` is the identity. -/
+theorem stepOrSelf_eq_self_of_not_applicable {P : Protocol Λ} {c : Config Λ}
+    {r₁ r₂ : Λ} (happ : ¬Applicable c r₁ r₂) :
+    stepOrSelf P c r₁ r₂ = c := by
+  unfold stepOrSelf
+  rw [if_neg happ]
+
 /-- Reachability: reflexive-transitive closure of `StepRel`. -/
 def Reachable (c c' : Config Λ) : Prop :=
   Relation.ReflTransGen P.StepRel c c'
@@ -93,6 +119,19 @@ theorem stepRel_size_eq {P : Protocol Λ} {c c' : Config Λ}
     (h_step : P.StepRel c c') :
     c'.size = c.size :=
   stepRel_card_eq h_step
+
+/-- The chosen-pair update preserves population size whether or not the pair is
+applicable. -/
+theorem stepOrSelf_card_eq {P : Protocol Λ} (c : Config Λ) (r₁ r₂ : Λ) :
+    (stepOrSelf P c r₁ r₂).card = c.card := by
+  by_cases happ : Applicable c r₁ r₂
+  · exact stepRel_card_eq (stepRel_stepOrSelf_of_applicable (P := P) happ)
+  · rw [stepOrSelf_eq_self_of_not_applicable (P := P) happ]
+
+/-- `stepOrSelf` preserves `Config.size`. -/
+theorem stepOrSelf_size_eq {P : Protocol Λ} (c : Config Λ) (r₁ r₂ : Λ) :
+    (stepOrSelf P c r₁ r₂).size = c.size :=
+  stepOrSelf_card_eq c r₁ r₂
 
 /-- Reachability preserves `Config.size`. -/
 theorem reachable_size_eq {P : Protocol Λ} {c c' : Config Λ}
@@ -146,6 +185,17 @@ theorem reachable_sumOf_eq {P : Protocol Λ} {M : Type*} [AddCommMonoid M]
   | refl => rfl
   | tail _ hstep ih =>
       exact (stepRel_sumOf_eq hδ hstep).trans ih
+
+/-- `stepOrSelf` preserves any pairwise additive invariant whether or not the
+chosen pair is applicable. -/
+theorem stepOrSelf_sumOf_eq {P : Protocol Λ} {M : Type*} [AddCommMonoid M]
+    {f : Λ → M}
+    (hδ : ∀ r₁ r₂, let p := P.δ r₁ r₂; f p.1 + f p.2 = f r₁ + f r₂)
+    (c : Config Λ) (r₁ r₂ : Λ) :
+    (stepOrSelf P c r₁ r₂).sumOf f = c.sumOf f := by
+  by_cases happ : Applicable c r₁ r₂
+  · exact stepRel_sumOf_eq hδ (stepRel_stepOrSelf_of_applicable (P := P) happ)
+  · rw [stepOrSelf_eq_self_of_not_applicable (P := P) happ]
 
 end Protocol
 

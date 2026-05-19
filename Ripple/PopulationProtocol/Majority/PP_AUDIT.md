@@ -94,6 +94,9 @@ It does formalize important infrastructure:
   `reachable_size_eq`);
 - generic additive-observable preservation for one-step and reachable protocol
   executions (`Config.sumOf`, `stepRel_sumOf_eq`, `reachable_sumOf_eq`);
+- deterministic chosen-pair update infrastructure (`stepOrSelf`,
+  `stepRel_stepOrSelf_of_applicable`, `stepOrSelf_card_eq`,
+  `stepOrSelf_sumOf_eq`);
 - state-count bounds for the flat Lean encoding;
 - invariants such as small-bias preservation and well-formedness preservation,
   including one-step and reachable preservation for `well_formed_config` and
