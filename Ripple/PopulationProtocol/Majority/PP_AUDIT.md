@@ -55,7 +55,11 @@ decay theorems, including:
   `transitionKernel_pow_not_pred_eq_zero_of_stepDist_support_preserved`,
   `transitionKernel_pow_eq_zero_of_forall_not_pred`,
   `supportTraceEndpoint_hasOpinion`, `supportTraceEndpoint_not_allB`,
-  and `initial_supportTraceEndpoint_not_allB`
+  `initial_supportTraceEndpoint_not_allB`,
+  `gap_stepOrSelf_bounded`, `gap_of_stepDist_support_bounded`,
+  `supportTraceEndpoint_gap_bounded`,
+  `transitionKernel_pow_gap_natAbs_sub_gt_eq_zero`, and
+  `transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt`
 - `activeRegion`
 - `nonconsensus_mem_activeRegion_set`
 - `nonconsensus_opinionated_event_subset_activeRegion`

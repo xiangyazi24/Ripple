@@ -10,6 +10,7 @@ having at least one opinionated agent, to finite stochastic executions.
 -/
 
 import Ripple.PopulationProtocol.Majority.PopProto.Invariant.Absorbing
+import Ripple.PopulationProtocol.Majority.PopProto.Invariant.Gap
 
 namespace PopProto
 
@@ -82,6 +83,100 @@ theorem transitionKernel_pow_eq_zero_of_forall_not_pred
   refine measure_mono_null ?_
     (transitionKernel_pow_not_pred_eq_zero_of_stepDist_support_preserved
       hn P hstep c hc t)
+  intro c' hc'
+  exact hS c' hc'
+
+/-- Every one-step support point changes the gap by at most one. -/
+theorem gap_of_stepDist_support_bounded
+    (hn : n ≥ 2) (c c' : Config n)
+    (hsupp : c' ∈ (c.stepDist hn).support) :
+    Int.natAbs (c'.gap - c.gap) ≤ 1 := by
+  obtain ⟨i, r, hstep⟩ := stepDist_support c hn c' hsupp
+  rw [← hstep]
+  exact gap_stepOrSelf_bounded c i r
+
+/-- Along a finite support trace, the endpoint gap differs from the starting
+gap by at most the trace length. -/
+theorem supportTraceEndpoint_gap_bounded
+    (hn : n ≥ 2) (c : Config n) (trace : List (Config n))
+    (htrace : supportTrace hn c trace) :
+    Int.natAbs ((supportTraceEndpoint c trace).gap - c.gap) ≤ trace.length := by
+  induction trace generalizing c with
+  | nil =>
+      simp [supportTraceEndpoint]
+  | cons c' rest ih =>
+      rcases htrace with ⟨hsupp, hrest⟩
+      have hstep := gap_of_stepDist_support_bounded hn c c' hsupp
+      have htail := ih c' hrest
+      have hdecomp :
+          (supportTraceEndpoint c' rest).gap - c.gap =
+            ((supportTraceEndpoint c' rest).gap - c'.gap) + (c'.gap - c.gap) := by
+        ring
+      simp only [supportTraceEndpoint, List.length_cons]
+      rw [hdecomp]
+      calc
+        Int.natAbs
+            (((supportTraceEndpoint c' rest).gap - c'.gap) + (c'.gap - c.gap))
+            ≤ Int.natAbs ((supportTraceEndpoint c' rest).gap - c'.gap) +
+                Int.natAbs (c'.gap - c.gap) :=
+              Int.natAbs_add_le _ _
+        _ ≤ rest.length + 1 := by omega
+
+/-- The event that the gap has moved by more than the number of elapsed Markov
+steps has probability zero. -/
+theorem transitionKernel_pow_gap_natAbs_sub_gt_eq_zero
+    (hn : n ≥ 2) (c : Config n) (t : ℕ) :
+    (transitionKernel hn ^ t) c
+        {c' : Config n | t < Int.natAbs (c'.gap - c.gap)} = 0 := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      change Kernel.id c {c' : Config n | 0 < Int.natAbs (c'.gap - c.gap)} = 0
+      rw [Kernel.id_apply, Measure.dirac_apply' _
+        (instDiscreteMeasurableSpaceConfig.forall_measurableSet _)]
+      simp
+  | succ t ih =>
+      have hbad_meas :
+          MeasurableSet {c' : Config n | t.succ < Int.natAbs (c'.gap - c.gap)} :=
+        instDiscreteMeasurableSpaceConfig.forall_measurableSet _
+      have hgood :
+          ∀ᵐ c_mid ∂((transitionKernel hn ^ t) c),
+            Int.natAbs (c_mid.gap - c.gap) ≤ t := by
+        rw [MeasureTheory.ae_iff]
+        simpa only [not_le] using ih
+      rw [Kernel.pow_succ_apply_eq_lintegral _ _ _ hbad_meas,
+        MeasureTheory.lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad_meas)]
+      filter_upwards [hgood] with c_mid hmid
+      change (c_mid.stepDist hn).toMeasure
+        {c' : Config n | t.succ < Int.natAbs (c'.gap - c.gap)} = 0
+      rw [PMF.toMeasure_apply_eq_zero_iff
+        (p := c_mid.stepDist hn)
+        (s := {c' : Config n | t.succ < Int.natAbs (c'.gap - c.gap)})
+        (instDiscreteMeasurableSpaceConfig.forall_measurableSet _)]
+      rw [Set.disjoint_left]
+      intro c' hsupp hbad
+      exfalso
+      have hstep := gap_of_stepDist_support_bounded hn c_mid c' hsupp
+      have hdecomp : c'.gap - c.gap = (c'.gap - c_mid.gap) + (c_mid.gap - c.gap) := by
+        ring
+      have hle : Int.natAbs (c'.gap - c.gap) ≤ t.succ := by
+        rw [hdecomp]
+        calc
+          Int.natAbs ((c'.gap - c_mid.gap) + (c_mid.gap - c.gap))
+            ≤ Int.natAbs (c'.gap - c_mid.gap) + Int.natAbs (c_mid.gap - c.gap) :=
+              Int.natAbs_add_le _ _
+          _ ≤ t.succ := by omega
+      exact not_le_of_gt hbad hle
+
+/-- Any event contained in configurations whose gap differs from the starting
+gap by more than `t` has probability zero after `t` Markov steps. -/
+theorem transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt
+    (hn : n ≥ 2) (c : Config n) (t : ℕ) (S : Set (Config n))
+    (hS : ∀ c' : Config n, c' ∈ S →
+      t < Int.natAbs (c'.gap - c.gap)) :
+    (transitionKernel hn ^ t) c S = 0 := by
+  refine measure_mono_null ?_
+    (transitionKernel_pow_gap_natAbs_sub_gt_eq_zero hn c t)
   intro c' hc'
   exact hS c' hc'
 

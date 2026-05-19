@@ -31,5 +31,16 @@ theorem gap_step_bounded (c : Config n) (i r : State) (c' : Config n)
     (first | (obtain ⟨_, rfl⟩ := h) | (obtain ⟨⟨_, _⟩, rfl⟩ := h)) <;>
     simp <;> omega
 
+/-- The total one-step wrapper changes the input gap by at most one.  In
+infeasible scheduler cases it returns the original configuration. -/
+theorem gap_stepOrSelf_bounded (c : Config n) (i r : State) :
+    Int.natAbs ((c.stepOrSelf i r).gap - c.gap) ≤ 1 := by
+  unfold stepOrSelf
+  cases h : c.step i r with
+  | none =>
+      simp
+  | some c' =>
+      simpa [h] using gap_step_bounded c i r c' h
+
 end Config
 end PopProto
