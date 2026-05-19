@@ -62,7 +62,12 @@ decay theorems, including:
   `transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt`, with
   initial-state wrappers `initial_supportTraceEndpoint_gap_bounded`,
   `initial_transitionKernel_pow_gap_natAbs_sub_gt_eq_zero`, and
-  `initial_transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt`
+  `initial_transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt`, plus
+  combined initial core-invariant packages
+  `initial_supportTraceEndpoint_core_invariants`,
+  `initial_transitionKernel_pow_core_invariants`,
+  `initial_transitionKernel_pow_core_invariants_fail_eq_zero`, and
+  `initial_transitionKernel_pow_eq_zero_of_forall_core_invariants_fail`
 - `activeRegion`
 - `nonconsensus_mem_activeRegion_set`
 - `nonconsensus_opinionated_event_subset_activeRegion`

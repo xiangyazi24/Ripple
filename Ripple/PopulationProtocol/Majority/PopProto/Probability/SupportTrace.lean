@@ -208,6 +208,50 @@ theorem initial_transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt
   transitionKernel_pow_eq_zero_of_forall_gap_natAbs_sub_gt
     hn (initial n a h) t S hS
 
+/-- Initial-state finite Markov executions almost surely preserve an
+opinionated agent and move the input gap by at most the number of elapsed
+steps. -/
+theorem initial_transitionKernel_pow_core_invariants
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (t : ℕ) :
+    ∀ᵐ c' ∂((transitionKernel hn ^ t) (initial n a h)),
+      c'.hasOpinion ∧
+        Int.natAbs (c'.gap - (initial n a h).gap) ≤ t := by
+  have hgap :
+      ∀ᵐ c' ∂((transitionKernel hn ^ t) (initial n a h)),
+        Int.natAbs (c'.gap - (initial n a h).gap) ≤ t := by
+    rw [MeasureTheory.ae_iff]
+    simpa only [not_le] using
+      initial_transitionKernel_pow_gap_natAbs_sub_gt_eq_zero hn h t
+  filter_upwards
+    [ae_hasOpinion_transitionKernel_pow (initial n a h) hn
+      (initial_hasOpinion h (by omega)) t,
+     hgap] with c' hop hgap'
+  exact ⟨hop, hgap'⟩
+
+/-- The event that an initial finite Markov execution loses all opinionated
+agents or moves the gap by more than the elapsed time has probability zero. -/
+theorem initial_transitionKernel_pow_core_invariants_fail_eq_zero
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (t : ℕ) :
+    (transitionKernel hn ^ t) (initial n a h)
+        {c' : Config n |
+          ¬ (c'.hasOpinion ∧
+            Int.natAbs (c'.gap - (initial n a h).gap) ≤ t)} = 0 := by
+  have hcore := initial_transitionKernel_pow_core_invariants hn h t
+  rwa [MeasureTheory.ae_iff] at hcore
+
+/-- Any event contained in the failure of the initial finite-time core
+invariants has probability zero. -/
+theorem initial_transitionKernel_pow_eq_zero_of_forall_core_invariants_fail
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (t : ℕ) (S : Set (Config n))
+    (hS : ∀ c' : Config n, c' ∈ S →
+      ¬ (c'.hasOpinion ∧
+        Int.natAbs (c'.gap - (initial n a h).gap) ≤ t)) :
+    (transitionKernel hn ^ t) (initial n a h) S = 0 := by
+  refine measure_mono_null ?_
+    (initial_transitionKernel_pow_core_invariants_fail_eq_zero hn h t)
+  intro c' hc'
+  exact hS c' hc'
+
 /-- Having at least one opinionated agent is preserved along every finite
 support trace. -/
 theorem supportTraceEndpoint_hasOpinion
@@ -232,6 +276,30 @@ theorem supportTraceEndpoint_not_allB
   unfold hasOpinion opinionated at hop_end
   unfold allB at hallB
   omega
+
+/-- Initial-state specialization: having at least one opinionated agent is
+preserved along every finite stochastic support trace. -/
+theorem initial_supportTraceEndpoint_hasOpinion
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n)
+    (trace : List (Config n))
+    (htrace : supportTrace hn (initial n a h) trace) :
+    (supportTraceEndpoint (initial n a h) trace).hasOpinion :=
+  supportTraceEndpoint_hasOpinion hn (initial n a h) trace htrace
+    (initial_hasOpinion h (by omega))
+
+/-- Initial-state finite support traces preserve the core deterministic facts
+used by the approximate-majority convergence proof: an opinion remains present,
+and the integer gap moves by at most the trace length. -/
+theorem initial_supportTraceEndpoint_core_invariants
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n)
+    (trace : List (Config n))
+    (htrace : supportTrace hn (initial n a h) trace) :
+    (supportTraceEndpoint (initial n a h) trace).hasOpinion ∧
+      Int.natAbs
+        ((supportTraceEndpoint (initial n a h) trace).gap -
+          (initial n a h).gap) ≤ trace.length :=
+  ⟨initial_supportTraceEndpoint_hasOpinion hn h trace htrace,
+    initial_supportTraceEndpoint_gap_bounded hn h trace htrace⟩
 
 /-- Initial configurations of positive size stay away from all-blank along
 every finite stochastic support trace. -/
