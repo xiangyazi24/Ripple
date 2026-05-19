@@ -133,4 +133,105 @@ theorem validInitial_nonuniformSupportTrace_majorityVerdict_eq
     (validInitial_nonuniformSupportTrace_reachable
       (L := L) (K := K) init c trace (by assumption) hreach htrace)
 
+/-- Stable witness produced by a finite stochastic support trace whose endpoint
+is a Phase-10 majority witness. -/
+theorem stable_witness_of_nonuniformSupportTrace_phase10MajorityWitness
+    (init c : Config (AgentState L K))
+    (trace : List (Config (AgentState L K)))
+    (htrace : nonuniformSupportTrace L K c trace)
+    (hwitness :
+      phase10MajorityWitness (L := L) (K := K) init
+        (nonuniformSupportTraceEndpoint L K c trace)) :
+    ∃ o, (NonuniformMajority L K).Reachable c o ∧
+      (doutPartition L K).output (majorityVerdict init) o ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K) o :=
+  stable_witness_of_phase10MajorityWitness (L := L) (K := K) init c
+    (nonuniformSupportTraceEndpoint L K c trace)
+    (nonuniformSupportTrace_reachable (L := L) (K := K) c trace htrace)
+    hwitness
+
+/-- Stable witness produced by a finite stochastic support trace whose endpoint
+is in Phase 10 and has the majority output in partition form. -/
+theorem stable_witness_of_nonuniformSupportTrace_phase10_partition_output
+    (init c : Config (AgentState L K))
+    (trace : List (Config (AgentState L K)))
+    (htrace : nonuniformSupportTrace L K c trace)
+    (hphase :
+      ∀ a ∈ nonuniformSupportTraceEndpoint L K c trace, a.phase.val = 10)
+    (hout :
+      (doutPartition L K).output (majorityVerdict init)
+        (nonuniformSupportTraceEndpoint L K c trace)) :
+    ∃ o, (NonuniformMajority L K).Reachable c o ∧
+      (doutPartition L K).output (majorityVerdict init) o ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K) o :=
+  stable_witness_of_phase10_partition_output (L := L) (K := K) init c
+    (nonuniformSupportTraceEndpoint L K c trace)
+    (nonuniformSupportTrace_reachable (L := L) (K := K) c trace htrace)
+    hphase hout
+
+/-- Correctness reduction for phase analyses that produce finite stochastic
+support traces ending at Phase-10 majority-witness configurations. -/
+theorem stable_majority_correct_of_supportTrace_phase10MajorityWitness
+    (hphase :
+      ∀ init : Config (AgentState L K), validInitial init →
+        ∀ c : Config (AgentState L K),
+          (NonuniformMajority L K).Reachable init c →
+            ∃ trace : List (Config (AgentState L K)),
+              nonuniformSupportTrace L K c trace ∧
+                phase10MajorityWitness (L := L) (K := K) init
+                  (nonuniformSupportTraceEndpoint L K c trace)) :
+    stable_majority_correct_target L K := by
+  intro init hinit c hreach
+  rcases hphase init hinit c hreach with ⟨trace, htrace, hwitness⟩
+  exact stable_witness_of_nonuniformSupportTrace_phase10MajorityWitness
+    (L := L) (K := K) init c trace htrace hwitness
+
+/-- Correctness reduction for phase analyses that produce finite stochastic
+support traces ending at Phase-10 endpoints with output stated through
+`doutPartition`. -/
+theorem stable_majority_correct_of_supportTrace_phase10_partition_output
+    (hphase :
+      ∀ init : Config (AgentState L K), validInitial init →
+        ∀ c : Config (AgentState L K),
+          (NonuniformMajority L K).Reachable init c →
+            ∃ trace : List (Config (AgentState L K)),
+              nonuniformSupportTrace L K c trace ∧
+                (∀ a ∈ nonuniformSupportTraceEndpoint L K c trace,
+                  a.phase.val = 10) ∧
+                (doutPartition L K).output (majorityVerdict init)
+                  (nonuniformSupportTraceEndpoint L K c trace)) :
+    stable_majority_correct_target L K := by
+  intro init hinit c hreach
+  rcases hphase init hinit c hreach with ⟨trace, htrace, hphase10, hout⟩
+  exact stable_witness_of_nonuniformSupportTrace_phase10_partition_output
+    (L := L) (K := K) init c trace htrace hphase10 hout
+
+theorem nonuniform_majority_correctness_of_supportTrace_phase10MajorityWitness
+    (hphase :
+      ∀ init : Config (AgentState L K), validInitial init →
+        ∀ c : Config (AgentState L K),
+          (NonuniformMajority L K).Reachable init c →
+            ∃ trace : List (Config (AgentState L K)),
+              nonuniformSupportTrace L K c trace ∧
+                phase10MajorityWitness (L := L) (K := K) init
+                  (nonuniformSupportTraceEndpoint L K c trace)) :
+    nonuniform_majority_correctness_target L K :=
+  stable_majority_correct_of_supportTrace_phase10MajorityWitness
+    (L := L) (K := K) hphase
+
+theorem nonuniform_majority_correctness_of_supportTrace_phase10_partition_output
+    (hphase :
+      ∀ init : Config (AgentState L K), validInitial init →
+        ∀ c : Config (AgentState L K),
+          (NonuniformMajority L K).Reachable init c →
+            ∃ trace : List (Config (AgentState L K)),
+              nonuniformSupportTrace L K c trace ∧
+                (∀ a ∈ nonuniformSupportTraceEndpoint L K c trace,
+                  a.phase.val = 10) ∧
+                (doutPartition L K).output (majorityVerdict init)
+                  (nonuniformSupportTraceEndpoint L K c trace)) :
+    nonuniform_majority_correctness_target L K :=
+  stable_majority_correct_of_supportTrace_phase10_partition_output
+    (L := L) (K := K) hphase
+
 end ExactMajority

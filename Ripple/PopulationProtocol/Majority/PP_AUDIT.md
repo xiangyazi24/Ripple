@@ -119,7 +119,10 @@ It does formalize important infrastructure:
   `Protocol.supportTrace`, `Protocol.supportTraceEndpoint`, and concrete
   `nonuniformSupportTrace` wrappers proving that every finite support path is
   protocol-reachable and preserves population size, `initialGap`,
-  `majorityVerdict`, and `well_formed_config`;
+  `majorityVerdict`, and `well_formed_config`; finite support-trace Phase-10
+  endpoints are bridged to stable-output witnesses and to the two correctness
+  targets, in both concrete `phase10MajorityWitness` and generic
+  `doutPartition` endpoint forms;
 - finite realized-schedule traces:
   `Protocol.runPairs`, `Protocol.reachable_runPairs`, generic size/additive
   invariant preservation along traces, and concrete `nonuniformRunPairs`
