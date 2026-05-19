@@ -92,6 +92,28 @@ theorem nonuniformTransitionKernel_pow_initialGap_eq
         (L := L) (K := K) c₀ c₁ hsupp).trans hgap)
     c rfl t
 
+/-- The event that a finite stochastic execution changes the initial input
+gap has probability zero. -/
+theorem nonuniformTransitionKernel_pow_initialGap_ne_eq_zero
+    (c : Config (AgentState L K)) (t : ℕ) :
+    (nonuniformTransitionKernel L K ^ t) c
+        {c' : Config (AgentState L K) | initialGap c' ≠ initialGap c} = 0 := by
+  have h := nonuniformTransitionKernel_pow_initialGap_eq (L := L) (K := K) c t
+  rwa [MeasureTheory.ae_iff] at h
+
+/-- Any event contained in the complement of the initial-gap invariant has
+probability zero at every finite Markov time. -/
+theorem nonuniformTransitionKernel_pow_eq_zero_of_forall_initialGap_ne
+    (c : Config (AgentState L K)) (t : ℕ)
+    (S : Set (Config (AgentState L K)))
+    (hS : ∀ c' : Config (AgentState L K), c' ∈ S →
+      initialGap c' ≠ initialGap c) :
+    (nonuniformTransitionKernel L K ^ t) c S = 0 := by
+  refine measure_mono_null ?_
+    (nonuniformTransitionKernel_pow_initialGap_ne_eq_zero (L := L) (K := K) c t)
+  intro c' hc'
+  exact hS c' hc'
+
 /-- The majority-verdict invariant holds almost surely after any finite number
 of steps of the concrete nonuniform Markov chain. -/
 theorem nonuniformTransitionKernel_pow_majorityVerdict_eq
@@ -106,6 +128,31 @@ theorem nonuniformTransitionKernel_pow_majorityVerdict_eq
         (L := L) (K := K) c₀ c₁ hsupp).trans hverdict)
     c rfl t
 
+/-- The event that a finite stochastic execution changes the majority verdict
+has probability zero. -/
+theorem nonuniformTransitionKernel_pow_majorityVerdict_ne_eq_zero
+    (c : Config (AgentState L K)) (t : ℕ) :
+    (nonuniformTransitionKernel L K ^ t) c
+        {c' : Config (AgentState L K) |
+          majorityVerdict c' ≠ majorityVerdict c} = 0 := by
+  have h :=
+    nonuniformTransitionKernel_pow_majorityVerdict_eq (L := L) (K := K) c t
+  rwa [MeasureTheory.ae_iff] at h
+
+/-- Any event contained in the complement of the majority-verdict invariant
+has probability zero at every finite Markov time. -/
+theorem nonuniformTransitionKernel_pow_eq_zero_of_forall_majorityVerdict_ne
+    (c : Config (AgentState L K)) (t : ℕ)
+    (S : Set (Config (AgentState L K)))
+    (hS : ∀ c' : Config (AgentState L K), c' ∈ S →
+      majorityVerdict c' ≠ majorityVerdict c) :
+    (nonuniformTransitionKernel L K ^ t) c S = 0 := by
+  refine measure_mono_null ?_
+    (nonuniformTransitionKernel_pow_majorityVerdict_ne_eq_zero
+      (L := L) (K := K) c t)
+  intro c' hc'
+  exact hS c' hc'
+
 /-- Well-formedness holds almost surely after any finite number of steps of
 the concrete nonuniform Markov chain. -/
 theorem nonuniformTransitionKernel_pow_well_formed_config
@@ -119,6 +166,31 @@ theorem nonuniformTransitionKernel_pow_well_formed_config
       nonuniformStepDistOrSelf_support_well_formed_config
         (L := L) (K := K) c₀ c₁ hwell₀ hsupp)
     c hwell t
+
+/-- Starting from a well-formed configuration, the event that a finite
+stochastic execution is not well formed has probability zero. -/
+theorem nonuniformTransitionKernel_pow_not_well_formed_config_eq_zero
+    (c : Config (AgentState L K)) (hwell : well_formed_config c) (t : ℕ) :
+    (nonuniformTransitionKernel L K ^ t) c
+        {c' : Config (AgentState L K) | ¬well_formed_config c'} = 0 := by
+  have h :=
+    nonuniformTransitionKernel_pow_well_formed_config
+      (L := L) (K := K) c hwell t
+  rwa [MeasureTheory.ae_iff] at h
+
+/-- Any event contained in the complement of well-formedness has probability
+zero at every finite Markov time from a well-formed configuration. -/
+theorem nonuniformTransitionKernel_pow_eq_zero_of_forall_not_well_formed_config
+    (c : Config (AgentState L K)) (hwell : well_formed_config c) (t : ℕ)
+    (S : Set (Config (AgentState L K)))
+    (hS : ∀ c' : Config (AgentState L K), c' ∈ S →
+      ¬well_formed_config c') :
+    (nonuniformTransitionKernel L K ^ t) c S = 0 := by
+  refine measure_mono_null ?_
+    (nonuniformTransitionKernel_pow_not_well_formed_config_eq_zero
+      (L := L) (K := K) c hwell t)
+  intro c' hc'
+  exact hS c' hc'
 
 /-- Valid initial configurations remain well formed almost surely after any
 finite number of nonuniform Markov-chain steps. -/
