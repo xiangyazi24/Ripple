@@ -119,7 +119,10 @@ It does formalize important infrastructure:
   `Protocol.runPairs`, `Protocol.reachable_runPairs`, generic size/additive
   invariant preservation along traces, and concrete `nonuniformRunPairs`
   preservation of reachability, population size, `initialGap`,
-  `majorityVerdict`, and `well_formed_config`;
+  `majorityVerdict`, and `well_formed_config`; finite scheduled Phase-10
+  endpoints are bridged directly to stable-output witnesses via
+  `stable_witness_of_nonuniformRunPairs_phase10MajorityWitness` and
+  `stable_witness_of_nonuniformRunPairs_phase10_partition_output`;
 - state-count bounds for the flat Lean encoding;
 - invariants such as small-bias preservation and well-formedness preservation,
   including one-step and reachable preservation for `well_formed_config` and

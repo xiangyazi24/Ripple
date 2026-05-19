@@ -108,4 +108,37 @@ theorem nonuniformRunPairs_well_formed_config
     (nonuniformRunPairs L K c pairs) hwell
     (nonuniformRunPairs_reachable (L := L) (K := K) c pairs)
 
+/-- Stable witness produced by a finite realized schedule whose endpoint is a
+Phase-10 majority witness. -/
+theorem stable_witness_of_nonuniformRunPairs_phase10MajorityWitness
+    (init c : Config (AgentState L K))
+    (pairs : List (AgentState L K × AgentState L K))
+    (hwitness :
+      phase10MajorityWitness (L := L) (K := K) init
+        (nonuniformRunPairs L K c pairs)) :
+    ∃ o, (NonuniformMajority L K).Reachable c o ∧
+      (doutPartition L K).output (majorityVerdict init) o ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K) o :=
+  stable_witness_of_phase10MajorityWitness (L := L) (K := K) init c
+    (nonuniformRunPairs L K c pairs)
+    (nonuniformRunPairs_reachable (L := L) (K := K) c pairs)
+    hwitness
+
+/-- Stable witness produced by a finite realized schedule whose endpoint is in
+Phase 10 and has the majority output in the generic partition form. -/
+theorem stable_witness_of_nonuniformRunPairs_phase10_partition_output
+    (init c : Config (AgentState L K))
+    (pairs : List (AgentState L K × AgentState L K))
+    (hphase : ∀ a ∈ nonuniformRunPairs L K c pairs, a.phase.val = 10)
+    (hout :
+      (doutPartition L K).output (majorityVerdict init)
+        (nonuniformRunPairs L K c pairs)) :
+    ∃ o, (NonuniformMajority L K).Reachable c o ∧
+      (doutPartition L K).output (majorityVerdict init) o ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K) o :=
+  stable_witness_of_phase10_partition_output (L := L) (K := K) init c
+    (nonuniformRunPairs L K c pairs)
+    (nonuniformRunPairs_reachable (L := L) (K := K) c pairs)
+    hphase hout
+
 end ExactMajority
