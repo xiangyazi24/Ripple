@@ -1,9 +1,9 @@
 /-
-Concentration inequalities (Theorem 4.1 of Doty et al.).
+Concentration inequalities around Theorem 4.1 of Doty et al.
 
-These are standard multiplicative Chernoff bounds for sums of independent
-[0,1]-valued random variables. Stated here in the `ProbabilityTheory` kernel
-/ measure framework used by the rest of the development.
+These are Hoeffding-form concentration bounds for sums of independent
+[0,1]-valued random variables, stated in the `ProbabilityTheory` kernel /
+measure framework used by the rest of the development.
 
 Mathlib provides a sub-Gaussian sum-of-independents bound, and this file proves
 the resulting Hoeffding-form upper and lower tails for sums of independent
