@@ -16,6 +16,7 @@ Reference: Doty, Eftekhari, Gąsieniec, Severson, Stachowiak, Uznański,
 -/
 
 import Mathlib.Data.Multiset.Basic
+import Mathlib.Data.Multiset.AddSub
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Basic
 
@@ -56,6 +57,43 @@ def StepRel (c c' : Config Λ) : Prop :=
 /-- Reachability: reflexive-transitive closure of `StepRel`. -/
 def Reachable (c c' : Config Λ) : Prop :=
   Relation.ReflTransGen P.StepRel c c'
+
+/-- A single population-protocol step preserves the population size. -/
+theorem stepRel_card_eq {P : Protocol Λ} {c c' : Config Λ}
+    (h_step : P.StepRel c c') :
+    c'.card = c.card := by
+  rcases h_step with ⟨r₁, r₂, happ, hc'⟩
+  dsimp at hc'
+  subst c'
+  have hpair_card : ({r₁, r₂} : Multiset Λ).card = 2 := by simp
+  have hpair_le_card : 2 ≤ c.card := by
+    simpa [hpair_card] using Multiset.card_le_card happ
+  change Multiset.card
+      (c - ({r₁, r₂} : Multiset Λ) +
+        ({(P.δ r₁ r₂).1, (P.δ r₁ r₂).2} : Multiset Λ)) = c.card
+  rw [Multiset.card_add, Multiset.card_sub happ, hpair_card]
+  simpa using Nat.sub_add_cancel hpair_le_card
+
+/-- Reachability preserves the population size. -/
+theorem reachable_card_eq {P : Protocol Λ} {c c' : Config Λ}
+    (h_reach : P.Reachable c c') :
+    c'.card = c.card := by
+  induction h_reach with
+  | refl => rfl
+  | tail _ hstep ih =>
+      exact (stepRel_card_eq hstep).trans ih
+
+/-- A single population-protocol step preserves `Config.size`. -/
+theorem stepRel_size_eq {P : Protocol Λ} {c c' : Config Λ}
+    (h_step : P.StepRel c c') :
+    c'.size = c.size :=
+  stepRel_card_eq h_step
+
+/-- Reachability preserves `Config.size`. -/
+theorem reachable_size_eq {P : Protocol Λ} {c c' : Config Λ}
+    (h_reach : P.Reachable c c') :
+    c'.size = c.size :=
+  reachable_card_eq h_reach
 
 end Protocol
 

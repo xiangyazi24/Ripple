@@ -89,6 +89,9 @@ It does formalize important infrastructure:
 
 - agent roles, states, outputs, and transitions;
 - the nonuniform protocol definition;
+- generic population-size preservation for one-step and reachable protocol
+  executions (`stepRel_card_eq`, `reachable_card_eq`, `stepRel_size_eq`,
+  `reachable_size_eq`);
 - state-count bounds for the flat Lean encoding;
 - invariants such as small-bias preservation and well-formedness preservation,
   including one-step and reachable preservation for `well_formed_config` and
