@@ -47,11 +47,7 @@ If a Markov kernel `K` satisfies the multiplicative drift condition
 `θ · (K ^ t) x {y | θ ≤ Φ y} ≤ r ^ t · Φ(x)`.
 
 This is a direct consequence of Markov's inequality (`mul_meas_ge_le_lintegral₀`)
-followed by the geometric-decay lemma (`lintegral_geometric_decay`).
-
-TODO (DeepSeek): derive the real-valued hitting-time corollary
-  `P[X_t ≥ θ] ≤ x₀ · (1-γ)^t / θ`
-from this kernel version once the probability-space wrapper is written. -/
+followed by the geometric-decay lemma (`lintegral_geometric_decay`). -/
 theorem geometric_drift_tail_kernel {α : Type*} [MeasurableSpace α]
     (K : Kernel α α) [IsMarkovKernel K]
     (Φ : α → ℝ≥0∞) (hΦ : Measurable Φ)
@@ -88,7 +84,35 @@ theorem geometric_drift_tail {α : Type*} [MeasurableSpace α]
       simp [mul_assoc]
     _ ≤ θ⁻¹ * (r ^ t * Φ x) := by gcongr
     _ = r ^ t * Φ x * θ⁻¹ := by
-      simp [mul_comm, mul_assoc, mul_left_comm]
+      simp [mul_comm, mul_assoc]
     _ = r ^ t * Φ x / θ := rfl
+
+/-- **Geometric-drift tail bound for a random variable with known law.**
+
+If a random configuration/state variable `X : Ω → α` has law `(K ^ t) x`, then
+the kernel tail bound pulls back to the probability space. This is the wrapper
+needed by phase analyses that construct a concrete execution probability space
+and then identify its `t`-step marginal with a Markov-kernel power. -/
+theorem geometric_drift_tail_random_variable {Ω α : Type*}
+    [MeasurableSpace Ω] [MeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (Φ : α → ℝ≥0∞) (hΦ : Measurable Φ)
+    (r : ℝ≥0∞)
+    (hdrift : ∀ x, ∫⁻ y, Φ y ∂(K x) ≤ r * Φ x)
+    (μ : Measure Ω) (X : Ω → α) (hX : Measurable X)
+    (t : ℕ) (x : α)
+    (hlaw : Measure.map X μ = (K ^ t) x)
+    (θ : ℝ≥0∞) (hθ0 : θ ≠ 0) (hθ_top : θ ≠ ∞) :
+    μ {ω | θ ≤ Φ (X ω)} ≤ r ^ t * Φ x / θ := by
+  let S : Set α := {y | θ ≤ Φ y}
+  have hS : MeasurableSet S := measurableSet_le measurable_const hΦ
+  have hmap :
+      μ {ω | θ ≤ Φ (X ω)} = (K ^ t) x S := by
+    calc
+      μ {ω | θ ≤ Φ (X ω)} = μ (X ⁻¹' S) := rfl
+      _ = Measure.map X μ S := (Measure.map_apply hX hS).symm
+      _ = (K ^ t) x S := by rw [hlaw]
+  rw [hmap]
+  exact geometric_drift_tail K Φ hΦ r hdrift t x θ hθ0 hθ_top
 
 end ExactMajority
