@@ -70,6 +70,21 @@ theorem transitionKernel_pow_not_pred_eq_zero_of_stepDist_support_preserved
   have h := ae_of_stepDist_support_preserved hn P hstep c hc t
   rwa [MeasureTheory.ae_iff] at h
 
+/-- Event form of `transitionKernel_pow_not_pred_eq_zero_of_stepDist_support_preserved`:
+any set contained in the complement of a support-closed invariant has
+probability zero at every finite time. -/
+theorem transitionKernel_pow_eq_zero_of_forall_not_pred
+    (hn : n ≥ 2) (P : Config n → Prop)
+    (hstep : ∀ c c' : Config n, P c → c' ∈ (c.stepDist hn).support → P c')
+    (c : Config n) (hc : P c) (t : ℕ) (S : Set (Config n))
+    (hS : ∀ c' : Config n, c' ∈ S → ¬P c') :
+    (transitionKernel hn ^ t) c S = 0 := by
+  refine measure_mono_null ?_
+    (transitionKernel_pow_not_pred_eq_zero_of_stepDist_support_preserved
+      hn P hstep c hc t)
+  intro c' hc'
+  exact hS c' hc'
+
 /-- Having at least one opinionated agent is preserved along every finite
 support trace. -/
 theorem supportTraceEndpoint_hasOpinion

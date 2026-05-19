@@ -53,6 +53,7 @@ decay theorems, including:
 - `supportTrace`, `supportTraceEndpoint`,
   `ae_of_stepDist_support_preserved`,
   `transitionKernel_pow_not_pred_eq_zero_of_stepDist_support_preserved`,
+  `transitionKernel_pow_eq_zero_of_forall_not_pred`,
   `supportTraceEndpoint_hasOpinion`, `supportTraceEndpoint_not_allB`,
   and `initial_supportTraceEndpoint_not_allB`
 - `activeRegion`
