@@ -10,6 +10,7 @@ import Ripple.PopulationProtocol.Majority.PopProto.Invariant.LastAgent
 import Ripple.PopulationProtocol.Majority.PopProto.Probability.Scheduler
 import Ripple.PopulationProtocol.Majority.PopProto.Probability.StepDist
 import Ripple.PopulationProtocol.Majority.PopProto.Probability.MarkovChain
+import Ripple.PopulationProtocol.Majority.PopProto.Probability.SupportTrace
 import Ripple.PopulationProtocol.Majority.PopProto.Convergence.Notation
 import Ripple.PopulationProtocol.Majority.PopProto.Convergence.RelativeChange
 import Ripple.PopulationProtocol.Majority.PopProto.Convergence.DeltaF
