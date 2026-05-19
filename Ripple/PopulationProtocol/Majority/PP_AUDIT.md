@@ -221,6 +221,7 @@ union-bound/Chernoff steps, but their names now make the dependencies explicit:
 - `geometric_drift_tail_kernel`
 - `geometric_drift_tail`
 - `geometric_drift_tail_random_variable`
+- `geometric_drift_tail_random_variable_ge_one`
 - `janson_geom_upper_tail_of_mgf_bound`
 - `janson_geom_lower_tail_of_mgf_bound`
 - `janson_geom_upper_tail_of_individual_mgf_bound`

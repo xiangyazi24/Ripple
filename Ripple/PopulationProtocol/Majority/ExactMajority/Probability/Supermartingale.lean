@@ -115,4 +115,22 @@ theorem geometric_drift_tail_random_variable {Ω α : Type*}
   rw [hmap]
   exact geometric_drift_tail K Φ hΦ r hdrift t x θ hθ0 hθ_top
 
+/-- Threshold-one specialization of
+`geometric_drift_tail_random_variable`. This is the form used by the regional
+potential arguments, where the active event is encoded as `{1 ≤ Φ}`. -/
+theorem geometric_drift_tail_random_variable_ge_one {Ω α : Type*}
+    [MeasurableSpace Ω] [MeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (Φ : α → ℝ≥0∞) (hΦ : Measurable Φ)
+    (r : ℝ≥0∞)
+    (hdrift : ∀ x, ∫⁻ y, Φ y ∂(K x) ≤ r * Φ x)
+    (μ : Measure Ω) (X : Ω → α) (hX : Measurable X)
+    (t : ℕ) (x : α)
+    (hlaw : Measure.map X μ = (K ^ t) x) :
+    μ {ω | 1 ≤ Φ (X ω)} ≤ r ^ t * Φ x := by
+  simpa using
+    geometric_drift_tail_random_variable
+      K Φ hΦ r hdrift μ X hX t x hlaw (1 : ℝ≥0∞)
+      one_ne_zero ENNReal.one_ne_top
+
 end ExactMajority
