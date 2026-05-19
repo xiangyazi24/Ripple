@@ -325,5 +325,22 @@ theorem transitionKernel_pow_allB_eq_zero_of_hasOpinion
   unfold hasOpinion opinionated at hhop
   omega
 
+/-- From any positive-size initial configuration, the all-blank configuration
+has probability zero after any finite number of Markov steps. -/
+theorem initial_transitionKernel_pow_allB_eq_zero
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (t : ℕ) :
+    (transitionKernel hn ^ t) (initial n a h) {c' : Config n | c'.allB} = 0 :=
+  transitionKernel_pow_allB_eq_zero_of_hasOpinion (initial n a h) hn
+    (initial_hasOpinion h (by omega)) t
+
+/-- From any positive-size initial configuration, having no opinionated agent
+has probability zero after any finite number of Markov steps. -/
+theorem initial_transitionKernel_pow_not_hasOpinion_eq_zero
+    (hn : n ≥ 2) {a : ℕ} (h : a ≤ n) (t : ℕ) :
+    (transitionKernel hn ^ t) (initial n a h)
+        {c' : Config n | ¬c'.hasOpinion} = 0 :=
+  transitionKernel_pow_not_hasOpinion_eq_zero (initial n a h) hn
+    (initial_hasOpinion h (by omega)) t
+
 end Config
 end PopProto
