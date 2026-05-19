@@ -692,6 +692,35 @@ theorem stable_witness_of_phase10_partition_output
     (phase10MajorityWitness_of_phase10_partition_output
       (L := L) (K := K) init final hphase hout)
 
+/-- A Phase-10 endpoint whose `doutPartition` output is the initial majority
+verdict is itself stable. -/
+theorem phase10_partition_output_majority_isStable
+    (init final : Config (AgentState L K))
+    (hphase : ∀ a ∈ final, a.phase.val = 10)
+    (hout : (doutPartition L K).output (majorityVerdict init) final) :
+    (NonuniformMajority L K).IsStable (doutPartition L K) final := by
+  have hwitness :=
+    phase10MajorityWitness_of_phase10_partition_output
+      (L := L) (K := K) init final hphase hout
+  rcases hwitness with ⟨hgap, hfinal⟩ | ⟨hgap, hfinal⟩ | ⟨hgap, hfinal⟩
+  · exact (phase10_unanimous_A_majority_witness_of_initialGap_pos
+      (L := L) (K := K) init final hfinal hgap).2
+  · exact (phase10_unanimous_B_majority_witness_of_initialGap_neg
+      (L := L) (K := K) init final hfinal hgap).2
+  · exact (phase10_unanimous_T_majority_witness_of_initialGap_zero
+      (L := L) (K := K) init final hfinal hgap).2
+
+/-- Direct stable-output package for a Phase-10 endpoint with the correct
+partition output. -/
+theorem stable_output_of_phase10_partition_output
+    (init final : Config (AgentState L K))
+    (hphase : ∀ a ∈ final, a.phase.val = 10)
+    (hout : (doutPartition L K).output (majorityVerdict init) final) :
+    (doutPartition L K).output (majorityVerdict init) final ∧
+      (NonuniformMajority L K).IsStable (doutPartition L K) final :=
+  ⟨hout, phase10_partition_output_majority_isStable
+    (L := L) (K := K) init final hphase hout⟩
+
 /-- Reduction from the remaining phase-reachability obligation to the generic
 stable-computation statement.
 
