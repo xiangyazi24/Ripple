@@ -49,6 +49,8 @@ decay theorems, including:
 - `transitionKernel_allB_eq_zero_of_hasOpinion`
 - `transitionKernel_pow_allB_eq_zero_of_hasOpinion`
 - `supportTrace`, `supportTraceEndpoint`,
+  `ae_of_stepDist_support_preserved`,
+  `transitionKernel_pow_not_pred_eq_zero_of_stepDist_support_preserved`,
   `supportTraceEndpoint_hasOpinion`, `supportTraceEndpoint_not_allB`,
   and `initial_supportTraceEndpoint_not_allB`
 - `activeRegion`
