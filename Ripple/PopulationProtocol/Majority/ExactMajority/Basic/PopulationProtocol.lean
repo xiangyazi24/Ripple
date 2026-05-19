@@ -19,6 +19,7 @@ import Mathlib.Data.Multiset.Basic
 import Mathlib.Data.Multiset.AddSub
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Basic
+import Mathlib.Algebra.BigOperators.Group.Multiset.Basic
 
 namespace ExactMajority
 
@@ -38,6 +39,10 @@ def Config.size (c : Config Λ) : ℕ := c.card
 
 /-- Count of agents in state `s`. -/
 def Config.count [DecidableEq Λ] (c : Config Λ) (s : Λ) : ℕ := Multiset.count s c
+
+/-- Additive sum of a state observable over a configuration. -/
+def Config.sumOf {M : Type*} [AddCommMonoid M] (f : Λ → M) (c : Config Λ) : M :=
+  (c.map f).sum
 
 namespace Protocol
 
@@ -94,6 +99,53 @@ theorem reachable_size_eq {P : Protocol Λ} {c c' : Config Λ}
     (h_reach : P.Reachable c c') :
     c'.size = c.size :=
   reachable_card_eq h_reach
+
+/-- A single step preserves any additive state observable whose value is
+preserved by the pair transition. -/
+theorem stepRel_sumOf_eq {P : Protocol Λ} {M : Type*} [AddCommMonoid M]
+    {f : Λ → M} {c c' : Config Λ}
+    (hδ : ∀ r₁ r₂, let p := P.δ r₁ r₂; f p.1 + f p.2 = f r₁ + f r₂)
+    (h_step : P.StepRel c c') :
+    c'.sumOf f = c.sumOf f := by
+  rcases h_step with ⟨r₁, r₂, happ, hc'⟩
+  dsimp at hc'
+  rcases hpair : P.δ r₁ r₂ with ⟨p₁, p₂⟩
+  subst c'
+  have hδ' : f p₁ + f p₂ = f r₁ + f r₂ := by
+    simpa [hpair] using hδ r₁ r₂
+  dsimp [Config.sumOf]
+  change ((c - ({r₁, r₂} : Multiset Λ) +
+        ({(P.δ r₁ r₂).1, (P.δ r₁ r₂).2} : Multiset Λ)).map f).sum =
+    (c.map f).sum
+  rw [hpair]
+  calc
+    ((c - ({r₁, r₂} : Multiset Λ) + ({p₁, p₂} : Multiset Λ)).map f).sum
+        = ((c - ({r₁, r₂} : Multiset Λ)).map f).sum +
+            (({p₁, p₂} : Multiset Λ).map f).sum := by
+          rw [Multiset.map_add, Multiset.sum_add]
+    _ = ((c - ({r₁, r₂} : Multiset Λ)).map f).sum + (f p₁ + f p₂) := by
+          simp
+    _ = ((c - ({r₁, r₂} : Multiset Λ)).map f).sum + (f r₁ + f r₂) := by
+          rw [hδ']
+    _ = ((c - ({r₁, r₂} : Multiset Λ)).map f).sum +
+          (({r₁, r₂} : Multiset Λ).map f).sum := by
+          simp
+    _ = (((c - ({r₁, r₂} : Multiset Λ)) + ({r₁, r₂} : Multiset Λ)).map f).sum := by
+          rw [Multiset.map_add, Multiset.sum_add]
+    _ = (c.map f).sum := by
+          rw [Multiset.sub_add_cancel happ]
+
+/-- Reachability preserves any additive state observable whose value is
+preserved by every pair transition. -/
+theorem reachable_sumOf_eq {P : Protocol Λ} {M : Type*} [AddCommMonoid M]
+    {f : Λ → M} {c c' : Config Λ}
+    (hδ : ∀ r₁ r₂, let p := P.δ r₁ r₂; f p.1 + f p.2 = f r₁ + f r₂)
+    (h_reach : P.Reachable c c') :
+    c'.sumOf f = c.sumOf f := by
+  induction h_reach with
+  | refl => rfl
+  | tail _ hstep ih =>
+      exact (stepRel_sumOf_eq hδ hstep).trans ih
 
 end Protocol
 
