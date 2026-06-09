@@ -46,6 +46,7 @@ the ChatGPT brick-3 consult (route 1a, archived in the doctrine).
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealKernel
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourCoupling
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClimbTail
 
 namespace ExactMajority
 
@@ -1066,6 +1067,201 @@ theorem pair_block_prob_le_sq (c : Config (MarkedAgent L K)) (h : 2 ≤ c.card)
     rw [div_pow, div_le_div_iff₀ hdenom (by positivity)]
     push_cast [Nat.cast_sub (show 1 ≤ c.card from by omega), Nat.cast_sub h1X]
     nlinarith [mul_nonneg (mul_nonneg hXnn hnnn) (sub_nonneg.mpr hXr)]
+
+/-- The column interaction-count sum: `Σ_{m₁} icount m₁ m₂ = count m₂ · (n−1)` (the mirror of
+`sum_interactionCount_right`). -/
+private theorem sum_interactionCount_left (c : Config (MarkedAgent L K))
+    (m₂ : MarkedAgent L K) :
+    (∑ m₁ : MarkedAgent L K, c.interactionCount m₁ m₂) = c.count m₂ * (c.card - 1) := by
+  classical
+  have hc₂n : c.count m₂ ≤ c.card := Multiset.count_le_card m₂ c
+  rw [← Finset.add_sum_erase Finset.univ _ (Finset.mem_univ m₂)]
+  have hdiag : c.interactionCount m₂ m₂ = c.count m₂ * (c.count m₂ - 1) := by
+    unfold Config.interactionCount
+    rw [if_pos rfl]
+  have hoff : (∑ m₁ ∈ Finset.univ.erase m₂, c.interactionCount m₁ m₂)
+      = (c.card - c.count m₂) * c.count m₂ := by
+    have hsum0 : c.count m₂ + (∑ m₁ ∈ Finset.univ.erase m₂, c.count m₁) = c.card := by
+      rw [show (∑ m₁ ∈ Finset.univ.erase m₂, c.count m₁)
+          = c.card - c.count m₂ from ?_]
+      · omega
+      · have h := Finset.add_sum_erase Finset.univ (fun m => c.count m) (Finset.mem_univ m₂)
+        have h2 : c.count m₂ + (∑ m₁ ∈ Finset.univ.erase m₂, c.count m₁)
+            = ∑ m : MarkedAgent L K, c.count m := h
+        rw [sum_count_univ_marked c] at h2
+        omega
+    have hsum : (∑ m₁ ∈ Finset.univ.erase m₂, c.count m₁) = c.card - c.count m₂ := by omega
+    rw [← hsum, Finset.sum_mul]
+    apply Finset.sum_congr rfl
+    intro m₁ hm₁
+    unfold Config.interactionCount
+    rw [if_neg ((Finset.mem_erase.mp hm₁).1)]
+  rw [hdiag, hoff]
+  cases hc₂ : c.count m₂ with
+  | zero => simp
+  | succ k =>
+      have h1n : 1 ≤ c.card := by omega
+      zify [show 1 ≤ k + 1 from by omega, show k + 1 ≤ c.card from by omega, h1n]
+      ring
+
+/-- **The first-member block bound**: the scheduler picks an ordered pair whose FIRST state lies in
+`S` with probability at most `X/n`. -/
+theorem fst_block_prob_le (c : Config (MarkedAgent L K)) (h : 2 ≤ c.card)
+    (S : Finset (MarkedAgent L K)) :
+    (c.interactionPMF h).toMeasure {pr | pr.1 ∈ S}
+      ≤ ENNReal.ofReal ((((∑ m ∈ S, c.count m : ℕ) : ℝ) / (c.card : ℝ))) := by
+  classical
+  set X := ∑ m ∈ S, c.count m with hX
+  have hsub : {pr : MarkedAgent L K × MarkedAgent L K | pr.1 ∈ S}
+      ⊆ ↑(S ×ˢ (Finset.univ : Finset (MarkedAgent L K))) := by
+    intro pr h1
+    rw [Finset.coe_product]
+    exact ⟨h1, Finset.mem_coe.mpr (Finset.mem_univ _)⟩
+  refine le_trans (toMeasure_le_sum_event (c.interactionPMF h) _ _ hsub) ?_
+  have hval : (∑ pr ∈ S ×ˢ (Finset.univ : Finset (MarkedAgent L K)),
+      (c.interactionPMF h) pr)
+      = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) / ((c.totalPairs : ℕ) : ℝ≥0∞) := by
+    rw [Finset.sum_product]
+    calc (∑ m₁ ∈ S, ∑ m₂ : MarkedAgent L K, (c.interactionPMF h) (m₁, m₂))
+        = ∑ m₁ ∈ S, ∑ m₂ : MarkedAgent L K,
+            ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          apply Finset.sum_congr rfl
+          intro m₁ _
+          apply Finset.sum_congr rfl
+          intro m₂ _
+          show c.interactionProb m₁ m₂ = _
+          unfold Config.interactionProb
+          rw [div_eq_mul_inv]
+      _ = (∑ m₁ ∈ S, ∑ m₂ : MarkedAgent L K,
+            ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞)) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          rw [Finset.sum_mul]
+          apply Finset.sum_congr rfl
+          intro m₁ _
+          rw [Finset.sum_mul]
+      _ = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          congr 1
+          calc (∑ m₁ ∈ S, ∑ m₂ : MarkedAgent L K,
+              ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞))
+              = ∑ m₁ ∈ S, ((∑ m₂ : MarkedAgent L K, c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                Finset.sum_congr rfl (fun m₁ _ => (Nat.cast_sum _ _).symm)
+            _ = ((∑ m₁ ∈ S, ∑ m₂ : MarkedAgent L K, c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                (Nat.cast_sum _ _).symm
+            _ = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) := by
+                congr 1
+                calc (∑ m₁ ∈ S, ∑ m₂ : MarkedAgent L K, c.interactionCount m₁ m₂)
+                    = ∑ m₁ ∈ S, c.count m₁ * (c.card - 1) :=
+                      Finset.sum_congr rfl
+                        (fun m₁ _ => Config.sum_interactionCount_right c m₁)
+                  _ = X * (c.card - 1) := by rw [← Finset.sum_mul]
+      _ = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) / ((c.totalPairs : ℕ) : ℝ≥0∞) :=
+          (div_eq_mul_inv _ _).symm
+  rw [hval]
+  have htp : c.totalPairs = c.card * (c.card - 1) := rfl
+  rw [htp,
+    show ((X * (c.card - 1) : ℕ) : ℝ≥0∞)
+      = ENNReal.ofReal ((X * (c.card - 1) : ℕ) : ℝ) from (ENNReal.ofReal_natCast _).symm,
+    show ((c.card * (c.card - 1) : ℕ) : ℝ≥0∞)
+      = ENNReal.ofReal ((c.card * (c.card - 1) : ℕ) : ℝ) from (ENNReal.ofReal_natCast _).symm]
+  rw [← ENNReal.ofReal_div_of_pos (by
+    have : 0 < c.card * (c.card - 1) := by
+      apply Nat.mul_pos <;> omega
+    exact_mod_cast this)]
+  apply ENNReal.ofReal_le_ofReal
+  -- X(n−1)/(n(n−1)) = X/n exactly.
+  have hn1 : (0 : ℝ) < ((c.card - 1 : ℕ) : ℝ) := by
+    have : 0 < c.card - 1 := by omega
+    exact_mod_cast this
+  have hn : (0 : ℝ) < (c.card : ℝ) := by
+    have : 0 < c.card := by omega
+    exact_mod_cast this
+  push_cast
+  rw [div_le_div_iff₀ (by positivity) hn]
+  ring_nf
+  nlinarith [hn1, hn]
+
+/-- **The second-member block bound**: same for the SECOND state of the pair (via the column
+sum). -/
+theorem snd_block_prob_le (c : Config (MarkedAgent L K)) (h : 2 ≤ c.card)
+    (S : Finset (MarkedAgent L K)) :
+    (c.interactionPMF h).toMeasure {pr | pr.2 ∈ S}
+      ≤ ENNReal.ofReal ((((∑ m ∈ S, c.count m : ℕ) : ℝ) / (c.card : ℝ))) := by
+  classical
+  set X := ∑ m ∈ S, c.count m with hX
+  have hsub : {pr : MarkedAgent L K × MarkedAgent L K | pr.2 ∈ S}
+      ⊆ ↑((Finset.univ : Finset (MarkedAgent L K)) ×ˢ S) := by
+    intro pr h2
+    rw [Finset.coe_product]
+    exact ⟨Finset.mem_coe.mpr (Finset.mem_univ _), h2⟩
+  refine le_trans (toMeasure_le_sum_event (c.interactionPMF h) _ _ hsub) ?_
+  have hval : (∑ pr ∈ (Finset.univ : Finset (MarkedAgent L K)) ×ˢ S,
+      (c.interactionPMF h) pr)
+      = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) / ((c.totalPairs : ℕ) : ℝ≥0∞) := by
+    rw [Finset.sum_product_right]
+    calc (∑ m₂ ∈ S, ∑ m₁ : MarkedAgent L K, (c.interactionPMF h) (m₁, m₂))
+        = ∑ m₂ ∈ S, ∑ m₁ : MarkedAgent L K,
+            ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          apply Finset.sum_congr rfl
+          intro m₂ _
+          apply Finset.sum_congr rfl
+          intro m₁ _
+          show c.interactionProb m₁ m₂ = _
+          unfold Config.interactionProb
+          rw [div_eq_mul_inv]
+      _ = (∑ m₂ ∈ S, ∑ m₁ : MarkedAgent L K,
+            ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞)) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          rw [Finset.sum_mul]
+          apply Finset.sum_congr rfl
+          intro m₂ _
+          rw [Finset.sum_mul]
+      _ = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          congr 1
+          calc (∑ m₂ ∈ S, ∑ m₁ : MarkedAgent L K,
+              ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞))
+              = ∑ m₂ ∈ S, ((∑ m₁ : MarkedAgent L K, c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                Finset.sum_congr rfl (fun m₂ _ => (Nat.cast_sum _ _).symm)
+            _ = ((∑ m₂ ∈ S, ∑ m₁ : MarkedAgent L K, c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                (Nat.cast_sum _ _).symm
+            _ = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) := by
+                congr 1
+                calc (∑ m₂ ∈ S, ∑ m₁ : MarkedAgent L K, c.interactionCount m₁ m₂)
+                    = ∑ m₂ ∈ S, c.count m₂ * (c.card - 1) :=
+                      Finset.sum_congr rfl
+                        (fun m₂ _ => sum_interactionCount_left (L := L) (K := K) c m₂)
+                  _ = X * (c.card - 1) := by rw [← Finset.sum_mul]
+      _ = ((X * (c.card - 1) : ℕ) : ℝ≥0∞) / ((c.totalPairs : ℕ) : ℝ≥0∞) :=
+          (div_eq_mul_inv _ _).symm
+  rw [hval]
+  have htp : c.totalPairs = c.card * (c.card - 1) := rfl
+  rw [htp,
+    show ((X * (c.card - 1) : ℕ) : ℝ≥0∞)
+      = ENNReal.ofReal ((X * (c.card - 1) : ℕ) : ℝ) from (ENNReal.ofReal_natCast _).symm,
+    show ((c.card * (c.card - 1) : ℕ) : ℝ≥0∞)
+      = ENNReal.ofReal ((c.card * (c.card - 1) : ℕ) : ℝ) from (ENNReal.ofReal_natCast _).symm]
+  rw [← ENNReal.ofReal_div_of_pos (by
+    have : 0 < c.card * (c.card - 1) := by
+      apply Nat.mul_pos <;> omega
+    exact_mod_cast this)]
+  apply ENNReal.ofReal_le_ofReal
+  have hn1 : (0 : ℝ) < ((c.card - 1 : ℕ) : ℝ) := by
+    have : 0 < c.card - 1 := by omega
+    exact_mod_cast this
+  have hn : (0 : ℝ) < (c.card : ℝ) := by
+    have : 0 < c.card := by omega
+    exact_mod_cast this
+  push_cast
+  rw [div_le_div_iff₀ (by positivity) hn]
+  ring_nf
+  nlinarith [hn1, hn]
+
+/-- The marked kernel's one-step measure pulls back to the scheduler pair law. -/
+theorem markedK_apply_pair (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h : 2 ≤ mc.card)
+    (A : Set (Config (MarkedAgent L K))) (hA : MeasurableSet A) :
+    markedK (L := L) (K := K) T θn mc A
+      = (mc.interactionPMF h).toMeasure (markedStep (L := L) (K := K) T θn mc ⁻¹' A) := by
+  show (markedPMF (L := L) (K := K) T θn mc).toMeasure A = _
+  unfold markedPMF
+  rw [dif_pos h]
+  exact PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hA
 
 end EarlyDripMarked
 
