@@ -2604,6 +2604,178 @@ theorem mixed_pair_raises (T θn : ℕ) (mc : Config (MarkedAgent L K))
   rw [hcons, hprod]
   omega
 
+/-- **The sync rise probability LOWER bound** (brick 3.5c-ii, probabilistic half): the scheduler
+picks a mixed (above-`T`, below-`T`) ordered pair with probability exactly
+`2·X·(n−X)/(n·(n−1))`, and every such pick raises the erased tail:
+
+  `ofReal(2·X·(n−X)/(n(n−1))) ≤ P[rBeyond T ∘ erase rises]`. -/
+theorem sync_rise_prob_ge (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h : 2 ≤ mc.card)
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    ENNReal.ofReal
+        (2 * ((rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ)
+            * ((mc.card : ℝ)
+              - (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ)))
+          / ((mc.card : ℝ) * ((mc.card : ℝ) - 1)))
+      ≤ markedK (L := L) (K := K) T θn mc
+          {mc' | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc)
+            < rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc')} := by
+  classical
+  set X := rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) with hX
+  set n := mc.card with hn
+  rw [markedK_apply_pair (L := L) (K := K) T θn mc h _
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  set SGE : Finset (MarkedAgent L K) :=
+    Finset.univ.filter (fun m : MarkedAgent L K => T ≤ m.1.minute.val) with hSGE
+  set SLT : Finset (MarkedAgent L K) :=
+    Finset.univ.filter (fun m : MarkedAgent L K => m.1.minute.val < T) with hSLT
+  -- the block counts: Σ_{SGE} count = X, Σ_{SLT} count = n − X.
+  have hXge : (∑ m ∈ SGE, mc.count m) = X := by
+    rw [hSGE, sum_count_filter_eq_countP _ mc, hX]
+    exact countGE_eq_rBeyond_erase (L := L) (K := K) T mc hw
+  have hXln : (∑ m ∈ SGE, mc.count m) + (∑ m ∈ SLT, mc.count m) = n := by
+    rw [hSGE, hSLT, sum_count_filter_eq_countP _ mc, sum_count_filter_eq_countP _ mc, hn]
+    rw [show Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val < T) mc
+      = Multiset.countP (fun m : MarkedAgent L K => ¬ T ≤ m.1.minute.val) mc from by
+      rw [Multiset.countP_eq_card_filter, Multiset.countP_eq_card_filter]
+      congr 1
+      apply Multiset.filter_congr
+      intro m _
+      omega]
+    rw [Multiset.countP_eq_card_filter, Multiset.countP_eq_card_filter,
+      ← Multiset.card_add, Multiset.filter_add_not]
+  have hXlt : (∑ m ∈ SLT, mc.count m) = n - X := by omega
+  have hXn : X ≤ n := by omega
+  -- the mixed block as two disjoint product finsets.
+  set B : Finset (MarkedAgent L K × MarkedAgent L K) :=
+    (SGE ×ˢ SLT) ∪ (SLT ×ˢ SGE) with hB
+  -- every positive-probability block pair lands in the rise set.
+  have hland : ∀ pr ∈ B, (mc.interactionPMF h) pr ≠ 0 →
+      pr ∈ (markedStep (L := L) (K := K) T θn mc) ⁻¹'
+        {mc' | X < rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc')} := by
+    intro pr hprB hpos
+    have hple := support_pair_le (L := L) (K := K) mc h pr hpos
+    have hmix : (T ≤ pr.1.1.minute.val ∧ pr.2.1.minute.val < T) ∨
+        (T ≤ pr.2.1.minute.val ∧ pr.1.1.minute.val < T) := by
+      rw [hB, Finset.mem_union] at hprB
+      rcases hprB with hpr | hpr
+      · rw [Finset.mem_product, hSGE, hSLT] at hpr
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hpr
+        exact Or.inl hpr
+      · rw [Finset.mem_product, hSGE, hSLT] at hpr
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hpr
+        exact Or.inr ⟨hpr.2, hpr.1⟩
+    rw [Set.mem_preimage, Set.mem_setOf_eq, hX]
+    exact mixed_pair_raises (L := L) (K := K) T θn mc hw pr hple hmix
+  -- the measure of the preimage dominates the block sum.
+  have hsum_le : (∑ pr ∈ B, (mc.interactionPMF h) pr)
+      ≤ (mc.interactionPMF h).toMeasure
+        ((markedStep (L := L) (K := K) T θn mc) ⁻¹'
+          {mc' | X < rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc')}) := by
+    set E := (markedStep (L := L) (K := K) T θn mc) ⁻¹'
+      {mc' | X < rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc')} with hE
+    calc (∑ pr ∈ B, (mc.interactionPMF h) pr)
+        = ∑ pr ∈ B.filter (· ∈ E), (mc.interactionPMF h) pr := by
+          symm
+          apply Finset.sum_filter_of_ne
+          intro pr hpr hne
+          exact hland pr hpr hne
+      _ = (mc.interactionPMF h).toMeasure ↑(B.filter (· ∈ E)) :=
+          (PMF.toMeasure_apply_finset _ _).symm
+      _ ≤ (mc.interactionPMF h).toMeasure E := by
+          apply measure_mono
+          intro pr hpr
+          rw [Finset.coe_filter, Set.mem_setOf_eq] at hpr
+          exact hpr.2
+  refine le_trans ?_ hsum_le
+  -- the block sum is exactly 2X(n−X)/(n(n−1)).
+  have hdisj : Disjoint (SGE ×ˢ SLT) (SLT ×ˢ SGE) := by
+    rw [Finset.disjoint_left]
+    rintro ⟨m₁, m₂⟩ hp hq
+    rw [Finset.mem_product, hSGE, hSLT] at hp hq
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hp hq
+    omega
+  rw [hB, Finset.sum_union hdisj]
+  -- each off-diagonal product block sums to X(n−X)/tp resp. (n−X)X/tp.
+  have hoff : ∀ (S₁ S₂ : Finset (MarkedAgent L K)),
+      (∀ m₁ ∈ S₁, ∀ m₂ ∈ S₂, m₁ ≠ m₂) →
+      (∑ pr ∈ S₁ ×ˢ S₂, (mc.interactionPMF h) pr)
+        = (((∑ m ∈ S₁, mc.count m) * (∑ m ∈ S₂, mc.count m) : ℕ) : ℝ≥0∞)
+            / ((mc.totalPairs : ℕ) : ℝ≥0∞) := by
+    intro S₁ S₂ hne
+    rw [Finset.sum_product]
+    calc (∑ m₁ ∈ S₁, ∑ m₂ ∈ S₂, (mc.interactionPMF h) (m₁, m₂))
+        = ∑ m₁ ∈ S₁, ∑ m₂ ∈ S₂,
+            ((mc.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) * ((mc.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          apply Finset.sum_congr rfl
+          intro m₁ _
+          apply Finset.sum_congr rfl
+          intro m₂ _
+          show mc.interactionProb m₁ m₂ = _
+          unfold Config.interactionProb
+          rw [div_eq_mul_inv]
+      _ = (∑ m₁ ∈ S₁, ∑ m₂ ∈ S₂, ((mc.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞))
+            * ((mc.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          rw [Finset.sum_mul]
+          apply Finset.sum_congr rfl
+          intro m₁ _
+          rw [Finset.sum_mul]
+      _ = (((∑ m ∈ S₁, mc.count m) * (∑ m ∈ S₂, mc.count m) : ℕ) : ℝ≥0∞)
+            * ((mc.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          congr 1
+          calc (∑ m₁ ∈ S₁, ∑ m₂ ∈ S₂, ((mc.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞))
+              = ∑ m₁ ∈ S₁, ((∑ m₂ ∈ S₂, mc.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                Finset.sum_congr rfl (fun m₁ _ => (Nat.cast_sum _ _).symm)
+            _ = ((∑ m₁ ∈ S₁, ∑ m₂ ∈ S₂, mc.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                (Nat.cast_sum _ _).symm
+            _ = (((∑ m ∈ S₁, mc.count m) * (∑ m ∈ S₂, mc.count m) : ℕ) : ℝ≥0∞) := by
+                congr 1
+                calc (∑ m₁ ∈ S₁, ∑ m₂ ∈ S₂, mc.interactionCount m₁ m₂)
+                    = ∑ m₁ ∈ S₁, mc.count m₁ * (∑ m₂ ∈ S₂, mc.count m₂) := by
+                      apply Finset.sum_congr rfl
+                      intro m₁ hm₁
+                      rw [Finset.mul_sum]
+                      apply Finset.sum_congr rfl
+                      intro m₂ hm₂
+                      unfold Config.interactionCount
+                      rw [if_neg (hne m₁ hm₁ m₂ hm₂)]
+                  _ = (∑ m ∈ S₁, mc.count m) * (∑ m ∈ S₂, mc.count m) := by
+                      rw [← Finset.sum_mul]
+      _ = (((∑ m ∈ S₁, mc.count m) * (∑ m ∈ S₂, mc.count m) : ℕ) : ℝ≥0∞)
+            / ((mc.totalPairs : ℕ) : ℝ≥0∞) := (div_eq_mul_inv _ _).symm
+  have hne₁ : ∀ m₁ ∈ SGE, ∀ m₂ ∈ SLT, m₁ ≠ m₂ := by
+    intro m₁ hm₁ m₂ hm₂ hc
+    rw [hSGE] at hm₁
+    rw [hSLT] at hm₂
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hm₁ hm₂
+    rw [hc] at hm₁
+    omega
+  have hne₂ : ∀ m₁ ∈ SLT, ∀ m₂ ∈ SGE, m₁ ≠ m₂ := by
+    intro m₁ hm₁ m₂ hm₂ hc
+    rw [hSLT] at hm₁
+    rw [hSGE] at hm₂
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hm₁ hm₂
+    rw [hc] at hm₁
+    omega
+  rw [hoff SGE SLT hne₁, hoff SLT SGE hne₂, hXge, hXlt]
+  -- combine and compare to the real-valued form.
+  rw [ENNReal.div_add_div_same, ← Nat.cast_add]
+  have htp : mc.totalPairs = n * (n - 1) := by rw [hn]; rfl
+  rw [htp]
+  rw [show ((X * (n - X) + (n - X) * X : ℕ) : ℝ≥0∞)
+      = ENNReal.ofReal ((X * (n - X) + (n - X) * X : ℕ) : ℝ) from
+      (ENNReal.ofReal_natCast _).symm,
+    show ((n * (n - 1) : ℕ) : ℝ≥0∞) = ENNReal.ofReal ((n * (n - 1) : ℕ) : ℝ) from
+      (ENNReal.ofReal_natCast _).symm]
+  rw [← ENNReal.ofReal_div_of_pos (by
+    have : 0 < n * (n - 1) := by
+      apply Nat.mul_pos <;> omega
+    exact_mod_cast this)]
+  apply ENNReal.ofReal_le_ofReal
+  have h2n : (2 : ℕ) ≤ n := by omega
+  push_cast [Nat.cast_sub hXn, Nat.cast_sub (show 1 ≤ n from by omega)]
+  apply le_of_eq
+  ring
+
 end EarlyDripMarked
 
 end ExactMajority
