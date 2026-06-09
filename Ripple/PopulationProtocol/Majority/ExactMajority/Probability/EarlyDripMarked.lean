@@ -1881,6 +1881,222 @@ theorem tainted_marked_tail_explicit (T θn n : ℕ) (hn : 2 ≤ n)
   ring_nf
   exact le_refl _
 
+/-! ## Part 11 — the clean-count rise structure (brick 3.5a).
+
+`cleanAbove` (Doty's `y = c_{≥T+1} − d`) mirrors `taintedCount` with the COMPLEMENTARY gate: a
+clean above-`T` output is inherited (a clean above-`T` input), a POST-gate drip seed (the mark rule
+gives `g = false` once the bulk arrives — clean), or a sync from a clean above-`T` leader.  Hence
+
+  `P[cleanAbove rises] ≤ (count@T/n)² + 2·cleanAbove/n`
+
+— the same affine rate shape, so the whole time-dependent-potential machinery applies verbatim
+(the Lemma 6.3 window recurrence instantiates it per window). -/
+
+/-- The mark-rule case split for a CLEAN above-`T` output: inherited clean, a same-minute drip
+crossing, or a sync from a clean partner. -/
+theorem markFor_false_above_cases (T : ℕ) (g : Bool) (own partner : MarkedAgent L K)
+    (o : AgentState L K) (habove : T + 1 ≤ o.minute.val)
+    (h : markFor (L := L) (K := K) T g own partner o = false) :
+    (T + 1 ≤ own.1.minute.val ∧ own.2 = false) ∨
+      (own.1.minute.val < T + 1 ∧
+        (own.1.minute = partner.1.minute ∨ partner.2 = false)) := by
+  unfold markFor at h
+  split_ifs at h with h1 h2 h3
+  · omega
+  · exact Or.inl ⟨h2, h⟩
+  · exact Or.inr ⟨by omega, Or.inl h3⟩
+  · exact Or.inr ⟨by omega, Or.inr h⟩
+
+/-- **The clean-rise event is contained in the two scheduler events**: a same-minute-`T` pair (the
+post-gate drip seed) or a pair with a clean above-`T` member. -/
+theorem cleanAbove_rise_subset (T θn : ℕ) (mc : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    (markedStep (L := L) (K := K) T θn mc) ⁻¹'
+        {mc' | cleanAbove (L := L) (K := K) T mc < cleanAbove (L := L) (K := K) T mc'} ⊆
+      {pr : MarkedAgent L K × MarkedAgent L K |
+          pr.1.1.minute.val = T ∧ pr.2.1.minute.val = T} ∪
+        {pr : MarkedAgent L K × MarkedAgent L K |
+          (T + 1 ≤ pr.1.1.minute.val ∧ pr.1.2 = false) ∨
+            (T + 1 ≤ pr.2.1.minute.val ∧ pr.2.2 = false)} := by
+  classical
+  intro pr hpr
+  rw [Set.mem_preimage, Set.mem_setOf_eq] at hpr
+  by_contra hnot
+  rw [Set.mem_union, Set.mem_setOf_eq, Set.mem_setOf_eq] at hnot
+  push Not at hnot
+  obtain ⟨hnotT, hclean₁, hclean₂⟩ := hnot
+  unfold markedStep at hpr
+  by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+  · rw [if_pos happ] at hpr
+    have hmem1 : pr.1 ∈ mc := Multiset.mem_of_le happ (Multiset.mem_cons_self _ _)
+    have hmem2 : pr.2 ∈ mc := Multiset.mem_of_le happ
+      (Multiset.mem_cons_of_mem (Multiset.mem_singleton_self _))
+    have h1cp := hw pr.1.1 (Multiset.mem_map_of_mem Prod.fst hmem1)
+    have h2cp := hw pr.2.1 (Multiset.mem_map_of_mem Prod.fst hmem2)
+    have hminute := ClimbTail.transition_p3_minute_le_succ_max (L := L) (K := K)
+      pr.1.1 pr.2.1 h1cp.1 h2cp.1 h1cp.2 h2cp.2
+    set g := preBulkGate (L := L) (K := K) T θn mc with hg
+    set o₁ := (markedOut (L := L) (K := K) T g pr.1 pr.2).1 with ho₁
+    set o₂ := (markedOut (L := L) (K := K) T g pr.1 pr.2).2 with ho₂
+    have hmark₁ : o₁.2 = markFor (L := L) (K := K) T g pr.1 pr.2
+        (Transition L K pr.1.1 pr.2.1).1 := rfl
+    have hmark₂ : o₂.2 = markFor (L := L) (K := K) T g pr.2 pr.1
+        (Transition L K pr.1.1 pr.2.1).2 := rfl
+    have hstate₁ : o₁.1 = (Transition L K pr.1.1 pr.2.1).1 := rfl
+    have hstate₂ : o₂.1 = (Transition L K pr.1.1 pr.2.1).2 := rfl
+    -- the generic per-output refutation: no output can be clean above `T`.
+    have key : ∀ (own partner : MarkedAgent L K),
+        own.1.role = .clock → partner.1.role = .clock →
+        own.1.phase.val = 3 → partner.1.phase.val = 3 →
+        ∀ o : AgentState L K,
+          (own.1.minute ≠ partner.1.minute →
+            o.minute = max own.1.minute partner.1.minute) →
+          o.minute.val ≤ max own.1.minute.val partner.1.minute.val + 1 →
+          ¬ (T + 1 ≤ own.1.minute.val ∧ own.2 = false) →
+          ¬ (T + 1 ≤ partner.1.minute.val ∧ partner.2 = false) →
+          ¬ (own.1.minute.val = T ∧ partner.1.minute.val = T) →
+          T + 1 ≤ o.minute.val →
+          markFor (L := L) (K := K) T g own partner o = false → False := by
+      intro own partner _ _ _ _ o hsync hle hcl_own hcl_part hnT habove hmark
+      rcases markFor_false_above_cases (L := L) (K := K) T g own partner o habove hmark with
+        ⟨hab, hcl⟩ | ⟨hlo, hvia⟩
+      · exact hcl_own ⟨hab, hcl⟩
+      · rcases hvia with hsame | hpartclean
+        · have hsame' : own.1.minute.val = partner.1.minute.val := by rw [hsame]
+          have hmax : max own.1.minute.val partner.1.minute.val = own.1.minute.val := by
+            rw [← hsame']
+            exact max_self _
+          rw [hmax] at hle
+          exact hnT ⟨by omega, by omega⟩
+        · by_cases hsame : own.1.minute = partner.1.minute
+          · have hsame' : own.1.minute.val = partner.1.minute.val := by rw [hsame]
+            have hmax : max own.1.minute.val partner.1.minute.val = own.1.minute.val := by
+              rw [← hsame']
+              exact max_self _
+            rw [hmax] at hle
+            exact hnT ⟨by omega, by omega⟩
+          · have hmaxeq := hsync hsame
+            have hpartner_above : T + 1 ≤ partner.1.minute.val := by
+              rcases le_total own.1.minute partner.1.minute with hle' | hle'
+              · rw [max_eq_right hle'] at hmaxeq
+                rw [hmaxeq] at habove
+                exact habove
+              · rw [max_eq_left hle'] at hmaxeq
+                rw [hmaxeq] at habove
+                omega
+            exact hcl_part ⟨hpartner_above, hpartclean⟩
+    have hnT₁ : ¬ (pr.1.1.minute.val = T ∧ pr.2.1.minute.val = T) := fun hc =>
+      hnotT hc.1 hc.2
+    have hnT₂ : ¬ (pr.2.1.minute.val = T ∧ pr.1.1.minute.val = T) := fun hc =>
+      hnotT hc.2 hc.1
+    have hno₁ : ¬ (T + 1 ≤ o₁.1.minute.val ∧ o₁.2 = false) := by
+      rintro ⟨hab, hmk⟩
+      rw [hstate₁] at hab
+      rw [hmark₁] at hmk
+      exact key pr.1 pr.2 h1cp.1 h2cp.1 h1cp.2 h2cp.2 _
+        (fun hne => (transition_p3_sync_minute (L := L) (K := K) pr.1.1 pr.2.1
+          h1cp.1 h2cp.1 h1cp.2 h2cp.2 hne).1)
+        hminute.1 (fun hc => hclean₁ hc.1 hc.2) (fun hc => hclean₂ hc.1 hc.2) hnT₁ hab hmk
+    have hno₂ : ¬ (T + 1 ≤ o₂.1.minute.val ∧ o₂.2 = false) := by
+      rintro ⟨hab, hmk⟩
+      rw [hstate₂] at hab
+      rw [hmark₂] at hmk
+      refine key pr.2 pr.1 h2cp.1 h1cp.1 h2cp.2 h1cp.2 _ ?_ ?_ (fun hc => hclean₂ hc.1 hc.2) (fun hc => hclean₁ hc.1 hc.2) hnT₂ hab hmk
+      · intro hne
+        rw [max_comm pr.2.1.minute pr.1.1.minute]
+        exact (transition_p3_sync_minute (L := L) (K := K) pr.1.1 pr.2.1
+          h1cp.1 h2cp.1 h1cp.2 h2cp.2 (fun hc => hne hc.symm)).2
+      · rw [max_comm]
+        exact hminute.2
+    have houts : Multiset.countP
+        (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false)
+        ({o₁, o₂} : Multiset (MarkedAgent L K)) = 0 := by
+      rw [Multiset.countP_eq_zero]
+      intro m hm
+      rw [show ({o₁, o₂} : Multiset (MarkedAgent L K)) = o₁ ::ₘ {o₂} from rfl] at hm
+      rcases Multiset.mem_cons.mp hm with hm | hm
+      · rw [hm]; exact hno₁
+      · rw [Multiset.mem_singleton.mp hm]; exact hno₂
+    have hle : cleanAbove (L := L) (K := K) T
+        (mc - {pr.1, pr.2} + ({o₁, o₂} : Multiset (MarkedAgent L K)))
+        ≤ cleanAbove (L := L) (K := K) T mc := by
+      unfold cleanAbove
+      rw [Multiset.countP_add, houts, add_zero]
+      exact Multiset.countP_le_of_le _ (tsub_le_self (a := mc))
+    omega
+  · rw [if_neg happ] at hpr
+    omega
+
+/-- **The one-step clean-rise probability bound** (brick 3.5a capstone):
+
+  `P[cleanAbove rises] ≤ (count@T/n)² + 2·cleanAbove/n`
+
+— the post-gate drip-seed rate plus the clean-epidemic rate: the exact `y`-dynamics of Doty
+Lemma 6.3. -/
+theorem cleanAbove_rise_prob_le (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h : 2 ≤ mc.card)
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    markedK (L := L) (K := K) T θn mc
+        {mc' | cleanAbove (L := L) (K := K) T mc < cleanAbove (L := L) (K := K) T mc'} ≤
+      ENNReal.ofReal
+        (((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+          / (mc.card : ℝ)) ^ 2)
+      + ENNReal.ofReal
+          (2 * ((cleanAbove (L := L) (K := K) T mc : ℝ) / (mc.card : ℝ))) := by
+  classical
+  rw [markedK_apply_pair (L := L) (K := K) T θn mc h _
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine le_trans (measure_mono (cleanAbove_rise_subset (L := L) (K := K) T θn mc hw)) ?_
+  refine le_trans (measure_union_le _ _) ?_
+  set ST : Finset (MarkedAgent L K) :=
+    Finset.univ.filter (fun m : MarkedAgent L K => m.1.minute.val = T) with hST
+  set SC : Finset (MarkedAgent L K) :=
+    Finset.univ.filter
+      (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false) with hSC
+  have hXT : (∑ m ∈ ST, mc.count m)
+      = Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc := by
+    rw [hST]
+    exact sum_count_filter_eq_countP _ mc
+  have hXC : (∑ m ∈ SC, mc.count m) = cleanAbove (L := L) (K := K) T mc := by
+    rw [hSC]
+    exact sum_count_filter_eq_countP _ mc
+  have hbound1 : (mc.interactionPMF h).toMeasure
+      {pr : MarkedAgent L K × MarkedAgent L K |
+        pr.1.1.minute.val = T ∧ pr.2.1.minute.val = T} ≤
+      ENNReal.ofReal
+        (((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+          / (mc.card : ℝ)) ^ 2) := by
+    have hset : {pr : MarkedAgent L K × MarkedAgent L K |
+        pr.1.1.minute.val = T ∧ pr.2.1.minute.val = T}
+        = {pr : MarkedAgent L K × MarkedAgent L K | pr.1 ∈ ST ∧ pr.2 ∈ ST} := by
+      ext pr
+      simp [hST]
+    rw [hset, ← hXT]
+    exact pair_block_prob_le_sq (L := L) (K := K) mc h ST
+  have hbound2 : (mc.interactionPMF h).toMeasure
+      {pr : MarkedAgent L K × MarkedAgent L K |
+        (T + 1 ≤ pr.1.1.minute.val ∧ pr.1.2 = false) ∨
+          (T + 1 ≤ pr.2.1.minute.val ∧ pr.2.2 = false)} ≤
+      ENNReal.ofReal
+        (2 * ((cleanAbove (L := L) (K := K) T mc : ℝ) / (mc.card : ℝ))) := by
+    have hsub : {pr : MarkedAgent L K × MarkedAgent L K |
+        (T + 1 ≤ pr.1.1.minute.val ∧ pr.1.2 = false) ∨
+          (T + 1 ≤ pr.2.1.minute.val ∧ pr.2.2 = false)}
+        ⊆ {pr : MarkedAgent L K × MarkedAgent L K | pr.1 ∈ SC}
+          ∪ {pr : MarkedAgent L K × MarkedAgent L K | pr.2 ∈ SC} := by
+      rintro pr (hp | hp)
+      · exact Or.inl (by rw [hSC]; simp only [Set.mem_setOf_eq, Finset.mem_filter, Finset.mem_univ, true_and]; exact hp)
+      · exact Or.inr (by rw [hSC]; simp only [Set.mem_setOf_eq, Finset.mem_filter, Finset.mem_univ, true_and]; exact hp)
+    refine le_trans (measure_mono hsub) (le_trans (measure_union_le _ _) ?_)
+    have h1 := fst_block_prob_le (L := L) (K := K) mc h SC
+    have h2 := snd_block_prob_le (L := L) (K := K) mc h SC
+    rw [hXC] at h1 h2
+    refine le_trans (add_le_add h1 h2) ?_
+    rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
+    apply ENNReal.ofReal_le_ofReal
+    ring_nf
+    exact le_refl _
+  exact add_le_add hbound1 hbound2
+
 end EarlyDripMarked
 
 end ExactMajority
