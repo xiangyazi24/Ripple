@@ -2818,6 +2818,166 @@ theorem one_sub_exp_neg_ge {s : ℝ} (hs : 0 ≤ s) :
     nlinarith [sq_nonneg s, mul_nonneg hs (sq_nonneg s)]
   linarith
 
+/-! ## Part 17 — the feeder GROWTH lower tail (brick 3.5c-iv).
+
+The decreasing potential `Φ_j = exp(−s_j·X)` (X = the erased tail) is a supermartingale on the
+sub-bulk gate `{10X ≤ n}`: the sync rise rate is at least `1.8·X/n` there, and the INCREASING
+slope sequence absorbs the X-proportional rate.  The step-indexed engine then bounds the LOWER
+tail `P[X_w ≤ a] ≤ escape + exp(−s_0·X₀ + s_w·a)` — the "feeder grew by a definite factor per
+window" input of the Lemma 6.3 induction. -/
+
+/-- The sub-bulk growth gate: fixed population, the hour window, the feeder below `n/10`
+(escape = the feeder passed `n/10` — even better growth, benign). -/
+def growthGate (T n : ℕ) : Set (Config (MarkedAgent L K)) :=
+  {mc | mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+    10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n}
+
+/-- On the growth gate the rise rate is at least `1.8·X/n` (and at most `0.18 ≤ 1`). -/
+theorem growth_rate_ge (T θn n : ℕ) (hn : 2 ≤ n) (mc : Config (MarkedAgent L K))
+    (hmc : mc ∈ growthGate (L := L) (K := K) T n) :
+    ENNReal.ofReal (1.8 * ((rBeyond (L := L) (K := K) T
+        (eraseConfig (L := L) (K := K) mc) : ℝ) / (n : ℝ)))
+      ≤ markedK (L := L) (K := K) T θn mc
+          {mc' | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc)
+            < rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc')} := by
+  obtain ⟨hcard, hw, hgate⟩ := hmc
+  have hcard2 : 2 ≤ mc.card := by omega
+  refine le_trans ?_ (sync_rise_prob_ge (L := L) (K := K) T θn mc hcard2 hw)
+  apply ENNReal.ofReal_le_ofReal
+  set X := rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) with hX
+  have hXn : 10 * X ≤ n := hgate
+  have hnpos : (0 : ℝ) < (mc.card : ℝ) := by
+    have : 0 < mc.card := by omega
+    exact_mod_cast (by omega : 0 < mc.card)
+  rw [hcard] at hnpos ⊢
+  -- 1.8·X/n ≤ 2X(n−X)/(n(n−1)) ⟸ 1.8(n−1) ≤ 2(n−X) ⟸ 10X ≤ n.
+  by_cases hX0 : X = 0
+  · rw [hX0]
+    simp
+  · have hX1 : (1 : ℕ) ≤ X := by omega
+    have hXr : (0 : ℝ) < (X : ℝ) := by exact_mod_cast (by omega : 0 < X)
+    have hXnr : 10 * (X : ℝ) ≤ (n : ℝ) := by exact_mod_cast hXn
+    have hn1 : (0 : ℝ) < (n : ℝ) - 1 := by
+      have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+      linarith
+    have hnpos' : (0 : ℝ) < (n : ℝ) := by linarith
+    rw [show 1.8 * ((X : ℝ) / (n : ℝ)) = (1.8 * (X : ℝ)) / (n : ℝ) from by ring,
+      div_le_div_iff₀ hnpos' (by positivity)]
+    have hred : 1.8 * ((n : ℝ) - 1) ≤ 2 * ((n : ℝ) - (X : ℝ)) := by nlinarith [hXnr]
+    nlinarith [mul_le_mul_of_nonneg_left hred (mul_nonneg hXr.le hnpos'.le)]
+
+/-- **The growth-potential drift** on the sub-bulk gate: with the INCREASING slope recursion
+`s_j ≤ s_{j+1} + 1.8(1−e^{−s_{j+1}})/n`, the decreasing exponential `exp(−s_j·X)` is a one-step
+supermartingale. -/
+theorem growthPot_drift (T θn n : ℕ) (hn : 2 ≤ n) (s : ℕ → ℝ)
+    (hs1 : ∀ j, 0 ≤ s (j + 1))
+    (hslope : ∀ j, s j ≤ s (j + 1)
+      + 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ)) :
+    ∀ (j : ℕ), ∀ mc ∈ growthGate (L := L) (K := K) T n,
+      ∫⁻ mc', ENNReal.ofReal (Real.exp (-(s (j + 1)
+          * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc') : ℝ))))
+          ∂(markedK (L := L) (K := K) T θn mc) ≤
+        ENNReal.ofReal (Real.exp (-(s j
+          * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ)))) := by
+  classical
+  intro j mc hmc
+  obtain ⟨hcard, hw, hgate⟩ := hmc
+  haveI : IsProbabilityMeasure (markedK (L := L) (K := K) T θn mc) :=
+    (inferInstance : IsMarkovKernel (markedK (L := L) (K := K) T θn)).isProbabilityMeasure mc
+  set X := rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) with hX
+  set r : ℝ := 1.8 * ((X : ℝ) / (n : ℝ)) with hr
+  have hnpos : (0 : ℝ) < (n : ℝ) := by
+    exact_mod_cast (by omega : 0 < n)
+  have hr0 : 0 ≤ r := by rw [hr]; positivity
+  have hr1 : r ≤ 1 := by
+    rw [hr]
+    have hXn : 10 * X ≤ n := hgate
+    have hXnr : 10 * (X : ℝ) ≤ (n : ℝ) := by exact_mod_cast hXn
+    have hdiv : (X : ℝ) / (n : ℝ) ≤ 1 / 10 := by
+      rw [div_le_div_iff₀ hnpos (by norm_num)]
+      linarith
+    nlinarith [hdiv]
+  have hmono : ∀ᵐ mc' ∂(markedK (L := L) (K := K) T θn mc),
+      X ≤ rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc') :=
+    ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      rBeyond_erase_monotone (L := L) (K := K) T θn T mc mc' hw hsupp)
+  have hprob := growth_rate_ge (L := L) (K := K) T θn n hn mc ⟨hcard, hw, hgate⟩
+  have hlow := mgf_one_step_lower (markedK (L := L) (K := K) T θn mc) (s (j + 1)) (hs1 j)
+    (fun mc' => rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc')) X
+    hmono r hr0 hr1 (by rw [hr]; exact hprob)
+  refine le_trans hlow ?_
+  apply ENNReal.ofReal_le_ofReal
+  -- (1 − r(1−e^{−s'}))·e^{−s'X} ≤ e^{−r(1−e^{−s'})}·e^{−s'X} ≤ e^{−s_j X}.
+  have hes : 0 ≤ 1 - Real.exp (-(s (j + 1))) := by
+    have := Real.exp_le_one_iff.mpr (by linarith [hs1 j] : -(s (j + 1)) ≤ 0)
+    linarith
+  have h1e : 1 - r * (1 - Real.exp (-(s (j + 1))))
+      ≤ Real.exp (-(r * (1 - Real.exp (-(s (j + 1)))))) := by
+    have h := Real.add_one_le_exp (-(r * (1 - Real.exp (-(s (j + 1))))))
+    linarith
+  calc (1 - r * (1 - Real.exp (-(s (j + 1))))) * Real.exp (-(s (j + 1) * (X : ℝ)))
+      ≤ Real.exp (-(r * (1 - Real.exp (-(s (j + 1))))))
+          * Real.exp (-(s (j + 1) * (X : ℝ))) :=
+        mul_le_mul_of_nonneg_right h1e (Real.exp_pos _).le
+    _ = Real.exp (-(r * (1 - Real.exp (-(s (j + 1))))) - s (j + 1) * (X : ℝ)) := by
+        rw [← Real.exp_add]
+        ring_nf
+    _ ≤ Real.exp (-(s j * (X : ℝ))) := by
+        apply Real.exp_le_exp.mpr
+        have hXnn : (0 : ℝ) ≤ (X : ℝ) := by positivity
+        have hsl := hslope j
+        have hslX : s j * (X : ℝ) ≤ (s (j + 1)
+            + 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ)) * (X : ℝ) :=
+          mul_le_mul_of_nonneg_right hsl hXnn
+        rw [hr]
+        have hbridge : 1.8 * ((X : ℝ) / (n : ℝ)) * (1 - Real.exp (-(s (j + 1))))
+            = 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ) * (X : ℝ) := by ring
+        have hslX' : s j * (X : ℝ) ≤ s (j + 1) * (X : ℝ)
+            + 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ) * (X : ℝ) := by
+          calc s j * (X : ℝ) ≤ (s (j + 1)
+              + 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ)) * (X : ℝ) := hslX
+            _ = s (j + 1) * (X : ℝ)
+                + 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ) * (X : ℝ) := by ring
+        linarith [hbridge, hslX']
+
+/-- **The feeder growth lower tail** (brick 3.5c-iv capstone): over `w` steps from `mc₀`,
+
+  `P[X_w ≤ a] ≤ sub-bulk escape + exp(−s_0·X₀ + s_w·a)`
+
+— with the geometric increasing slopes this reads `P[X grew by less than the window factor] ≤
+escape + exp(−Θ(X₀))`, the x-growth input of the Lemma 6.3 window induction. -/
+theorem growth_marked_tail (T θn n : ℕ) (hn : 2 ≤ n) (s : ℕ → ℝ)
+    (hs1 : ∀ j, 0 ≤ s (j + 1))
+    (hslope : ∀ j, s j ≤ s (j + 1)
+      + 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ))
+    (w : ℕ) (hsw : 0 ≤ s w) (mc₀ : Config (MarkedAgent L K)) (a : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a} ≤
+      (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (growthGate (L := L) (K := K) T n) ^ w) (some mc₀) {none} +
+        ENNReal.ofReal (Real.exp (-(s 0
+            * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))))
+          / ENNReal.ofReal (Real.exp (-(s w * (a : ℝ)))) := by
+  have hsub : {mc : Config (MarkedAgent L K) |
+      rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a}
+      ⊆ {mc | ENNReal.ofReal (Real.exp (-(s w * (a : ℝ))))
+          ≤ ENNReal.ofReal (Real.exp (-(s w
+            * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ))))} := by
+    intro mc hmc
+    rw [Set.mem_setOf_eq] at hmc ⊢
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hcast : (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ)
+        ≤ (a : ℝ) := by exact_mod_cast hmc
+    nlinarith [hsw, hcast]
+  refine le_trans (measure_mono hsub) ?_
+  exact GatedDrift.stepIndexed_gated_tail (G := growthGate (L := L) (K := K) T n)
+    (fun j mc => ENNReal.ofReal (Real.exp (-(s j
+      * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ)))))
+    (growthPot_drift (L := L) (K := K) T θn n hn s hs1 hslope)
+    w mc₀ (ENNReal.ofReal (Real.exp (-(s w * (a : ℝ)))))
+    (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+
 end EarlyDripMarked
 
 end ExactMajority
