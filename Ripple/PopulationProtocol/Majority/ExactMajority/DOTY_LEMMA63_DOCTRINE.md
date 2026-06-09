@@ -303,3 +303,29 @@ one_sub_exp_neg_ge; the X-dependence absorbed by GEOMETRIC s_j (INCREASING in j;
 conclusion P[X_w ≤ g·X₀] ≤ escape + exp(−X₀(s_0 − σg)): choose g < s_0/σ. Then 3.5d: per-window
 induction y_k ≤ f(y_{k−1} + drips) ∧ X_{k−1} ≥ g·X_k composed over O(loglog n) windows with the
 OWN-CONSTANTS arithmetic (w = 0.02 closes at c = 0.9, see the constants alarm above).
+
+## 3.5c COMPLETE (commit 1deae243) + 3.5d DESIGN (the window-induction composition)
+3.5c-iv done: growthGate {10X ≤ n} + growth_rate_ge (≥1.8X/n via sync_rise_prob_ge reduction) +
+growthPot_drift (decreasing potential exp(−s_j X), INCREASING slope recursion s_j ≤ s_{j+1} +
+1.8(1−e^{−s_{j+1}})/n) + growth_marked_tail (P[X_w ≤ a] ≤ sub-bulk escape + exp(−s_0X₀ + s_w a)).
+ALL of 3.5c is now in EarlyDripMarked.lean, 0-sorry axiom-clean.
+
+3.5d — the per-window induction (next, fresh-context work):
+- Induction STATE at window k: the pair (X_k, Y_k) = (rBeyond T ∘ erase, cleanAbove) at the window
+  boundary, with INVARIANT Y_k ≤ c·X_k²/n (count form of y ≤ c·p·x², p = 1 worst case, c = 0.9).
+- Per-window step (w·n kernel steps, w = 0.02): three tail inputs at the window boundary configs:
+  (i) clean_marked_tail with the explicit (1+ε)-sequences: Y_{k+1} ≤ f·(Y_k + 1.1w·X_{k+1}²/n) whp,
+      f = e^{(2+ε)w} (uses exp_sub_one_le_mul; X capped by the cleanGate at X₁ := X_{k+1}-bound);
+  (ii) growth_marked_tail: X_k ≤ g⁻¹·X_{k+1} whp viewed backwards (the feeder grew by ≥ e^{1.6w'}…
+      choose g = e^{-1.7w} with margin);
+  (iii) the arithmetic f(c·g² + 1.1w) ≤ c at w = 0.02, c = 0.9 (verified: 1.041(0.9·0.931+0.022)
+      = 0.895 < 0.9 ✓ — re-verify in Lean with rational arithmetic, norm_num).
+- COMPOSITION: chain via the Markov property (Kernel.pow_add conditional split, the
+  earlyDrip_kernel_bound induction pattern): P[invariant fails by window K] ≤ Σ_k (per-window
+  failures). Number of windows: carry as a parameter W₃ (= O(loglog n), discharged by the
+  minute-induction later — do NOT hardcode).
+- Union with the tainted tail (d ≤ n^{0.15} whp) via aboveCount_eq_tainted_add_clean →
+  rBeyond(T+1) ≤ c·X²/n + n^{0.15} → WindowedFrontProfile θ (θ = n^{-0.4}: the d-term is negligible
+  since X²/n ≥ n^{-0.8}·n = n^{0.2} ≫ n^{0.15}).
+- THEN 3.5e: ClimbBound whp (climb_real_tail escape := the tainted tail at level k+1) + union over
+  levels/horizon + goodFrontWidth_of_windowed_profile_and_climb + rewire FrontSync consumers.
