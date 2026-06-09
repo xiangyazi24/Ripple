@@ -3418,6 +3418,95 @@ theorem real_le_killed_of_monotone {α : Type*} [MeasurableSpace α] [DiscreteMe
         rw [hzero]
         exact zero_le'
 
+/-! ## Part 22 — the relative absorbing-exit coupling (brick 3.5d-iii b, the general device).
+
+Generalizes `real_le_killed_of_monotone`: for a gate `G` whose complement is ABSORBING along the
+chain — relative to a chain-invariant region `R` — every endpoint-in-`G` event is bounded by the
+killed chain's alive mass with NO escape term.  The §6 slice gates ({hour window} ∩ {X ≤ X₁}) have
+absorbing complements relative to the `AllClockGE3` window: phases never decrease (the hour-exit is
+permanent) and the erased tail never decreases (the cap-exit is permanent). -/
+
+/-- Leaving the gate is permanent (a.e., relative to the invariant region), through kernel
+powers. -/
+theorem ae_notG_pow {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    (Kk : Kernel α α) [IsMarkovKernel Kk] (R G : Set α)
+    (hRstep : ∀ x ∈ R, ∀ᵐ y ∂(Kk x), y ∈ R)
+    (habs : ∀ x ∈ R, x ∉ G → ∀ᵐ y ∂(Kk x), y ∉ G)
+    (t : ℕ) (x : α) (hxR : x ∈ R) (hxG : x ∉ G) :
+    ∀ᵐ z ∂((Kk ^ t) x), z ∉ G := by
+  classical
+  induction t generalizing x with
+  | zero =>
+      simp only [pow_zero]
+      change ∀ᵐ z ∂(Kernel.id x), z ∉ G
+      rw [Kernel.id_apply,
+        MeasureTheory.ae_dirac_iff (DiscreteMeasurableSpace.forall_measurableSet _)]
+      exact hxG
+  | succ t ih =>
+      rw [MeasureTheory.ae_iff]
+      have hbad_meas : MeasurableSet {z : α | ¬ z ∉ G} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral Kk 1 t x hbad_meas, pow_one,
+        MeasureTheory.lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad_meas)]
+      filter_upwards [hRstep x hxR, habs x hxR hxG] with y hyR hyG
+      have h := ih y hyR hyG
+      rwa [MeasureTheory.ae_iff] at h
+
+/-- **The relative absorbing-exit coupling**: if the gate's complement is absorbing (relative to a
+chain-invariant region containing the start), then any endpoint event INSIDE the gate is bounded by
+the killed chain's alive-bad mass — no escape term. -/
+theorem real_le_killed_of_absorbing {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    [Inhabited α] (Kk : Kernel α α) [IsMarkovKernel Kk] (R G : Set α)
+    (hRstep : ∀ x ∈ R, ∀ᵐ y ∂(Kk x), y ∈ R)
+    (habs : ∀ x ∈ R, x ∉ G → ∀ᵐ y ∂(Kk x), y ∉ G)
+    (bad : α → Prop) (hbadG : ∀ y, bad y → y ∈ G)
+    (t : ℕ) (x : α) (hxR : x ∈ R) :
+    (Kk ^ t) x {y | bad y} ≤
+      (GatedDrift.killK Kk G ^ t) (some x) {o | ∃ y, o = some y ∧ bad y} := by
+  classical
+  letI : MeasurableSpace (Option α) := GatedDrift.instOptionMS
+  letI : DiscreteMeasurableSpace (Option α) := GatedDrift.instOptionDMS
+  induction t generalizing x with
+  | zero =>
+      rw [pow_zero, pow_zero]
+      change (Measure.dirac x) {y | bad y}
+        ≤ (Measure.dirac (some x)) {o | ∃ y, o = some y ∧ bad y}
+      rw [Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _),
+        Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+      by_cases hb : bad x
+      · simp [Set.indicator_of_mem (show x ∈ {y | bad y} from hb),
+          Set.indicator_of_mem (show (some x) ∈
+            {o : Option α | ∃ y, o = some y ∧ bad y} from ⟨x, rfl, hb⟩)]
+      · simp [Set.indicator_of_notMem (show x ∉ {y | bad y} from hb)]
+  | succ t ih =>
+      have hmeasL : MeasurableSet {y : α | bad y} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      have hmeasR : MeasurableSet {o : Option α | ∃ y, o = some y ∧ bad y} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral Kk 1 t x hmeasL, pow_one,
+        Kernel.pow_add_apply_eq_lintegral _ 1 t (some x) hmeasR, pow_one]
+      by_cases hx : x ∈ G
+      · rw [GatedDrift.killK_some_gated (K := Kk) (G := G) x hx,
+          MeasureTheory.lintegral_map (Measurable.of_discrete) (Measurable.of_discrete)]
+        apply lintegral_mono_ae
+        filter_upwards [hRstep x hxR] with y hyR
+        exact ih y hyR
+      · -- off the gate: the complement is absorbing, so no endpoint can be bad (bad ⊆ G).
+        have hzero : ∫⁻ y, (Kk ^ t) y {y' | bad y'} ∂(Kk x) = 0 := by
+          rw [MeasureTheory.lintegral_eq_zero_iff (Kernel.measurable_coe _ hmeasL)]
+          filter_upwards [hRstep x hxR, habs x hxR hx] with y hyR hyG
+          have h := ae_notG_pow Kk R G hRstep habs t y hyR hyG
+          rw [MeasureTheory.ae_iff] at h
+          have hsub : {y' : α | bad y'} ⊆ {z : α | ¬ z ∉ G} := by
+            intro z hz
+            rw [Set.mem_setOf_eq] at hz ⊢
+            exact fun hc => hc (hbadG z hz)
+          exact le_antisymm (le_trans (measure_mono hsub) h.le) zero_le'
+        rw [hzero]
+        exact zero_le'
+
 end EarlyDripMarked
 
 end ExactMajority
