@@ -445,3 +445,25 @@ CHECKED BEFORE PROVING (numeric + paper re-read, definitive):
   `a m = G^m·a0` geometric above a0. Re-derive the uniform δ. Constants this session:
   wp = 0.015 (kernel steps w = ⌊3n/200⌋), cc = 9/10, eps = 1/50, s = σ_grow chosen ~0.096, G ≈ 1.03.
   This replaces `slice_growth_tail` in the floor branch of `per_window_ladder` with the upward tail.
+
+## 3.5e LOCKED CONSTANTS (2026-06-09, verified numerically across n = 10^4…10^7, finite-n RW)
+The uniform-δ instantiation of `per_window_ladder_up` uses (ALL re-verifiable by norm_num + the
+standard exp bounds `exp(u) ≤ 1+u+u²/2+u³/2` upper / `1−e^{−sg} ≥ sg−sg²/2` lower):
+- wp = 3/200 (= 0.015 parallel time); kernel window w = ⌊3n/200⌋.
+- cc = 9/10 (the recurrence constant y ≤ cc·x²·p, p = 1 worst case).
+- ε = 1/200 (the clean-tail (1+ε)-sharpening; small ε WIDENS the slice margin — at ε = 0.005 the
+  worst slice bracket is −8e-4, 6× the ε = 0.02 margin of −1.3e-4).
+- g = 1.0246 (growth floor a 0 = ⌈g·X₀⌉ > X₀, the UPWARD growth target).
+- G = 1.005 (ladder ratio a m = ⌈G^m·a 0⌉; small G reduces the drip overcount).
+- sg = 1/10 (growth-tail slope); σ ≤ ε/((1+ε)·RW) ≈ 0.0048 (global MGF scale; hsmall).
+THE TWO BINDING MARGINS (both robust across finite n):
+- slice bracket(m) := cc·RW − cc·G^{2m}g² + G^{2m+2}g²(1+ε)·RW·wp ≤ −8e-4 < 0 ∀m
+  (RW = (1+2(1+ε)/n)^w ≤ exp(2(1+ε)wp); slice exp = σ·(X₀²/n)·bracket(m) ≤ −Ω(σ·n^{0.1})).
+- growth δ := 1.8(1−e^{−sg})wp − sg(g−1) ≥ +1.05e-4 > 0
+  (floor exp = −X₀·δ ≤ −Ω(n^{0.55})).
+WHY w cannot widen the slice margin: g−1 ≈ 1.66wp (recurrence floor) must fit under the growth
+ceiling 1.8wp·(1−e^{−sg})/sg; the gap is ~0.14wp, INDEPENDENT of w (both legs scale linearly), so
+shrinking w shrinks both margins proportionally. The widening levers are ε↓ (slice) and the ladder
+ratio G↓ (drip overcount), NOT w. The m=0 slice is intrinsically the tight one (~1e-4 at ε=0.02);
+ε = 1/200 buys the comfortable −8e-4. The growth δ ~1e-4 is the residual tightest margin — it is the
+0.14wp structural gap and cannot be widened without sharpening growth_rate_ge from 1.8 to 2(1−x).

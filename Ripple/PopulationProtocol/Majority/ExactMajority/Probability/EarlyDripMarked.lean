@@ -4523,6 +4523,37 @@ theorem per_window_ladder_up (T θn n : ℕ) (hn : 2 ≤ n)
     exact slice_clean_tail_explicit (L := L) (K := K) T θn n (a (m + 1)) hn σ ε hσ hε w
       hsmall mc₀ hR (Yt m)
 
+/-! ## Part 29 — the locked window constants (brick 3.5e step 1, the norm_num closing gate).
+
+The two binding inequalities of the per-window recurrence at the LOCKED constants
+(wp = 3/200, cc = 9/10, ε = 1/200, g = 5123/5000 ≈ 1.0246, G = 201/200 = 1.005, sg = 1/10),
+both verified with `norm_num` over exact rationals using the Lean-provable bounds
+`exp(u) ≤ 1/(1−u)` (slice) and `1−e^{−sg} ≥ sg − sg²/2` (growth). -/
+
+/-- **The slice closing inequality** `A < B` with `A = cc·RWb`, `B = g²(cc − G²(1+ε)·RWb·wp)`,
+`RWb = 1/(1−u)`, `u = 2(1+ε)wp` — the single inequality from which every ladder slice bracket
+`A − G^{2m}·B < 0` follows (`G^{2m} ≥ 1`, `B > 0`).  Margin ≈ 3.6e-4. -/
+theorem window_constants_slice :
+    let wp : ℝ := 3/200
+    let cc : ℝ := 9/10
+    let ε : ℝ := 1/200
+    let g : ℝ := 5123/5000
+    let G : ℝ := 201/200
+    let u : ℝ := 2 * (1 + ε) * wp
+    let RWb : ℝ := 1 / (1 - u)
+    cc * RWb < g^2 * (cc - G^2 * (1 + ε) * RWb * wp) ∧
+      (0 : ℝ) < g^2 * (cc - G^2 * (1 + ε) * RWb * wp) := by
+  norm_num
+
+/-- **The growth closing inequality** `δ > 0`, `δ = 1.8(sg − sg²/2)·wp − sg(g−1)` — the floor-tail
+exponent slope, using `1−e^{−sg} ≥ sg − sg²/2`.  Margin ≈ 1.05e-4. -/
+theorem window_constants_growth :
+    let wp : ℝ := 3/200
+    let g : ℝ := 5123/5000
+    let sg : ℝ := 1/10
+    (0 : ℝ) < 18/10 * (sg - sg^2/2) * wp - sg * (g - 1) := by
+  norm_num
+
 end EarlyDripMarked
 
 end ExactMajority
