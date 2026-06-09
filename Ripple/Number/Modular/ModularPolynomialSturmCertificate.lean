@@ -8860,18 +8860,8 @@ theorem deltaEulerRamanujanEqFirst_sturmBoundSmall :
     ((phi41Level41SturmBound + 40) / 41)
     deltaEulerSeriesZ_derivative_identity
 
-set_option maxHeartbeats 4000000 in
-/-- Full finite coefficient certificate for the recurrence-based level-41
-cleared q-expansion evaluator.
-
-The claim is decidable: `phi41Level41RecurrenceCoeffArrayFirstZero N`
-just walks the recurrence array up to `N` and checks every entry is `0`.
-At `N = phi41Level41SturmBound = 3529` the kernel `decide` is too slow
-(power/product tables of length ~3528 dominate before the coefficient
-checker kicks in), so we discharge with `native_decide`. The CRT-route
-helpers (`phi41Level41RecurrenceCoeffArrayFirstZero_of_crt_certificate`
-and friends) remain available if a chunked-finite-certificate route is
-preferred. -/
+set_option maxHeartbeats 0 in
+set_option maxRecDepth 65536 in
 theorem phi41Level41RecurrenceCoeffArrayFirstZero_sturmBound :
     phi41Level41RecurrenceCoeffArrayFirstZero phi41Level41SturmBound = true := by
   native_decide

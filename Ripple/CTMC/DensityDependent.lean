@@ -53,7 +53,8 @@ theorem integral_sq_le_two_integral_mul_of_maximal_ineq
     have hmax := hMax ε
     dsimp [ε] at hmax
     have heps : ((ε : NNReal) : ENNReal) = ENNReal.ofReal t := by
-      simp [ε, ENNReal.ofReal_eq_coe_nnreal, ht_nonneg]
+      rw [← ENNReal.ofReal_coe_nnreal]
+      congr 1
     calc
       μ {a : α | t ≤ X a} * ENNReal.ofReal t
           = ENNReal.ofReal t * μ {a : α | t ≤ X a} := by rw [mul_comm]
@@ -4026,10 +4027,7 @@ theorem scaledHoldingTimeDriftResidual_norm_submartingale_of_noAbsorbing
           ≤ᵐ[μ]
         μ[(fun records : M.canonicalRecordΩ => ‖Z (n + 1) records‖)
           | M.canonicalRecordFiltration n] :=
-      AEStronglyMeasurable.norm_condExp_le
-        (((M.stronglyAdapted_scaledHoldingTimeDriftResidual_canonicalRecordFiltration
-          i (n + 1)).mono
-          (M.canonicalRecordFiltration.le (n + 1))).aestronglyMeasurable)
+      norm_condExp_le
     have hcond : μ[Z (n + 1) | M.canonicalRecordFiltration n] =ᵐ[μ] Z n :=
       hmart.condExp_ae_eq (Nat.le_succ n)
     filter_upwards [hJ, hcond] with records hJrecords hcond_records
@@ -5060,9 +5058,7 @@ theorem scaledJumpMartingale_norm_submartingale_of_noAbsorbing
           ≤ᵐ[μ]
         μ[(fun records : M.canonicalRecordΩ => ‖Z (n + 1) records‖)
           | M.canonicalRecordFiltration n] :=
-      AEStronglyMeasurable.norm_condExp_le
-        (((M.stronglyAdapted_scaledJumpMartingale_canonicalRecordFiltration i (n + 1)).mono
-          (M.canonicalRecordFiltration.le (n + 1))).aestronglyMeasurable)
+      norm_condExp_le
     have hcond : μ[Z (n + 1) | M.canonicalRecordFiltration n] =ᵐ[μ] Z n :=
       hmart.condExp_ae_eq (Nat.le_succ n)
     filter_upwards [hJ, hcond] with records hJrecords hcond_records
@@ -8878,6 +8874,7 @@ noncomputable def toDensityProcess (M : DensityDepCTMC d)
         ‖M.martingalePart pathMap s ω‖ ^ 2 ∂μ ≤ C * T / M.N) :
     Ripple.Kurtz.DensityProcess d M.rateSpec M.N μ where
   process := M.densityProcess pathMap
+  process_norm_le_one := M.densityProcess_norm_le pathMap
   init := M.initialCondition pathMap
   martingale_part := M.martingalePart pathMap
   decomposition := M.martingale_decomposition μ pathMap

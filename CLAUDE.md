@@ -30,7 +30,7 @@ Ripple/
 
 ## The Vision
 
-**Frontend:** LLM (Zinan) takes a target number and searches for integral representations.
+**Frontend:** An LLM agent takes a target number and searches for integral representations.
 **Middle:** Lean 4 formal proof infrastructure — encode integrals as ODEs, verify boundedness, prove convergence rate.
 **Backend:** (future) ODE simulator to validate constructions numerically.
 
