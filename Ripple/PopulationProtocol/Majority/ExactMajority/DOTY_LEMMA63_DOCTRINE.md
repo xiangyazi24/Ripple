@@ -347,3 +347,28 @@ ALL of 3.5c is now in EarlyDripMarked.lean, 0-sorry axiom-clean.
 - NEXT concrete bricks: (i) per_window_step lemma (the split + the two tails + arithmetic
   f(c·g² + 1.1w) ≤ c at the chosen w, c, ε, σ); (ii) checkpoint_induction (Markov-property chaining
   at horizon multiples of w); (iii) instantiate scales → WindowedFrontProfile whp.
+
+## 3.5d-iii THE CLOSING ARGUMENT (worked out end-of-stretch; commits through 7670c7e2)
+DONE: per_window_step (3.5d-i, the deterministic-threshold split + two tails) and
+invariant_union_bound + checkpoint_composition (3.5d-ii, the generic window-kernel chaining).
+THE REMAINING SUBTLETY AND ITS RESOLUTION (fully determined, implement next):
+- The clean tail's drip-seed term uses the GATE CAP X₁ for the whole window, but X varies within
+  the window; a global cap (n/10) swamps small-X windows. The paper uses the window-END value
+  (backward-anchored windows) — random in the forward formal composition.
+- RESOLUTION = monotonicity + dyadic split on the end value: partition the window outcomes by
+  {G^m·X₀ < X_w ≤ G^{m+1}·X₀} (m = 0, 1, …, ≤ log_G n terms). On slice m, BY MONOTONICITY the
+  trajectory NEVER exceeded G^{m+1}X₀, so the clean tail at gate X₁ := G^{m+1}X₀ applies with NO
+  escape term (needs a "stayed-in-gate" refinement of real_le_killed: if the gate is monotone-exit,
+  (K^w) x {bad ∧ end-in-gate} ≤ (killK^w)(some x){some-bad} — no {none} term).
+- ARITHMETIC per slice (cc = 0.9, f = (1+2.1w)-ish branching, drips ≤ 1.1w·X₁²/n):
+  m = 0: f(cc + 1.1G²w) ≤ cc·g² needs g ≥ 1 + 1.66w with G ≈ 1.03 — the growth tail
+  (rate ≥ 1.8X/n at x ≤ 0.1) provides g = e^{1.7w}-ish: closes with margin ≈ 0.04w (TIGHT — use
+  w = 0.015 and recheck constants in Lean with norm_num; if too tight, sharpen the sync rate to
+  2(1−x)X/n ≈ 2X/n for small x).
+  m ≥ 1: f(cc/G^{2m} + 1.1G²w) ≤ cc — the G^{2m} slack dominates; easy for w ≤ 0.017.
+  The dyadic union adds a factor ≤ log_G n ≪ the exponential tails.
+- LEMMA LIST: (a) stayed_in_gate_coupling (monotone-exit refinement of real_le_killed);
+  (b) per_window_step_dyadic (the m-th slice bound); (c) window_constants (norm_num arithmetic at
+  w = 0.015, G = 1.03, cc = 0.9); (d) the assembled per-window δ + checkpoint_composition feed →
+  the recurrence invariant whp over the level-T window; (e) union over T + horizon →
+  WindowedFrontProfile.
