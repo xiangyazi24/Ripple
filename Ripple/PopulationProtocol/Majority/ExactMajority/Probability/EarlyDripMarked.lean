@@ -3143,6 +3143,86 @@ theorem growth_marked_tail_const (T θn n : ℕ) (hn : 2 ≤ n)
   ring_nf
   exact le_refl _
 
+/-! ## Part 19 — the per-window step (brick 3.5d-i).
+
+The window induction's bad event `{Y_w > c·X_w²/n}` carries a RANDOM threshold.  The deterministic
+split: for any growth target `a`, on `{X_w > a}` the random threshold dominates the deterministic
+one, so
+
+  `{Y_w > c·X_w²/n} ⊆ {X_w ≤ a} ∪ {Yt ≤ Y_w}`   (for `Yt ≤ c·a²/n + 1`),
+
+and the per-window failure is bounded by the growth lower tail at `a` plus the clean upper tail at
+`Yt` (plus the two benign window escapes). -/
+
+/-- The deterministic-threshold split of the per-window bad event. -/
+theorem window_bad_subset (T : ℕ) (n : ℕ) (cc : ℝ) (hcc : 0 ≤ cc) (a Yt : ℕ)
+    (hYt : (Yt : ℝ) ≤ cc * (a : ℝ) ^ 2 / (n : ℝ) + 1) :
+    {mc : Config (MarkedAgent L K) |
+        cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2
+            / (n : ℝ)
+          < (cleanAbove (L := L) (K := K) T mc : ℝ)} ⊆
+      {mc : Config (MarkedAgent L K) |
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a} ∪
+        {mc : Config (MarkedAgent L K) | Yt ≤ cleanAbove (L := L) (K := K) T mc} := by
+  intro mc hmc
+  rw [Set.mem_setOf_eq] at hmc
+  by_cases hX : rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a
+  · exact Or.inl hX
+  · right
+    rw [Set.mem_setOf_eq]
+    have hXa : (a : ℝ) ≤ (rBeyond (L := L) (K := K) T
+        (eraseConfig (L := L) (K := K) mc) : ℝ) := by
+      have : a ≤ rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) := by omega
+      exact_mod_cast this
+    have hsq : cc * (a : ℝ) ^ 2 / (n : ℝ)
+        ≤ cc * (rBeyond (L := L) (K := K) T
+            (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ) := by
+      apply div_le_div_of_nonneg_right _ (by positivity)
+      apply mul_le_mul_of_nonneg_left _ hcc
+      apply pow_le_pow_left₀ (by positivity) hXa
+    have hY : cc * (a : ℝ) ^ 2 / (n : ℝ)
+        < (cleanAbove (L := L) (K := K) T mc : ℝ) := lt_of_le_of_lt hsq hmc
+    -- ℕ-valued Y exceeding a real `< Y` bound: Y ≥ ⌊bound⌋+1 ≥ Yt.
+    have hcast : (Yt : ℝ) < (cleanAbove (L := L) (K := K) T mc : ℝ) + 1 := by
+      calc (Yt : ℝ) ≤ cc * (a : ℝ) ^ 2 / (n : ℝ) + 1 := hYt
+        _ < (cleanAbove (L := L) (K := K) T mc : ℝ) + 1 := by linarith
+    have : Yt < cleanAbove (L := L) (K := K) T mc + 1 := by exact_mod_cast hcast
+    omega
+
+/-- **The per-window step** (brick 3.5d-i capstone): the per-window failure probability is at most
+the growth lower tail at the target `a`, the clean upper tail at `Yt`, and the two benign window
+escapes:
+
+  `P[Y_w > c·X_w²/n] ≤ growth-escape + e^{−σg(X₀−a)} + clean-escape + e^{σρ^w Y₀ + βw − σYt}`. -/
+theorem per_window_step (T θn n X₁ : ℕ) (hn : 2 ≤ n)
+    (cc : ℝ) (hcc : 0 ≤ cc) (σg σ ε : ℝ) (hσg : 0 ≤ σg) (hσ : 0 < σ) (hε : 0 < ε)
+    (w : ℕ) (hsmall : σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w ≤ ε / (1 + ε))
+    (mc₀ : Config (MarkedAgent L K)) (a Yt : ℕ)
+    (hYt : (Yt : ℝ) ≤ cc * (a : ℝ) ^ 2 / (n : ℝ) + 1) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | cc * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            < (cleanAbove (L := L) (K := K) T mc : ℝ)} ≤
+      ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (growthGate (L := L) (K := K) T n) ^ w) (some mc₀) {none} +
+        ENNReal.ofReal (Real.exp (-(σg
+            * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+          + σg * (a : ℝ)))) +
+      ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (cleanGate (L := L) (K := K) T n X₁) ^ w) (some mc₀) {none} +
+        ENNReal.ofReal
+          (Real.exp (σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w
+              * (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+            + ((X₁ : ℝ) / (n : ℝ)) ^ 2 * (1 + ε) * σ
+                * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w * (w : ℝ)
+            - σ * (Yt : ℝ)))) := by
+  refine le_trans (measure_mono
+    (window_bad_subset (L := L) (K := K) T n cc hcc a Yt hYt)) ?_
+  refine le_trans (measure_union_le _ _) ?_
+  exact add_le_add
+    (growth_marked_tail_const (L := L) (K := K) T θn n hn σg hσg w mc₀ a)
+    (clean_marked_tail_explicit (L := L) (K := K) T θn n X₁ hn σ ε hσ hε w hsmall mc₀ Yt)
+
 end EarlyDripMarked
 
 end ExactMajority
