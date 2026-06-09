@@ -3106,6 +3106,43 @@ theorem clean_marked_tail_explicit (T θn n X₁ : ℕ) (hn : 2 ≤ n)
   ring_nf
   exact le_refl _
 
+/-- **The feeder growth lower tail, constant slope** (sufficient for the window induction): the
+slope recursion is trivially satisfied by the constant sequence, giving
+
+  `P[X_w ≤ a] ≤ sub-bulk escape + exp(−σ·(X₀ − a))`
+
+— exponentially small in the missing growth `X₀ − a`; in the Lemma 6.3 window the feeder count
+`X₀ ≥ θn` makes this `n^{-ω(1)}` for any constant growth-deficit fraction. -/
+theorem growth_marked_tail_const (T θn n : ℕ) (hn : 2 ≤ n)
+    (σ : ℝ) (hσ : 0 ≤ σ) (w : ℕ)
+    (mc₀ : Config (MarkedAgent L K)) (a : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a} ≤
+      (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (growthGate (L := L) (K := K) T n) ^ w) (some mc₀) {none} +
+        ENNReal.ofReal
+          (Real.exp (-(σ
+              * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+            + σ * (a : ℝ))) := by
+  have hslope : ∀ j : ℕ, (fun _ : ℕ => σ) j ≤ (fun _ : ℕ => σ) (j + 1)
+      + 1.8 * (1 - Real.exp (-((fun _ : ℕ => σ) (j + 1)))) / (n : ℝ) := by
+    intro j
+    have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (by omega : 0 < n)
+    have hes : Real.exp (-σ) ≤ 1 := Real.exp_le_one_iff.mpr (by linarith)
+    have h0 : (0 : ℝ) ≤ 1.8 * (1 - Real.exp (-σ)) / (n : ℝ) := by
+      apply div_nonneg _ hnpos.le
+      nlinarith
+    simpa using (by linarith : σ ≤ σ + 1.8 * (1 - Real.exp (-σ)) / (n : ℝ))
+  have h := growth_marked_tail (L := L) (K := K) T θn n hn (fun _ => σ)
+    (fun _ => hσ) hslope w hσ mc₀ a
+  refine le_trans h ?_
+  gcongr
+  rw [← ENNReal.ofReal_div_of_pos (Real.exp_pos _), ← Real.exp_sub]
+  apply ENNReal.ofReal_le_ofReal
+  apply Real.exp_le_exp.mpr
+  ring_nf
+  exact le_refl _
+
 end EarlyDripMarked
 
 end ExactMajority
