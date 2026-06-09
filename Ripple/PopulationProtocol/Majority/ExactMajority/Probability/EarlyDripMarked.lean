@@ -3324,6 +3324,100 @@ theorem checkpoint_composition {α : Type*} [MeasurableSpace α] [DiscreteMeasur
   rw [pow_mul]
   exact invariant_union_bound (Kk ^ w) Inv δ hwindow KK x₀ h0
 
+/-! ## Part 21 — the stayed-in-gate coupling (brick 3.5d-iii a).
+
+For a gate of the form `{M ≤ X₁}` with `M` MONOTONE along the chain, a trajectory whose ENDPOINT
+satisfies `M ≤ X₁` never left the gate — so the real probability of `{bad ∧ M_end ≤ X₁}` is
+bounded by the KILLED chain's alive-bad mass alone, with NO escape term.  This is what lets the
+dyadic end-value slices of the window analysis use per-slice gate caps without paying an escape
+mass per slice. -/
+
+/-- Monotone quantities stay monotone through kernel powers (a.e.). -/
+theorem ae_monotone_pow {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    (Kk : Kernel α α) [IsMarkovKernel Kk] (M : α → ℕ)
+    (hmono : ∀ x, ∀ᵐ y ∂(Kk x), M x ≤ M y)
+    (t : ℕ) (x : α) :
+    ∀ᵐ z ∂((Kk ^ t) x), M x ≤ M z := by
+  classical
+  induction t generalizing x with
+  | zero =>
+      simp only [pow_zero]
+      change ∀ᵐ z ∂(Kernel.id x), M x ≤ M z
+      rw [Kernel.id_apply,
+        MeasureTheory.ae_dirac_iff (DiscreteMeasurableSpace.forall_measurableSet _)]
+  | succ t ih =>
+      rw [MeasureTheory.ae_iff]
+      have hbad_meas : MeasurableSet {z : α | ¬ M x ≤ M z} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral Kk 1 t x hbad_meas, pow_one,
+        MeasureTheory.lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad_meas)]
+      filter_upwards [hmono x] with y hy
+      have hsub : {z : α | ¬ M x ≤ M z} ⊆ {z : α | ¬ M y ≤ M z} := by
+        intro z hz
+        rw [Set.mem_setOf_eq] at hz ⊢
+        omega
+      have hzero : ((Kk ^ t) y) {z : α | ¬ M y ≤ M z} = 0 := by
+        have h := ih y
+        rwa [MeasureTheory.ae_iff] at h
+      exact le_antisymm (le_trans (measure_mono hsub) hzero.le) zero_le'
+
+/-- **The stayed-in-gate coupling**: with the gate `G = {M ≤ X₁}` and `M` monotone, the real
+probability of ending bad WITH `M ≤ X₁` is bounded by the killed chain's alive-bad mass — no
+escape term (a trajectory ending inside the gate never left it). -/
+theorem real_le_killed_of_monotone {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    [Inhabited α] (Kk : Kernel α α) [IsMarkovKernel Kk] (M : α → ℕ) (X₁ : ℕ)
+    (hmono : ∀ x, ∀ᵐ y ∂(Kk x), M x ≤ M y)
+    (bad : α → Prop) (t : ℕ) (x : α) :
+    (Kk ^ t) x {y | bad y ∧ M y ≤ X₁} ≤
+      (GatedDrift.killK Kk {x' | M x' ≤ X₁} ^ t) (some x)
+        {o | ∃ y, o = some y ∧ bad y ∧ M y ≤ X₁} := by
+  classical
+  letI : MeasurableSpace (Option α) := GatedDrift.instOptionMS
+  letI : DiscreteMeasurableSpace (Option α) := GatedDrift.instOptionDMS
+  set G : Set α := {x' | M x' ≤ X₁} with hG
+  induction t generalizing x with
+  | zero =>
+      rw [pow_zero, pow_zero]
+      change (Measure.dirac x) {y | bad y ∧ M y ≤ X₁}
+        ≤ (Measure.dirac (some x)) {o | ∃ y, o = some y ∧ bad y ∧ M y ≤ X₁}
+      rw [Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _),
+        Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+      by_cases hb : bad x ∧ M x ≤ X₁
+      · simp [Set.indicator_of_mem (show x ∈ {y | bad y ∧ M y ≤ X₁} from hb),
+          Set.indicator_of_mem (show (some x) ∈
+            {o : Option α | ∃ y, o = some y ∧ bad y ∧ M y ≤ X₁} from ⟨x, rfl, hb⟩)]
+      · simp [Set.indicator_of_notMem (show x ∉ {y | bad y ∧ M y ≤ X₁} from hb)]
+  | succ t ih =>
+      have hmeasL : MeasurableSet {y : α | bad y ∧ M y ≤ X₁} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      have hmeasR : MeasurableSet {o : Option α | ∃ y, o = some y ∧ bad y ∧ M y ≤ X₁} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral Kk 1 t x hmeasL, pow_one,
+        Kernel.pow_add_apply_eq_lintegral _ 1 t (some x) hmeasR, pow_one]
+      by_cases hx : x ∈ G
+      · rw [GatedDrift.killK_some_gated (K := Kk) (G := G) x hx,
+          MeasureTheory.lintegral_map (Measurable.of_discrete) (Measurable.of_discrete)]
+        exact lintegral_mono (fun y => ih y)
+      · -- off the gate: M x > X₁, and monotonicity kills the LHS event entirely.
+        have hMx : X₁ < M x := by
+          rw [hG, Set.mem_setOf_eq, not_le] at hx
+          exact hx
+        have hzero : ∫⁻ y, (Kk ^ t) y {y' | bad y' ∧ M y' ≤ X₁} ∂(Kk x) = 0 := by
+          rw [MeasureTheory.lintegral_eq_zero_iff
+            (Kernel.measurable_coe _ hmeasL)]
+          filter_upwards [hmono x] with y hy
+          have h := ae_monotone_pow Kk M hmono t y
+          rw [MeasureTheory.ae_iff] at h
+          have hsub : {y' : α | bad y' ∧ M y' ≤ X₁} ⊆ {z : α | ¬ M y ≤ M z} := by
+            intro z hz
+            rw [Set.mem_setOf_eq] at hz ⊢
+            omega
+          exact le_antisymm (le_trans (measure_mono hsub) h.le) zero_le'
+        rw [hzero]
+        exact zero_le'
+
 end EarlyDripMarked
 
 end ExactMajority
