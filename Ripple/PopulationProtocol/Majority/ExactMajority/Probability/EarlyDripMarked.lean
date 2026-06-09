@@ -2492,6 +2492,118 @@ theorem mgf_one_step_lower {α : Type*} [MeasurableSpace α] [DiscreteMeasurable
               mul_le_mul_of_nonneg_left hbound hΦnn
           _ = (1 - r * (1 - Real.exp (-s))) * Real.exp (-(s * (n₀ : ℝ))) := by ring
 
+/-! ## Part 15 — the sync rise mechanism (brick 3.5c-ii, deterministic half).
+
+The feeder `x·n = rBeyond T ∘ erase` RISES whenever the scheduler picks a mixed (above-`T`,
+below-`T`) pair — the sync pulls the laggard up.  This is the deterministic half; the scheduler
+block lower bound (`P[mixed pair] = 2X(n−X)/(n(n−1))` exactly) composes it into the epidemic lower
+rate feeding `mgf_one_step_lower`. -/
+
+/-- The general-threshold bridge: on the `AllClockP3` window, the marked count at minute `≥ R` is
+the erased clock tail. -/
+theorem countGE_eq_rBeyond_erase (R : ℕ) (mc : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    Multiset.countP (fun m : MarkedAgent L K => R ≤ m.1.minute.val) mc
+      = rBeyond (L := L) (K := K) R (eraseConfig (L := L) (K := K) mc) := by
+  classical
+  unfold rBeyond eraseConfig
+  rw [Multiset.countP_map, Multiset.countP_eq_card_filter]
+  congr 1
+  apply Multiset.filter_congr
+  intro m hm
+  have hrole := hw m.1 (by
+    unfold eraseConfig
+    exact Multiset.mem_map_of_mem Prod.fst hm)
+  unfold clockBeyondP
+  constructor
+  · intro hmin
+    exact ⟨hrole.1, hmin⟩
+  · rintro ⟨_, hmin⟩
+    exact hmin
+
+/-- **A mixed (above, below) pair raises the erased tail**: the sync pulls the laggard up to the
+max minute, turning one above-`T` clock into two. -/
+theorem mixed_pair_raises (T θn : ℕ) (mc : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (pr : MarkedAgent L K × MarkedAgent L K)
+    (happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc)
+    (hmix : (T ≤ pr.1.1.minute.val ∧ pr.2.1.minute.val < T) ∨
+      (T ≤ pr.2.1.minute.val ∧ pr.1.1.minute.val < T)) :
+    rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc)
+      < rBeyond (L := L) (K := K) T
+          (eraseConfig (L := L) (K := K) (markedStep (L := L) (K := K) T θn mc pr)) := by
+  classical
+  have hmem1 : pr.1 ∈ mc := Multiset.mem_of_le happ (Multiset.mem_cons_self _ _)
+  have hmem2 : pr.2 ∈ mc := Multiset.mem_of_le happ
+    (Multiset.mem_cons_of_mem (Multiset.mem_singleton_self _))
+  have h1cp := hw pr.1.1 (Multiset.mem_map_of_mem Prod.fst hmem1)
+  have h2cp := hw pr.2.1 (Multiset.mem_map_of_mem Prod.fst hmem2)
+  have hne : pr.1.1.minute ≠ pr.2.1.minute := by
+    intro hc
+    have hv : pr.1.1.minute.val = pr.2.1.minute.val := congrArg Fin.val hc
+    rcases hmix with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> omega
+  have hsync := transition_p3_sync_minute (L := L) (K := K) pr.1.1 pr.2.1
+    h1cp.1 h2cp.1 h1cp.2 h2cp.2 hne
+  have hroles := Transition_clock_pair (L := L) (K := K) pr.1.1 pr.2.1
+    h1cp.1 h2cp.1 (by omega) (by omega)
+  have hmaxT : T ≤ (max pr.1.1.minute pr.2.1.minute).val := by
+    rcases le_total pr.1.1.minute pr.2.1.minute with hle | hle
+    · rw [max_eq_right hle]
+      rcases hmix with ⟨h1, _⟩ | ⟨h1, _⟩
+      · have : pr.1.1.minute.val ≤ pr.2.1.minute.val := hle
+        omega
+      · exact h1
+    · rw [max_eq_left hle]
+      rcases hmix with ⟨h1, _⟩ | ⟨h1, _⟩
+      · exact h1
+      · have : pr.2.1.minute.val ≤ pr.1.1.minute.val := hle
+        omega
+  -- the erased step in rest-decomposed form.
+  rw [erase_markedStep (L := L) (K := K) T θn mc pr happ]
+  have hmap_pair : Multiset.map Prod.fst ({pr.1, pr.2} : Multiset (MarkedAgent L K))
+      = ({pr.1.1, pr.2.1} : Multiset (AgentState L K)) := by
+    rw [show ({pr.1, pr.2} : Multiset (MarkedAgent L K)) = pr.1 ::ₘ {pr.2} from rfl,
+      Multiset.map_cons, Multiset.map_singleton]
+    rfl
+  have hsub' : ({pr.1.1, pr.2.1} : Multiset (AgentState L K))
+      ≤ eraseConfig (L := L) (K := K) mc := by
+    rw [← hmap_pair]
+    exact Multiset.map_le_map happ
+  have hstep_eq : Protocol.scheduledStep (NonuniformMajority L K)
+      (eraseConfig (L := L) (K := K) mc) (pr.1.1, pr.2.1)
+      = eraseConfig (L := L) (K := K) mc - {pr.1.1, pr.2.1}
+          + {(Transition L K pr.1.1 pr.2.1).1, (Transition L K pr.1.1 pr.2.1).2} := by
+    unfold Protocol.scheduledStep Protocol.stepOrSelf
+    rw [if_pos (show Protocol.Applicable (eraseConfig (L := L) (K := K) mc) pr.1.1 pr.2.1
+      from hsub')]
+    rfl
+  rw [hstep_eq]
+  unfold rBeyond
+  rw [Multiset.countP_add, Multiset.countP_sub hsub']
+  -- the two-element counts: consumed pair has exactly one above-`T` clock; produced pair has two.
+  have hpair_le : Multiset.countP (fun a => clockBeyondP (L := L) (K := K) T a)
+      ({pr.1.1, pr.2.1} : Multiset (AgentState L K))
+        ≤ Multiset.countP (fun a => clockBeyondP (L := L) (K := K) T a)
+          (eraseConfig (L := L) (K := K) mc) :=
+    Multiset.countP_le_of_le _ hsub'
+  have hcons : Multiset.countP (fun a => clockBeyondP (L := L) (K := K) T a)
+      ({pr.1.1, pr.2.1} : Multiset (AgentState L K)) = 1 := by
+    rw [countP_pair (L := L) (K := K) T pr.1.1 pr.2.1]
+    rcases hmix with ⟨h1, h2⟩ | ⟨h1, h2⟩
+    · rw [if_pos ⟨h1cp.1, h1⟩, if_neg
+        (fun hc : clockBeyondP (L := L) (K := K) T pr.2.1 => absurd hc.2 (by omega))]
+    · rw [if_neg
+        (fun hc : clockBeyondP (L := L) (K := K) T pr.1.1 => absurd hc.2 (by omega)),
+        if_pos ⟨h2cp.1, h1⟩]
+  have hprod : Multiset.countP (fun a => clockBeyondP (L := L) (K := K) T a)
+      ({(Transition L K pr.1.1 pr.2.1).1, (Transition L K pr.1.1 pr.2.1).2}
+        : Multiset (AgentState L K)) = 2 := by
+    rw [countP_pair (L := L) (K := K) T _ _]
+    rw [if_pos ⟨hroles.1, by rw [hsync.1]; exact hmaxT⟩,
+      if_pos ⟨hroles.2.1, by rw [hsync.2]; exact hmaxT⟩]
+  rw [hcons, hprod]
+  omega
+
 end EarlyDripMarked
 
 end ExactMajority
