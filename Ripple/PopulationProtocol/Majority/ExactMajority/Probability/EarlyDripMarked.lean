@@ -3507,6 +3507,64 @@ theorem real_le_killed_of_absorbing {α : Type*} [MeasurableSpace α] [DiscreteM
         rw [hzero]
         exact zero_le'
 
+/-! ## Part 23 — the standalone step-indexed KILLED tail (the alive-mass bound the slices consume).
+
+`stepIndexed_gated_tail` couples to the real chain and carries the escape; the dyadic slices use
+`real_le_killed_of_absorbing` for the coupling instead, so they need the killed alive-mass tail by
+itself. -/
+
+/-- The step-indexed killed tail: under the gated drift, the killed chain's alive mass at
+`{θ ≤ Φ_t}` is at most `Φ_0(x)/θ`. -/
+theorem stepIndexed_killed_tail {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    [Inhabited α] (Kk : Kernel α α) [IsMarkovKernel Kk] (G : Set α)
+    (Φ : ℕ → α → ℝ≥0∞)
+    (hdrift_G : ∀ (j : ℕ), ∀ x ∈ G, ∫⁻ y, Φ (j + 1) y ∂(Kk x) ≤ Φ j x)
+    (t : ℕ) (x : α) (θ : ℝ≥0∞) (hθ0 : θ ≠ 0) (hθtop : θ ≠ ∞) :
+    (GatedDrift.killK Kk G ^ t) (some x)
+        {o | θ ≤ GatedDrift.killΦ (Φ t) o} ≤ Φ 0 x / θ := by
+  classical
+  letI : MeasurableSpace (Option α) := GatedDrift.instOptionMS
+  letI : DiscreteMeasurableSpace (Option α) := GatedDrift.instOptionDMS
+  have hkill_drift : ∀ (j : ℕ) (o : Option α),
+      ∫⁻ p, GatedDrift.killΦ (Φ (j + 1)) p ∂(GatedDrift.killK Kk G o)
+        ≤ GatedDrift.killΦ (Φ j) o := by
+    intro j o
+    rcases o with _ | x'
+    · rw [GatedDrift.killK_none,
+        MeasureTheory.lintegral_dirac' _ (GatedDrift.killΦ_measurable _)]
+      simp
+    · by_cases hx : x' ∈ G
+      · rw [GatedDrift.killK_some_gated x' hx,
+          MeasureTheory.lintegral_map (GatedDrift.killΦ_measurable _)
+            (Measurable.of_discrete)]
+        simp only [GatedDrift.killΦ_some]
+        exact hdrift_G j x' hx
+      · have hdead : GatedDrift.killK Kk G (some x')
+            = Measure.dirac (none : Option α) := by
+          unfold GatedDrift.killK
+          rw [Kernel.piecewise_apply,
+            if_neg (fun h => hx ((GatedDrift.some_mem_image_iff x').1 h)),
+            Kernel.const_apply]
+        rw [hdead, MeasureTheory.lintegral_dirac' _ (GatedDrift.killΦ_measurable _)]
+        simp
+  have hdecay := GatedDrift.lintegral_stepIndexed_decay (GatedDrift.killK Kk G) t
+    (fun j => GatedDrift.killΦ (Φ j)) (fun j => GatedDrift.killΦ_measurable _)
+    hkill_drift (some x)
+  simp only [GatedDrift.killΦ_some] at hdecay
+  have hMarkov : θ * (GatedDrift.killK Kk G ^ t) (some x)
+      {o | θ ≤ GatedDrift.killΦ (Φ t) o} ≤ Φ 0 x :=
+    le_trans (mul_meas_ge_le_lintegral₀
+      (hf := (GatedDrift.killΦ_measurable _).aemeasurable) (ε := θ)) hdecay
+  calc (GatedDrift.killK Kk G ^ t) (some x) {o | θ ≤ GatedDrift.killΦ (Φ t) o}
+      = (θ⁻¹ * θ) * (GatedDrift.killK Kk G ^ t) (some x)
+          {o | θ ≤ GatedDrift.killΦ (Φ t) o} := by
+        simp [ENNReal.inv_mul_cancel hθ0 hθtop]
+    _ = θ⁻¹ * (θ * (GatedDrift.killK Kk G ^ t) (some x)
+          {o | θ ≤ GatedDrift.killΦ (Φ t) o}) := by
+        simp [mul_assoc]
+    _ ≤ θ⁻¹ * Φ 0 x := by gcongr
+    _ = Φ 0 x / θ := by rw [mul_comm]; rfl
+
 end EarlyDripMarked
 
 end ExactMajority
