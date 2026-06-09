@@ -3726,6 +3726,100 @@ theorem phase4_witness_absorbing (T θn : ℕ) (mc mc' : Config (MarkedAgent L K
     rw [Set.mem_singleton_iff.mp hsupp]
     exact hP4
 
+/-- The erased tail is monotone along the marked chain on the `AllClockGE3` window (the phases-≥3
+generalization of `rBeyond_erase_monotone`). -/
+theorem rBeyond_erase_monotone_ge3 (T θn R : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hw : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    rBeyond (L := L) (K := K) R (eraseConfig (L := L) (K := K) mc)
+      ≤ rBeyond (L := L) (K := K) R (eraseConfig (L := L) (K := K) mc') := by
+  classical
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [erase_markedStep (L := L) (K := K) T θn mc pr happ]
+      unfold Protocol.scheduledStep
+      exact rBeyondGE3_stepOrSelf_ge (L := L) (K := K) R
+        (eraseConfig (L := L) (K := K) mc) hw pr.1.1 pr.2.1
+    · unfold markedStep
+      rw [if_neg happ]
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+
+/-- **The slice gate has an absorbing complement** relative to the `AllClockGE3` region: within
+the region, `¬(AllClockP3 ∧ X ≤ X₁)` means a phase-4 witness (permanent) or `X > X₁`
+(permanent). -/
+theorem slice_gate_absorbing (T θn n X₁ : ℕ)
+    (mc : Config (MarkedAgent L K))
+    (hR : mc.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hG : mc ∉ cleanGate (L := L) (K := K) T n X₁) :
+    ∀ mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support,
+      mc' ∉ cleanGate (L := L) (K := K) T n X₁ := by
+  classical
+  obtain ⟨hcard, hge3⟩ := hR
+  intro mc' hsupp
+  -- the three failure modes of the gate, within the region.
+  have hcard' : mc'.card = n := by
+    rw [← hcard]
+    -- card is preserved: the erased card is, and erasure preserves card.
+    have h1 := eraseConfig_card (L := L) (K := K) mc
+    have h2 := eraseConfig_card (L := L) (K := K) mc'
+    unfold markedPMF at hsupp
+    by_cases h : 2 ≤ mc.card
+    · rw [dif_pos h] at hsupp
+      rw [PMF.support_map] at hsupp
+      obtain ⟨pr, _, hpr⟩ := hsupp
+      subst hpr
+      by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+      · have herase := erase_markedStep (L := L) (K := K) T θn mc pr happ
+        have hreal : (eraseConfig (L := L) (K := K)
+            (markedStep (L := L) (K := K) T θn mc pr)).card
+            = (eraseConfig (L := L) (K := K) mc).card := by
+          rw [herase]
+          exact Protocol.reachable_card_eq (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) _ pr.1.1 pr.2.1)
+        omega
+      · unfold markedStep
+        rw [if_neg happ]
+    · rw [dif_neg h, PMF.support_pure] at hsupp
+      rw [Set.mem_singleton_iff.mp hsupp]
+  -- ¬gate within the region: phase-4 witness or X > X₁.
+  have hsplit : (∃ m ∈ mc, 4 ≤ m.1.phase.val) ∨
+      X₁ < rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) := by
+    by_contra hcon
+    push Not at hcon
+    obtain ⟨hno4, hX⟩ := hcon
+    apply hG
+    refine ⟨hcard, ?_, by omega⟩
+    -- AllClockP3 of the erased config: roles from GE3, phases = 3 from GE3 + no phase-4 witness.
+    intro a ha
+    unfold eraseConfig at ha
+    obtain ⟨m, hm, hma⟩ := Multiset.mem_map.mp ha
+    have hge := hge3 a ha
+    have h4 := hno4 m hm
+    refine ⟨hge.1, ?_⟩
+    have h3 : 3 ≤ a.phase.val := hge.2
+    have : a.phase.val ≤ 3 := by
+      rw [← hma]
+      omega
+    omega
+  rcases hsplit with h4 | hX
+  · -- phase-4 witness persists; the successor cannot be AllClockP3.
+    have h4' := phase4_witness_absorbing (L := L) (K := K) T θn mc mc' h4 hsupp
+    rintro ⟨_, hP3, _⟩
+    obtain ⟨m, hm, hm4⟩ := h4'
+    have := hP3 m.1 (by
+      unfold eraseConfig
+      exact Multiset.mem_map_of_mem Prod.fst hm)
+    omega
+  · -- X > X₁ persists.
+    have hmono := rBeyond_erase_monotone_ge3 (L := L) (K := K) T θn T mc mc' hge3 hsupp
+    rintro ⟨_, _, hX'⟩
+    omega
+
 end EarlyDripMarked
 
 end ExactMajority
