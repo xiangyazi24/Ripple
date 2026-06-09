@@ -329,3 +329,21 @@ ALL of 3.5c is now in EarlyDripMarked.lean, 0-sorry axiom-clean.
   since X²/n ≥ n^{-0.8}·n = n^{0.2} ≫ n^{0.15}).
 - THEN 3.5e: ClimbBound whp (climb_real_tail escape := the tainted tail at level k+1) + union over
   levels/horizon + goodFrontWidth_of_windowed_profile_and_climb + rewire FrontSync consumers.
+
+## 3.5d KEY DESIGN UNLOCK (deterministic-threshold split) + ledger through commit 18eee70c
+- clean_marked_tail_explicit DONE (ε-parameterized ρ = 1+2(1+ε)/n, per-window y-tail).
+- growth_marked_tail_const DONE — IMPORTANT SIMPLIFICATION: the growth direction needs NO geometric
+  sequences; the CONSTANT slope σ satisfies the recursion trivially and gives P[X_w ≤ a] ≤ escape +
+  exp(−σ(X₀−a)), already exponentially small in the missing growth (X₀ ≥ θn in the window). The
+  γ-geometric sharpening is unnecessary for the induction.
+- THE SPLIT that makes the window induction composable with DETERMINISTIC thresholds: the per-window
+  bad event {Y_w > c·X_w²/n} (random threshold!) splits as
+    {Y_w > c·X_w²/n} ⊆ {X_w ≤ a} ∪ {Y_w > c·a²/n}
+  for ANY deterministic a (on {X_w > a}: c·X_w²/n > c·a²/n). Choose a := growth-target(X₀)
+  (deterministic given the window-start config). So the per-window failure ≤ growth-tail(a) +
+  clean-tail(c·a²/n) + the two escapes — all at deterministic thresholds, and the checkpoint
+  composition is the standard conditional-split induction over kernel powers (earlyDrip_kernel_bound
+  pattern): P[Inv fails by checkpoint K+1] ≤ P[fails by K] + sup_{Inv-configs} P[per-window fail].
+- NEXT concrete bricks: (i) per_window_step lemma (the split + the two tails + arithmetic
+  f(c·g² + 1.1w) ≤ c at the chosen w, c, ε, σ); (ii) checkpoint_induction (Markov-property chaining
+  at horizon multiples of w); (iii) instantiate scales → WindowedFrontProfile whp.
