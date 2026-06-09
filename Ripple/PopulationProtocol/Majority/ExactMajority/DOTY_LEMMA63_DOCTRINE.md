@@ -372,3 +372,18 @@ THE REMAINING SUBTLETY AND ITS RESOLUTION (fully determined, implement next):
   w = 0.015, G = 1.03, cc = 0.9); (d) the assembled per-window δ + checkpoint_composition feed →
   the recurrence invariant whp over the level-T window; (e) union over T + horizon →
   WindowedFrontProfile.
+
+## 3.5d-iii(b) ARCHITECTURE DECISION (after real_le_killed_of_monotone, commit 314888a8)
+The slice coupling (no-escape) works for PURE monotone gates {M ≤ X₁}; mixing in the hour window
+H = {card = n ∧ AllClockP3∘erase} per slice would need a two-cemetery kernel to separate benign
+H-exits from monotone exits. INSTEAD: kill at the hour window ONCE, globally — define
+markedKH := killK markedK H at the TOP of the window-composition analysis; on the H-killed chain
+every alive state satisfies AllClockP3∘erase + card = n automatically, so taintedGate/cleanGate/
+growthGate reduce to their X-components (pure monotone gates), the slice analysis uses
+real_le_killed_of_monotone directly, and ONE global hour-escape term appears in the final transfer
+(benign: hour completed). All existing on-gate drift lemmas remain valid as inputs (they prove the
+drift exactly on AllClockP3 ∧ card states). Implement as: (i) markedKH + its Markov instance +
+the lifted drift lemmas (mechanical wrappers); (ii) the dyadic slice bound on markedKH via
+real_le_killed_of_monotone + the extracted stepIndexed killed tail; (iii) window_constants norm_num;
+(iv) per-window δ + checkpoint_composition → the recurrence invariant whp; (v) transfer back
+through the H-kill and the projection bridge → WindowedFrontProfile.
