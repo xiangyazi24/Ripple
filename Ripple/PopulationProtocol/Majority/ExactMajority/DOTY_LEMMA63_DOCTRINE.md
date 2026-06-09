@@ -176,9 +176,18 @@ ClockFrontProfile.lean:
   interactionCount — ordered distinct-agent pairs partition exactly along marks, diagonal count(count−1)
   works out), erase_markedStep (the step projects), markedK_map_erase (one-step measure-level), and
   **markedK_pow_erase: (markedK^t) mc₀ (erase⁻¹ A) = (K^t)(erase mc₀) A** — every marked-world whp
-  statement about erased events transfers verbatim. STILL TO DO in 3.4: taintedCount + its one-step
-  drift/rates + the within-gate identity taintedCount = rBeyond(T+1)∘erase (while gated, everyone above
-  T is tainted — paper's base case).
+  statement about erased events transfers verbatim.
+- 3.4a **DONE (same file, Part 5, 0-sorry axiom-clean)** — the deterministic taint bookkeeping, with a
+  KEY simplification over the planned count-equality induction: instead of inducting
+  "taintedCount = rBeyond(T+1)" along the gated trajectory, define cleanAbove (above-T ∧ unmarked) and
+  prove (i) `aboveCount_eq_tainted_add_clean`: aboveCount = taintedCount + cleanAbove given MarkInv
+  (pure countP algebra); (ii) `rBeyond_erase_eq_aboveCount` on AllClockP3; (iii) `markInv_step`
+  (marks live above T — preserved UNCONDITIONALLY, by the mark-rule guard); (iv)
+  **`cleanAbove_zero_step`: within-gate purity is DETERMINISTICALLY absorbing** — gate open ∧
+  cleanAbove = 0 ⟹ cleanAbove = 0 on the whole one-step support (a clean above-T output needs a clean
+  above-T ancestor / closed gate / sub-T minute — all four markFor branches excluded; the sync branch
+  uses transition_p3_sync_minute). Pre-gate "c_{≥T+1} = d" (paper's base case) is the corollary, no
+  probabilistic induction needed.
 - 3.4 the tainted-count tail. KEY DIFFICULTY (worked out this session): the constant-rate gated MGF
   CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
   gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)

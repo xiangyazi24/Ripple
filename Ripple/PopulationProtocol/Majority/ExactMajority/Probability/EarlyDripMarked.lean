@@ -45,6 +45,7 @@ the ChatGPT brick-3 consult (route 1a, archived in the doctrine).
 -/
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealKernel
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourCoupling
 
 namespace ExactMajority
 
@@ -495,6 +496,258 @@ theorem markedK_pow_erase (T θn : ℕ) (t : ℕ) (mc₀ : Config (MarkedAgent L
               ∂((NonuniformMajority L K).transitionKernel
                 (eraseConfig (L := L) (K := K) mc₀)) := by
             rw [markedK_map_erase (L := L) (K := K) T θn mc₀]
+
+/-! ## Part 5 — the taint count, the mark invariant, and the within-gate purity.
+
+The taint count `taintedCount` is Doty's `|D|`.  Two deterministic facts make it usable:
+* the DECOMPOSITION: above-`T` clocks split exactly into tainted + clean
+  (`aboveCount = taintedCount + cleanAbove`, given the mark invariant);
+* the WITHIN-GATE PURITY: while the pre-bulk gate holds, `cleanAbove` stays `0` — every above-`T`
+  agent is tainted (the paper's base case "for `c_{≥i} < n^{-0.45}` the statement holds by
+  definition of `d`").  This is DETERMINISTIC on the one-step support: a clean above-`T` output
+  would need a clean above-`T` ancestor (branches 2/4 of the mark rule), a closed gate (branch 3),
+  or a sub-`T` minute (branch 1) — all excluded. -/
+
+/-- Doty's `|D|`: the number of tainted agents. -/
+def taintedCount (mc : Config (MarkedAgent L K)) : ℕ :=
+  Multiset.countP (fun m => m.2 = true) mc
+
+/-- The number of agents above level `T` (raw minute count, role-free). -/
+def aboveCount (T : ℕ) (mc : Config (MarkedAgent L K)) : ℕ :=
+  Multiset.countP (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val) mc
+
+/-- The number of CLEAN agents above level `T`. -/
+def cleanAbove (T : ℕ) (mc : Config (MarkedAgent L K)) : ℕ :=
+  Multiset.countP (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false) mc
+
+/-- **The mark invariant**: tainted agents live above level `T`. -/
+def MarkInv (T : ℕ) (mc : Config (MarkedAgent L K)) : Prop :=
+  ∀ m ∈ mc, m.2 = true → T + 1 ≤ m.1.minute.val
+
+/-- The mark rule only marks above-`T` outputs. -/
+theorem markFor_true_above (T : ℕ) (g : Bool) (own partner : MarkedAgent L K)
+    (o : AgentState L K) (h : markFor (L := L) (K := K) T g own partner o = true) :
+    T + 1 ≤ o.minute.val := by
+  unfold markFor at h
+  split_ifs at h with h1
+  all_goals first
+    | omega
+    | exact absurd h (by simp)
+
+/-- **The mark invariant is preserved** on the one-step support (unconditionally — the mark rule
+guards it by construction). -/
+theorem markInv_step (T θn : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hinv : MarkInv (L := L) (K := K) T mc)
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    MarkInv (L := L) (K := K) T mc' := by
+  classical
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    unfold markedStep
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [if_pos happ]
+      intro m hm hmark
+      rw [Multiset.mem_add] at hm
+      rcases hm with hm | hm
+      · exact hinv m (Multiset.mem_of_le (tsub_le_self (a := mc)) hm) hmark
+      · rw [show ({(markedOut (L := L) (K := K) T
+            (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).1,
+            (markedOut (L := L) (K := K) T
+              (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).2}
+            : Multiset (MarkedAgent L K))
+          = (markedOut (L := L) (K := K) T
+              (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).1 ::ₘ
+            {(markedOut (L := L) (K := K) T
+              (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).2} from rfl] at hm
+        rcases Multiset.mem_cons.mp hm with hm | hm
+        · rw [hm] at hmark ⊢
+          exact markFor_true_above (L := L) (K := K) T _ pr.1 pr.2 _ hmark
+        · rw [Multiset.mem_singleton.mp hm] at hmark ⊢
+          exact markFor_true_above (L := L) (K := K) T _ pr.2 pr.1 _ hmark
+    · rw [if_neg happ]
+      exact hinv
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+    exact hinv
+
+/-- **The decomposition**: under the mark invariant, the above-`T` agents split exactly into
+tainted + clean: `aboveCount = taintedCount + cleanAbove`. -/
+theorem aboveCount_eq_tainted_add_clean (T : ℕ) (mc : Config (MarkedAgent L K))
+    (hinv : MarkInv (L := L) (K := K) T mc) :
+    aboveCount (L := L) (K := K) T mc
+      = taintedCount (L := L) (K := K) mc + cleanAbove (L := L) (K := K) T mc := by
+  classical
+  unfold aboveCount taintedCount cleanAbove
+  induction mc using Multiset.induction_on with
+  | empty => simp
+  | cons m mc ih =>
+      have hinv' : MarkInv (L := L) (K := K) T mc := by
+        intro x hx hxm
+        exact hinv x (Multiset.mem_cons_of_mem hx) hxm
+      have hm := hinv m (Multiset.mem_cons_self m mc)
+      rw [Multiset.countP_cons, Multiset.countP_cons, Multiset.countP_cons, ih hinv']
+      rcases hb : m.2 with _ | _
+      · -- clean agent: contributes to above iff clean-above.
+        simp only [hb]
+        by_cases habove : T + 1 ≤ m.1.minute.val
+        · simp [habove]
+          omega
+        · simp [habove]
+      · -- tainted agent: above by the invariant; contributes to above + tainted, not clean.
+        have habove : T + 1 ≤ m.1.minute.val := hm hb
+        simp only [hb]
+        simp [habove]
+        omega
+
+/-- The above-`T` clock count of the erased configuration is the marked above-count, on the
+`AllClockP3` window (all agents are clocks). -/
+theorem rBeyond_erase_eq_aboveCount (T : ℕ) (mc : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc)
+      = aboveCount (L := L) (K := K) T mc := by
+  classical
+  unfold rBeyond eraseConfig aboveCount
+  rw [Multiset.countP_map, Multiset.countP_eq_card_filter]
+  congr 1
+  apply Multiset.filter_congr
+  intro m hm
+  have hrole := hw m.1 (by
+    unfold eraseConfig
+    exact Multiset.mem_map_of_mem Prod.fst hm)
+  unfold clockBeyondP
+  constructor
+  · rintro ⟨_, hmin⟩
+    exact hmin
+  · intro hmin
+    exact ⟨hrole.1, hmin⟩
+
+/-- The Phase-3 SYNC characterization: a clock-clock pair at DIFFERENT minutes synchronizes both
+outputs to the max minute. -/
+theorem transition_p3_sync_minute (s t : AgentState L K)
+    (hsc : s.role = .clock) (htc : t.role = .clock)
+    (hs3 : s.phase.val = 3) (ht3 : t.phase.val = 3)
+    (hne : s.minute ≠ t.minute) :
+    (Transition L K s t).1.minute = max s.minute t.minute ∧
+      (Transition L K s t).2.minute = max s.minute t.minute := by
+  classical
+  have hout := HourCoupling.phase3_clock_out_phase_le_four (L := L) (K := K) s t hsc htc hs3 ht3
+  have heq := HourCoupling.transition_eq_phase3 (L := L) (K := K) s t hs3 ht3
+    (by rcases hout.1 with h | h <;> omega)
+    (by rcases hout.2 with h | h <;> omega)
+  rw [heq]
+  have hP3 : Phase3Transition L K s t =
+      ({ s with minute := max s.minute t.minute },
+        { t with minute := max s.minute t.minute }) := by
+    unfold Phase3Transition
+    simp only [hsc, htc, and_self, if_true, if_neg hne, ne_eq, hne,
+      not_false_eq_true, reduceCtorEq, false_and, and_false, if_false]
+  rw [hP3]
+  exact ⟨rfl, rfl⟩
+
+/-- **The within-gate purity is absorbing** (deterministic, on the one-step support): on the
+`AllClockP3` window, while the pre-bulk gate holds and there is no clean agent above `T`, one step
+cannot create one — a clean above-`T` output would need a clean above-`T` ancestor (mark-rule
+branches 2/4), a closed gate (branch 3), or a sub-`T+1` minute (branch 1). -/
+theorem cleanAbove_zero_step (T θn : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hgate : preBulkGate (L := L) (K := K) T θn mc = true)
+    (hclean : cleanAbove (L := L) (K := K) T mc = 0)
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    cleanAbove (L := L) (K := K) T mc' = 0 := by
+  classical
+  have hnotclean : ∀ m ∈ mc, ¬ (T + 1 ≤ m.1.minute.val ∧ m.2 = false) := by
+    intro m hm hcontra
+    have : 0 < cleanAbove (L := L) (K := K) T mc :=
+      Multiset.countP_pos.mpr ⟨m, hm, hcontra⟩
+    omega
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    unfold markedStep
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [if_pos happ]
+      unfold cleanAbove
+      rw [Multiset.countP_eq_zero]
+      intro m hm hcontra
+      rw [Multiset.mem_add] at hm
+      rcases hm with hm | hm
+      · exact hnotclean m (Multiset.mem_of_le (tsub_le_self (a := mc)) hm) hcontra
+      · -- m is one of the two outputs; analyse the mark rule.
+        have hmem1 : pr.1 ∈ mc := Multiset.mem_of_le happ (Multiset.mem_cons_self _ _)
+        have hmem2 : pr.2 ∈ mc := Multiset.mem_of_le happ
+          (Multiset.mem_cons_of_mem (Multiset.mem_singleton_self _))
+        have h1cp := hw pr.1.1 (Multiset.mem_map_of_mem Prod.fst hmem1)
+        have h2cp := hw pr.2.1 (Multiset.mem_map_of_mem Prod.fst hmem2)
+        -- the generic per-output argument, symmetric in the positions.
+        have key : ∀ own partner : MarkedAgent L K, own ∈ mc → partner ∈ mc →
+            own.1.role = .clock → partner.1.role = .clock →
+            own.1.phase.val = 3 → partner.1.phase.val = 3 →
+            ∀ o : AgentState L K,
+              (own.1.minute ≠ partner.1.minute →
+                o.minute = max own.1.minute partner.1.minute) →
+              T + 1 ≤ o.minute.val →
+              markFor (L := L) (K := K) T
+                (preBulkGate (L := L) (K := K) T θn mc) own partner o = false → False := by
+          intro own partner hownm hpartm _ _ _ _ o hsync habove hmark
+          unfold markFor at hmark
+          split_ifs at hmark with hb1 hb2 hb3
+          · omega
+          · -- branch 2: own above with mark false → own was clean above.
+            exact hnotclean own hownm ⟨hb2, hmark⟩
+          · -- branch 3: the gate value is `true`, contradiction with mark false.
+            rw [hgate] at hmark
+            exact absurd hmark (by simp)
+          · -- branch 4: sync crossing — the partner is the above-`T` leader, clean: contradiction.
+            have hmax := hsync hb3
+            have hpartner_above : T + 1 ≤ partner.1.minute.val := by
+              rcases le_total own.1.minute partner.1.minute with hle | hle
+              · rw [max_eq_right hle] at hmax
+                rw [hmax] at habove
+                exact habove
+              · rw [max_eq_left hle] at hmax
+                rw [hmax] at habove
+                omega
+            exact hnotclean partner hpartm ⟨hpartner_above, hmark⟩
+        rw [show ({(markedOut (L := L) (K := K) T
+            (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).1,
+            (markedOut (L := L) (K := K) T
+              (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).2}
+            : Multiset (MarkedAgent L K))
+          = (markedOut (L := L) (K := K) T
+              (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).1 ::ₘ
+            {(markedOut (L := L) (K := K) T
+              (preBulkGate (L := L) (K := K) T θn mc) pr.1 pr.2).2} from rfl] at hm
+        rcases Multiset.mem_cons.mp hm with hm | hm
+        · -- position 1: own = pr.1, o = (Transition pr.1.1 pr.2.1).1.
+          refine key pr.1 pr.2 hmem1 hmem2 h1cp.1 h2cp.1 h1cp.2 h2cp.2
+            (Transition L K pr.1.1 pr.2.1).1 ?_ ?_ ?_
+          · intro hne
+            exact (transition_p3_sync_minute (L := L) (K := K) pr.1.1 pr.2.1
+              h1cp.1 h2cp.1 h1cp.2 h2cp.2 hne).1
+          · rw [hm] at hcontra
+            exact hcontra.1
+          · rw [hm] at hcontra
+            exact hcontra.2
+        · -- position 2: own = pr.2, o = (Transition pr.1.1 pr.2.1).2.
+          rw [Multiset.mem_singleton.mp hm] at hcontra
+          refine key pr.2 pr.1 hmem2 hmem1 h2cp.1 h1cp.1 h2cp.2 h1cp.2
+            (Transition L K pr.1.1 pr.2.1).2 ?_ hcontra.1 hcontra.2
+          intro hne
+          rw [max_comm pr.2.1.minute pr.1.1.minute]
+          exact (transition_p3_sync_minute (L := L) (K := K) pr.1.1 pr.2.1
+            h1cp.1 h2cp.1 h1cp.2 h2cp.2 (fun hc => hne hc.symm)).2
+    · rw [if_neg happ]
+      exact hclean
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+    exact hclean
 
 end EarlyDripMarked
 
