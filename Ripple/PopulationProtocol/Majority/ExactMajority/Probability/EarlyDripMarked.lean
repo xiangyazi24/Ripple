@@ -4077,6 +4077,180 @@ theorem ladder_bad_subset (T n : ℕ) (cc : ℝ) (hcc : 0 ≤ cc)
     have : Yt m < cleanAbove (L := L) (K := K) T mc + 1 := by exact_mod_cast hcast
     omega
 
+/-! ## Part 27 — the zero-escape growth slice (brick 3.5d-iv b).
+
+The growth gate's complement is absorbing relative to the `AllClockGE3` region by the same
+argument as the clean slice gate (`10X ≤ n` exits are monotone-permanent; hour exits are
+phase-permanent), so the growth lower tail also sheds its escape term when the bad endpoint
+carries the gate membership. -/
+
+/-- The growth gate's complement is absorbing relative to the `AllClockGE3` region. -/
+theorem growth_gate_absorbing (T θn n : ℕ)
+    (mc : Config (MarkedAgent L K))
+    (hR : mc.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hG : mc ∉ growthGate (L := L) (K := K) T n) :
+    ∀ mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support,
+      mc' ∉ growthGate (L := L) (K := K) T n := by
+  classical
+  obtain ⟨hcard, hge3⟩ := hR
+  intro mc' hsupp
+  have hcard' : mc'.card = n := by
+    rw [← hcard]
+    have h1 := eraseConfig_card (L := L) (K := K) mc
+    have h2 := eraseConfig_card (L := L) (K := K) mc'
+    revert hsupp
+    unfold markedPMF
+    by_cases h : 2 ≤ mc.card
+    · rw [dif_pos h]
+      intro hsupp
+      rw [PMF.support_map] at hsupp
+      obtain ⟨pr, _, hpr⟩ := hsupp
+      subst hpr
+      by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+      · have herase := erase_markedStep (L := L) (K := K) T θn mc pr happ
+        have hreal : (eraseConfig (L := L) (K := K)
+            (markedStep (L := L) (K := K) T θn mc pr)).card
+            = (eraseConfig (L := L) (K := K) mc).card := by
+          rw [herase]
+          exact Protocol.reachable_card_eq
+            (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) _ pr.1.1 pr.2.1)
+        omega
+      · unfold markedStep
+        rw [if_neg happ]
+    · rw [dif_neg h]
+      intro hsupp
+      rw [PMF.support_pure] at hsupp
+      rw [Set.mem_singleton_iff.mp hsupp]
+  have hsplit : (∃ m ∈ mc, 4 ≤ m.1.phase.val) ∨
+      n < 10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) := by
+    by_contra hcon
+    push Not at hcon
+    obtain ⟨hno4, hX⟩ := hcon
+    apply hG
+    refine ⟨hcard, ?_, by omega⟩
+    intro a ha
+    unfold eraseConfig at ha
+    obtain ⟨m, hm, hma⟩ := Multiset.mem_map.mp ha
+    have hge := hge3 a ha
+    have h4 := hno4 m hm
+    refine ⟨hge.1, ?_⟩
+    have h3 : 3 ≤ a.phase.val := hge.2
+    have : a.phase.val ≤ 3 := by
+      rw [← hma]
+      omega
+    omega
+  rcases hsplit with h4 | hX
+  · have h4' := phase4_witness_absorbing (L := L) (K := K) T θn mc mc' h4 hsupp
+    rintro ⟨_, hP3, _⟩
+    obtain ⟨m, hm, hm4⟩ := h4'
+    have := hP3 m.1 (by
+      unfold eraseConfig
+      exact Multiset.mem_map_of_mem Prod.fst hm)
+    omega
+  · have hmono := rBeyond_erase_monotone_ge3 (L := L) (K := K) T θn T mc mc' hge3 hsupp
+    rintro ⟨_, _, hX'⟩
+    omega
+
+/-- **The zero-escape growth slice tail**: from a start in the `AllClockGE3` region, the
+probability of ending with the feeder still at or below `a` INSIDE the growth gate is at most
+`exp(−σ(X₀ − a))` — no escape mass. -/
+theorem slice_growth_tail (T θn n : ℕ) (hn : 2 ≤ n)
+    (σ : ℝ) (hσ : 0 ≤ σ) (w : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (a : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a ∧
+          mc ∈ growthGate (L := L) (K := K) T n} ≤
+      ENNReal.ofReal
+        (Real.exp (-(σ
+            * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+          + σ * (a : ℝ))) := by
+  classical
+  letI : MeasurableSpace (Option (Config (MarkedAgent L K))) := GatedDrift.instOptionMS
+  letI : DiscreteMeasurableSpace (Option (Config (MarkedAgent L K))) :=
+    GatedDrift.instOptionDMS
+  have hcoupling := real_le_killed_of_absorbing
+    (markedK (L := L) (K := K) T θn)
+    {mc : Config (MarkedAgent L K) |
+      mc.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+    (growthGate (L := L) (K := K) T n)
+    (fun mc hmc => ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      ⟨by
+        obtain ⟨hcard, hge3⟩ := hmc
+        have h1 := eraseConfig_card (L := L) (K := K) mc
+        have h2 := eraseConfig_card (L := L) (K := K) mc'
+        revert hsupp
+        unfold markedPMF
+        by_cases h : 2 ≤ mc.card
+        · rw [dif_pos h]
+          intro hsupp
+          rw [PMF.support_map] at hsupp
+          obtain ⟨pr, _, hpr⟩ := hsupp
+          subst hpr
+          by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+          · have herase := erase_markedStep (L := L) (K := K) T θn mc pr happ
+            have hreal : (eraseConfig (L := L) (K := K)
+                (markedStep (L := L) (K := K) T θn mc pr)).card
+                = (eraseConfig (L := L) (K := K) mc).card := by
+              rw [herase]
+              exact Protocol.reachable_card_eq
+                (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) _ pr.1.1 pr.2.1)
+            omega
+          · unfold markedStep
+            rw [if_neg happ]
+            omega
+        · rw [dif_neg h]
+          intro hsupp
+          rw [PMF.support_pure] at hsupp
+          rw [Set.mem_singleton_iff.mp hsupp]
+          omega,
+       allClockGE3_erase_step (L := L) (K := K) T θn mc mc' hmc.2 hsupp⟩))
+    (fun mc hmc hG => ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      growth_gate_absorbing (L := L) (K := K) T θn n mc hmc hG mc' hsupp))
+    (fun mc => rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a ∧
+      mc ∈ growthGate (L := L) (K := K) T n)
+    (fun mc hmc => hmc.2) w mc₀ hR
+  refine le_trans hcoupling ?_
+  have hsub : {o : Option (Config (MarkedAgent L K)) |
+      ∃ mc, o = some mc ∧
+        rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a ∧
+        mc ∈ growthGate (L := L) (K := K) T n} ⊆
+      {o | ENNReal.ofReal (Real.exp (-(σ * (a : ℝ))))
+        ≤ GatedDrift.killΦ (fun mc => ENNReal.ofReal
+            (Real.exp (-(σ * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc) : ℝ))))) o} := by
+    rintro o ⟨mc, rfl, hXa, _⟩
+    rw [Set.mem_setOf_eq, GatedDrift.killΦ_some]
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hcast : (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ)
+        ≤ (a : ℝ) := by exact_mod_cast hXa
+    nlinarith [hσ, hcast]
+  refine le_trans (measure_mono hsub) ?_
+  have hdrift := growthPot_drift (L := L) (K := K) T θn n hn (fun _ => σ)
+    (fun _ => hσ)
+    (fun j => by
+      have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (by omega : 0 < n)
+      have hes : Real.exp (-σ) ≤ 1 := Real.exp_le_one_iff.mpr (by linarith)
+      have h0 : (0 : ℝ) ≤ 1.8 * (1 - Real.exp (-σ)) / (n : ℝ) := by
+        apply div_nonneg _ hnpos.le
+        nlinarith
+      simpa using (by linarith : σ ≤ σ + 1.8 * (1 - Real.exp (-σ)) / (n : ℝ)))
+  have htail := stepIndexed_killed_tail (markedK (L := L) (K := K) T θn)
+    (growthGate (L := L) (K := K) T n)
+    (fun _ mc => ENNReal.ofReal (Real.exp (-(σ * (rBeyond (L := L) (K := K) T
+      (eraseConfig (L := L) (K := K) mc) : ℝ)))))
+    hdrift w mc₀ (ENNReal.ofReal (Real.exp (-(σ * (a : ℝ)))))
+    (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+  refine le_trans htail ?_
+  dsimp only
+  rw [← ENNReal.ofReal_div_of_pos (Real.exp_pos _), ← Real.exp_sub]
+  apply ENNReal.ofReal_le_ofReal
+  apply Real.exp_le_exp.mpr
+  ring_nf
+  exact le_refl _
+
 end EarlyDripMarked
 
 end ExactMajority
