@@ -2776,6 +2776,48 @@ theorem sync_rise_prob_ge (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h : 2 �
   apply le_of_eq
   ring
 
+/-! ## Part 16 — the erased tail is monotone along the marked chain, and the lower-exp bound. -/
+
+/-- The erased tail never decreases on the marked one-step support (the marks ride along; the
+underlying clock minutes are monotone). -/
+theorem rBeyond_erase_monotone (T θn R : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    rBeyond (L := L) (K := K) R (eraseConfig (L := L) (K := K) mc)
+      ≤ rBeyond (L := L) (K := K) R (eraseConfig (L := L) (K := K) mc') := by
+  classical
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [erase_markedStep (L := L) (K := K) T θn mc pr happ]
+      unfold Protocol.scheduledStep
+      exact rBeyond_stepOrSelf_ge (L := L) (K := K) R
+        (eraseConfig (L := L) (K := K) mc) hw pr.1.1 pr.2.1
+    · unfold markedStep
+      rw [if_neg happ]
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+
+/-- `(1 - s)*s <= 1 - e^{-s}` for `s >= 0` (the lower-tail rate keeps a `(1-s)` fraction of `s`;
+via `e^{-s} <= 1/(1+s)`). -/
+theorem one_sub_exp_neg_ge {s : ℝ} (hs : 0 ≤ s) :
+    (1 - s) * s ≤ 1 - Real.exp (-s) := by
+  have hpos : (0 : ℝ) < 1 + s := by linarith
+  have h1 : Real.exp (-s) ≤ 1 / (1 + s) := by
+    rw [le_div_iff₀ hpos]
+    calc Real.exp (-s) * (1 + s) ≤ Real.exp (-s) * Real.exp s := by
+          apply mul_le_mul_of_nonneg_left _ (Real.exp_pos _).le
+          linarith [Real.add_one_le_exp s]
+      _ = 1 := by rw [← Real.exp_add]; simp
+  have h2 : 1 / (1 + s) ≤ 1 - (1 - s) * s := by
+    rw [div_le_iff₀ hpos]
+    nlinarith [sq_nonneg s, mul_nonneg hs (sq_nonneg s)]
+  linarith
+
 end EarlyDripMarked
 
 end ExactMajority
