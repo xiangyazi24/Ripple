@@ -66,10 +66,17 @@ which (via the epidemic) means the hour is progressing — completion, not a bad
   the coupling (induction on t; helpers `killK_none`, `none_absorbing`, `killK_some_gated`).
 - **2d DONE** (commit a3ffccf7): `gated_real_tail` — `(K^t) x {θ≤Φ} ≤ (killK^t)(some x){none} + r^t·Φx/θ`
   = escape mass (gate left = bulk arrived, benign) + killed geometric tail.  **Brick 2 (gated engine) COMPLETE.**
-- **NEXT (brick 3)**: instantiate `gated_real_tail` for the early-drip — `Φ = exp(s·beyond(T+1))` (or the binary
-  `beyond(T+1)` count), `G = {beyond T < θn}`, the gated drift from `earlyDrip_mgf_one_step` + `earlyDrip_prob_le_sq`
-  (rate `≤ θ²` on G). Then bound the escape mass `(killK^t)(some x){none}` = `P[bulk arrived at T]` via the bulk
-  epidemic (`ConstantDensityEpidemic`). Discharges the early-drip feeder bound unconditionally.
+- **NEXT (brick 3)**: instantiate `gated_real_tail` for the early-drip. KEY SUBTLETY (worked out): the rate
+  bound `earlyDrip_prob_le_sq` (`≤ (beyond T/n)²`) holds ONLY when `beyond(T+1) = 0` (empty) — once seeded, SYNC
+  grows `beyond(T+1)` (rate `∝ beyond(T+1)·below/n²`, not squared). So `Φ = exp(s·beyond(T+1))` does NOT satisfy
+  the gated drift on `{beyond T<θn}` alone (sync term unbounded), and gating on `beyond(T+1)=0` conflates the
+  escape with the bad event. The genuine fix = Doty's drip-ONLY EXCESS counter `d_{≥i+1}` (counts only DRIP
+  arrivals into `≥ i+1`, excluding bulk-sync arrivals); its increment rate is the squared drip term
+  `≤ (beyond T/n)²` ALWAYS (no sync, since `d` ignores sync moves). Steps: (i) define `d_{≥T+1}` (a config→ℕ
+  counter that rises by 1 only on a same-minute-`T` drip into `T+1`); (ii) prove its rate `≤ (beyond T/n)²` and
+  `d` rises `≤1`/step (so `earlyDrip_mgf_one_step` applies with `Φ=exp(s·d)`); (iii) `gated_real_tail` with
+  `G={beyond T<θn}` → `d_{≥T+1}` small whp on the gate; (iv) escape `{none}` = `P[beyond T≥θn]` = bulk arrived,
+  via `ConstantDensityEpidemic`. Then `c_{≥T+1} ≤ (bulk-sync part) + d_{≥T+1}` feeds Lemma 6.3 → `GoodFrontProfile`.
 
 ## Brick 2 (ORIGINAL PLAN) — the GATED geometric drift tail (discharge `hrate` via the bulk-arrival gate)
 `earlyDrip_mgf_tail`'s `hrate` (rate ≤ q at EVERY config) is false with small q: the early-drip rate
