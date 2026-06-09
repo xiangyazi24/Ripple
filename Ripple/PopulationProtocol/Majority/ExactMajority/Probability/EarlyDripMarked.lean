@@ -2225,6 +2225,177 @@ theorem cleanAbove_le_succ_on_support (T θn : ℕ) (mc mc' : Config (MarkedAgen
     rw [Set.mem_singleton_iff.mp hsupp]
     omega
 
+/-! ## Part 13 — the GENERIC affine-rate counter drift (refactor serving both counters).
+
+Both `taintedCount` (rate `(θn/n)² + 2N/n` on the hour window) and `cleanAbove` (rate
+`(X₁/n)² + 2N/n` on the bulk-capped window) are `+1`-increment counters with an AFFINE rise rate
+`A + 2N/n`.  The time-dependent potential drift only uses that shape — so we prove it once,
+generically over the kernel, the counter, the gate, and the constant `A`. -/
+
+/-- **The generic affine-rate potential drift.**  For any Markov kernel, counter `N`, gate `G`,
+and constant `A ≥ 0`: if on the gate the counter rises by at most one (a.e.) with probability at
+most `A + 2·N/n`, and the sequences satisfy the slope/intercept recursions, then
+`Φ_j = exp(s_j·N + b_j)` is a one-step supermartingale on `G`. -/
+theorem affinePot_drift {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    (Kk : Kernel α α) [IsMarkovKernel Kk] (N : α → ℕ) (G : Set α)
+    (A : ℝ) (hA : 0 ≤ A) (n : ℕ) (hn : 2 ≤ n)
+    (hrate : ∀ mc ∈ G, Kk mc {mc' | N mc < N mc'}
+      ≤ ENNReal.ofReal (A + 2 * ((N mc : ℝ) / (n : ℝ))))
+    (hstep : ∀ mc ∈ G, ∀ᵐ mc' ∂(Kk mc), N mc' ≤ N mc + 1)
+    (s b : ℕ → ℝ)
+    (hs1 : ∀ j, 0 ≤ s (j + 1))
+    (hslope : ∀ j, s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ s j)
+    (hicept : ∀ j, b (j + 1) + A * (Real.exp (s (j + 1)) - 1) ≤ b j) :
+    ∀ (j : ℕ), ∀ mc ∈ G,
+      ∫⁻ mc', ENNReal.ofReal (Real.exp (s (j + 1) * (N mc' : ℝ) + b (j + 1))) ∂(Kk mc) ≤
+        ENNReal.ofReal (Real.exp (s j * (N mc : ℝ) + b j)) := by
+  classical
+  intro j mc hmc
+  haveI : IsProbabilityMeasure (Kk mc) :=
+    (inferInstance : IsMarkovKernel Kk).isProbabilityMeasure mc
+  set q : ℝ := A + 2 * ((N mc : ℝ) / (n : ℝ)) with hq
+  have hq0 : 0 ≤ q := by rw [hq]; positivity
+  have hmgf := ClimbTail.mgf_one_step (Kk mc) (s (j + 1)) (hs1 j)
+    N (N mc) (hstep mc hmc) q hq0 (hrate mc hmc)
+  have hsplit : ∀ mc', ENNReal.ofReal (Real.exp (s (j + 1) * (N mc' : ℝ) + b (j + 1)))
+      = ENNReal.ofReal (Real.exp (b (j + 1)))
+        * ENNReal.ofReal (Real.exp (s (j + 1) * (N mc' : ℝ))) := by
+    intro mc'
+    rw [← ENNReal.ofReal_mul (by positivity), ← Real.exp_add]
+    ring_nf
+  calc ∫⁻ mc', ENNReal.ofReal (Real.exp (s (j + 1) * (N mc' : ℝ) + b (j + 1))) ∂(Kk mc)
+      = ENNReal.ofReal (Real.exp (b (j + 1)))
+          * ∫⁻ mc', ENNReal.ofReal (Real.exp (s (j + 1) * (N mc' : ℝ))) ∂(Kk mc) := by
+        rw [← MeasureTheory.lintegral_const_mul _ (Measurable.of_discrete)]
+        exact lintegral_congr_ae (Filter.Eventually.of_forall (fun mc' => hsplit mc'))
+    _ ≤ ENNReal.ofReal (Real.exp (b (j + 1)))
+          * ENNReal.ofReal ((1 + q * (Real.exp (s (j + 1)) - 1))
+              * Real.exp (s (j + 1) * (N mc : ℝ))) := by gcongr
+    _ ≤ ENNReal.ofReal (Real.exp (s j * (N mc : ℝ) + b j)) := by
+        rw [← ENNReal.ofReal_mul (by positivity)]
+        apply ENNReal.ofReal_le_ofReal
+        have hexp1 : (1 : ℝ) ≤ Real.exp (s (j + 1)) := Real.one_le_exp (hs1 j)
+        have h1e : 1 + q * (Real.exp (s (j + 1)) - 1)
+            ≤ Real.exp (q * (Real.exp (s (j + 1)) - 1)) := by
+          have h := Real.add_one_le_exp (q * (Real.exp (s (j + 1)) - 1))
+          linarith
+        have hNnn : (0 : ℝ) ≤ (N mc : ℝ) := by positivity
+        have hsl := hslope j
+        have hic := hicept j
+        have hslN' : s (j + 1) * (N mc : ℝ)
+            + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) * (N mc : ℝ)
+            ≤ s j * (N mc : ℝ) := by
+          calc s (j + 1) * (N mc : ℝ)
+              + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) * (N mc : ℝ)
+              = (s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ)) * (N mc : ℝ) := by
+                ring
+            _ ≤ s j * (N mc : ℝ) := mul_le_mul_of_nonneg_right hsl hNnn
+        calc Real.exp (b (j + 1)) * ((1 + q * (Real.exp (s (j + 1)) - 1))
+              * Real.exp (s (j + 1) * (N mc : ℝ)))
+            ≤ Real.exp (b (j + 1)) * (Real.exp (q * (Real.exp (s (j + 1)) - 1))
+                * Real.exp (s (j + 1) * (N mc : ℝ))) := by
+              apply mul_le_mul_of_nonneg_left _ (Real.exp_pos _).le
+              apply mul_le_mul_of_nonneg_right h1e (Real.exp_pos _).le
+          _ = Real.exp (b (j + 1) + q * (Real.exp (s (j + 1)) - 1)
+                + s (j + 1) * (N mc : ℝ)) := by
+              rw [← Real.exp_add, ← Real.exp_add]
+              ring_nf
+          _ ≤ Real.exp (s j * (N mc : ℝ) + b j) := by
+              apply Real.exp_le_exp.mpr
+              rw [hq, show (A + 2 * ((N mc : ℝ) / (n : ℝ)))
+                  * (Real.exp (s (j + 1)) - 1)
+                  = A * (Real.exp (s (j + 1)) - 1)
+                    + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) * (N mc : ℝ) from by
+                ring]
+              linarith [hslN', hic]
+
+/-- The bulk-capped window gate for the clean-count analysis: fixed population, the hour window,
+and the level-`T` feeder capped at `X₁` (the window's end value of `x·n`; leaving it = the window
+ended, benign). -/
+def cleanGate (T n X₁ : ℕ) : Set (Config (MarkedAgent L K)) :=
+  {mc | mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+    rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ X₁}
+
+/-- **The clean-count potential drift on the bulk-capped window** (instance of the generic
+affine-rate drift at `A = (X₁/n)²`). -/
+theorem cleanPot_drift (T θn n X₁ : ℕ) (hn : 2 ≤ n) (s b : ℕ → ℝ)
+    (hs1 : ∀ j, 0 ≤ s (j + 1))
+    (hslope : ∀ j, s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ s j)
+    (hicept : ∀ j, b (j + 1) + ((X₁ : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1) ≤ b j) :
+    ∀ (j : ℕ), ∀ mc ∈ cleanGate (L := L) (K := K) T n X₁,
+      ∫⁻ mc', ENNReal.ofReal
+          (Real.exp (s (j + 1) * (cleanAbove (L := L) (K := K) T mc' : ℝ) + b (j + 1)))
+          ∂(markedK (L := L) (K := K) T θn mc) ≤
+        ENNReal.ofReal
+          (Real.exp (s j * (cleanAbove (L := L) (K := K) T mc : ℝ) + b j)) := by
+  apply affinePot_drift (markedK (L := L) (K := K) T θn)
+    (cleanAbove (L := L) (K := K) T) (cleanGate (L := L) (K := K) T n X₁)
+    (((X₁ : ℝ) / (n : ℝ)) ^ 2) (by positivity) n hn
+  · -- the rate on the gate.
+    rintro mc ⟨hcard, hw, hcap⟩
+    have hcard2 : 2 ≤ mc.card := by omega
+    refine le_trans (cleanAbove_rise_prob_le (L := L) (K := K) T θn mc hcard2 hw) ?_
+    have hcntT : Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc ≤ X₁ :=
+      le_trans (countT_le_rBeyond_erase (L := L) (K := K) T mc hw) hcap
+    have hbound : ((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+        / (mc.card : ℝ)) ^ 2 ≤ ((X₁ : ℝ) / (n : ℝ)) ^ 2 := by
+      rw [hcard]
+      apply pow_le_pow_left₀ (by positivity)
+      have hc : (Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+          ≤ (X₁ : ℝ) := by exact_mod_cast hcntT
+      gcongr
+    calc ENNReal.ofReal
+          (((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+            / (mc.card : ℝ)) ^ 2)
+          + ENNReal.ofReal (2 * ((cleanAbove (L := L) (K := K) T mc : ℝ) / (mc.card : ℝ)))
+        ≤ ENNReal.ofReal (((X₁ : ℝ) / (n : ℝ)) ^ 2)
+          + ENNReal.ofReal (2 * ((cleanAbove (L := L) (K := K) T mc : ℝ) / (n : ℝ))) :=
+          add_le_add (ENNReal.ofReal_le_ofReal hbound)
+            (ENNReal.ofReal_le_ofReal (by rw [hcard]))
+      _ = ENNReal.ofReal (((X₁ : ℝ) / (n : ℝ)) ^ 2
+            + 2 * ((cleanAbove (L := L) (K := K) T mc : ℝ) / (n : ℝ))) := by
+          rw [ENNReal.ofReal_add (by positivity) (by positivity)]
+  · -- the a.e. step bound on the gate.
+    rintro mc ⟨_, hw, _⟩
+    exact ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      cleanAbove_le_succ_on_support (L := L) (K := K) T θn mc mc' hw hsupp)
+  · exact hs1
+  · exact hslope
+  · exact hicept
+
+/-- **The clean-count tail over a window** (via the step-indexed engine): the probability that the
+clean count reaches `Y` within `w` steps is at most the window escape mass (the feeder grew past
+`X₁` or the hour closed — both benign window boundaries) plus `exp(s_0·y₀ + b_0 − s_w·Y − b_w)`. -/
+theorem clean_marked_tail (T θn n X₁ : ℕ) (hn : 2 ≤ n) (s b : ℕ → ℝ)
+    (hs1 : ∀ j, 0 ≤ s (j + 1))
+    (hslope : ∀ j, s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ s j)
+    (hicept : ∀ j, b (j + 1) + ((X₁ : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1) ≤ b j)
+    (w : ℕ) (hsw : 0 ≤ s w) (mc₀ : Config (MarkedAgent L K)) (Y : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | Y ≤ cleanAbove (L := L) (K := K) T mc} ≤
+      (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (cleanGate (L := L) (K := K) T n X₁) ^ w) (some mc₀) {none} +
+        ENNReal.ofReal
+            (Real.exp (s 0 * (cleanAbove (L := L) (K := K) T mc₀ : ℝ) + b 0))
+          / ENNReal.ofReal (Real.exp (s w * (Y : ℝ) + b w)) := by
+  have hsub : {mc : Config (MarkedAgent L K) | Y ≤ cleanAbove (L := L) (K := K) T mc}
+      ⊆ {mc | ENNReal.ofReal (Real.exp (s w * (Y : ℝ) + b w))
+          ≤ ENNReal.ofReal
+              (Real.exp (s w * (cleanAbove (L := L) (K := K) T mc : ℝ) + b w))} := by
+    intro mc hmc
+    rw [Set.mem_setOf_eq] at hmc ⊢
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hcast : (Y : ℝ) ≤ (cleanAbove (L := L) (K := K) T mc : ℝ) := by exact_mod_cast hmc
+    nlinarith [hsw, hcast]
+  refine le_trans (measure_mono hsub) ?_
+  exact GatedDrift.stepIndexed_gated_tail (G := cleanGate (L := L) (K := K) T n X₁)
+    (fun j mc => ENNReal.ofReal
+      (Real.exp (s j * (cleanAbove (L := L) (K := K) T mc : ℝ) + b j)))
+    (cleanPot_drift (L := L) (K := K) T θn n X₁ hn s b hs1 hslope hicept)
+    w mc₀ (ENNReal.ofReal (Real.exp (s w * (Y : ℝ) + b w)))
+    (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+
 end EarlyDripMarked
 
 end ExactMajority
