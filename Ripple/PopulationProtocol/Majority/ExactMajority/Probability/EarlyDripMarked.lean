@@ -4554,6 +4554,48 @@ theorem window_constants_growth :
     (0 : ℝ) < 18/10 * (sg - sg^2/2) * wp - sg * (g - 1) := by
   norm_num
 
+/-- **The floor-exponent bound**: the upward-growth floor exponent of `per_window_ladder_up`,
+`−(sg + w·cg)·X₀ + sg·a0` with `cg = 1.8(1−e^{−sg})/n` and `a0 ≤ g·X₀ + 1`, is at most
+`−δ·X₀ + sg` whenever the per-step growth margin `δ ≤ w·cg − sg·(g−1)` holds.  This isolates the
+`exp(−Ω(X₀))` floor decay; the margin hypothesis is discharged from `window_constants_growth`. -/
+theorem floor_exp_le (n : ℕ) (sg g δ : ℝ) (hsg : 0 ≤ sg)
+    (w : ℕ) (X₀ : ℕ) (a0 : ℕ) (ha0 : (a0 : ℝ) ≤ g * (X₀ : ℝ) + 1)
+    (hδ : δ ≤ (w : ℝ) * (1.8 * (1 - Real.exp (-sg)) / (n : ℝ)) - sg * (g - 1)) :
+    -((sg + (w : ℝ) * (1.8 * (1 - Real.exp (-sg)) / (n : ℝ))) * (X₀ : ℝ)) + sg * (a0 : ℝ)
+      ≤ -(δ * (X₀ : ℝ)) + sg := by
+  set cg : ℝ := 1.8 * (1 - Real.exp (-sg)) / (n : ℝ) with hcg
+  have hX0 : (0 : ℝ) ≤ (X₀ : ℝ) := by positivity
+  have h1 : sg * (a0 : ℝ) ≤ sg * (g * (X₀ : ℝ) + 1) :=
+    mul_le_mul_of_nonneg_left ha0 hsg
+  have hmargin : δ ≤ (w : ℝ) * cg - sg * (g - 1) := by rw [hcg]; exact hδ
+  nlinarith [mul_le_mul_of_nonneg_right hmargin hX0, h1, hX0]
+
+/-- **The slice-exponent bound**: the rung-`m` clean exponent of `per_window_ladder_up`,
+`σ·RW·Y₀ + (a_{m+1}/n)²(1+ε)·σ·RW·w − σ·Yt`, is at most `σ·(X₀²/n)·(A − Gm·B)` where
+`A = cc·RWb`, `B = g²(cc − G²(1+ε)RWb·wp)`, `Gm = G^{2m}` — given the structural inputs
+(invariant `Y₀ ≤ cc·X₀²/n`, `RW ≤ RWb`, the drip cap, the threshold lower bound).  `Gm ≥ 1` and
+`A < B` (`window_constants_slice`) then make every rung `≤ σ(X₀²/n)(A − B) < 0`. -/
+theorem slice_exp_le (Q σ ε RW RWb cc g G wp Y₀ drip Gm Yt : ℝ)
+    (hσ : 0 ≤ σ) (hQ : 0 ≤ Q) (hRW0 : 0 ≤ RW) (hccnn : 0 ≤ cc) (hε0 : 0 ≤ ε)
+    (hY : Y₀ ≤ cc * Q) (hRW : RW ≤ RWb) (hRWb0 : 0 ≤ RWb)
+    (hdrip : drip * (1 + ε) * RW ≤ Gm * G ^ 2 * g ^ 2 * (1 + ε) * RWb * wp * Q)
+    (hdrip0 : 0 ≤ drip)
+    (hYt : cc * Gm * g ^ 2 * Q ≤ Yt) :
+    σ * RW * Y₀ + drip * (1 + ε) * σ * RW - σ * Yt
+      ≤ σ * (Q * (cc * RWb - Gm * (g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * wp)))) := by
+  -- RW·Y₀ ≤ RWb·cc·Q ; drip(1+ε)RW ≤ Gm·G²·g²(1+ε)RWb·wp·Q ; Yt ≥ cc·Gm·g²·Q.
+  have hb1 : RW * Y₀ ≤ RWb * (cc * Q) := by
+    calc RW * Y₀ ≤ RW * (cc * Q) := mul_le_mul_of_nonneg_left hY hRW0
+      _ ≤ RWb * (cc * Q) := mul_le_mul_of_nonneg_right hRW
+          (mul_nonneg hccnn hQ)
+  have hkey : RW * Y₀ + drip * (1 + ε) * RW - Yt
+      ≤ Q * (cc * RWb - Gm * (g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * wp))) := by
+    nlinarith [hb1, hdrip, hYt]
+  calc σ * RW * Y₀ + drip * (1 + ε) * σ * RW - σ * Yt
+      = σ * (RW * Y₀ + drip * (1 + ε) * RW - Yt) := by ring
+    _ ≤ σ * (Q * (cc * RWb - Gm * (g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * wp)))) :=
+        mul_le_mul_of_nonneg_left hkey hσ
+
 end EarlyDripMarked
 
 end ExactMajority
