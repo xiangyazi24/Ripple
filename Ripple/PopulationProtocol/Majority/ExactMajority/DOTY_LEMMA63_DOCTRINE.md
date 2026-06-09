@@ -116,6 +116,59 @@ killed-kernel ADDITIVE union bound (binary), NOT the MGF. Need: killed kernel on
 + map + const dirac none) + a generic additive union (mirror `frontSync_union_horizon` for a generic kernel,
 or apply it to the killed kernel) + the "killed agrees with K on gated paths" relation.
 
+## BRICK 3 REVISION (2026-06-09, new session) — the 10th false shape caught BEFORE proving: unrestricted GoodFrontProfile
+
+Paper verification (Doty-2021-exact-majority.txt lines 1795-1955) + ChatGPT brick-3 consult (route 1a,
+/tmp/gpt_q_brick3.out archived) established TWO corrections to the plan above:
+
+1. **The drip-only excess counter d (the "NEXT (brick 3)" plan above) is NOT Doty's d.** Paper def
+   (lines 1807-1812): `D_{≥i+1}` = agents that moved above minute i via a drip WHILE `c_{≥i} < n^{-0.45}`,
+   PLUS agents brought above minute i via an epidemic reaction with another early-drip agent. The epidemic
+   descendants MUST be counted (else sync-from-tainted arrivals land in the clean part y and break the
+   y < 0.9px² recurrence). Drip-only undercounts. The faithful object needs the marked kernel (ChatGPT
+   route 1a: per-agent Bool taint, markedK, projection theorem back to the real kernel).
+
+2. **The unrestricted `GoodFrontProfile` (∀T squaring) is itself a FALSE residual** — the 10th false shape,
+   caught before building on it. Thm 6.5 asserts the squaring ONLY on `n^{-0.4} ≤ c_{≥i} ≤ 0.1` (line 2810
+   ↦ txt 1895). Below the window it genuinely fails whp: the first drip into a fresh level T+1 with feeder
+   count B < √n gives frac(T+1) = 1/n > (B/n)², and integrating the seeding rate (count²/n per parallel
+   unit) along the front's epidemic growth (e^{2τ}) shows seeding typically fires exactly at the B ≈ √n
+   borderline — Θ(1) violations per level, Θ(log n) per run. The paper handles sub-window levels by the
+   CLIMB argument instead (Thm 6.5 proof: drips above the n^{-0.4} point fire at rate ≤ p·n^{-1.6}; climbing
+   log log n levels in the O(log log n) window has probability n^{-ω(1)}).
+
+**Brick 3.1 DONE (this commit, 0-sorry, axiom-clean):** the faithful windowed residual pair + glue, in
+ClockFrontProfile.lean:
+- `FrontTail.windowed_doubly_exp` + `FrontTail.windowed_floor_crossing` — the windowed collapse: under
+  squaring gated on `[θ, 1/10]`, a subcritical start crosses any floor θ ≥ 1/card within
+  frontWidthBound(card) levels.
+- `WindowedFrontProfile θ c` — the faithful Thm 6.5 recurrence (squaring only on the window).
+- `ClimbBound θ W₂ c` — `frac k < θ → rBeyond (k+W₂) = 0` (run-long form; follows from the paper's
+  stopping-time form by minute-monotonicity).
+- `goodFrontWidth_of_windowed_profile_and_climb` — GoodFrontWidth (W₁+W₂) ⟸ WindowedFrontProfile ∧
+  ClimbBound, W₁ = frontWidthBound card. REPLACES goodFrontWidth_of_profile (kept, but its unrestricted
+  hypothesis is whp-undischargeable; do not build on it).
+
+**Brick 3 remaining (probabilistic, the genuine §6 core):**
+- 3.2 `ClimbBound` whp — the n^{-1.6}-rate climb union bound. Per-level rate `((frac k)²)²` gated on
+  `frac k < θ`; needs the union over the W₂ climb levels + the horizon. Closest to existing machinery
+  (earlyDrip_kernel_bound's union-bound shape + gated_real_tail for the gate).
+- 3.3 the marked kernel (EarlyDripMarked.lean per ChatGPT 1a): MarkedMinute/eraseConfig/markedK/
+  projection theorem; taintedCount; the within-gate identity taintedCount = beyond(T+1) (while the gate
+  holds every agent above T is tainted — paper's base case).
+- 3.4 the tainted-count tail. KEY DIFFICULTY (worked out this session): the constant-rate gated MGF
+  CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
+  gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)
+  window — useless. The faithful tool is the paper's two-phase split: (a) pre-bulk drip count via the
+  additive union bound (≤ t·(θ)² seeds, = O(n^{-0.89})·n agents); (b) post-seed epidemic growth bounded
+  by TIME: growing n^{-0.89} → n^{-0.85} needs Ω(log n) time > O(log log n) window (epidemic upper
+  concentration, the dual of ConstantDensityEpidemic). Alternative engine if (b)'s per-step form is
+  needed: TIME-DEPENDENT MGF (s_j = s·e^{-λ(t-j)/n} supermartingale, generalizing geometric_drift_tail
+  to a step-indexed potential) — handles branching with only polyloglog loss on the window.
+- 3.5 `WindowedFrontProfile` whp — Lemma 6.3's 0.1-window induction assembling (a)+(b)+bulk epidemic
+  (ConstantDensityEpidemic) + Chernoff on window drips; then rewire the clock onto
+  goodFrontWidth_of_windowed_profile_and_climb.
+
 ## Build routing / discipline
 Single-file `lake env lean` to iterate locally; full module build → uisai1 `scripts/remote-build.sh`. Each
 lemma: 0-sorry, `#print axioms` = [propext, Classical.choice, Quot.sound]; verify each statement is TRUE
