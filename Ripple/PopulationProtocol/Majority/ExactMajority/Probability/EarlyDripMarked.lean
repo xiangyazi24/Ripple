@@ -3223,6 +3223,107 @@ theorem per_window_step (T θn n X₁ : ℕ) (hn : 2 ≤ n)
     (growth_marked_tail_const (L := L) (K := K) T θn n hn σg hσg w mc₀ a)
     (clean_marked_tail_explicit (L := L) (K := K) T θn n X₁ hn σ ε hσ hε w hsmall mc₀ Yt)
 
+/-! ## Part 20 — the checkpoint composition (brick 3.5d-ii).
+
+The window induction chains the per-window failure over checkpoints via the Markov property: an
+invariant with a uniform one-step (= one-window) failure bound `δ` from invariant states fails by
+horizon `t` with probability at most `t·δ`.  Generic over the kernel — applied with the window
+kernel `markedK^w`, so the horizon counts WINDOWS. -/
+
+/-- **The invariant union bound**: if from every invariant state one kernel step breaks the
+invariant with probability at most `δ`, then from an invariant start the invariant is broken at
+time `t` with probability at most `t·δ`. -/
+theorem invariant_union_bound {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    (Kk : Kernel α α) [IsMarkovKernel Kk] (Inv : α → Prop) (δ : ℝ≥0∞)
+    (hstep : ∀ x, Inv x → Kk x {y | ¬ Inv y} ≤ δ)
+    (t : ℕ) (x₀ : α) (h0 : Inv x₀) :
+    (Kk ^ t) x₀ {y | ¬ Inv y} ≤ (t : ℝ≥0∞) * δ := by
+  classical
+  have hmeas : MeasurableSet {y : α | ¬ Inv y} :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  induction t generalizing x₀ with
+  | zero =>
+      simp only [Nat.cast_zero, zero_mul, pow_zero]
+      change (Kernel.id x₀) {y | ¬ Inv y} ≤ 0
+      rw [Kernel.id_apply, Measure.dirac_apply' _ hmeas]
+      simp [Set.indicator_of_notMem (show x₀ ∉ {y : α | ¬ Inv y} from fun hc => hc h0)]
+  | succ t ih =>
+      have hCK : (Kk ^ (t + 1)) x₀ {y | ¬ Inv y}
+          = ∫⁻ b, (Kk ^ t) b {y | ¬ Inv y} ∂(Kk x₀) := by
+        rw [show t + 1 = 1 + t from by ring,
+          Kernel.pow_add_apply_eq_lintegral Kk 1 t x₀ hmeas, pow_one]
+      rw [hCK]
+      set E0 : Set α := {b | Inv b} with hE0
+      have hE0_meas : MeasurableSet E0 := DiscreteMeasurableSpace.forall_measurableSet _
+      rw [← lintegral_add_compl _ hE0_meas]
+      have hbound0 : (∫⁻ b in E0, (Kk ^ t) b {y | ¬ Inv y} ∂(Kk x₀))
+          ≤ (t : ℝ≥0∞) * δ := by
+        calc (∫⁻ b in E0, (Kk ^ t) b {y | ¬ Inv y} ∂(Kk x₀))
+            ≤ ∫⁻ _ in E0, (t : ℝ≥0∞) * δ ∂(Kk x₀) := by
+              apply lintegral_mono_ae
+              filter_upwards [ae_restrict_mem hE0_meas] with b hb
+              exact ih b hb
+          _ ≤ (t : ℝ≥0∞) * δ := by
+              rw [lintegral_const, Measure.restrict_apply_univ]
+              haveI : IsProbabilityMeasure (Kk x₀) :=
+                (inferInstance : IsMarkovKernel Kk).isProbabilityMeasure x₀
+              calc (t : ℝ≥0∞) * δ * (Kk x₀) E0
+                  ≤ (t : ℝ≥0∞) * δ * 1 := by
+                    gcongr
+                    calc (Kk x₀) E0 ≤ (Kk x₀) Set.univ := measure_mono (Set.subset_univ _)
+                      _ = 1 := measure_univ
+                _ = (t : ℝ≥0∞) * δ := mul_one _
+      have hE0c : E0ᶜ = {y : α | ¬ Inv y} := by
+        ext b
+        simp [hE0]
+      have hbound1 : (∫⁻ b in E0ᶜ, (Kk ^ t) b {y | ¬ Inv y} ∂(Kk x₀)) ≤ δ := by
+        haveI : ∀ s : ℕ, IsMarkovKernel (Kk ^ s) := by
+          intro s
+          induction s with
+          | zero =>
+              rw [pow_zero]
+              exact inferInstanceAs (IsMarkovKernel (Kernel.id : Kernel α α))
+          | succ s ihs =>
+              rw [pow_succ]
+              exact inferInstanceAs (IsMarkovKernel ((Kk ^ s) ∘ₖ Kk))
+        calc (∫⁻ b in E0ᶜ, (Kk ^ t) b {y | ¬ Inv y} ∂(Kk x₀))
+            ≤ ∫⁻ _ in E0ᶜ, (1 : ℝ≥0∞) ∂(Kk x₀) := by
+              apply lintegral_mono_ae
+              filter_upwards with b
+              haveI : IsProbabilityMeasure ((Kk ^ t) b) :=
+                (inferInstance : IsMarkovKernel (Kk ^ t)).isProbabilityMeasure b
+              calc (Kk ^ t) b {y | ¬ Inv y}
+                  ≤ (Kk ^ t) b Set.univ := measure_mono (Set.subset_univ _)
+                _ = 1 := measure_univ
+          _ = (Kk x₀) E0ᶜ := by rw [lintegral_const, Measure.restrict_apply_univ, one_mul]
+          _ = (Kk x₀) {y | ¬ Inv y} := by rw [hE0c]
+          _ ≤ δ := hstep x₀ h0
+      calc (∫⁻ b in E0, (Kk ^ t) b {y | ¬ Inv y} ∂(Kk x₀))
+            + (∫⁻ b in E0ᶜ, (Kk ^ t) b {y | ¬ Inv y} ∂(Kk x₀))
+          ≤ (t : ℝ≥0∞) * δ + δ := add_le_add hbound0 hbound1
+        _ = ((t + 1 : ℕ) : ℝ≥0∞) * δ := by
+            rw [Nat.cast_add, Nat.cast_one, add_mul, one_mul]
+
+/-- **The checkpoint composition**: the invariant union bound at the WINDOW kernel `Kk^w` — an
+invariant with per-window failure `δ` from invariant states fails by `KK` windows with probability
+at most `KK·δ`. -/
+theorem checkpoint_composition {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    (Kk : Kernel α α) [IsMarkovKernel Kk] (Inv : α → Prop) (w : ℕ) (δ : ℝ≥0∞)
+    (hwindow : ∀ x, Inv x → (Kk ^ w) x {y | ¬ Inv y} ≤ δ)
+    (KK : ℕ) (x₀ : α) (h0 : Inv x₀) :
+    (Kk ^ (w * KK)) x₀ {y | ¬ Inv y} ≤ (KK : ℝ≥0∞) * δ := by
+  haveI : ∀ s : ℕ, IsMarkovKernel (Kk ^ s) := by
+    intro s
+    induction s with
+    | zero =>
+        rw [pow_zero]
+        exact inferInstanceAs (IsMarkovKernel (Kernel.id : Kernel α α))
+    | succ s ihs =>
+        rw [pow_succ]
+        exact inferInstanceAs (IsMarkovKernel ((Kk ^ s) ∘ₖ Kk))
+  rw [pow_mul]
+  exact invariant_union_bound (Kk ^ w) Inv δ hwindow KK x₀ h0
+
 end EarlyDripMarked
 
 end ExactMajority
