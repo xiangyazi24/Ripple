@@ -215,6 +215,102 @@ theorem gated_real_tail [IsMarkovKernel K] (Φ : α → ℝ≥0∞) (r : ℝ≥0
         gcongr
         exact killed_geometric_tail Φ r hr hdrift_G t x θ hθ0 hθtop
 
+/-! ## The STEP-INDEXED gated engine (Doty §6 brick 3.4c-i)
+
+The constant-rate engine above cannot handle BRANCHING increments (rate ∝ the current count, as in
+the epidemic-from-tainted term of the early-drip set): the worst-case constant rate over the window
+overshoots.  The classical fix is a TIME-DEPENDENT exponential potential `Φ_j = exp(s_j·N + b_j)`
+with `s_j` decreasing just fast enough to absorb the branching factor.  The engine here is the
+supporting supermartingale machinery, generic over the potential family: if `∫ Φ_{j+1} dK ≤ Φ_j` on
+the gate `G`, then the real-kernel tail at the FINAL potential `Φ_t` is bounded by the escape mass
+plus `Φ_0 x / θ`.  (The constant-rate engine is the special case `Φ_j = r^j·Φ`.) -/
+
+/-- The step-indexed decay: a potential family with one-step drift `∫ Φ_{j+1} dK ≤ Φ_j` at every
+state contracts over the horizon: `∫ Φ_t d(K^t x) ≤ Φ_0 x`. -/
+theorem lintegral_stepIndexed_decay {α : Type*} [MeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] :
+    ∀ (t : ℕ) (Φ : ℕ → α → ℝ≥0∞), (∀ j, Measurable (Φ j)) →
+      (∀ (j : ℕ) (x : α), ∫⁻ y, Φ (j + 1) y ∂(K x) ≤ Φ j x) →
+      ∀ x : α, ∫⁻ y, Φ t y ∂((K ^ t) x) ≤ Φ 0 x := by
+  intro t
+  induction t with
+  | zero =>
+      intro Φ hΦ _ x
+      simp only [pow_zero]
+      change ∫⁻ y, Φ 0 y ∂(Kernel.id x) ≤ Φ 0 x
+      rw [Kernel.id_apply, lintegral_dirac' x (hΦ 0)]
+  | succ t ih =>
+      intro Φ hΦ hdrift x
+      change ∫⁻ y, Φ (t + 1) y ∂(((K ^ t) ∘ₖ K) x) ≤ Φ 0 x
+      rw [Kernel.lintegral_comp _ K x (hΦ _)]
+      calc ∫⁻ b, ∫⁻ y, Φ (t + 1) y ∂((K ^ t) b) ∂(K x)
+          ≤ ∫⁻ b, Φ 1 b ∂(K x) :=
+            lintegral_mono (fun b =>
+              ih (fun j => Φ (j + 1)) (fun j => hΦ _) (fun j y => hdrift (j + 1) y) b)
+        _ ≤ Φ 0 x := hdrift 0 x
+
+/-- **The step-indexed gated tail on the REAL kernel** (the time-dependent-MGF engine).  If the
+potential family drifts on the gate `G` (`∫ Φ_{j+1} dK ≤ Φ_j` for `x ∈ G` — no factor, no `r ≥ 1`
+side condition), then the real `t`-step tail at the FINAL potential is bounded by the escape mass
+plus `Φ_0 x / θ`:
+
+  `(K^t) x {θ ≤ Φ_t} ≤ (killK^t)(some x){none} + Φ_0 x / θ`. -/
+theorem stepIndexed_gated_tail {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    [Inhabited α] {K : Kernel α α} {G : Set α} [IsMarkovKernel K]
+    (Φ : ℕ → α → ℝ≥0∞)
+    (hdrift_G : ∀ (j : ℕ), ∀ x ∈ G, ∫⁻ y, Φ (j + 1) y ∂(K x) ≤ Φ j x)
+    (t : ℕ) (x : α) (θ : ℝ≥0∞) (hθ0 : θ ≠ 0) (hθtop : θ ≠ ∞) :
+    (K ^ t) x {y | θ ≤ Φ t y} ≤
+      (killK K G ^ t) (some x) {(none : Option α)} + Φ 0 x / θ := by
+  classical
+  -- the killed family drifts UNCONDITIONALLY (off-gate and at the cemetery the integral is 0).
+  have hkill_drift : ∀ (j : ℕ) (o : Option α),
+      ∫⁻ p, killΦ (Φ (j + 1)) p ∂(killK K G o) ≤ killΦ (Φ j) o := by
+    intro j o
+    rcases o with _ | x'
+    · rw [killK_none, MeasureTheory.lintegral_dirac' _ (killΦ_measurable _)]
+      simp
+    · by_cases hx : x' ∈ G
+      · rw [killK_some_gated x' hx,
+          MeasureTheory.lintegral_map (killΦ_measurable _) (Measurable.of_discrete)]
+        simp only [killΦ_some]
+        exact hdrift_G j x' hx
+      · have hdead : killK K G (some x') = Measure.dirac (none : Option α) := by
+          unfold killK
+          rw [Kernel.piecewise_apply, if_neg (fun h => hx ((some_mem_image_iff x').1 h)),
+            Kernel.const_apply]
+        rw [hdead, MeasureTheory.lintegral_dirac' _ (killΦ_measurable _)]
+        simp
+  -- killed decay + Markov.
+  have hdecay := lintegral_stepIndexed_decay (killK K G) t (fun j => killΦ (Φ j))
+    (fun j => killΦ_measurable _) hkill_drift (some x)
+  simp only [killΦ_some] at hdecay
+  have hMarkov : θ * (killK K G ^ t) (some x) {o | θ ≤ killΦ (Φ t) o} ≤ Φ 0 x :=
+    le_trans (mul_meas_ge_le_lintegral₀ (hf := (killΦ_measurable _).aemeasurable) (ε := θ))
+      hdecay
+  have hkilled_tail : (killK K G ^ t) (some x) {o | θ ≤ killΦ (Φ t) o} ≤ Φ 0 x / θ := by
+    calc (killK K G ^ t) (some x) {o | θ ≤ killΦ (Φ t) o}
+        = (θ⁻¹ * θ) * (killK K G ^ t) (some x) {o | θ ≤ killΦ (Φ t) o} := by
+          simp [ENNReal.inv_mul_cancel hθ0 hθtop]
+      _ = θ⁻¹ * (θ * (killK K G ^ t) (some x) {o | θ ≤ killΦ (Φ t) o}) := by
+          simp [mul_assoc]
+      _ ≤ θ⁻¹ * Φ 0 x := by gcongr
+      _ = Φ 0 x / θ := by rw [mul_comm]; rfl
+  -- couple to the real kernel.
+  refine (real_le_killed (K := K) (G := G) (fun y => θ ≤ Φ t y) t x).trans ?_
+  have hsub : {o : Option α | o = none ∨ ∃ y, o = some y ∧ θ ≤ Φ t y}
+      ⊆ {(none : Option α)} ∪ {o | θ ≤ killΦ (Φ t) o} := by
+    rintro o (rfl | ⟨y, rfl, hy⟩)
+    · exact Or.inl rfl
+    · exact Or.inr hy
+  calc (killK K G ^ t) (some x) {o : Option α | o = none ∨ ∃ y, o = some y ∧ θ ≤ Φ t y}
+      ≤ (killK K G ^ t) (some x) ({(none : Option α)} ∪ {o | θ ≤ killΦ (Φ t) o}) :=
+        measure_mono hsub
+    _ ≤ (killK K G ^ t) (some x) {(none : Option α)}
+          + (killK K G ^ t) (some x) {o | θ ≤ killΦ (Φ t) o} := measure_union_le _ _
+    _ ≤ (killK K G ^ t) (some x) {(none : Option α)} + Φ 0 x / θ := by
+        gcongr
+
 end GatedDrift
 
 end ExactMajority
