@@ -387,3 +387,28 @@ the lifted drift lemmas (mechanical wrappers); (ii) the dyadic slice bound on ma
 real_le_killed_of_monotone + the extracted stepIndexed killed tail; (iii) window_constants norm_num;
 (iv) per-window δ + checkpoint_composition → the recurrence invariant whp; (v) transfer back
 through the H-kill and the projection bridge → WindowedFrontProfile.
+
+## 3.5d LEDGER FINAL (2026-06-09 evening; 40 commits; HEAD 5b9c6249; uisai2 FULL-BUILD GREEN ×2)
+uisai2 verification: BOTH runs green ("Build completed successfully (4123 jobs)") — the entire tree
+including all 40 commits. (Watch out: grep-verdicts misfire on style-linter noise; trust lake's own
+success line.)
+3.5d machinery COMPLETE through the per-window bound:
+- per_window_step / invariant_union_bound / checkpoint_composition (the spine);
+- real_le_killed_of_absorbing + ae_notG_pow (zero-escape coupling, absorbing-complement gates);
+- stepIndexed_killed_tail; slice-gate absorbing inputs (GE3 region, phase4 permanence, monotone X);
+- slice_clean_tail_explicit + slice_growth_tail (ZERO-ESCAPE tails both directions);
+- ladder_locate / ladder_bad_subset (the dyadic ladder split);
+- **per_window_ladder (capstone): P[per-window Lemma 6.3 failure] ≤ e^{−σg(X₀−a0)} +
+  Σ_m e^{σρ^w Y₀ + (a_{m+1}/n)²(1+ε)σρ^w w − σ Yt_m} — pure exponentials, NO escape terms.**
+REMAINING for Lemma 6.3 (next session, fully determined):
+(1) the UNIFORM δ over invariant states: instantiate the ladder geometrically (a m = G^m·a 0,
+    a 0 = the growth target g·X₀), Yt m = ⌈cc(a m)²/n⌉+…, and bound the RHS uniformly over
+    Inv-states (θn ≤ X₀ ≤ n/10, Y₀ ≤ cc·X₀²/n) — the slice-m exponent must be ≤ −Ω(n^{0.1}) per
+    the m=0 tight case (margin 0.04w) and m≥1 easy cases; norm_num at w, G, cc per the doctrine
+    constants section (w = 0.015, G = 1.03, cc = 0.9);
+(2) checkpoint_composition at the window kernel with Inv := {recurrence ∧ region} and the uniform δ;
+(3) the assembly: tainted_marked_tail_explicit (d ≤ n^{0.15}) + aboveCount decomposition →
+    rBeyond(T+1) ≤ cc·X²/n + n^{0.15} ≤ X²/n at window scales → the per-level recurrence whp;
+(4) union over levels T ≤ capMinute and the horizon; transfer through markedK_pow_erase →
+    WindowedFrontProfile whp. Then 3.5e: ClimbBound whp (climb_real_tail escape := tainted tail) +
+    goodFrontWidth_of_windowed_profile_and_climb → rewire the clock off hwin_all.
