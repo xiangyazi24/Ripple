@@ -4460,6 +4460,69 @@ theorem per_window_ladder (T θn n : ℕ) (hn : 2 ≤ n)
     exact slice_clean_tail_explicit (L := L) (K := K) T θn n (a (m + 1)) hn σ ε hσ hε w
       hsmall mc₀ hR (Yt m)
 
+/-- **The per-window ladder bound, UPWARD floor** (brick 3.5e): identical to `per_window_ladder`
+but the floor branch uses the UPWARD growth tail `slice_growth_tail_up`, so the floor exponent is
+`−(σg + w·cg)·X₀ + σg·a0` (`cg = 1.8(1−e^{−σg})/n`) — small even for the growth floor `a0 = g·X₀`,
+`g > 1`.  This is the version the recurrence actually consumes. -/
+theorem per_window_ladder_up (T θn n : ℕ) (hn : 2 ≤ n)
+    (cc : ℝ) (hcc : 0 ≤ cc) (σg σ ε : ℝ) (hσg : 0 < σg) (hσ : 0 < σ) (hε : 0 < ε)
+    (w : ℕ) (hsmall : σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w ≤ ε / (1 + ε))
+    (mc₀ : Config (MarkedAgent L K))
+    (hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (a : ℕ → ℕ) (M : ℕ) (ha0 : 10 * a 0 ≤ n) (Yt : ℕ → ℕ)
+    (hYt : ∀ m < M, (Yt m : ℝ) ≤ cc * (a m : ℝ) ^ 2 / (n : ℝ) + 1) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | (cc * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a M ∧
+          mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} ≤
+      ENNReal.ofReal
+        (Real.exp (-((σg + (w : ℝ) * (1.8 * (1 - Real.exp (-σg)) / (n : ℝ)))
+            * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+          + σg * (a 0 : ℝ))) +
+      ∑ m ∈ Finset.range M, ENNReal.ofReal
+        (Real.exp (σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w
+            * (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+          + ((a (m + 1) : ℝ) / (n : ℝ)) ^ 2 * (1 + ε) * σ
+              * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w * (w : ℝ)
+          - σ * (Yt m : ℝ))) := by
+  classical
+  set src : Set (Config (MarkedAgent L K)) :=
+    {mc | (cc * (rBeyond (L := L) (K := K) T
+          (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+        < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+      rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a M ∧
+      mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+    with hsrc
+  have hsplit : src ⊆
+      {mc : Config (MarkedAgent L K) |
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a 0 ∧
+            mc ∈ growthGate (L := L) (K := K) T n} ∪
+        ⋃ m ∈ Finset.range M,
+          {mc : Config (MarkedAgent L K) |
+            Yt m ≤ cleanAbove (L := L) (K := K) T mc ∧
+              mc ∈ cleanGate (L := L) (K := K) T n (a (m + 1))} := by
+    intro mc hmc
+    have hsub := ladder_bad_subset (L := L) (K := K) T n cc hcc a M Yt hYt hmc
+    rcases hsub with hfloor | hrungs
+    · left
+      obtain ⟨_, _, hcard, hP3⟩ := hmc
+      refine ⟨hfloor, hcard, hP3, ?_⟩
+      rw [Set.mem_setOf_eq] at hfloor
+      omega
+    · exact Or.inr hrungs
+  refine le_trans (measure_mono hsplit) ?_
+  refine le_trans (measure_union_le _ _) ?_
+  refine add_le_add ?_ ?_
+  · exact slice_growth_tail_up (L := L) (K := K) T θn n hn σg hσg w mc₀ hR (a 0)
+  · refine le_trans (measure_biUnion_finset_le _ _) ?_
+    apply Finset.sum_le_sum
+    intro m _
+    exact slice_clean_tail_explicit (L := L) (K := K) T θn n (a (m + 1)) hn σ ε hσ hε w
+      hsmall mc₀ hR (Yt m)
+
 end EarlyDripMarked
 
 end ExactMajority
