@@ -1545,6 +1545,204 @@ theorem tainted_rise_prob_le_of_gate_false (T θn : ℕ) (mc : Config (MarkedAge
   ring_nf
   exact le_refl _
 
+/-! ## Part 9 — the time-dependent taint potential, its gated drift, and the marked taint tail. -/
+
+/-- The hour-window gate for the taint analysis: fixed population, all agents Phase-3 clocks.
+(The pre-bulk gate is NOT here — the mark rule itself stops the drip seeds once the bulk arrives,
+so the rate `q ≤ (θn/n)² + 2·tainted/n` holds across the whole hour window.) -/
+def taintedGate (n : ℕ) : Set (Config (MarkedAgent L K)) :=
+  {mc | mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+
+/-- The time-dependent exponential taint potential `Φ_j = exp(s_j·taintedCount + b_j)`. -/
+noncomputable def taintedPot (s b : ℕ → ℝ) (j : ℕ) (mc : Config (MarkedAgent L K)) : ℝ≥0∞ :=
+  ENNReal.ofReal (Real.exp (s j * (taintedCount (L := L) (K := K) mc : ℝ) + b j))
+
+/-- The minute-`T` count is at most the level-`T` tail of the erased configuration, on the
+`AllClockP3` window. -/
+theorem countT_le_rBeyond_erase (T : ℕ) (mc : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc
+      ≤ rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) := by
+  classical
+  unfold rBeyond eraseConfig
+  rw [Multiset.countP_map]
+  rw [Multiset.countP_eq_card_filter]
+  apply Multiset.card_le_card
+  rw [Multiset.le_iff_count]
+  intro m
+  rw [Multiset.count_filter, Multiset.count_filter]
+  by_cases hm : m ∈ mc
+  · have hrole := hw m.1 (by
+      unfold eraseConfig
+      exact Multiset.mem_map_of_mem Prod.fst hm)
+    by_cases hT : m.1.minute.val = T
+    · rw [if_pos hT, if_pos (show clockBeyondP (L := L) (K := K) T m.1 from
+        ⟨hrole.1, by omega⟩)]
+    · rw [if_neg hT]
+      simp
+  · have hz : Multiset.count m mc = 0 := Multiset.count_eq_zero_of_notMem hm
+    rw [hz]
+    split_ifs <;> simp
+
+/-- **The gated drift of the time-dependent taint potential** (brick 3.4c-ii core).  On the hour
+window, with the slope recursion absorbing the branching (`s_{j+1} + 2(e^{s_{j+1}}−1)/n ≤ s_j`)
+and the intercept recursion absorbing the drip-seed immigration
+(`b_{j+1} + (θn/n)²(e^{s_{j+1}}−1) ≤ b_j`), the potential family is a one-step supermartingale:
+`∫ Φ_{j+1} d(markedK mc) ≤ Φ_j mc`. -/
+theorem taintedPot_drift (T θn n : ℕ) (hn : 2 ≤ n) (s b : ℕ → ℝ)
+    (hs1 : ∀ j, 0 ≤ s (j + 1))
+    (hslope : ∀ j, s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ s j)
+    (hicept : ∀ j, b (j + 1) + ((θn : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1) ≤ b j) :
+    ∀ (j : ℕ), ∀ mc ∈ taintedGate (L := L) (K := K) n,
+      ∫⁻ mc', taintedPot (L := L) (K := K) s b (j + 1) mc'
+          ∂(markedK (L := L) (K := K) T θn mc) ≤
+        taintedPot (L := L) (K := K) s b j mc := by
+  classical
+  rintro j mc ⟨hcard, hw⟩
+  have hcard2 : 2 ≤ mc.card := by omega
+  haveI : IsProbabilityMeasure (markedK (L := L) (K := K) T θn mc) :=
+    (inferInstance : IsMarkovKernel (markedK (L := L) (K := K) T θn)).isProbabilityMeasure mc
+  set N := taintedCount (L := L) (K := K) mc with hN
+  set q : ℝ := ((θn : ℝ) / (n : ℝ)) ^ 2 + 2 * ((N : ℝ) / (n : ℝ)) with hq
+  have hq0 : 0 ≤ q := by rw [hq]; positivity
+  -- the uniform rise rate over the window.
+  have hprob : markedK (L := L) (K := K) T θn mc
+      {mc' | N < taintedCount (L := L) (K := K) mc'} ≤ ENNReal.ofReal q := by
+    by_cases hg : preBulkGate (L := L) (K := K) T θn mc = true
+    · refine le_trans (tainted_rise_prob_le (L := L) (K := K) T θn mc hcard2 hw) ?_
+      have hcntT : Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc ≤ θn := by
+        have h1 := countT_le_rBeyond_erase (L := L) (K := K) T mc hw
+        have h2 : rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) < θn :=
+          of_decide_eq_true hg
+        omega
+      have hbound : ((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+          / (mc.card : ℝ)) ^ 2 ≤ ((θn : ℝ) / (n : ℝ)) ^ 2 := by
+        rw [hcard]
+        apply pow_le_pow_left₀ (by positivity)
+        have hc : (Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+            ≤ (θn : ℝ) := by exact_mod_cast hcntT
+        gcongr
+      calc ENNReal.ofReal
+            (((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+              / (mc.card : ℝ)) ^ 2)
+            + ENNReal.ofReal (2 * ((N : ℝ) / (mc.card : ℝ)))
+          ≤ ENNReal.ofReal (((θn : ℝ) / (n : ℝ)) ^ 2)
+            + ENNReal.ofReal (2 * ((N : ℝ) / (n : ℝ))) :=
+            add_le_add (ENNReal.ofReal_le_ofReal hbound)
+              (ENNReal.ofReal_le_ofReal (by rw [hcard]))
+        _ = ENNReal.ofReal q := by
+            rw [hq, ENNReal.ofReal_add (by positivity) (by positivity)]
+    · have hg' : preBulkGate (L := L) (K := K) T θn mc = false := by
+        rcases Bool.eq_false_or_eq_true (preBulkGate (L := L) (K := K) T θn mc) with h | h
+        · exact absurd h hg
+        · exact h
+      refine le_trans
+        (tainted_rise_prob_le_of_gate_false (L := L) (K := K) T θn mc hcard2 hg') ?_
+      apply ENNReal.ofReal_le_ofReal
+      rw [hq, hcard]
+      have hsq : (0 : ℝ) ≤ ((θn : ℝ) / (n : ℝ)) ^ 2 := by positivity
+      linarith
+  -- the a.e. one-step increment bound.
+  have hstep_ae : ∀ᵐ mc' ∂(markedK (L := L) (K := K) T θn mc),
+      taintedCount (L := L) (K := K) mc' ≤ N + 1 :=
+    ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      taintedCount_le_succ_on_support (L := L) (K := K) T θn mc mc' hw hsupp)
+  -- the generic MGF contraction at this state's rate.
+  have hmgf := ClimbTail.mgf_one_step (markedK (L := L) (K := K) T θn mc) (s (j + 1)) (hs1 j)
+    (taintedCount (L := L) (K := K)) N hstep_ae q hq0 hprob
+  -- pull the intercept constant out, combine, close with the real-exponential inequality.
+  have hsplit : ∀ mc', taintedPot (L := L) (K := K) s b (j + 1) mc'
+      = ENNReal.ofReal (Real.exp (b (j + 1)))
+        * ENNReal.ofReal
+            (Real.exp (s (j + 1) * (taintedCount (L := L) (K := K) mc' : ℝ))) := by
+    intro mc'
+    unfold taintedPot
+    rw [← ENNReal.ofReal_mul (by positivity), ← Real.exp_add]
+    ring_nf
+  calc ∫⁻ mc', taintedPot (L := L) (K := K) s b (j + 1) mc'
+        ∂(markedK (L := L) (K := K) T θn mc)
+      = ENNReal.ofReal (Real.exp (b (j + 1)))
+          * ∫⁻ mc', ENNReal.ofReal
+              (Real.exp (s (j + 1) * (taintedCount (L := L) (K := K) mc' : ℝ)))
+            ∂(markedK (L := L) (K := K) T θn mc) := by
+        rw [← MeasureTheory.lintegral_const_mul _ (Measurable.of_discrete)]
+        exact lintegral_congr_ae (Filter.Eventually.of_forall (fun mc' => hsplit mc'))
+    _ ≤ ENNReal.ofReal (Real.exp (b (j + 1)))
+          * ENNReal.ofReal ((1 + q * (Real.exp (s (j + 1)) - 1))
+              * Real.exp (s (j + 1) * (N : ℝ))) := by gcongr
+    _ ≤ taintedPot (L := L) (K := K) s b j mc := by
+        unfold taintedPot
+        rw [← ENNReal.ofReal_mul (by positivity)]
+        apply ENNReal.ofReal_le_ofReal
+        have hexp1 : (1 : ℝ) ≤ Real.exp (s (j + 1)) := Real.one_le_exp (hs1 j)
+        have h1e : 1 + q * (Real.exp (s (j + 1)) - 1)
+            ≤ Real.exp (q * (Real.exp (s (j + 1)) - 1)) := by
+          have h := Real.add_one_le_exp (q * (Real.exp (s (j + 1)) - 1))
+          linarith
+        calc Real.exp (b (j + 1)) * ((1 + q * (Real.exp (s (j + 1)) - 1))
+              * Real.exp (s (j + 1) * (N : ℝ)))
+            ≤ Real.exp (b (j + 1)) * (Real.exp (q * (Real.exp (s (j + 1)) - 1))
+                * Real.exp (s (j + 1) * (N : ℝ))) := by
+              apply mul_le_mul_of_nonneg_left _ (Real.exp_pos _).le
+              apply mul_le_mul_of_nonneg_right h1e (Real.exp_pos _).le
+          _ = Real.exp (b (j + 1) + q * (Real.exp (s (j + 1)) - 1)
+                + s (j + 1) * (N : ℝ)) := by
+              rw [← Real.exp_add, ← Real.exp_add]
+              ring_nf
+          _ ≤ Real.exp (s j * (N : ℝ) + b j) := by
+              apply Real.exp_le_exp.mpr
+              have hNnn : (0 : ℝ) ≤ (N : ℝ) := by positivity
+              have hsl := hslope j
+              have hic := hicept j
+              have hslN : (s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ)) * (N : ℝ)
+                  ≤ s j * (N : ℝ) :=
+                mul_le_mul_of_nonneg_right hsl hNnn
+              have hslN' : s (j + 1) * (N : ℝ)
+                  + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) * (N : ℝ)
+                  ≤ s j * (N : ℝ) := by
+                calc s (j + 1) * (N : ℝ)
+                    + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) * (N : ℝ)
+                    = (s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ)) * (N : ℝ) := by
+                      ring
+                  _ ≤ s j * (N : ℝ) := hslN
+              rw [hq, show (((θn : ℝ) / (n : ℝ)) ^ 2 + 2 * ((N : ℝ) / (n : ℝ)))
+                  * (Real.exp (s (j + 1)) - 1)
+                  = ((θn : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1)
+                    + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) * (N : ℝ) from by ring]
+              linarith [hslN', hic]
+
+/-- **The marked taint tail** (brick 3.4c-ii capstone).  Over `t` steps of the marked kernel from
+`mc₀`, the probability that the taint count reaches `a` is at most the hour-window escape mass plus
+`Φ_0(mc₀)/exp(s_t·a + b_t)` — the time-dependent-MGF tail.  At the paper scales this is the
+`d = O(n^{-0.85})` bound of Doty Theorem 6.5's second claim. -/
+theorem tainted_marked_tail (T θn n : ℕ) (hn : 2 ≤ n) (s b : ℕ → ℝ)
+    (hs1 : ∀ j, 0 ≤ s (j + 1))
+    (hslope : ∀ j, s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ s j)
+    (hicept : ∀ j, b (j + 1) + ((θn : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1) ≤ b j)
+    (t : ℕ) (hst : 0 ≤ s t) (mc₀ : Config (MarkedAgent L K)) (a : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ t) mc₀
+        {mc | a ≤ taintedCount (L := L) (K := K) mc} ≤
+      (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (taintedGate (L := L) (K := K) n) ^ t) (some mc₀) {none} +
+        taintedPot (L := L) (K := K) s b 0 mc₀
+          / ENNReal.ofReal (Real.exp (s t * (a : ℝ) + b t)) := by
+  have hsub : {mc : Config (MarkedAgent L K) | a ≤ taintedCount (L := L) (K := K) mc}
+      ⊆ {mc | ENNReal.ofReal (Real.exp (s t * (a : ℝ) + b t))
+          ≤ taintedPot (L := L) (K := K) s b t mc} := by
+    intro mc hmc
+    rw [Set.mem_setOf_eq] at hmc ⊢
+    unfold taintedPot
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hcast : (a : ℝ) ≤ (taintedCount (L := L) (K := K) mc : ℝ) := by exact_mod_cast hmc
+    nlinarith [hst, hcast]
+  refine le_trans (measure_mono hsub) ?_
+  exact GatedDrift.stepIndexed_gated_tail (G := taintedGate (L := L) (K := K) n)
+    (taintedPot (L := L) (K := K) s b)
+    (taintedPot_drift (L := L) (K := K) T θn n hn s b hs1 hslope hicept)
+    t mc₀ (ENNReal.ofReal (Real.exp (s t * (a : ℝ) + b t)))
+    (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+
 end EarlyDripMarked
 
 end ExactMajority

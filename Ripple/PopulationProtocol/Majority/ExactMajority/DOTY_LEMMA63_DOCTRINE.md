@@ -206,9 +206,21 @@ ClockFrontProfile.lean:
   engine for branching rates: instantiate Φ_j = exp(s_j·taintedCount + b_j) with s_j ≥ s_{j+1} +
   2(e^{s_{j+1}}−1)/n (slope absorbs branching 2N/n) and b_j ≥ b_{j+1} + θ²(e^{s_{j+1}}−1) (intercept
   absorbs drip-seed immigration); s_0/s_t ratio over a window of length t costs (1+4/n)^t ≈ e^{4t/n}
-  = polyloglog for t = O(n loglog n). REMAINING 3.4c-ii: the instantiation — one-step drift of the
-  indexed potential from tainted_rise_prob_le (per-x rate q = (count@T/n)² + 2·tainted/n fed to
-  mgf_one_step pointwise) + the explicit s_j/b_j sequences + the window gate; then the d-bound. the constant-rate gated MGF
+  = polyloglog for t = O(n loglog n).
+- 3.4c-ii **DONE (EarlyDripMarked.lean Parts 8-9, 0-sorry axiom-clean)** — the instantiation:
+  `tainted_rise_subset_gate_false` + `tainted_rise_prob_le_of_gate_false` (gate closed ⟹ NO drip
+  marks — branch 3 self-kills — so P[rise] ≤ 2·tainted/n); `countT_le_rBeyond_erase`;
+  `taintedPot_drift` (Φ_j = exp(s_j·taintedCount + b_j) is a one-step supermartingale on the
+  hour-window gate taintedGate = {card = n ∧ AllClockP3∘erase}, GIVEN the slope recursion
+  s_{j+1} + 2(e^{s_{j+1}}−1)/n ≤ s_j and intercept recursion b_{j+1} + (θn/n)²(e^{s_{j+1}}−1) ≤ b_j;
+  the per-state rate (θn/n)² + 2N/n is uniform over the window because the mark rule stops drip
+  seeds post-gate); capstone **`tainted_marked_tail`: (markedK^t) mc₀ {a ≤ taintedCount} ≤
+  hour-escape + Φ_0(mc₀)/exp(s_t·a + b_t)** via stepIndexed_gated_tail.
+  REMAINING 3.4c-iii: the SCALE instantiation — explicit sequences s_j = s_T·(1+4/n)^{T−j}-style
+  satisfying the recursions (pure real arithmetic), the paper exponents (θn = n^{0.55}, a = n^{0.15},
+  window t = O(n loglog n) → tail n^{-ω(1)}), the hour-escape mass, and the initial Φ_0(mc₀) = e^{b_0}
+  (all-unmarked start). Then 3.5: Lemma 6.3's window recurrence (clean part y ≤ 0.9px² via the
+  cleanAbove machinery + bulk epidemic) → WindowedFrontProfile whp → rewire the clock. the constant-rate gated MGF
   CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
   gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)
   window — useless. The faithful tool is the paper's two-phase split: (a) pre-bulk drip count via the
