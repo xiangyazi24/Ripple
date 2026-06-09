@@ -2097,6 +2097,134 @@ theorem cleanAbove_rise_prob_le (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h
     exact le_refl _
   exact add_le_add hbound1 hbound2
 
+/-! ## Part 12 — the parameterized exponential bound and the clean `≤ 1` step (brick 3.5b inputs).
+
+The Lemma 6.3 window induction needs the branching factor per window to be `e^{(2+O(ε))w}`, so the
+crude `e^x − 1 ≤ 2x` (which doubles the rate) must be replaced by the parameterized
+`e^x − 1 ≤ (1+ε)x` for `x ≤ ε/(1+ε)`. -/
+
+/-- `e^x − 1 ≤ (1+ε)x` for `0 ≤ x ≤ ε/(1+ε)` (sharpens `exp_sub_one_le_two_mul`, which is the
+case `ε = 1`). -/
+theorem exp_sub_one_le_mul {x ε : ℝ} (h0 : 0 ≤ x) (hε : 0 < ε) (hx : x ≤ ε / (1 + ε)) :
+    Real.exp x - 1 ≤ (1 + ε) * x := by
+  have h1ε : (0 : ℝ) < 1 + ε := by linarith
+  have hx1 : x < 1 := by
+    have : ε / (1 + ε) < 1 := by
+      rw [div_lt_one h1ε]
+      linarith
+    linarith
+  have hb := Real.exp_bound_div_one_sub_of_interval h0 hx1
+  have h1x : (0 : ℝ) < 1 - x := by linarith
+  -- 1/(1−x) ≤ 1 + (1+ε)x ⟸ x ≤ ε/(1+ε) (cross-multiplied: (1+(1+ε)x)(1−x) ≥ 1).
+  have hdiv : 1 / (1 - x) ≤ 1 + (1 + ε) * x := by
+    rw [div_le_iff₀ h1x]
+    have hxε : x * (1 + ε) ≤ ε := by
+      rw [le_div_iff₀ h1ε] at hx
+      exact hx
+    nlinarith [h0, hxε]
+  linarith
+
+/-- **The clean count rises by at most one per step** (mirror of
+`taintedCount_le_succ_on_support` via the clean case split). -/
+theorem cleanAbove_le_succ_on_support (T θn : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    cleanAbove (L := L) (K := K) T mc' ≤ cleanAbove (L := L) (K := K) T mc + 1 := by
+  classical
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    unfold markedStep
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [if_pos happ]
+      have hmem1 : pr.1 ∈ mc := Multiset.mem_of_le happ (Multiset.mem_cons_self _ _)
+      have hmem2 : pr.2 ∈ mc := Multiset.mem_of_le happ
+        (Multiset.mem_cons_of_mem (Multiset.mem_singleton_self _))
+      have h1cp := hw pr.1.1 (Multiset.mem_map_of_mem Prod.fst hmem1)
+      have h2cp := hw pr.2.1 (Multiset.mem_map_of_mem Prod.fst hmem2)
+      unfold cleanAbove
+      rw [Multiset.countP_add, Multiset.countP_sub happ]
+      have hpair_le : Multiset.countP
+          (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false)
+          ({pr.1, pr.2} : Multiset (MarkedAgent L K))
+            ≤ Multiset.countP
+              (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false) mc :=
+        Multiset.countP_le_of_le _ happ
+      have hcountP2 : ∀ x y : MarkedAgent L K,
+          Multiset.countP (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false)
+              ({x, y} : Multiset (MarkedAgent L K))
+            = (if T + 1 ≤ x.1.minute.val ∧ x.2 = false then 1 else 0)
+              + (if T + 1 ≤ y.1.minute.val ∧ y.2 = false then 1 else 0) := by
+        intro x y
+        rw [show ({x, y} : Multiset (MarkedAgent L K)) = x ::ₘ y ::ₘ 0 from rfl]
+        rw [Multiset.countP_cons, Multiset.countP_cons, Multiset.countP_zero]
+        ring
+      set g := preBulkGate (L := L) (K := K) T θn mc with hg
+      set o₁ := (markedOut (L := L) (K := K) T g pr.1 pr.2).1 with ho₁
+      set o₂ := (markedOut (L := L) (K := K) T g pr.1 pr.2).2 with ho₂
+      have houts : Multiset.countP
+            (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false)
+            ({o₁, o₂} : Multiset (MarkedAgent L K))
+          ≤ Multiset.countP
+              (fun m : MarkedAgent L K => T + 1 ≤ m.1.minute.val ∧ m.2 = false)
+              ({pr.1, pr.2} : Multiset (MarkedAgent L K)) + 1 := by
+        rw [hcountP2, hcountP2]
+        have hmark₁ : o₁.2 = markFor (L := L) (K := K) T g pr.1 pr.2
+            (Transition L K pr.1.1 pr.2.1).1 := rfl
+        have hmark₂ : o₂.2 = markFor (L := L) (K := K) T g pr.2 pr.1
+            (Transition L K pr.1.1 pr.2.1).2 := rfl
+        have hstate₁ : o₁.1 = (Transition L K pr.1.1 pr.2.1).1 := rfl
+        have hstate₂ : o₂.1 = (Transition L K pr.1.1 pr.2.1).2 := rfl
+        have hone := at_most_one_crossing (L := L) (K := K) T pr.1.1 pr.2.1
+          h1cp.1 h2cp.1 h1cp.2 h2cp.2
+        -- each clean-above output is inherited-clean or a crossing; at most one crossing.
+        have hcase₁ : (T + 1 ≤ o₁.1.minute.val ∧ o₁.2 = false) →
+            (T + 1 ≤ pr.1.1.minute.val ∧ pr.1.2 = false) ∨
+              (pr.1.1.minute.val < T + 1 ∧
+                T + 1 ≤ (Transition L K pr.1.1 pr.2.1).1.minute.val) := by
+          rintro ⟨hab, hmk⟩
+          rw [hstate₁] at hab
+          rw [hmark₁] at hmk
+          rcases markFor_false_above_cases (L := L) (K := K) T g pr.1 pr.2 _ hab hmk with
+            ⟨h1, h2⟩ | ⟨hlo, _⟩
+          · exact Or.inl ⟨h1, h2⟩
+          · exact Or.inr ⟨hlo, hab⟩
+        have hcase₂ : (T + 1 ≤ o₂.1.minute.val ∧ o₂.2 = false) →
+            (T + 1 ≤ pr.2.1.minute.val ∧ pr.2.2 = false) ∨
+              (pr.2.1.minute.val < T + 1 ∧
+                T + 1 ≤ (Transition L K pr.1.1 pr.2.1).2.minute.val) := by
+          rintro ⟨hab, hmk⟩
+          rw [hstate₂] at hab
+          rw [hmark₂] at hmk
+          rcases markFor_false_above_cases (L := L) (K := K) T g pr.2 pr.1 _ hab hmk with
+            ⟨h1, h2⟩ | ⟨hlo, _⟩
+          · exact Or.inl ⟨h1, h2⟩
+          · exact Or.inr ⟨hlo, hab⟩
+        by_cases hm₁ : T + 1 ≤ o₁.1.minute.val ∧ o₁.2 = false <;>
+          by_cases hm₂ : T + 1 ≤ o₂.1.minute.val ∧ o₂.2 = false
+        · rcases hcase₁ hm₁ with hin₁ | hcr₁
+          · rw [if_pos hm₁, if_pos hm₂, if_pos hin₁]
+            split_ifs <;> omega
+          · rcases hcase₂ hm₂ with hin₂ | hcr₂
+            · rw [if_pos hm₁, if_pos hm₂, if_pos hin₂]
+              split_ifs <;> omega
+            · exact absurd ⟨hcr₁, hcr₂⟩ hone
+        · rw [if_pos hm₁, if_neg hm₂]
+          split_ifs <;> omega
+        · rw [if_neg hm₁, if_pos hm₂]
+          split_ifs <;> omega
+        · rw [if_neg hm₁, if_neg hm₂]
+          split_ifs <;> omega
+      omega
+    · rw [if_neg happ]
+      omega
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+    omega
+
 end EarlyDripMarked
 
 end ExactMajority
