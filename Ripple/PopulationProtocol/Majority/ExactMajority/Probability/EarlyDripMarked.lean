@@ -4602,24 +4602,94 @@ exponent `≤ σ·Q·(A − Gm_m·B)`, is bounded by `M · exp(σ·Q·(A − B))
 `exp(−Ω(σ·Q))` decay times the rung count `M = O(log n)`. -/
 theorem slice_sum_le (M : ℕ) (σ Q A B : ℝ) (Gm : ℕ → ℝ) (e : ℕ → ℝ)
     (hσQ : 0 ≤ σ * Q) (hB : 0 ≤ B) (hGm : ∀ m, 1 ≤ Gm m)
-    (he : ∀ m, e m ≤ σ * (Q * (A - Gm m * B))) :
+    (he : ∀ m < M, e m ≤ σ * (Q * (A - Gm m * B))) :
     ∑ m ∈ Finset.range M, ENNReal.ofReal (Real.exp (e m))
       ≤ (M : ℝ≥0∞) * ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) := by
   classical
-  have hbound : ∀ m, ENNReal.ofReal (Real.exp (e m))
+  have hbound : ∀ m ∈ Finset.range M, ENNReal.ofReal (Real.exp (e m))
       ≤ ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) := by
-    intro m
+    intro m hm
+    rw [Finset.mem_range] at hm
     apply ENNReal.ofReal_le_ofReal
     apply Real.exp_le_exp.mpr
-    refine le_trans (he m) ?_
+    refine le_trans (he m hm) ?_
     -- σQ(A − Gm·B) ≤ σQ(A − B) since Gm ≥ 1, B ≥ 0 ⟹ Gm·B ≥ B.
     have hGmB : B ≤ Gm m * B := by nlinarith [hGm m, hB]
     nlinarith [hσQ, hGmB]
   calc ∑ m ∈ Finset.range M, ENNReal.ofReal (Real.exp (e m))
       ≤ ∑ _m ∈ Finset.range M, ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) :=
-        Finset.sum_le_sum (fun m _ => hbound m)
+        Finset.sum_le_sum hbound
     _ = (M : ℝ≥0∞) * ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) := by
         rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+
+/-! ## Part 30 — the UNIFORM per-window δ (brick 3.5e step 1 capstone).
+
+Assemble: `per_window_ladder_up`'s pure-exponential RHS, bounded by the floor decay
+`exp(−δg·X₀ + sg)` (via `floor_exp_le`) plus the uniform slice sum `M·exp(σ·Q·(A−B))` (via
+`slice_exp_le` per rung + `slice_sum_le`).  This is the deterministic δ consumed by
+`checkpoint_composition` in step 2 — a function of `X₀ = rBeyond T (erase mc₀)` and `Y₀ =
+cleanAbove T mc₀` only, of size `exp(−Ω(n^{0.1}))` at the paper scales (`X₀ ≥ θn ≥ n^{0.55}`,
+`Q = X₀²/n ≥ n^{0.1}`, `A − B < 0`, `δg > 0`). -/
+
+/-- **The uniform per-window δ**: from `per_window_ladder_up` plus the floor/slice exponent bounds,
+the per-window Lemma-6.3 failure from an invariant start `mc₀` is at most
+`exp(−δg·X₀ + sg) + M·exp(σ·Q·(A − B))`, with `δg > 0` and `A − B < 0` at the locked constants —
+a deterministic δ in `(X₀, Y₀)`.  All per-rung structural facts (`RW ≤ RWb`, the drip caps, the
+threshold lower bounds, `G^{2m} ≥ 1`) are taken as hypotheses to be discharged at the scale
+plug-in. -/
+theorem per_window_delta (T θn n : ℕ) (hn : 2 ≤ n)
+    (cc σg σ ε : ℝ) (hcc : 0 ≤ cc) (hσg : 0 < σg) (hσ : 0 < σ) (hε : 0 < ε)
+    (w : ℕ) (hsmall : σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w ≤ ε / (1 + ε))
+    (mc₀ : Config (MarkedAgent L K))
+    (hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (a : ℕ → ℕ) (M : ℕ) (ha0 : 10 * a 0 ≤ n) (Yt : ℕ → ℕ)
+    (hYt : ∀ m < M, (Yt m : ℝ) ≤ cc * (a m : ℝ) ^ 2 / (n : ℝ) + 1)
+    -- the deterministic δ parameters and the discharging facts:
+    (δg g G RWb : ℝ) (Gm : ℕ → ℝ)
+    (hGm1 : ∀ m, 1 ≤ Gm m) (hRWb0 : 0 ≤ RWb)
+    (hQ0 : 0 ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ) ^ 2 / (n : ℝ))
+    (hB0 : 0 ≤ g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * (3 / 200)))
+    (hfloor : -((σg + (w : ℝ) * (1.8 * (1 - Real.exp (-σg)) / (n : ℝ)))
+          * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+        + σg * (a 0 : ℝ) ≤ -(δg
+          * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ)) + σg)
+    (hslice : ∀ m < M,
+      σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w
+            * (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+          + ((a (m + 1) : ℝ) / (n : ℝ)) ^ 2 * (1 + ε) * σ
+              * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w * (w : ℝ)
+          - σ * (Yt m : ℝ)
+        ≤ σ * (((rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc₀) : ℝ) ^ 2 / (n : ℝ))
+            * (cc * RWb - Gm m * (g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * (3 / 200)))))) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | (cc * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a M ∧
+          mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} ≤
+      ENNReal.ofReal (Real.exp (-(δg
+          * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ)) + σg))
+      + (M : ℝ≥0∞) * ENNReal.ofReal (Real.exp (σ
+          * (((rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ) ^ 2
+                / (n : ℝ))
+              * (cc * RWb - g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * (3 / 200)))))) := by
+  classical
+  refine le_trans (per_window_ladder_up (L := L) (K := K) T θn n hn cc hcc σg σ ε hσg hσ hε
+    w hsmall mc₀ hR a M ha0 Yt hYt) ?_
+  refine add_le_add ?_ ?_
+  · exact ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr hfloor)
+  · -- the slice sum, via slice_sum_le with e m the per_window_ladder_up slice exponent.
+    refine le_trans ?_ (le_refl _)
+    refine slice_sum_le M σ
+      ((rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ) ^ 2 / (n : ℝ))
+      (cc * RWb) (g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * (3 / 200))) Gm
+      (fun m => σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w
+            * (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+          + ((a (m + 1) : ℝ) / (n : ℝ)) ^ 2 * (1 + ε) * σ
+              * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w * (w : ℝ)
+          - σ * (Yt m : ℝ))
+      (mul_nonneg hσ.le hQ0) hB0 hGm1 (fun m hm => hslice m hm)
 
 end EarlyDripMarked
 
