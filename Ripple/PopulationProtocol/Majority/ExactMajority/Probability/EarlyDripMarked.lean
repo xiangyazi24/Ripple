@@ -4012,6 +4012,71 @@ theorem slice_clean_tail_explicit (T θn n X₁ : ℕ) (hn : 2 ≤ n)
   ring_nf
   exact le_refl _
 
+/-! ## Part 26 — the ladder decomposition (brick 3.5d-iv, set level).
+
+The per-window bad event with its RANDOM threshold `cc·X_w²/n` splits along any monotone ladder
+`a 0 < a 1 < … < a M`: either the feeder failed to clear the floor (`X ≤ a 0` — the growth tail),
+or the endpoint sits in some rung `(a m, a (m+1)]` where the deterministic threshold
+`Yt m ≈ cc·(a m)²/n` is exceeded INSIDE the rung's slice gate (`X ≤ a (m+1)`) — the zero-escape
+slice tail. -/
+
+/-- Locate the rung: a monotone ladder with `a 0 < X ≤ a M` has a rung `(a m, a (m+1)]`
+containing `X`. -/
+theorem ladder_locate (a : ℕ → ℕ) (M : ℕ) (X : ℕ)
+    (hlo : a 0 < X) (hhi : X ≤ a M) :
+    ∃ m < M, a m < X ∧ X ≤ a (m + 1) := by
+  induction M with
+  | zero => omega
+  | succ M ih =>
+      by_cases hM : X ≤ a M
+      · obtain ⟨m, hm, h1, h2⟩ := ih hM
+        exact ⟨m, by omega, h1, h2⟩
+      · exact ⟨M, by omega, by omega, hhi⟩
+
+/-- **The ladder decomposition of the per-window bad event.** -/
+theorem ladder_bad_subset (T n : ℕ) (cc : ℝ) (hcc : 0 ≤ cc)
+    (a : ℕ → ℕ) (M : ℕ) (Yt : ℕ → ℕ)
+    (hYt : ∀ m < M, (Yt m : ℝ) ≤ cc * (a m : ℝ) ^ 2 / (n : ℝ) + 1) :
+    {mc : Config (MarkedAgent L K) |
+        (cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2
+            / (n : ℝ)
+          < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+        rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a M ∧
+        mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} ⊆
+      {mc : Config (MarkedAgent L K) |
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a 0} ∪
+        ⋃ m ∈ Finset.range M,
+          {mc : Config (MarkedAgent L K) |
+            Yt m ≤ cleanAbove (L := L) (K := K) T mc ∧
+              mc ∈ cleanGate (L := L) (K := K) T n (a (m + 1))} := by
+  rintro mc ⟨hbad, hXtop, hcard, hP3⟩
+  set X := rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) with hX
+  by_cases hfloor : X ≤ a 0
+  · exact Or.inl hfloor
+  · right
+    obtain ⟨m, hmM, hlo, hhi⟩ := ladder_locate a M X (by omega) hXtop
+    rw [Set.mem_iUnion]
+    refine ⟨m, ?_⟩
+    rw [Set.mem_iUnion]
+    refine ⟨Finset.mem_range.mpr hmM, ?_⟩
+    refine ⟨?_, hcard, hP3, hhi⟩
+    -- Y > cc·X²/n ≥ cc·(a m)²/n, and Yt m ≤ cc·(a m)²/n + 1: the ℕ threshold is met.
+    have ham : ((a m : ℕ) : ℝ) ≤ (X : ℝ) := by
+      have : a m ≤ X := by omega
+      exact_mod_cast this
+    have hsq : cc * (a m : ℝ) ^ 2 / (n : ℝ)
+        ≤ cc * (X : ℝ) ^ 2 / (n : ℝ) := by
+      apply div_le_div_of_nonneg_right _ (by positivity)
+      apply mul_le_mul_of_nonneg_left _ hcc
+      apply pow_le_pow_left₀ (by positivity) ham
+    have hY : cc * (a m : ℝ) ^ 2 / (n : ℝ)
+        < (cleanAbove (L := L) (K := K) T mc : ℝ) := lt_of_le_of_lt hsq hbad
+    have hcast : ((Yt m : ℕ) : ℝ) < (cleanAbove (L := L) (K := K) T mc : ℝ) + 1 := by
+      calc ((Yt m : ℕ) : ℝ) ≤ cc * (a m : ℝ) ^ 2 / (n : ℝ) + 1 := hYt m hmM
+        _ < (cleanAbove (L := L) (K := K) T mc : ℝ) + 1 := by linarith
+    have : Yt m < cleanAbove (L := L) (K := K) T mc + 1 := by exact_mod_cast hcast
+    omega
+
 end EarlyDripMarked
 
 end ExactMajority
