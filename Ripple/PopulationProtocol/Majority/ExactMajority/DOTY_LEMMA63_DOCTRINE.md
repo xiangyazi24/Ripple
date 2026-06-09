@@ -240,6 +240,38 @@ ClockFrontProfile.lean:
   (ConstantDensityEpidemic) + Chernoff on window drips; then rewire the clock onto
   goodFrontWidth_of_windowed_profile_and_climb.
 
+## BRICK 3.5 DESIGN (scoped 2026-06-09 end-of-session; next session starts here)
+
+KEY STRUCTURAL FINDING: `cleanAbove` has the SAME rise structure as `taintedCount` — a clean-above
+output is inherited-clean, a POST-gate drip crossing (g = false ⟹ branch 3 yields false = clean), or
+a sync crossing from a clean-above leader. So P[cleanAbove rises] ≤ [¬gate]·(count@T/n)² +
+2·cleanAbove/n — the mirror image of the tainted rate (gate-complementary seed terms). The whole
+time-dependent-MGF machine (taintedPot_drift / tainted_marked_tail) applies verbatim with clean in
+place of tainted.
+
+Brick list:
+- 3.5a: `cleanAbove_rise_prob_le` (mirror tainted_rise_prob_le with the complementary gate) +
+  REFACTOR opportunity: extract the generic "affine-rate counter tail" (counter rises ≤1/step with
+  rate ≤ A + 2N/n on a gate ⟹ explicit-sequence tail) from Parts 9-10, instantiate twice.
+- 3.5b: the sharper exp bound e^x − 1 ≤ (1+ε)x (small x) to recover the paper's 1.23 = e^{0.2}+ε
+  per-0.1-window branching factor (the crude 2x gives e^{0.4} ≈ 1.49, too lossy for
+  1.23(0.9p(0.84x)² + 0.11px²) < 0.9px²; need ε ≤ 0.05-ish: e^x−1 ≤ 1.05x holds for x ≤ 0.09).
+- 3.5c: the epidemic LOWER growth bound for x = frac T over a 0.1-window (x(t−0.1) < 0.84x(t) whp,
+  paper Lemma 4.5 inversion) — from the existing Epidemic/EpidemicTime machinery (check
+  `advance_prob_ge`-style lower bounds at general fractions x ≤ 0.1, NOT just the 0.1→0.9 crossing;
+  the real-kernel transfer pattern is in ClockRealBulk/ClockRealSeed).
+- 3.5d: the 0.1-window induction: stopping times t^θ_{≥T} (gate break) and t^{0.1}_{≥T}; per-window:
+  y(t_k) ≤ 1.23·(y(t_{k−1}) + 0.11·x_k²·n) whp (3.5a window tail) and x_{k−1} ≥ 0.84·x_k whp (3.5c);
+  the arithmetic 1.23(0.9p(0.84x)² + 0.11px²) < 0.9px² closes the induction (paper line ~1850).
+  Number of windows = O(loglog n) — needs the t^{0.1}−t^θ window-length input (Lemma 6.4 per-minute
+  O(1), the coupled induction's other leg; may need to carry it as a hypothesis first and discharge
+  in the joint minute-induction).
+- 3.5e: assemble: rBeyond(T+1) = tainted + clean (3.4a decomposition) ≤ n^{0.15} + 0.9px²n ≤ px²n on
+  the window (x² ≥ n^{-0.8} makes the d-term negligible) → WindowedFrontProfile whp; plug the d-tail
+  into climb_real_tail's escape → ClimbBound whp; feed goodFrontWidth_of_windowed_profile_and_climb →
+  GoodFrontWidth whp → frontSync_of_goodWidth_of_bulk_below → rewire ClockFrontWidth/ClockEnvMaint
+  off the FALSE hwin_all. Union over levels T (≤ capMinute) and the horizon.
+
 ## Build routing / discipline
 Single-file `lake env lean` to iterate locally; full module build → uisai1 `scripts/remote-build.sh`. Each
 lemma: 0-sorry, `#print axioms` = [propext, Classical.choice, Quot.sound]; verify each statement is TRUE
