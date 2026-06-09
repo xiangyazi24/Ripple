@@ -1263,6 +1263,173 @@ theorem markedK_apply_pair (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h : 2 
   rw [dif_pos h]
   exact PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hA
 
+/-- The sharp mark-rule case split: a marked output is inherited, a gated drip seed (same-minute
+pair), or an epidemic from a tainted partner. -/
+theorem markFor_true_crossing_cases (T : ℕ) (g : Bool) (own partner : MarkedAgent L K)
+    (o : AgentState L K) (h : markFor (L := L) (K := K) T g own partner o = true) :
+    (T + 1 ≤ own.1.minute.val ∧ own.2 = true) ∨
+      (own.1.minute.val < T + 1 ∧ T + 1 ≤ o.minute.val ∧
+        ((own.1.minute = partner.1.minute ∧ g = true) ∨ partner.2 = true)) := by
+  unfold markFor at h
+  split_ifs at h with h1 h2 h3
+  · exact Or.inl ⟨h2, h⟩
+  · exact Or.inr ⟨by omega, by omega, Or.inl ⟨h3, h⟩⟩
+  · exact Or.inr ⟨by omega, by omega, Or.inr h⟩
+
+/-- **The taint-rise event is contained in the two scheduler events**: a same-minute-`T` pair (the
+gated drip seed) or a pair with a tainted member (the epidemic).  Outside both, one marked step
+cannot raise the taint count. -/
+theorem tainted_rise_subset (T θn : ℕ) (mc : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    (markedStep (L := L) (K := K) T θn mc) ⁻¹'
+        {mc' | taintedCount (L := L) (K := K) mc < taintedCount (L := L) (K := K) mc'} ⊆
+      {pr : MarkedAgent L K × MarkedAgent L K |
+          pr.1.1.minute.val = T ∧ pr.2.1.minute.val = T} ∪
+        {pr : MarkedAgent L K × MarkedAgent L K | pr.1.2 = true ∨ pr.2.2 = true} := by
+  classical
+  intro pr hpr
+  rw [Set.mem_preimage, Set.mem_setOf_eq] at hpr
+  by_contra hnot
+  rw [Set.mem_union, Set.mem_setOf_eq, Set.mem_setOf_eq] at hnot
+  push Not at hnot
+  obtain ⟨hnotT, hm₁false, hm₂false⟩ := hnot
+  -- the step cannot raise the count: refute hpr.
+  unfold markedStep at hpr
+  by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+  · rw [if_pos happ] at hpr
+    have hmem1 : pr.1 ∈ mc := Multiset.mem_of_le happ (Multiset.mem_cons_self _ _)
+    have hmem2 : pr.2 ∈ mc := Multiset.mem_of_le happ
+      (Multiset.mem_cons_of_mem (Multiset.mem_singleton_self _))
+    have h1cp := hw pr.1.1 (Multiset.mem_map_of_mem Prod.fst hmem1)
+    have h2cp := hw pr.2.1 (Multiset.mem_map_of_mem Prod.fst hmem2)
+    have hminute := ClimbTail.transition_p3_minute_le_succ_max (L := L) (K := K)
+      pr.1.1 pr.2.1 h1cp.1 h2cp.1 h1cp.2 h2cp.2
+    set g := preBulkGate (L := L) (K := K) T θn mc with hg
+    set o₁ := (markedOut (L := L) (K := K) T g pr.1 pr.2).1 with ho₁
+    set o₂ := (markedOut (L := L) (K := K) T g pr.1 pr.2).2 with ho₂
+    have hmark₁ : o₁.2 = markFor (L := L) (K := K) T g pr.1 pr.2
+        (Transition L K pr.1.1 pr.2.1).1 := rfl
+    have hmark₂ : o₂.2 = markFor (L := L) (K := K) T g pr.2 pr.1
+        (Transition L K pr.1.1 pr.2.1).2 := rfl
+    have hno₁ : ¬ (o₁.2 = true) := by
+      intro hm
+      rw [hmark₁] at hm
+      rcases markFor_true_crossing_cases (L := L) (K := K) T g pr.1 pr.2 _ hm with
+        ⟨_, hin⟩ | ⟨hlo, hhi, hvia⟩
+      · exact hm₁false hin
+      · rcases hvia with ⟨hsame, _⟩ | hpart
+        · -- gated drip seed: both pair minutes are exactly T.
+          have hsame' : pr.1.1.minute.val = pr.2.1.minute.val := by rw [hsame]
+          have hmax : max pr.1.1.minute.val pr.2.1.minute.val = pr.1.1.minute.val := by
+            rw [← hsame']
+            exact max_self _
+          have h1T : pr.1.1.minute.val = T := by
+            have := hminute.1
+            rw [hmax] at this
+            omega
+          exact hnotT h1T (by omega)
+        · exact hm₂false hpart
+    have hno₂ : ¬ (o₂.2 = true) := by
+      intro hm
+      rw [hmark₂] at hm
+      rcases markFor_true_crossing_cases (L := L) (K := K) T g pr.2 pr.1 _ hm with
+        ⟨_, hin⟩ | ⟨hlo, hhi, hvia⟩
+      · exact hm₂false hin
+      · rcases hvia with ⟨hsame, _⟩ | hpart
+        · have hsame' : pr.2.1.minute.val = pr.1.1.minute.val := by rw [hsame]
+          have hmax : max pr.1.1.minute.val pr.2.1.minute.val = pr.2.1.minute.val := by
+            rw [hsame']
+            exact max_self _
+          have h2T : pr.2.1.minute.val = T := by
+            have := hminute.2
+            rw [hmax] at this
+            omega
+          exact hnotT (by omega) h2T
+        · exact hm₁false hpart
+    have houts : Multiset.countP (fun m : MarkedAgent L K => m.2 = true)
+        ({o₁, o₂} : Multiset (MarkedAgent L K)) = 0 := by
+      rw [Multiset.countP_eq_zero]
+      intro m hm
+      rw [show ({o₁, o₂} : Multiset (MarkedAgent L K)) = o₁ ::ₘ {o₂} from rfl] at hm
+      rcases Multiset.mem_cons.mp hm with hm | hm
+      · rw [hm]; exact hno₁
+      · rw [Multiset.mem_singleton.mp hm]; exact hno₂
+    have hle : taintedCount (L := L) (K := K)
+        (mc - {pr.1, pr.2} + ({o₁, o₂} : Multiset (MarkedAgent L K)))
+        ≤ taintedCount (L := L) (K := K) mc := by
+      unfold taintedCount
+      rw [Multiset.countP_add, houts, add_zero]
+      exact Multiset.countP_le_of_le _ (tsub_le_self (a := mc))
+    omega
+  · rw [if_neg happ] at hpr
+    omega
+
+/-- **The one-step taint-rise probability bound** (brick 3.4b capstone): on the `AllClockP3`
+window,
+
+  `P[taintedCount rises] ≤ (count@T / n)² + 2·taintedCount/n`
+
+— the gated drip-seed rate (squared minute-`T` fraction) plus the epidemic-from-tainted rate (the
+branching term).  This is the exact two-phase rate structure of Doty's `d`-analysis (brick 3.4c). -/
+theorem tainted_rise_prob_le (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h : 2 ≤ mc.card)
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    markedK (L := L) (K := K) T θn mc
+        {mc' | taintedCount (L := L) (K := K) mc < taintedCount (L := L) (K := K) mc'} ≤
+      ENNReal.ofReal
+        (((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+          / (mc.card : ℝ)) ^ 2)
+      + ENNReal.ofReal
+          (2 * ((taintedCount (L := L) (K := K) mc : ℝ) / (mc.card : ℝ))) := by
+  classical
+  rw [markedK_apply_pair (L := L) (K := K) T θn mc h _
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine le_trans (measure_mono (tainted_rise_subset (L := L) (K := K) T θn mc hw)) ?_
+  refine le_trans (measure_union_le _ _) ?_
+  set ST : Finset (MarkedAgent L K) :=
+    Finset.univ.filter (fun m : MarkedAgent L K => m.1.minute.val = T) with hST
+  set SM : Finset (MarkedAgent L K) :=
+    Finset.univ.filter (fun m : MarkedAgent L K => m.2 = true) with hSM
+  have hXT : (∑ m ∈ ST, mc.count m)
+      = Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc := by
+    rw [hST]
+    exact sum_count_filter_eq_countP _ mc
+  have hXM : (∑ m ∈ SM, mc.count m) = taintedCount (L := L) (K := K) mc := by
+    rw [hSM]
+    exact sum_count_filter_eq_countP _ mc
+  have hbound1 : (mc.interactionPMF h).toMeasure
+      {pr : MarkedAgent L K × MarkedAgent L K |
+        pr.1.1.minute.val = T ∧ pr.2.1.minute.val = T} ≤
+      ENNReal.ofReal
+        (((Multiset.countP (fun m : MarkedAgent L K => m.1.minute.val = T) mc : ℝ)
+          / (mc.card : ℝ)) ^ 2) := by
+    have hset : {pr : MarkedAgent L K × MarkedAgent L K |
+        pr.1.1.minute.val = T ∧ pr.2.1.minute.val = T}
+        = {pr : MarkedAgent L K × MarkedAgent L K | pr.1 ∈ ST ∧ pr.2 ∈ ST} := by
+      ext pr
+      simp [hST]
+    rw [hset, ← hXT]
+    exact pair_block_prob_le_sq (L := L) (K := K) mc h ST
+  have hbound2 : (mc.interactionPMF h).toMeasure
+      {pr : MarkedAgent L K × MarkedAgent L K | pr.1.2 = true ∨ pr.2.2 = true} ≤
+      ENNReal.ofReal
+        (2 * ((taintedCount (L := L) (K := K) mc : ℝ) / (mc.card : ℝ))) := by
+    have hsub : {pr : MarkedAgent L K × MarkedAgent L K | pr.1.2 = true ∨ pr.2.2 = true}
+        ⊆ {pr : MarkedAgent L K × MarkedAgent L K | pr.1 ∈ SM}
+          ∪ {pr : MarkedAgent L K × MarkedAgent L K | pr.2 ∈ SM} := by
+      rintro pr (hp | hp)
+      · exact Or.inl (by simp [hSM, hp])
+      · exact Or.inr (by simp [hSM, hp])
+    refine le_trans (measure_mono hsub) (le_trans (measure_union_le _ _) ?_)
+    have h1 := fst_block_prob_le (L := L) (K := K) mc h SM
+    have h2 := snd_block_prob_le (L := L) (K := K) mc h SM
+    rw [hXM] at h1 h2
+    refine le_trans (add_le_add h1 h2) ?_
+    rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
+    apply ENNReal.ofReal_le_ofReal
+    ring_nf
+    exact le_refl _
+  exact add_le_add hbound1 hbound2
+
 end EarlyDripMarked
 
 end ExactMajority

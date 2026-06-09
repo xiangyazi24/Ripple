@@ -188,18 +188,17 @@ ClockFrontProfile.lean:
   above-T ancestor / closed gate / sub-T minute — all four markFor branches excluded; the sync branch
   uses transition_p3_sync_minute). Pre-gate "c_{≥T+1} = d" (paper's base case) is the corollary, no
   probabilistic induction needed.
-- 3.4b PLAN (worked out, next to implement) — the taintedCount rise structure, in EarlyDripMarked.lean:
-  (i) `markFor_true_cases`: output marked ⟹ (own already above ∧ own marked) ∨ (own CROSSED:
-  own < T+1 ≤ o) — the mark rule self-guards (branches 3/4 need a crossing; for non-moving outputs
-  o.minute = own.minute makes them unreachable). (ii) `at_most_one_crossing` per pair: both positions
-  crossing is impossible (both inputs < T+1 forces max(inputs) ≤ T; drip pos-2 doesn't move, sync
-  outputs sit at max(inputs) < T+1, counter doesn't move — check per Phase3 branch). Hence
-  (iii) `taintedCount_le_succ_on_support`: rises ≤ 1/step (under MarkInv + AllClockP3-erased).
-  (iv) the rate split: {taintedCount rises} ⊆ {scheduled pair same-minute-T with gate} ∪ {scheduled
-  pair has a marked member}: P[rise] ≤ (rBeyond T (erase)/n)² + 4·taintedCount/n. Drip part via the
-  generic FrontTail.dripPair_prob_le_sq summed over the minute-T marked states ((Σ count_s/n)² bound);
-  sync part via the pair-membership block bound (2·tainted·n/totalPairs). These feed the brick-1 MGF
-  (constant part θ²) + the branching part (3.4c).
+- 3.4b **DONE (EarlyDripMarked.lean Parts 6-7, 0-sorry axiom-clean)** — the taintedCount rise structure:
+  (i) `markFor_true_cases` + sharp `markFor_true_crossing_cases` (inherited ∨ gated-drip-seed ∨
+  epidemic-from-tainted); (ii) `at_most_one_crossing` (per Phase3 branch); (iii)
+  `taintedCount_le_succ_on_support` (rises ≤1/step — feeds mgf_one_step); (iv) scheduler block bounds:
+  `sum_block_interactionCount` (X(X−1) identity), `pair_block_prob_le_sq` (≤(X/n)²),
+  `fst/snd_block_prob_le` (EXACT X/n via row+column sums), `markedK_apply_pair` (kernel→pair-law
+  pullback), `tainted_rise_subset` ({rise} ⊆ same-minute-T-pair ∪ tainted-member-pair), and the
+  capstone **`tainted_rise_prob_le`: P[taintedCount rises] ≤ (count@T/n)² + 2·taintedCount/n** —
+  the exact two-phase rate (drip seed + branching) of Doty's d-analysis. NOTE: the bound is at the
+  exact minute-T count (count@T ≤ rBeyond T ∘ erase via countP mono, T-level only — sharper than θ²;
+  gate-conditioning enters when instantiating on {rBeyond T < θn}).
 - 3.4c the tainted-count tail. KEY DIFFICULTY (worked out this session): the constant-rate gated MGF
   CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
   gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)
