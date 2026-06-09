@@ -191,6 +191,30 @@ theorem real_le_killed [IsMarkovKernel K] (bad : α → Prop) (t : ℕ) (x : α)
               exact (measure_mono (Set.subset_univ _)).trans_eq (measure_univ)
           _ = 1 := by rw [MeasureTheory.lintegral_one, measure_univ]
 
+/-- **Brick 2d — the gated tail on the REAL kernel.**  Combining the coupling `real_le_killed` (2c) with the
+killed geometric tail `killed_geometric_tail` (2b): on the real kernel `K`, the `t`-step probability that
+`θ ≤ Φ` is at most the ESCAPE mass `(killK^t)(some x){none}` (the gate `G` was left — in the application, the
+bulk arrived = benign progress) PLUS the killed geometric tail `r^t · Φ x / θ`.  This is the unconditional
+gated tail: the drift hypothesis is required only on the gate `G` (`hdrift_G`), not everywhere. -/
+theorem gated_real_tail [IsMarkovKernel K] (Φ : α → ℝ≥0∞) (r : ℝ≥0∞) (hr : 1 ≤ r)
+    (hdrift_G : ∀ x ∈ G, ∫⁻ y, Φ y ∂(K x) ≤ r * Φ x)
+    (t : ℕ) (x : α) (θ : ℝ≥0∞) (hθ0 : θ ≠ 0) (hθtop : θ ≠ ∞) :
+    (K ^ t) x {y | θ ≤ Φ y} ≤
+      (killK K G ^ t) (some x) {(none : Option α)} + r ^ t * Φ x / θ := by
+  refine (real_le_killed (K := K) (G := G) (fun y => θ ≤ Φ y) t x).trans ?_
+  have hsub : {o : Option α | o = none ∨ ∃ y, o = some y ∧ θ ≤ Φ y}
+      ⊆ {(none : Option α)} ∪ {o | θ ≤ killΦ Φ o} := by
+    rintro o (rfl | ⟨y, rfl, hy⟩)
+    · exact Or.inl rfl
+    · exact Or.inr hy
+  calc (killK K G ^ t) (some x) {o : Option α | o = none ∨ ∃ y, o = some y ∧ θ ≤ Φ y}
+      ≤ (killK K G ^ t) (some x) ({(none : Option α)} ∪ {o | θ ≤ killΦ Φ o}) := measure_mono hsub
+    _ ≤ (killK K G ^ t) (some x) {(none : Option α)}
+          + (killK K G ^ t) (some x) {o | θ ≤ killΦ Φ o} := measure_union_le _ _
+    _ ≤ (killK K G ^ t) (some x) {(none : Option α)} + r ^ t * Φ x / θ := by
+        gcongr
+        exact killed_geometric_tail Φ r hr hdrift_G t x θ hθ0 hθtop
+
 end GatedDrift
 
 end ExactMajority
