@@ -4596,6 +4596,31 @@ theorem slice_exp_le (Q σ ε RW RWb cc g G wp Y₀ drip Gm Yt : ℝ)
     _ ≤ σ * (Q * (cc * RWb - Gm * (g ^ 2 * (cc - G ^ 2 * (1 + ε) * RWb * wp)))) :=
         mul_le_mul_of_nonneg_left hkey hσ
 
+/-- **The uniform slice-sum bound**: a finite sum of `M` real-exponential slice terms, each with
+exponent `≤ σ·Q·(A − Gm_m·B)`, is bounded by `M · exp(σ·Q·(A − B))` once `Gm_m ≥ 1` and `B ≥ 0`
+(so `A − Gm_m·B ≤ A − B`).  At the locked constants `A − B < 0`, so the uniform term is a genuine
+`exp(−Ω(σ·Q))` decay times the rung count `M = O(log n)`. -/
+theorem slice_sum_le (M : ℕ) (σ Q A B : ℝ) (Gm : ℕ → ℝ) (e : ℕ → ℝ)
+    (hσQ : 0 ≤ σ * Q) (hB : 0 ≤ B) (hGm : ∀ m, 1 ≤ Gm m)
+    (he : ∀ m, e m ≤ σ * (Q * (A - Gm m * B))) :
+    ∑ m ∈ Finset.range M, ENNReal.ofReal (Real.exp (e m))
+      ≤ (M : ℝ≥0∞) * ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) := by
+  classical
+  have hbound : ∀ m, ENNReal.ofReal (Real.exp (e m))
+      ≤ ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) := by
+    intro m
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    refine le_trans (he m) ?_
+    -- σQ(A − Gm·B) ≤ σQ(A − B) since Gm ≥ 1, B ≥ 0 ⟹ Gm·B ≥ B.
+    have hGmB : B ≤ Gm m * B := by nlinarith [hGm m, hB]
+    nlinarith [hσQ, hGmB]
+  calc ∑ m ∈ Finset.range M, ENNReal.ofReal (Real.exp (e m))
+      ≤ ∑ _m ∈ Finset.range M, ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) :=
+        Finset.sum_le_sum (fun m _ => hbound m)
+    _ = (M : ℝ≥0∞) * ENNReal.ofReal (Real.exp (σ * (Q * (A - B)))) := by
+        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+
 end EarlyDripMarked
 
 end ExactMajority
