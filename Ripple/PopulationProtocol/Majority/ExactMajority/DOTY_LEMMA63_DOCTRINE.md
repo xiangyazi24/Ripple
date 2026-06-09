@@ -167,9 +167,18 @@ ClockFrontProfile.lean:
   (B'/n = n^{-0.8}, s = Θ(log n), W₂ = Θ(loglog n)) the tail term is n^{-ω(1)}.
 - REMAINING for ClimbBound whp: bound the escape mass (= the brick-3.4 tainted-set deliverable
   P[rBeyond(k+1) > B' while rBeyond k < θn]) + instantiate scales + union over k and the horizon.
-- 3.3 the marked kernel (EarlyDripMarked.lean per ChatGPT 1a): MarkedMinute/eraseConfig/markedK/
-  projection theorem; taintedCount; the within-gate identity taintedCount = beyond(T+1) (while the gate
-  holds every agent above T is tainted — paper's base case).
+- 3.3 **DONE (EarlyDripMarked.lean, 0-sorry, axiom-clean)** — the marked kernel + the FULL projection
+  bridge, on the REAL kernel (not the abstract clock): MarkedAgent = AgentState × Bool; markFor (Doty's
+  positional rule: below T+1 → false; already above → keep; drip-crossing → gate value g; sync-crossing →
+  inherit leader's mark); preBulkGate (g computed from the ERASED config — config-dependent kernel, legal
+  for kernels though not for protocols); markedK via the SAME interactionPMF over marked states.
+  Projection: interactionPMF_map_proj (the scheduler fiber identity Σ_{b₁,b₂} interactionCount = erased
+  interactionCount — ordered distinct-agent pairs partition exactly along marks, diagonal count(count−1)
+  works out), erase_markedStep (the step projects), markedK_map_erase (one-step measure-level), and
+  **markedK_pow_erase: (markedK^t) mc₀ (erase⁻¹ A) = (K^t)(erase mc₀) A** — every marked-world whp
+  statement about erased events transfers verbatim. STILL TO DO in 3.4: taintedCount + its one-step
+  drift/rates + the within-gate identity taintedCount = rBeyond(T+1)∘erase (while gated, everyone above
+  T is tainted — paper's base case).
 - 3.4 the tainted-count tail. KEY DIFFICULTY (worked out this session): the constant-rate gated MGF
   CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
   gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)
