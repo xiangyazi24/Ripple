@@ -62,9 +62,14 @@ which (via the epidemic) means the hour is progressing — completion, not a bad
   unconditionally (off-gate the killed integral is 0). The crux that makes the gated drift unconditional.
 - **2b DONE** (commit 23198044): `killed_geometric_tail` = `killK_drift` → `geometric_drift_tail`:
   `(killK K G ^ t)(some x){o | θ ≤ killΦ Φ o} ≤ r^t·Φ x/θ` = the gated-survivor tail.
-- **2c NEXT**: couple `killK^t` to `K^t` — `(K^t) x {θ≤Φ} ≤ (killK^t)(some x){θ≤killΦ} + (K^t) x {left G by t}`
-  (real walk = stayed-gated [matched by killK] ∪ left-gate [benign, bulk arrived]). An induction relating the
-  two kernels' powers. Then instantiate `G={beyond T<θn}`, `r=1` (binary empty) or the MGF `r`, discharge `hwin`.
+- **2c DONE** (commit f27ac0ac): `real_le_killed` — `(K^t) x {bad} ≤ (killK^t)(some x){none ∨ some-bad}`,
+  the coupling (induction on t; helpers `killK_none`, `none_absorbing`, `killK_some_gated`).
+- **2d DONE** (commit a3ffccf7): `gated_real_tail` — `(K^t) x {θ≤Φ} ≤ (killK^t)(some x){none} + r^t·Φx/θ`
+  = escape mass (gate left = bulk arrived, benign) + killed geometric tail.  **Brick 2 (gated engine) COMPLETE.**
+- **NEXT (brick 3)**: instantiate `gated_real_tail` for the early-drip — `Φ = exp(s·beyond(T+1))` (or the binary
+  `beyond(T+1)` count), `G = {beyond T < θn}`, the gated drift from `earlyDrip_mgf_one_step` + `earlyDrip_prob_le_sq`
+  (rate `≤ θ²` on G). Then bound the escape mass `(killK^t)(some x){none}` = `P[bulk arrived at T]` via the bulk
+  epidemic (`ConstantDensityEpidemic`). Discharges the early-drip feeder bound unconditionally.
 
 ## Brick 2 (ORIGINAL PLAN) — the GATED geometric drift tail (discharge `hrate` via the bulk-arrival gate)
 `earlyDrip_mgf_tail`'s `hrate` (rate ≤ q at EVERY config) is false with small q: the early-drip rate
