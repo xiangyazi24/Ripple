@@ -286,3 +286,20 @@ lemma: 0-sorry, `#print axioms` = [propext, Classical.choice, Quot.sound]; verif
 before proving (9+ false-shapes caught this campaign — the stopping-time gate is exactly where a 10th could
 hide; the gate `G` must be in the stopping-time/event, NOT an assumed feeder bound). Single coherent line
 (no parallel codex on this — it is deeply coupled). Commit per lemma.
+
+## 3.5c LEDGER (2026-06-09 session end-stretch; commits through f729c623)
+DONE (all in EarlyDripMarked.lean, 0-sorry axiom-clean):
+- mgf_one_step_lower (Part 14): monotone counter, rise prob ≥ r ⟹ ∫exp(−sN) ≤ (1−r(1−e^{−s}))exp(−sn₀).
+- countGE_eq_rBeyond_erase + mixed_pair_raises (Part 15): mixed (above,below) pair always raises the
+  erased tail (sync geometry + role preservation + countP accounting).
+- sync_rise_prob_ge: P[erased tail rises] ≥ 2X(n−X)/(n(n−1)) EXACTLY (mixed-block sum; every
+  positive-prob block pair lands in the rise set via support_pair_le).
+- rBeyond_erase_monotone (Part 16): erased tail monotone along the marked chain (the hmono input).
+- one_sub_exp_neg_ge: (1−s)s ≤ 1−e^{−s} (lower-rate retention).
+REMAINING 3.5c-iv (the growth-tail assembly — NEXT): mirror of the upper machinery with the
+DECREASING potential Φ_j = exp(−s_j·X): gate {X ≤ n/10} (so rate ≥ 2X·0.9n/n² ≈ 1.8X/n; escape = X
+passed n/10 = even better growth, benign); drift via mgf_one_step_lower at the X-dependent rate +
+one_sub_exp_neg_ge; the X-dependence absorbed by GEOMETRIC s_j (INCREASING in j; s_w = σ);
+conclusion P[X_w ≤ g·X₀] ≤ escape + exp(−X₀(s_0 − σg)): choose g < s_0/σ. Then 3.5d: per-window
+induction y_k ≤ f(y_{k−1} + drips) ∧ X_{k−1} ≥ g·X_k composed over O(loglog n) windows with the
+OWN-CONSTANTS arithmetic (w = 0.02 closes at c = 0.9, see the constants alarm above).
