@@ -253,9 +253,17 @@ Brick list:
 - 3.5a: `cleanAbove_rise_prob_le` (mirror tainted_rise_prob_le with the complementary gate) +
   REFACTOR opportunity: extract the generic "affine-rate counter tail" (counter rises ≤1/step with
   rate ≤ A + 2N/n on a gate ⟹ explicit-sequence tail) from Parts 9-10, instantiate twice.
-- 3.5b: the sharper exp bound e^x − 1 ≤ (1+ε)x (small x) to recover the paper's 1.23 = e^{0.2}+ε
-  per-0.1-window branching factor (the crude 2x gives e^{0.4} ≈ 1.49, too lossy for
-  1.23(0.9p(0.84x)² + 0.11px²) < 0.9px²; need ε ≤ 0.05-ish: e^x−1 ≤ 1.05x holds for x ≤ 0.09).
+- 3.5b: the sharper exp bound e^x − 1 ≤ (1+ε)x (small x) — **REQUIRED, not an optimization**: the
+  crude ρ = 1+4/n gives per-0.1-window branching e^{0.4} ≈ 1.49, hopeless. **AND a constants alarm
+  (END-OF-SESSION FINDING, verify against the PDF before coding 3.5d):** the txt-extracted printed
+  chain 1.23·(0.9·0.84² + 0.11) = 0.916 > 0.9 does NOT close — in fact 1.23(c·0.7056 + 0.11) ≤ c
+  forces c ≥ 1.024, impossible for ANY c < 1. Either the txt constants are OCR-corrupted (0.8 for
+  0.84 closes easily: c ≥ 0.635) or the paper has a slip. RESOLUTION EITHER WAY: derive OUR OWN
+  small-window constants — window w (parallel time), x-growth g = e^{-1.8w} (epidemic rate ≥ 2·0.9
+  at x ≤ 0.1), y-branch f = e^{2w}, drips ≤ 1.1w·px²n: the induction f(c·g² + 1.1w) ≤ c becomes, as
+  w → 0, c·(1.6w) ≥ 1.1w i.e. c ≥ 0.6875 + O(w) — CLOSES COMFORTABLY at c = 0.9 with small w (e.g.
+  w = 0.02: f ≈ 1.041, g² ≈ 0.931, 1.041(0.9·0.931 + 0.022) = 0.895 < 0.9 ✓). So 3.5d should be
+  parameterized by w with our own verified arithmetic, not the paper's printed constants.
 - 3.5c: the epidemic LOWER growth bound for x = frac T over a 0.1-window (x(t−0.1) < 0.84x(t) whp,
   paper Lemma 4.5 inversion) — from the existing Epidemic/EpidemicTime machinery (check
   `advance_prob_ge`-style lower bounds at general fractions x ≤ 0.1, NOT just the 0.1→0.9 crossing;
