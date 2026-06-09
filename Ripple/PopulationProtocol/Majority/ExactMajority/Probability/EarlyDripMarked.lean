@@ -749,6 +749,163 @@ theorem cleanAbove_zero_step (T θn : ℕ) (mc mc' : Config (MarkedAgent L K))
     rw [Set.mem_singleton_iff.mp hsupp]
     exact hclean
 
+/-! ## Part 6 — the taint-count rise structure: at most one new mark per step.
+
+A marked output is either INHERITED (its agent was already above `T` and marked) or a CROSSING
+(its agent moved from below `T+1` to above).  At most one position of a pair can cross — so the
+taint count rises by at most one per step.  This feeds the MGF engine (brick 1 / `mgf_one_step`). -/
+
+/-- A marked output is inherited or a crossing (the mark rule self-guards: the crossing branches
+require `own < T+1 ≤ o`). -/
+theorem markFor_true_cases (T : ℕ) (g : Bool) (own partner : MarkedAgent L K)
+    (o : AgentState L K) (h : markFor (L := L) (K := K) T g own partner o = true) :
+    (T + 1 ≤ own.1.minute.val ∧ own.2 = true) ∨
+      (own.1.minute.val < T + 1 ∧ T + 1 ≤ o.minute.val) := by
+  unfold markFor at h
+  split_ifs at h with h1 h2 h3
+  · exact Or.inl ⟨h2, h⟩
+  · exact Or.inr ⟨by omega, by omega⟩
+  · exact Or.inr ⟨by omega, by omega⟩
+
+/-- **At most one position of a Phase-3 clock pair can cross above `T`** in one step: a drip moves
+only the first position, a sync caps both outputs at the max input minute (below `T+1` when both
+inputs are), and the synced-at-cap counter moves no minute. -/
+theorem at_most_one_crossing (T : ℕ) (s t : AgentState L K)
+    (hsc : s.role = .clock) (htc : t.role = .clock)
+    (hs3 : s.phase.val = 3) (ht3 : t.phase.val = 3) :
+    ¬ ((s.minute.val < T + 1 ∧ T + 1 ≤ (Transition L K s t).1.minute.val) ∧
+        (t.minute.val < T + 1 ∧ T + 1 ≤ (Transition L K s t).2.minute.val)) := by
+  classical
+  rintro ⟨⟨hs_lo, hs_hi⟩, ⟨ht_lo, ht_hi⟩⟩
+  have hout := HourCoupling.phase3_clock_out_phase_le_four (L := L) (K := K) s t hsc htc hs3 ht3
+  have heq := HourCoupling.transition_eq_phase3 (L := L) (K := K) s t hs3 ht3
+    (by rcases hout.1 with h | h <;> omega)
+    (by rcases hout.2 with h | h <;> omega)
+  rw [heq] at hs_hi ht_hi
+  by_cases hmin : s.minute = t.minute
+  · by_cases hcap : s.minute.val < K * (L + 1)
+    · -- DRIP: the second output is `t` unchanged — it cannot cross.
+      have hcap_t : t.minute.val < K * (L + 1) := by simpa [hmin] using hcap
+      have hP3 : Phase3Transition L K s t =
+          ({ s with minute := ⟨s.minute.val + 1, by omega⟩ }, t) := by
+        unfold Phase3Transition
+        simp only [hsc, htc, and_self, if_true, hmin, ne_eq, not_true_eq_false,
+          if_false, hcap, hcap_t, ↓reduceDIte, reduceCtorEq, false_and, and_false, true_and,
+          if_false]
+      rw [hP3] at ht_hi
+      simp at ht_hi
+      omega
+    · -- COUNTER: minutes unchanged — the first output cannot cross.
+      have hsc' := stdCounterSubroutine_clock_minute (L := L) (K := K) s hsc (by omega)
+      have htc' := stdCounterSubroutine_clock_minute (L := L) (K := K) t htc (by omega)
+      have hcap_t : ¬ t.minute.val < K * (L + 1) := by simpa [hmin] using hcap
+      have hP3 : Phase3Transition L K s t =
+          (stdCounterSubroutine L K s, stdCounterSubroutine L K t) := by
+        unfold Phase3Transition
+        simp only [hsc, htc, and_self, if_true, hmin, ne_eq, not_true_eq_false,
+          if_false, hcap, hcap_t, dif_neg, not_false_eq_true]
+        simp only [hsc'.1, htc'.1, reduceCtorEq, false_and, if_false, and_false]
+      rw [hP3] at hs_hi
+      simp only at hs_hi
+      rw [hsc'.2] at hs_hi
+      omega
+  · -- SYNC: both outputs at the max input minute, below `T+1` when both inputs are.
+    have hsync := transition_p3_sync_minute (L := L) (K := K) s t hsc htc hs3 ht3 hmin
+    rw [heq] at hsync
+    rw [hsync.1] at hs_hi
+    have hmax : (max s.minute t.minute).val ≤ max s.minute.val t.minute.val := by
+      rcases le_total s.minute t.minute with h | h
+      · rw [max_eq_right h]; exact le_max_right _ _
+      · rw [max_eq_left h]; exact le_max_left _ _
+    omega
+
+/-- **The taint count rises by at most one per step** on the `AllClockP3` window with the mark
+invariant: each marked output is inherited (from a marked input occupying the same position) or a
+crossing, and at most one position crosses. -/
+theorem taintedCount_le_succ_on_support (T θn : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hw : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    taintedCount (L := L) (K := K) mc' ≤ taintedCount (L := L) (K := K) mc + 1 := by
+  classical
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    unfold markedStep
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [if_pos happ]
+      have hmem1 : pr.1 ∈ mc := Multiset.mem_of_le happ (Multiset.mem_cons_self _ _)
+      have hmem2 : pr.2 ∈ mc := Multiset.mem_of_le happ
+        (Multiset.mem_cons_of_mem (Multiset.mem_singleton_self _))
+      have h1cp := hw pr.1.1 (Multiset.mem_map_of_mem Prod.fst hmem1)
+      have h2cp := hw pr.2.1 (Multiset.mem_map_of_mem Prod.fst hmem2)
+      unfold taintedCount
+      rw [Multiset.countP_add, Multiset.countP_sub happ]
+      have hpair_le : Multiset.countP (fun m : MarkedAgent L K => m.2 = true)
+          ({pr.1, pr.2} : Multiset (MarkedAgent L K))
+            ≤ Multiset.countP (fun m : MarkedAgent L K => m.2 = true) mc :=
+        Multiset.countP_le_of_le _ happ
+      -- the two-element countP evaluations.
+      have hcountP2 : ∀ x y : MarkedAgent L K,
+          Multiset.countP (fun m : MarkedAgent L K => m.2 = true)
+              ({x, y} : Multiset (MarkedAgent L K))
+            = (if x.2 = true then 1 else 0) + (if y.2 = true then 1 else 0) := by
+        intro x y
+        rw [show ({x, y} : Multiset (MarkedAgent L K)) = x ::ₘ y ::ₘ 0 from rfl]
+        rw [Multiset.countP_cons, Multiset.countP_cons, Multiset.countP_zero]
+        ring
+      set g := preBulkGate (L := L) (K := K) T θn mc with hg
+      set o₁ := (markedOut (L := L) (K := K) T g pr.1 pr.2).1 with ho₁
+      set o₂ := (markedOut (L := L) (K := K) T g pr.1 pr.2).2 with ho₂
+      have houts : Multiset.countP (fun m : MarkedAgent L K => m.2 = true)
+            ({o₁, o₂} : Multiset (MarkedAgent L K))
+          ≤ Multiset.countP (fun m : MarkedAgent L K => m.2 = true)
+              ({pr.1, pr.2} : Multiset (MarkedAgent L K)) + 1 := by
+        rw [hcountP2, hcountP2]
+        -- each marked output is inherited or a crossing; at most one crossing.
+        have hmark₁ : o₁.2 = markFor (L := L) (K := K) T g pr.1 pr.2
+            (Transition L K pr.1.1 pr.2.1).1 := rfl
+        have hmark₂ : o₂.2 = markFor (L := L) (K := K) T g pr.2 pr.1
+            (Transition L K pr.1.1 pr.2.1).2 := rfl
+        have hcase₁ : o₁.2 = true →
+            (T + 1 ≤ pr.1.1.minute.val ∧ pr.1.2 = true) ∨
+              (pr.1.1.minute.val < T + 1 ∧
+                T + 1 ≤ (Transition L K pr.1.1 pr.2.1).1.minute.val) := by
+          intro hm
+          rw [hmark₁] at hm
+          exact markFor_true_cases (L := L) (K := K) T g pr.1 pr.2 _ hm
+        have hcase₂ : o₂.2 = true →
+            (T + 1 ≤ pr.2.1.minute.val ∧ pr.2.2 = true) ∨
+              (pr.2.1.minute.val < T + 1 ∧
+                T + 1 ≤ (Transition L K pr.1.1 pr.2.1).2.minute.val) := by
+          intro hm
+          rw [hmark₂] at hm
+          exact markFor_true_cases (L := L) (K := K) T g pr.2 pr.1 _ hm
+        have hone := at_most_one_crossing (L := L) (K := K) T pr.1.1 pr.2.1
+          h1cp.1 h2cp.1 h1cp.2 h2cp.2
+        by_cases hm₁ : o₁.2 = true <;> by_cases hm₂ : o₂.2 = true
+        · -- both outputs marked: not both crossings; an inherited one is matched by its input.
+          rcases hcase₁ hm₁ with ⟨_, hin₁⟩ | hcr₁
+          · simp [hm₁, hm₂, hin₁] <;> split_ifs <;> omega
+          · rcases hcase₂ hm₂ with ⟨_, hin₂⟩ | hcr₂
+            · simp [hm₁, hm₂, hin₂] <;> split_ifs <;> omega
+            · exact absurd ⟨hcr₁, hcr₂⟩ hone
+        · rcases hcase₁ hm₁ with ⟨_, hin₁⟩ | _
+          · simp [hm₁, hm₂, hin₁] <;> split_ifs <;> omega
+          · simp [hm₁, hm₂] <;> split_ifs <;> omega
+        · rcases hcase₂ hm₂ with ⟨_, hin₂⟩ | _
+          · simp [hm₁, hm₂, hin₂] <;> split_ifs <;> omega
+          · simp [hm₁, hm₂] <;> split_ifs <;> omega
+        · simp [hm₁, hm₂] <;> split_ifs <;> omega
+      omega
+    · rw [if_neg happ]
+      omega
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+    omega
+
 end EarlyDripMarked
 
 end ExactMajority

@@ -188,7 +188,19 @@ ClockFrontProfile.lean:
   above-T ancestor / closed gate / sub-T minute — all four markFor branches excluded; the sync branch
   uses transition_p3_sync_minute). Pre-gate "c_{≥T+1} = d" (paper's base case) is the corollary, no
   probabilistic induction needed.
-- 3.4 the tainted-count tail. KEY DIFFICULTY (worked out this session): the constant-rate gated MGF
+- 3.4b PLAN (worked out, next to implement) — the taintedCount rise structure, in EarlyDripMarked.lean:
+  (i) `markFor_true_cases`: output marked ⟹ (own already above ∧ own marked) ∨ (own CROSSED:
+  own < T+1 ≤ o) — the mark rule self-guards (branches 3/4 need a crossing; for non-moving outputs
+  o.minute = own.minute makes them unreachable). (ii) `at_most_one_crossing` per pair: both positions
+  crossing is impossible (both inputs < T+1 forces max(inputs) ≤ T; drip pos-2 doesn't move, sync
+  outputs sit at max(inputs) < T+1, counter doesn't move — check per Phase3 branch). Hence
+  (iii) `taintedCount_le_succ_on_support`: rises ≤ 1/step (under MarkInv + AllClockP3-erased).
+  (iv) the rate split: {taintedCount rises} ⊆ {scheduled pair same-minute-T with gate} ∪ {scheduled
+  pair has a marked member}: P[rise] ≤ (rBeyond T (erase)/n)² + 4·taintedCount/n. Drip part via the
+  generic FrontTail.dripPair_prob_le_sq summed over the minute-T marked states ((Σ count_s/n)² bound);
+  sync part via the pair-membership block bound (2·tainted·n/totalPairs). These feed the brick-1 MGF
+  (constant part θ²) + the branching part (3.4c).
+- 3.4c the tainted-count tail. KEY DIFFICULTY (worked out this session): the constant-rate gated MGF
   CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
   gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)
   window — useless. The faithful tool is the paper's two-phase split: (a) pre-bulk drip count via the
