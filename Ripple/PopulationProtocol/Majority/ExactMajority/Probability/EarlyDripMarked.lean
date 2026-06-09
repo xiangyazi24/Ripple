@@ -1430,6 +1430,121 @@ theorem tainted_rise_prob_le (T θn : ℕ) (mc : Config (MarkedAgent L K)) (h : 
     exact le_refl _
   exact add_le_add hbound1 hbound2
 
+/-! ## Part 8 — the gate-closed rise bound and the marked a.e. helper (brick 3.4c-ii inputs).
+
+With the pre-bulk gate CLOSED the mark rule grants NO drip marks (branch 3 returns `g = false`),
+so the taint can only rise via the epidemic from a tainted member: `P[rise] ≤ 2·taintedCount/n`,
+with no drip-seed term at all.  Together with `tainted_rise_prob_le` this gives the uniform rate
+`q(mc) ≤ (θn/n)² + 2·taintedCount/n` over the whole hour window — the input to the time-dependent
+potential drift (the step-indexed engine instantiation). -/
+
+/-- Almost-every one-step successor of the marked kernel satisfies any support-closed property. -/
+theorem ae_markedStep (T θn : ℕ) (mc : Config (MarkedAgent L K))
+    (P : Config (MarkedAgent L K) → Prop)
+    (h : ∀ mc', mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support → P mc') :
+    ∀ᵐ mc' ∂(markedK (L := L) (K := K) T θn mc), P mc' := by
+  change ∀ᵐ mc' ∂(markedPMF (L := L) (K := K) T θn mc).toMeasure, P mc'
+  rw [ae_iff, PMF.toMeasure_apply_eq_zero_iff _
+    (DiscreteMeasurableSpace.forall_measurableSet _), Set.disjoint_left]
+  intro mc' hsupp hbad
+  exact hbad (h mc' hsupp)
+
+/-- **With the gate closed, the taint rises only via a tainted member** (branch 3 of the mark rule
+returns `false`; no minute analysis needed). -/
+theorem tainted_rise_subset_gate_false (T θn : ℕ) (mc : Config (MarkedAgent L K))
+    (hg : preBulkGate (L := L) (K := K) T θn mc = false) :
+    (markedStep (L := L) (K := K) T θn mc) ⁻¹'
+        {mc' | taintedCount (L := L) (K := K) mc < taintedCount (L := L) (K := K) mc'} ⊆
+      {pr : MarkedAgent L K × MarkedAgent L K | pr.1.2 = true ∨ pr.2.2 = true} := by
+  classical
+  intro pr hpr
+  rw [Set.mem_preimage, Set.mem_setOf_eq] at hpr
+  by_contra hnot
+  rw [Set.mem_setOf_eq] at hnot
+  push Not at hnot
+  obtain ⟨hm1, hm2⟩ := hnot
+  unfold markedStep at hpr
+  by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+  · rw [if_pos happ] at hpr
+    set g := preBulkGate (L := L) (K := K) T θn mc with hgdef
+    set o₁ := (markedOut (L := L) (K := K) T g pr.1 pr.2).1 with ho₁
+    set o₂ := (markedOut (L := L) (K := K) T g pr.1 pr.2).2 with ho₂
+    have hmark₁ : o₁.2 = markFor (L := L) (K := K) T g pr.1 pr.2
+        (Transition L K pr.1.1 pr.2.1).1 := rfl
+    have hmark₂ : o₂.2 = markFor (L := L) (K := K) T g pr.2 pr.1
+        (Transition L K pr.1.1 pr.2.1).2 := rfl
+    have hgfalse : g = false := by rw [hgdef]; exact hg
+    have hno₁ : ¬ (o₁.2 = true) := by
+      intro hm
+      rw [hmark₁] at hm
+      rcases markFor_true_crossing_cases (L := L) (K := K) T g pr.1 pr.2 _ hm with
+        ⟨_, hin⟩ | ⟨_, _, hvia⟩
+      · exact hm1 hin
+      · rcases hvia with ⟨_, hgt⟩ | hpart
+        · rw [hgfalse] at hgt
+          exact absurd hgt (by simp)
+        · exact hm2 hpart
+    have hno₂ : ¬ (o₂.2 = true) := by
+      intro hm
+      rw [hmark₂] at hm
+      rcases markFor_true_crossing_cases (L := L) (K := K) T g pr.2 pr.1 _ hm with
+        ⟨_, hin⟩ | ⟨_, _, hvia⟩
+      · exact hm2 hin
+      · rcases hvia with ⟨_, hgt⟩ | hpart
+        · rw [hgfalse] at hgt
+          exact absurd hgt (by simp)
+        · exact hm1 hpart
+    have houts : Multiset.countP (fun m : MarkedAgent L K => m.2 = true)
+        ({o₁, o₂} : Multiset (MarkedAgent L K)) = 0 := by
+      rw [Multiset.countP_eq_zero]
+      intro m hm
+      rw [show ({o₁, o₂} : Multiset (MarkedAgent L K)) = o₁ ::ₘ {o₂} from rfl] at hm
+      rcases Multiset.mem_cons.mp hm with hm | hm
+      · rw [hm]; exact hno₁
+      · rw [Multiset.mem_singleton.mp hm]; exact hno₂
+    have hle : taintedCount (L := L) (K := K)
+        (mc - {pr.1, pr.2} + ({o₁, o₂} : Multiset (MarkedAgent L K)))
+        ≤ taintedCount (L := L) (K := K) mc := by
+      unfold taintedCount
+      rw [Multiset.countP_add, houts, add_zero]
+      exact Multiset.countP_le_of_le _ (tsub_le_self (a := mc))
+    omega
+  · rw [if_neg happ] at hpr
+    omega
+
+/-- **The gate-closed taint-rise probability**: `P[rise] ≤ 2·taintedCount/n` (no drip-seed term). -/
+theorem tainted_rise_prob_le_of_gate_false (T θn : ℕ) (mc : Config (MarkedAgent L K))
+    (h : 2 ≤ mc.card)
+    (hg : preBulkGate (L := L) (K := K) T θn mc = false) :
+    markedK (L := L) (K := K) T θn mc
+        {mc' | taintedCount (L := L) (K := K) mc < taintedCount (L := L) (K := K) mc'} ≤
+      ENNReal.ofReal
+        (2 * ((taintedCount (L := L) (K := K) mc : ℝ) / (mc.card : ℝ))) := by
+  classical
+  rw [markedK_apply_pair (L := L) (K := K) T θn mc h _
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine le_trans (measure_mono (tainted_rise_subset_gate_false (L := L) (K := K) T θn mc hg)) ?_
+  set SM : Finset (MarkedAgent L K) :=
+    Finset.univ.filter (fun m : MarkedAgent L K => m.2 = true) with hSM
+  have hXM : (∑ m ∈ SM, mc.count m) = taintedCount (L := L) (K := K) mc := by
+    rw [hSM]
+    exact sum_count_filter_eq_countP _ mc
+  have hsub2 : {pr : MarkedAgent L K × MarkedAgent L K | pr.1.2 = true ∨ pr.2.2 = true}
+      ⊆ {pr : MarkedAgent L K × MarkedAgent L K | pr.1 ∈ SM}
+        ∪ {pr : MarkedAgent L K × MarkedAgent L K | pr.2 ∈ SM} := by
+    rintro pr (hp | hp)
+    · exact Or.inl (by simp [hSM, hp])
+    · exact Or.inr (by simp [hSM, hp])
+  refine le_trans (measure_mono hsub2) (le_trans (measure_union_le _ _) ?_)
+  have h1 := fst_block_prob_le (L := L) (K := K) mc h SM
+  have h2 := snd_block_prob_le (L := L) (K := K) mc h SM
+  rw [hXM] at h1 h2
+  refine le_trans (add_le_add h1 h2) ?_
+  rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
+  apply ENNReal.ofReal_le_ofReal
+  ring_nf
+  exact le_refl _
+
 end EarlyDripMarked
 
 end ExactMajority

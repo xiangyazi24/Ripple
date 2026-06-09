@@ -199,7 +199,16 @@ ClockFrontProfile.lean:
   the exact two-phase rate (drip seed + branching) of Doty's d-analysis. NOTE: the bound is at the
   exact minute-T count (count@T ≤ rBeyond T ∘ erase via countP mono, T-level only — sharper than θ²;
   gate-conditioning enters when instantiating on {rBeyond T < θn}).
-- 3.4c the tainted-count tail. KEY DIFFICULTY (worked out this session): the constant-rate gated MGF
+- 3.4c-i **DONE (GatedGeometricDrift.lean, 0-sorry axiom-clean)** — the STEP-INDEXED gated engine:
+  `lintegral_stepIndexed_decay` (potential family Φ_j with ∫Φ_{j+1}dK ≤ Φ_j contracts E[Φ_t(X_t)] ≤
+  Φ_0(x); induction generalizes over the SHIFTED family) + `stepIndexed_gated_tail` ((K^t)x{θ ≤ Φ_t} ≤
+  escape + Φ_0 x/θ; killed drift needs NO r ≥ 1 side condition). This is the time-dependent-MGF
+  engine for branching rates: instantiate Φ_j = exp(s_j·taintedCount + b_j) with s_j ≥ s_{j+1} +
+  2(e^{s_{j+1}}−1)/n (slope absorbs branching 2N/n) and b_j ≥ b_{j+1} + θ²(e^{s_{j+1}}−1) (intercept
+  absorbs drip-seed immigration); s_0/s_t ratio over a window of length t costs (1+4/n)^t ≈ e^{4t/n}
+  = polyloglog for t = O(n loglog n). REMAINING 3.4c-ii: the instantiation — one-step drift of the
+  indexed potential from tainted_rise_prob_le (per-x rate q = (count@T/n)² + 2·tainted/n fed to
+  mgf_one_step pointwise) + the explicit s_j/b_j sequences + the window gate; then the d-bound. the constant-rate gated MGF
   CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
   gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)
   window — useless. The faithful tool is the paper's two-phase split: (a) pre-bulk drip count via the
