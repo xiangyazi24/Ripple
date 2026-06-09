@@ -3565,6 +3565,167 @@ theorem stepIndexed_killed_tail {α : Type*} [MeasurableSpace α] [DiscreteMeasu
     _ ≤ θ⁻¹ * Φ 0 x := by gcongr
     _ = Φ 0 x / θ := by rw [mul_comm]; rfl
 
+/-! ## Part 24 — the absorbing inputs for the slice gates (brick 3.5d-iii d).
+
+The slice gate `{AllClockP3 ∘ erase ∧ X ≤ X₁}` has an absorbing complement RELATIVE to the
+`AllClockGE3` region: within the region, leaving `AllClockP3` means some agent reached phase 4
+(permanent — phases never decrease), and `X = rBeyond T ∘ erase` never decreases (clock minutes
+are monotone at phases ≥ 3).  These are the `hRstep`/`habs` inputs of
+`real_le_killed_of_absorbing`. -/
+
+/-- Any chosen-pair real update preserves `AllClockGE3` (per-pair form of
+`AllClockGE3_absorbing`). -/
+theorem allClockGE3_stepOrSelf (c : Config (AgentState L K))
+    (hw : AllClockGE3 (L := L) (K := K) c) (r₁ r₂ : AgentState L K) :
+    AllClockGE3 (L := L) (K := K)
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  classical
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hc2 : 2 ≤ c.card := by
+      have hle : ({r₁, r₂} : Multiset (AgentState L K)).card ≤ c.card :=
+        Multiset.card_le_card happ
+      simpa using hle
+    have hsupp : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        ∈ ((NonuniformMajority L K).stepDistOrSelf c).support := by
+      rw [show (NonuniformMajority L K).stepDistOrSelf c
+          = (NonuniformMajority L K).stepDist c hc2 by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc2]]
+      unfold Protocol.stepDist
+      rw [PMF.support_map]
+      refine ⟨(r₁, r₂), ?_, rfl⟩
+      show c.interactionProb r₁ r₂ ≠ 0
+      have hcount : c.interactionCount r₁ r₂ ≠ 0 := by
+        unfold Config.interactionCount
+        by_cases h12 : r₁ = r₂
+        · rw [if_pos h12]
+          subst h12
+          have h2 : 2 ≤ c.count r₁ := by
+            have h := Multiset.le_iff_count.mp happ r₁
+            have hpair : Multiset.count r₁ ({r₁, r₁} : Multiset (AgentState L K)) = 2 := by
+              rw [show ({r₁, r₁} : Multiset (AgentState L K)) = r₁ ::ₘ {r₁} from rfl,
+                Multiset.count_cons_self, Multiset.count_singleton, if_pos rfl]
+            rw [hpair] at h
+            exact h
+          have hpos : 0 < c.count r₁ * (c.count r₁ - 1) :=
+            Nat.mul_pos (by omega) (by omega)
+          omega
+        · rw [if_neg h12]
+          have h1 : 1 ≤ c.count r₁ := by
+            have hm : r₁ ∈ c := mem_of_applicable_left happ
+            exact Multiset.one_le_count_iff_mem.mpr hm
+          have h2 : 1 ≤ c.count r₂ := by
+            have hm : r₂ ∈ c := mem_of_applicable_right happ
+            exact Multiset.one_le_count_iff_mem.mpr hm
+          have hpos : 0 < c.count r₁ * c.count r₂ := Nat.mul_pos (by omega) (by omega)
+          omega
+      unfold Config.interactionProb
+      intro hzero
+      rw [ENNReal.div_eq_zero_iff] at hzero
+      rcases hzero with h | h
+      · exact hcount (by exact_mod_cast h)
+      · exact (Config.totalPairs_ne_top c) h
+    exact AllClockGE3_absorbing (L := L) (K := K) c _ hw hsupp
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+    exact hw
+
+/-- The `AllClockGE3` window (of the erased configuration) is invariant along the marked chain. -/
+theorem allClockGE3_erase_step (T θn : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hw : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc') := by
+  classical
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [erase_markedStep (L := L) (K := K) T θn mc pr happ]
+      exact allClockGE3_stepOrSelf (L := L) (K := K) _ hw pr.1.1 pr.2.1
+    · unfold markedStep
+      rw [if_neg happ]
+      exact hw
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+    exact hw
+
+/-- A phase-4 witness is permanent along the marked chain (phases never decrease). -/
+theorem phase4_witness_absorbing (T θn : ℕ) (mc mc' : Config (MarkedAgent L K))
+    (hP4 : ∃ m ∈ mc, 4 ≤ m.1.phase.val)
+    (hsupp : mc' ∈ (markedPMF (L := L) (K := K) T θn mc).support) :
+    ∃ m ∈ mc', 4 ≤ m.1.phase.val := by
+  classical
+  unfold markedPMF at hsupp
+  by_cases h : 2 ≤ mc.card
+  · rw [dif_pos h] at hsupp
+    rw [PMF.support_map] at hsupp
+    obtain ⟨pr, _, hpr⟩ := hsupp
+    subst hpr
+    unfold markedStep
+    by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+    · rw [if_pos happ]
+      obtain ⟨m, hm, hm4⟩ := hP4
+      set g := preBulkGate (L := L) (K := K) T θn mc with hg
+      set o₁ := (markedOut (L := L) (K := K) T g pr.1 pr.2).1 with ho₁
+      set o₂ := (markedOut (L := L) (K := K) T g pr.1 pr.2).2 with ho₂
+      have hphase := HabsDischarge.Transition_phase_nondec_local (L := L) (K := K) pr.1.1 pr.2.1
+      -- count the phase-4 witnesses: either m survives in mc − pair, or its slot's output works.
+      by_cases hmem : m ∈ mc - {pr.1, pr.2}
+      · exact ⟨m, Multiset.mem_add.mpr (Or.inl hmem), hm4⟩
+      · -- m was consumed: it is r₁ or r₂ up to multiplicity; the corresponding output has
+        -- phase ≥ m's phase ≥ 4.  Use a counting argument: the consumed pair contains a
+        -- phase-≥4 member, so one of the OUTPUTS has phase ≥ 4.
+        have hpos : 0 < Multiset.countP
+            (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val) mc :=
+          Multiset.countP_pos.mpr ⟨m, hm, hm4⟩
+        have hsplit : Multiset.countP (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val) mc
+            = Multiset.countP (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val)
+                (mc - {pr.1, pr.2})
+              + Multiset.countP (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val)
+                ({pr.1, pr.2} : Multiset (MarkedAgent L K)) := by
+          rw [← Multiset.countP_add, tsub_add_cancel_of_le happ]
+        have hrest0 : Multiset.countP (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val)
+            (mc - {pr.1, pr.2}) = 0 ∨ ∃ m' ∈ mc - {pr.1, pr.2}, 4 ≤ m'.1.phase.val := by
+          by_cases h0 : Multiset.countP
+              (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val) (mc - {pr.1, pr.2}) = 0
+          · exact Or.inl h0
+          · right
+            have : 0 < Multiset.countP
+                (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val) (mc - {pr.1, pr.2}) := by
+              omega
+            exact Multiset.countP_pos.mp this
+        rcases hrest0 with h0 | ⟨m', hm', hm'4⟩
+        · -- the witness sits in the pair: some pr-member has phase ≥ 4; its output follows.
+          have hpair_pos : 0 < Multiset.countP
+              (fun x : MarkedAgent L K => 4 ≤ x.1.phase.val)
+              ({pr.1, pr.2} : Multiset (MarkedAgent L K)) := by
+            omega
+          have hpair : 4 ≤ pr.1.1.phase.val ∨ 4 ≤ pr.2.1.phase.val := by
+            obtain ⟨x, hx, hx4⟩ := Multiset.countP_pos.mp hpair_pos
+            rw [show ({pr.1, pr.2} : Multiset (MarkedAgent L K))
+              = pr.1 ::ₘ {pr.2} from rfl] at hx
+            rcases Multiset.mem_cons.mp hx with hx | hx
+            · exact Or.inl (hx ▸ hx4)
+            · exact Or.inr ((Multiset.mem_singleton.mp hx) ▸ hx4)
+          rcases hpair with h4 | h4
+          · refine ⟨o₁, Multiset.mem_add.mpr (Or.inr ?_), ?_⟩
+            · rw [show ({o₁, o₂} : Multiset (MarkedAgent L K)) = o₁ ::ₘ {o₂} from rfl]
+              exact Multiset.mem_cons_self _ _
+            · have : pr.1.1.phase.val ≤ o₁.1.phase.val := hphase.1
+              omega
+          · refine ⟨o₂, Multiset.mem_add.mpr (Or.inr ?_), ?_⟩
+            · rw [show ({o₁, o₂} : Multiset (MarkedAgent L K)) = o₁ ::ₘ {o₂} from rfl]
+              exact Multiset.mem_cons_of_mem (Multiset.mem_singleton_self _)
+            · have : pr.2.1.phase.val ≤ o₂.1.phase.val := hphase.2
+              omega
+        · exact ⟨m', Multiset.mem_add.mpr (Or.inl hm'), hm'4⟩
+    · rw [if_neg happ]
+      exact hP4
+  · rw [dif_neg h, PMF.support_pure] at hsupp
+    rw [Set.mem_singleton_iff.mp hsupp]
+    exact hP4
+
 end EarlyDripMarked
 
 end ExactMajority
