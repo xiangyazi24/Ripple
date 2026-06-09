@@ -2396,6 +2396,102 @@ theorem clean_marked_tail (T θn n X₁ : ℕ) (hn : 2 ≤ n) (s b : ℕ → ℝ
     w mc₀ (ENNReal.ofReal (Real.exp (s w * (Y : ℝ) + b w)))
     (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
 
+/-! ## Part 14 — the LOWER one-step MGF for monotone counters (brick 3.5c input).
+
+The window induction also needs the feeder `x = rBeyond T ∘ erase` to have GROWN by a definite
+factor over the window — an epidemic LOWER bound.  For a MONOTONE `+1`-increment counter with rise
+probability AT LEAST `r`, the decreasing exponential `exp(−s·N)` contracts by `1 − r(1−e^{−s})` —
+the mirror of `mgf_one_step` (monotonicity replaces the `≤ +1` step bound). -/
+
+/-- **The lower one-step MGF**: for a monotone counter with rise probability at least `r`,
+`∫ exp(−s·N) dμ ≤ (1 − r(1−e^{−s}))·exp(−s·n₀)`. -/
+theorem mgf_one_step_lower {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    (μ : Measure α) [IsProbabilityMeasure μ] (s : ℝ) (hs : 0 ≤ s)
+    (N : α → ℕ) (n₀ : ℕ)
+    (hmono : ∀ᵐ y ∂μ, n₀ ≤ N y)
+    (r : ℝ) (hr0 : 0 ≤ r) (hr1 : r ≤ 1)
+    (hprob : ENNReal.ofReal r ≤ μ {y | n₀ < N y}) :
+    ∫⁻ y, ENNReal.ofReal (Real.exp (-(s * (N y : ℝ)))) ∂μ ≤
+      ENNReal.ofReal ((1 - r * (1 - Real.exp (-s))) * Real.exp (-(s * (n₀ : ℝ)))) := by
+  classical
+  set D : Set α := {y | n₀ < N y} with hD
+  have hD_meas : MeasurableSet D := DiscreteMeasurableSpace.forall_measurableSet _
+  have hes : Real.exp (-s) ≤ 1 := Real.exp_le_one_iff.mpr (by linarith)
+  have hes0 : 0 < Real.exp (-s) := Real.exp_pos _
+  -- pointwise: on D the value is ≤ e^{−s}·e^{−s n₀}; off D (with monotonicity) it is ≤ e^{−s n₀}.
+  have hpt : ∀ᵐ y ∂μ,
+      ENNReal.ofReal (Real.exp (-(s * (N y : ℝ)))) ≤
+        (if y ∈ D then ENNReal.ofReal (Real.exp (-s) * Real.exp (-(s * (n₀ : ℝ))))
+          else ENNReal.ofReal (Real.exp (-(s * (n₀ : ℝ))))) := by
+    filter_upwards [hmono] with y hy
+    by_cases hyD : y ∈ D
+    · simp only [hyD, if_true]
+      apply ENNReal.ofReal_le_ofReal
+      rw [← Real.exp_add]
+      apply Real.exp_le_exp.mpr
+      have hlt : n₀ < N y := hyD
+      have hcast : (n₀ : ℝ) + 1 ≤ (N y : ℝ) := by exact_mod_cast hlt
+      nlinarith [hs, hcast]
+    · simp only [hyD, if_false]
+      apply ENNReal.ofReal_le_ofReal
+      apply Real.exp_le_exp.mpr
+      have hcast : (n₀ : ℝ) ≤ (N y : ℝ) := by exact_mod_cast hy
+      nlinarith [hs, hcast]
+  calc ∫⁻ y, ENNReal.ofReal (Real.exp (-(s * (N y : ℝ)))) ∂μ
+      ≤ ∫⁻ y, (if y ∈ D then ENNReal.ofReal (Real.exp (-s) * Real.exp (-(s * (n₀ : ℝ))))
+          else ENNReal.ofReal (Real.exp (-(s * (n₀ : ℝ))))) ∂μ := lintegral_mono_ae hpt
+    _ = ENNReal.ofReal (Real.exp (-s) * Real.exp (-(s * (n₀ : ℝ)))) * μ D
+        + ENNReal.ofReal (Real.exp (-(s * (n₀ : ℝ)))) * μ Dᶜ := by
+        rw [← lintegral_add_compl _ hD_meas]
+        congr 1
+        · rw [setLIntegral_congr_fun hD_meas
+              (g := fun _ => ENNReal.ofReal (Real.exp (-s) * Real.exp (-(s * (n₀ : ℝ)))))
+              (fun y hy => by simp only [hy, if_true])]
+          rw [lintegral_const, Measure.restrict_apply_univ]
+        · rw [setLIntegral_congr_fun hD_meas.compl
+              (g := fun _ => ENNReal.ofReal (Real.exp (-(s * (n₀ : ℝ)))))
+              (fun y hy => by simp only [Set.mem_compl_iff] at hy; simp only [hy, if_false])]
+          rw [lintegral_const, Measure.restrict_apply_univ]
+    _ ≤ ENNReal.ofReal ((1 - r * (1 - Real.exp (-s))) * Real.exp (-(s * (n₀ : ℝ)))) := by
+        have hΦnn : (0 : ℝ) ≤ Real.exp (-(s * (n₀ : ℝ))) := (Real.exp_pos _).le
+        have hμD_le_one : μ D ≤ 1 := by
+          calc μ D ≤ μ Set.univ := measure_mono (Set.subset_univ _)
+            _ = 1 := measure_univ
+        have hμD_ne_top : μ D ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hμD_le_one
+        set pr := (μ D).toReal with hpr
+        have hpr_nonneg : 0 ≤ pr := ENNReal.toReal_nonneg
+        have hpr_le_one : pr ≤ 1 := by
+          rw [hpr, show (1:ℝ) = (1 : ℝ≥0∞).toReal from ENNReal.toReal_one.symm]
+          exact ENNReal.toReal_mono ENNReal.one_ne_top hμD_le_one
+        have hr_le_pr : r ≤ pr := by
+          rw [hpr]
+          calc r = (ENNReal.ofReal r).toReal := (ENNReal.toReal_ofReal hr0).symm
+            _ ≤ (μ D).toReal := ENNReal.toReal_mono hμD_ne_top hprob
+        have hμD_eq : μ D = ENNReal.ofReal pr := (ENNReal.ofReal_toReal hμD_ne_top).symm
+        have hμDc_eq : μ Dᶜ = ENNReal.ofReal (1 - pr) := by
+          have hcompl := measure_compl hD_meas hμD_ne_top
+          rw [show μ Set.univ = 1 from measure_univ] at hcompl
+          rw [hcompl, hμD_eq,
+            show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from ENNReal.ofReal_one.symm,
+            ← ENNReal.ofReal_sub 1 hpr_nonneg]
+        rw [hμD_eq, hμDc_eq,
+          ← ENNReal.ofReal_mul (by positivity), ← ENNReal.ofReal_mul hΦnn,
+          ← ENNReal.ofReal_add
+            (mul_nonneg (by positivity) hpr_nonneg)
+            (mul_nonneg hΦnn (by linarith))]
+        apply ENNReal.ofReal_le_ofReal
+        have hfac : Real.exp (-s) * Real.exp (-(s * (n₀ : ℝ))) * pr
+              + Real.exp (-(s * (n₀ : ℝ))) * (1 - pr)
+            = Real.exp (-(s * (n₀ : ℝ))) * (1 - pr * (1 - Real.exp (-s))) := by ring
+        rw [hfac]
+        have hbound : 1 - pr * (1 - Real.exp (-s)) ≤ 1 - r * (1 - Real.exp (-s)) := by
+          have h1e : 0 ≤ 1 - Real.exp (-s) := by linarith
+          nlinarith [mul_le_mul_of_nonneg_right hr_le_pr h1e]
+        calc Real.exp (-(s * (n₀ : ℝ))) * (1 - pr * (1 - Real.exp (-s)))
+            ≤ Real.exp (-(s * (n₀ : ℝ))) * (1 - r * (1 - Real.exp (-s))) :=
+              mul_le_mul_of_nonneg_left hbound hΦnn
+          _ = (1 - r * (1 - Real.exp (-s))) * Real.exp (-(s * (n₀ : ℝ))) := by ring
+
 end EarlyDripMarked
 
 end ExactMajority
