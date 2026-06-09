@@ -149,10 +149,24 @@ ClockFrontProfile.lean:
   ClimbBound, W₁ = frontWidthBound card. REPLACES goodFrontWidth_of_profile (kept, but its unrestricted
   hypothesis is whp-undischargeable; do not build on it).
 
-**Brick 3 remaining (probabilistic, the genuine §6 core):**
-- 3.2 `ClimbBound` whp — the n^{-1.6}-rate climb union bound. Per-level rate `((frac k)²)²` gated on
-  `frac k < θ`; needs the union over the W₂ climb levels + the horizon. Closest to existing machinery
-  (earlyDrip_kernel_bound's union-bound shape + gated_real_tail for the gate).
+**Brick 3.2 DONE (ClimbTail.lean, 0-sorry, axiom-clean, REAL kernel):** the gated climb tail.
+- `mgf_one_step` — the GENERIC one-step MGF contraction (kernel-generic earlyDrip_mgf_one_step,
+  any probability measure, a.e. hypotheses) — reusable for the marked kernel too.
+- `climbN k c` — climb height via the antitone-threshold trick: #{j ∈ [k+2, capMinute] :
+  rBeyond j c > 0} = (leading edge) − (k+1) truncated, NO max-minute function needed (the filtered
+  set is an initial segment). Combinatorics: rises ≤1/step (only a frontier drip crosses a new
+  threshold — per-pair `transition_p3_minute_le_succ_max` caps outputs at max(inputs)+1);
+  `rBeyond_frontier_succ_eq_zero` (frontier empty) feeds `real_front_advance_squares` →
+  `climb_prob_le_sq`: rise rate ≤ (B'/n)² on {rBeyond(k+1) ≤ B'}.
+- `climbPot` — TRUNCATED potential exp(s·climbN) frozen to 0 once θn ≤ rBeyond k. The freeze +
+  rBeyond-monotonicity make the drift hold on the UNION gate climbGate = {card=n ∧ AllClockP3} ∩
+  ({rBeyond(k+1) ≤ B'} ∪ {θn ≤ rBeyond k}) — killing happens EXACTLY on the dangerous event
+  {rBeyond(k+1) > B' ∧ rBeyond k < θn} (or hour-window exit, benign).
+- `climb_real_tail` (capstone, via brick-2 gated_real_tail): (K^t) c₀ {rBeyond k < θn ∧
+  0 < rBeyond(k+W₂)} ≤ escape + r^t·climbPot c₀/e^{s(W₂−1)}, r = 1+(B'/n)²(e^s−1). At paper scales
+  (B'/n = n^{-0.8}, s = Θ(log n), W₂ = Θ(loglog n)) the tail term is n^{-ω(1)}.
+- REMAINING for ClimbBound whp: bound the escape mass (= the brick-3.4 tainted-set deliverable
+  P[rBeyond(k+1) > B' while rBeyond k < θn]) + instantiate scales + union over k and the horizon.
 - 3.3 the marked kernel (EarlyDripMarked.lean per ChatGPT 1a): MarkedMinute/eraseConfig/markedK/
   projection theorem; taintedCount; the within-gate identity taintedCount = beyond(T+1) (while the gate
   holds every agent above T is tainted — paper's base case).
