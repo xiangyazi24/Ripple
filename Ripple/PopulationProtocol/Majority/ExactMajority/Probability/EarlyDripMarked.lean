@@ -4251,11 +4251,152 @@ theorem slice_growth_tail (T θn n : ℕ) (hn : 2 ≤ n)
   ring_nf
   exact le_refl _
 
-/-! ## Part 28 — the per-window ladder bound (brick 3.5d-iv capstone): the pure-exponential δ.
+/-! ## Part 27b — the UPWARD growth slice tail (brick 3.5e, the 11th-shape fix).
 
-Putting the ladder split together with the two zero-escape slice tails: the per-window failure of
-the Lemma 6.3 recurrence is at most a growth-floor exponential plus a ladder sum of clean-tail
-exponentials — no escape terms anywhere. -/
+`slice_growth_tail` (constant slope) certifies only anti-SHRINK: `P[X_w ≤ a]` small for `a < X₀`.
+The Lemma 6.3 recurrence needs the OPPOSITE: `P[X_w ≤ g·X₀]` small for a growth factor `g > 1`
+(the paper's `x(t−0.1) < 0.84·x(t)` ↦ `x(end) ≥ x(start)/0.84`).  The contraction factor
+`exp(−1.8(X/n)(1−e^{−s}))` produced inside `growthPot_drift` is RETAINED by using the INCREASING
+(backward) slope `s_j = σ + (w−j)·c`, `c = 1.8(1−e^{−σ})/n`: the drift recursion
+`s_j ≤ s_{j+1} + 1.8(1−e^{−s_{j+1}})/n` holds because `s_{j+1} ≥ σ` makes `1−e^{−s_{j+1}} ≥ 1−e^{−σ}`.
+The tail exponent is then `−s_0·X₀ + s_w·a = −(σ+w·c)X₀ + σ·a`, and at `a = g·X₀` with
+`w·c = 1.8(1−e^{−σ})·(w/n)` this is `−X₀·[σ(g−1) + 1.8(1−e^{−σ})(w/n) − σ(g−1) … ]`; explicitly
+`= σ·a − (σ+w·c)·X₀`, which at the doctrine scales (σ = 1/10, w/n = wp = 0.015, g = 41/40) is
+`≤ −X₀·δ` with `δ ≈ 7e−5 > 0`. -/
+
+/-- **The zero-escape UPWARD growth slice tail**: with the increasing slope `s j = σ + (w−j)·c`,
+`c = 1.8(1−e^{−σ})/n`, the probability of ending with the feeder still `≤ a` is at most
+`exp(−(σ + w·c)·X₀ + σ·a)` — small even for `a > X₀` (upward growth), no escape mass. -/
+theorem slice_growth_tail_up (T θn n : ℕ) (hn : 2 ≤ n)
+    (σ : ℝ) (hσ : 0 < σ) (w : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (a : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a ∧
+          mc ∈ growthGate (L := L) (K := K) T n} ≤
+      ENNReal.ofReal
+        (Real.exp (-((σ + (w : ℝ) * (1.8 * (1 - Real.exp (-σ)) / (n : ℝ)))
+            * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+          + σ * (a : ℝ))) := by
+  classical
+  letI : MeasurableSpace (Option (Config (MarkedAgent L K))) := GatedDrift.instOptionMS
+  letI : DiscreteMeasurableSpace (Option (Config (MarkedAgent L K))) :=
+    GatedDrift.instOptionDMS
+  -- the increasing backward slope, clamped at σ past the horizon via ℕ-truncated subtraction.
+  set c : ℝ := 1.8 * (1 - Real.exp (-σ)) / (n : ℝ) with hc
+  have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (by omega : 0 < n)
+  have hes : Real.exp (-σ) ≤ 1 := Real.exp_le_one_iff.mpr (by linarith)
+  have hc0 : 0 ≤ c := by rw [hc]; apply div_nonneg _ hnpos.le; nlinarith
+  set s : ℕ → ℝ := fun j => σ + ((w - j : ℕ) : ℝ) * c with hs
+  have hs1 : ∀ j, 0 ≤ s (j + 1) := by
+    intro j
+    rw [hs]
+    have : (0 : ℝ) ≤ ((w - (j + 1) : ℕ) : ℝ) * c := mul_nonneg (by positivity) hc0
+    simp only
+    linarith [hσ.le]
+  -- the drift recursion: c ≤ 1.8(1−e^{−s_{j+1}})/n because s_{j+1} ≥ σ.
+  have hslope : ∀ j, s j ≤ s (j + 1)
+      + 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ) := by
+    intro j
+    have hsj1_ge : σ ≤ s (j + 1) := by
+      rw [hs]; simp only
+      have : (0 : ℝ) ≤ ((w - (j + 1) : ℕ) : ℝ) * c := mul_nonneg (by positivity) hc0
+      linarith
+    -- 1−e^{−s_{j+1}} ≥ 1−e^{−σ}, so the RHS rate ≥ c.
+    have hrate_ge : c ≤ 1.8 * (1 - Real.exp (-(s (j + 1)))) / (n : ℝ) := by
+      rw [hc]
+      have h1 : Real.exp (-(s (j + 1))) ≤ Real.exp (-σ) :=
+        Real.exp_le_exp.mpr (by linarith)
+      have hnum : 1.8 * (1 - Real.exp (-σ)) ≤ 1.8 * (1 - Real.exp (-(s (j + 1)))) := by
+        nlinarith [h1]
+      gcongr
+    -- s j − s(j+1) = (w−j) − (w−(j+1)) (ℕ-trunc) times c ≤ c.
+    have hdiff : s j - s (j + 1) ≤ c := by
+      rw [hs]; simp only
+      have hle : ((w - j : ℕ) : ℝ) ≤ ((w - (j + 1) : ℕ) : ℝ) + 1 := by
+        have : w - j ≤ (w - (j + 1)) + 1 := by omega
+        exact_mod_cast this
+      nlinarith [hc0, hle]
+    linarith [hdiff, hrate_ge]
+  have hsw : s w = σ := by rw [hs]; simp
+  have hsw0 : 0 ≤ s w := by rw [hsw]; linarith
+  -- the zero-escape coupling (same region/gate as slice_growth_tail).
+  have hcoupling := real_le_killed_of_absorbing
+    (markedK (L := L) (K := K) T θn)
+    {mc : Config (MarkedAgent L K) |
+      mc.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+    (growthGate (L := L) (K := K) T n)
+    (fun mc hmc => ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      ⟨by
+        obtain ⟨hcard, hge3⟩ := hmc
+        have h1 := eraseConfig_card (L := L) (K := K) mc
+        have h2 := eraseConfig_card (L := L) (K := K) mc'
+        revert hsupp
+        unfold markedPMF
+        by_cases h : 2 ≤ mc.card
+        · rw [dif_pos h]
+          intro hsupp
+          rw [PMF.support_map] at hsupp
+          obtain ⟨pr, _, hpr⟩ := hsupp
+          subst hpr
+          by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+          · have herase := erase_markedStep (L := L) (K := K) T θn mc pr happ
+            have hreal : (eraseConfig (L := L) (K := K)
+                (markedStep (L := L) (K := K) T θn mc pr)).card
+                = (eraseConfig (L := L) (K := K) mc).card := by
+              rw [herase]
+              exact Protocol.reachable_card_eq
+                (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) _ pr.1.1 pr.2.1)
+            omega
+          · unfold markedStep
+            rw [if_neg happ]
+            omega
+        · rw [dif_neg h]
+          intro hsupp
+          rw [PMF.support_pure] at hsupp
+          rw [Set.mem_singleton_iff.mp hsupp]
+          omega,
+       allClockGE3_erase_step (L := L) (K := K) T θn mc mc' hmc.2 hsupp⟩))
+    (fun mc hmc hG => ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      growth_gate_absorbing (L := L) (K := K) T θn n mc hmc hG mc' hsupp))
+    (fun mc => rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a ∧
+      mc ∈ growthGate (L := L) (K := K) T n)
+    (fun mc hmc => hmc.2) w mc₀ hR
+  refine le_trans hcoupling ?_
+  have hsub : {o : Option (Config (MarkedAgent L K)) |
+      ∃ mc, o = some mc ∧
+        rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ a ∧
+        mc ∈ growthGate (L := L) (K := K) T n} ⊆
+      {o | ENNReal.ofReal (Real.exp (-(s w * (a : ℝ))))
+        ≤ GatedDrift.killΦ (fun mc => ENNReal.ofReal
+            (Real.exp (-(s w * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc) : ℝ))))) o} := by
+    rintro o ⟨mc, rfl, hXa, _⟩
+    rw [Set.mem_setOf_eq, GatedDrift.killΦ_some]
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hcast : (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ)
+        ≤ (a : ℝ) := by exact_mod_cast hXa
+    nlinarith [hsw0, hcast]
+  refine le_trans (measure_mono hsub) ?_
+  have hdrift := growthPot_drift (L := L) (K := K) T θn n hn s hs1 hslope
+  have htail := stepIndexed_killed_tail (markedK (L := L) (K := K) T θn)
+    (growthGate (L := L) (K := K) T n)
+    (fun j mc => ENNReal.ofReal (Real.exp (-(s j * (rBeyond (L := L) (K := K) T
+      (eraseConfig (L := L) (K := K) mc) : ℝ)))))
+    hdrift w mc₀ (ENNReal.ofReal (Real.exp (-(s w * (a : ℝ)))))
+    (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+  refine le_trans htail ?_
+  dsimp only
+  rw [← ENNReal.ofReal_div_of_pos (Real.exp_pos _), ← Real.exp_sub]
+  apply ENNReal.ofReal_le_ofReal
+  apply Real.exp_le_exp.mpr
+  -- s 0 = σ + w·c; goal: −(s 0)·X₀ + s w · a ≤ −(σ + w·c)·X₀ + σ·a, with equality.
+  have hs0 : s 0 = σ + (w : ℝ) * c := by rw [hs]; simp
+  rw [hs0, hsw]
+  ring_nf
+  exact le_refl _
 
 /-- **The per-window ladder bound**: for any monotone ladder `a` with `10·a 0 ≤ n` and matching
 clean thresholds `Yt`,

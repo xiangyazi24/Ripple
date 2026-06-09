@@ -412,3 +412,36 @@ REMAINING for Lemma 6.3 (next session, fully determined):
 (4) union over levels T ≤ capMinute and the horizon; transfer through markedK_pow_erase →
     WindowedFrontProfile whp. Then 3.5e: ClimbBound whp (climb_real_tail escape := tainted tail) +
     goodFrontWidth_of_windowed_profile_and_climb → rewire the clock off hwin_all.
+
+## 3.5e FINDING (2026-06-09 fresh session) — the 11th false/incomplete shape: the existing
+##   `growth_marked_tail` certifies the WRONG direction; the recurrence needs an UPWARD growth tail.
+CHECKED BEFORE PROVING (numeric + paper re-read, definitive):
+- The per-window recurrence Y ≤ cc·X²/n is preserved ONLY if X GREW: worst-case
+  `f·(cc + drips) ≤ cc·g²` forces the growth factor `g = X_{end}/X_{start} ≥ g_min ≈ 1.0245 > 1`
+  (at wp = 0.015, cc = 0.9, eps = 0.02). With g ≤ 1 (anti-shrink) the LHS f(cc+drips) > cc ≥ cc·g²
+  ALWAYS — the y-branching f > 1 strictly grows Y while cc·X²/n does not grow, invariant breaks.
+  This matches the PAPER (Doty txt 1820): the leg used is `x(t−0.1) < 0.84·x(t)` — backward-anchored
+  UPWARD growth `x(end) ≥ x(start)/0.84`, certified by the epidemic LOWER bound (Lem 4.5/Thm 4.3),
+  NOT by an anti-shrink supermartingale.
+- BUT the only X-growth tool in EarlyDripMarked is `growth_marked_tail`/`growth_marked_tail_const`,
+  whose exponent is `exp(σ(a − X₀))` — small ONLY for `a < X₀` (anti-SHRINK: "X did not drop below a").
+  It CANNOT certify `P[X_w < g·X₀]` small for g > 1. So `slice_growth_tail` (the floor branch of
+  `per_window_ladder`) and the geometric ladder `a m = G^m·a0, a0 = g·X₀` of LEDGER-FINAL step (1)
+  are INCOMPATIBLE: floor needs a0 < X₀ (anti-shrink), slices need a0 ≥ √RW·X₀ > X₀ (clean closes).
+  Numerically the m=0,1 slice exponents are POSITIVE (≈ +115, +27 at a0 = X₀) — useless.
+- THE MISSING TOOL (buildable, NOT in the DONE list): an UPWARD growth tail that RETAINS the
+  contraction factor `ρ < 1` that `growthPot_drift` already produces (line ~2919:
+  `e^{−r(1−e^{−s})}` with r = 1.8X/n) but that `growth_marked_tail` THROWS AWAY (constant slope makes
+  the recursion `s ≤ s + 1.8(1−e^{−s})/n` slack, discarding ρ). Gating `X ≥ X₀` (monotone, from
+  `rBeyond_erase_monotone`) makes r ≥ 1.8X₀/n uniform, so over w = wp·n steps
+    E[exp(−sX_w)] ≤ exp(−1.8(X₀/n)(1−e^{−s})·w)·exp(−sX₀) = exp(−1.8X₀(1−e^{−s})wp − sX₀),
+  Markov at a = g·X₀ gives `P[X_w ≤ g·X₀] ≤ exp(−X₀·δ)`, δ = 1.8(1−e^{−s})wp − s(g−1) > 0
+  for g−1 < 1.8wp(1−e^{−s})/s. CLOSES at g = g_min: best δ ≈ 1.1e-4 @ s = 0.096, wp = 0.015,
+  cc = 0.9, eps = 0.02 (margin is structurally ~9%, wp-independent: (g_min−1)/(1.8wp) ≈ 0.91).
+  Tail = exp(−δ·X₀) ≤ exp(−n^{0.55}·1e-4) = n^{−ω(1)} since X₀ ≥ θn ≥ n^{0.55}. ✓
+- REVISED LEDGER-FINAL step (1): FIRST build `growth_marked_tail_up` (the upward tail, retaining ρ,
+  gated on X ≥ X₀ via the monotone region), THEN instantiate the ladder with `a 0 = g·X₀`
+  (g = g_min > 1, so a0 > X₀; floor branch = `P[X_w ≤ g·X₀]` = the UPWARD tail, small) and slices
+  `a m = G^m·a0` geometric above a0. Re-derive the uniform δ. Constants this session:
+  wp = 0.015 (kernel steps w = ⌊3n/200⌋), cc = 9/10, eps = 1/50, s = σ_grow chosen ~0.096, G ≈ 1.03.
+  This replaces `slice_growth_tail` in the floor branch of `per_window_ladder` with the upward tail.
