@@ -3820,6 +3820,198 @@ theorem slice_gate_absorbing (T θn n X₁ : ℕ)
     rintro ⟨_, _, hX'⟩
     omega
 
+/-! ## Part 25 — the SLICE clean tail (brick 3.5d-iii capstone): zero escape.
+
+Assembling the coupling (`real_le_killed_of_absorbing` with the slice gate's absorbing complement)
+with the killed alive-mass tail (`stepIndexed_killed_tail` + `cleanPot_drift`) gives the per-slice
+clean tail with NO escape term: endpoints inside the slice gate never left it. -/
+
+/-- **The slice clean tail, explicit sequences, zero escape**: from a start in the `AllClockGE3`
+region, the probability of ending with `Yt ≤ cleanAbove` INSIDE the slice gate is at most
+`exp(σρ^w·Y₀ + (X₁/n)²(1+ε)σρ^w·w − σ·Yt)` — no escape mass. -/
+theorem slice_clean_tail_explicit (T θn n X₁ : ℕ) (hn : 2 ≤ n)
+    (σ ε : ℝ) (hσ : 0 < σ) (hε : 0 < ε) (w : ℕ)
+    (hsmall : σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w ≤ ε / (1 + ε))
+    (mc₀ : Config (MarkedAgent L K))
+    (hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (Yt : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | Yt ≤ cleanAbove (L := L) (K := K) T mc ∧
+          mc ∈ cleanGate (L := L) (K := K) T n X₁} ≤
+      ENNReal.ofReal
+        (Real.exp (σ * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w
+            * (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+          + ((X₁ : ℝ) / (n : ℝ)) ^ 2 * (1 + ε) * σ
+              * (1 + 2 * (1 + ε) / (n : ℝ)) ^ w * (w : ℝ)
+          - σ * (Yt : ℝ))) := by
+  classical
+  letI : MeasurableSpace (Option (Config (MarkedAgent L K))) := GatedDrift.instOptionMS
+  letI : DiscreteMeasurableSpace (Option (Config (MarkedAgent L K))) :=
+    GatedDrift.instOptionDMS
+  have hnpos : (0 : ℝ) < (n : ℝ) := by
+    exact_mod_cast (by omega : 0 < n)
+  have h1ε : (0 : ℝ) < 1 + ε := by linarith
+  set ρ : ℝ := 1 + 2 * (1 + ε) / (n : ℝ) with hρ
+  have hρ1 : (1 : ℝ) ≤ ρ := by
+    rw [hρ]
+    have h0 : (0 : ℝ) ≤ 2 * (1 + ε) / (n : ℝ) := by positivity
+    linarith
+  have hρpos : (0 : ℝ) < ρ := by linarith
+  have hρ0 : ρ ≠ 0 := by linarith
+  set A : ℝ := ((X₁ : ℝ) / (n : ℝ)) ^ 2 with hA
+  have hAnn : 0 ≤ A := by rw [hA]; positivity
+  set β : ℝ := A * (1 + ε) * σ * ρ ^ w with hβ
+  set s : ℕ → ℝ := fun j => σ * ρ ^ ((w : ℤ) - (j : ℤ)) with hs
+  set b : ℕ → ℝ := fun j => β * (((w : ℤ) - (j : ℤ) : ℤ) : ℝ) with hb
+  have hs_pos : ∀ j, 0 < s j := by
+    intro j
+    rw [hs]
+    positivity
+  have hs_le : ∀ j, s j ≤ ε / (1 + ε) := by
+    intro j
+    rw [hs]
+    calc σ * ρ ^ ((w : ℤ) - (j : ℤ)) ≤ σ * ρ ^ (w : ℤ) := by
+          apply mul_le_mul_of_nonneg_left _ hσ.le
+          apply zpow_le_zpow_right₀ hρ1
+          omega
+      _ = σ * ρ ^ w := by rw [zpow_natCast]
+      _ ≤ ε / (1 + ε) := hsmall
+  have hs1 : ∀ j, 0 ≤ s (j + 1) := fun j => (hs_pos (j + 1)).le
+  have hexpb : ∀ j, Real.exp (s (j + 1)) - 1 ≤ (1 + ε) * s (j + 1) := fun j =>
+    exp_sub_one_le_mul (hs_pos (j + 1)).le hε (hs_le (j + 1))
+  have hslope : ∀ j, s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ s j := by
+    intro j
+    have hstep : s (j + 1) * ρ = s j := by
+      rw [hs]
+      show σ * ρ ^ ((w : ℤ) - ((j : ℕ) + 1 : ℕ)) * ρ = σ * ρ ^ ((w : ℤ) - (j : ℤ))
+      rw [mul_assoc, ← zpow_add_one₀ hρ0]
+      congr 1
+      push_cast
+      ring_nf
+    have hd : 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ)
+        ≤ 2 * ((1 + ε) * s (j + 1)) / (n : ℝ) := by
+      apply div_le_div_of_nonneg_right (by linarith [hexpb j]) hnpos.le
+    calc s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ)
+        ≤ s (j + 1) + 2 * ((1 + ε) * s (j + 1)) / (n : ℝ) := by linarith
+      _ = s (j + 1) * ρ := by
+          rw [hρ]
+          field_simp
+      _ = s j := hstep
+  have hicept : ∀ j, b (j + 1)
+      + ((X₁ : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1) ≤ b j := by
+    intro j
+    have hsmax : s (j + 1) ≤ σ * ρ ^ w := by
+      rw [hs]
+      calc σ * ρ ^ ((w : ℤ) - (((j : ℕ) + 1 : ℕ) : ℤ)) ≤ σ * ρ ^ (w : ℤ) := by
+            apply mul_le_mul_of_nonneg_left _ hσ.le
+            apply zpow_le_zpow_right₀ hρ1
+            push_cast
+            omega
+        _ = σ * ρ ^ w := by rw [zpow_natCast]
+    have hbdiff : b j - b (j + 1) = β := by
+      rw [hb]
+      push_cast
+      ring
+    have hkey : A * (Real.exp (s (j + 1)) - 1) ≤ β := by
+      calc A * (Real.exp (s (j + 1)) - 1)
+          ≤ A * ((1 + ε) * s (j + 1)) := mul_le_mul_of_nonneg_left (hexpb j) hAnn
+        _ ≤ A * ((1 + ε) * (σ * ρ ^ w)) := by
+            apply mul_le_mul_of_nonneg_left _ hAnn
+            apply mul_le_mul_of_nonneg_left hsmax (by linarith)
+        _ = β := by rw [hβ]; ring
+    rw [← hA]
+    linarith
+  -- the zero-escape coupling at the slice gate.
+  have hcoupling := real_le_killed_of_absorbing
+    (markedK (L := L) (K := K) T θn)
+    {mc : Config (MarkedAgent L K) |
+      mc.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+    (cleanGate (L := L) (K := K) T n X₁)
+    (fun mc hmc => ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      ⟨by
+        obtain ⟨hcard, hge3⟩ := hmc
+        have h1 := eraseConfig_card (L := L) (K := K) mc
+        have h2 := eraseConfig_card (L := L) (K := K) mc'
+        revert hsupp
+        unfold markedPMF
+        by_cases h : 2 ≤ mc.card
+        · rw [dif_pos h]
+          intro hsupp
+          rw [PMF.support_map] at hsupp
+          obtain ⟨pr, _, hpr⟩ := hsupp
+          subst hpr
+          by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+          · have herase := erase_markedStep (L := L) (K := K) T θn mc pr happ
+            have hreal : (eraseConfig (L := L) (K := K)
+                (markedStep (L := L) (K := K) T θn mc pr)).card
+                = (eraseConfig (L := L) (K := K) mc).card := by
+              rw [herase]
+              exact Protocol.reachable_card_eq
+                (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) _ pr.1.1 pr.2.1)
+            omega
+          · unfold markedStep
+            rw [if_neg happ]
+            omega
+        · rw [dif_neg h]
+          intro hsupp
+          rw [PMF.support_pure] at hsupp
+          rw [Set.mem_singleton_iff.mp hsupp]
+          omega,
+       allClockGE3_erase_step (L := L) (K := K) T θn mc mc' hmc.2 hsupp⟩))
+    (fun mc hmc hG => ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp =>
+      slice_gate_absorbing (L := L) (K := K) T θn n X₁ mc hmc hG mc' hsupp))
+    (fun mc => Yt ≤ cleanAbove (L := L) (K := K) T mc ∧
+      mc ∈ cleanGate (L := L) (K := K) T n X₁)
+    (fun mc hmc => hmc.2) w mc₀ hR
+  refine le_trans hcoupling ?_
+  -- include into the potential super-level set and run the killed tail.
+  have hsub : {o : Option (Config (MarkedAgent L K)) |
+      ∃ mc, o = some mc ∧ Yt ≤ cleanAbove (L := L) (K := K) T mc ∧
+        mc ∈ cleanGate (L := L) (K := K) T n X₁} ⊆
+      {o | ENNReal.ofReal (Real.exp (s w * (Yt : ℝ) + b w))
+        ≤ GatedDrift.killΦ (fun mc => ENNReal.ofReal
+            (Real.exp (s w * (cleanAbove (L := L) (K := K) T mc : ℝ) + b w))) o} := by
+    rintro o ⟨mc, rfl, hY, _⟩
+    rw [Set.mem_setOf_eq, GatedDrift.killΦ_some]
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hcast : (Yt : ℝ) ≤ (cleanAbove (L := L) (K := K) T mc : ℝ) := by
+      exact_mod_cast hY
+    nlinarith [(hs_pos w).le, hcast]
+  refine le_trans (measure_mono hsub) ?_
+  have htail := stepIndexed_killed_tail (markedK (L := L) (K := K) T θn)
+    (cleanGate (L := L) (K := K) T n X₁)
+    (fun j mc => ENNReal.ofReal
+      (Real.exp (s j * (cleanAbove (L := L) (K := K) T mc : ℝ) + b j)))
+    (cleanPot_drift (L := L) (K := K) T θn n X₁ hn s b hs1 hslope hicept)
+    w mc₀ (ENNReal.ofReal (Real.exp (s w * (Yt : ℝ) + b w)))
+    (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+  refine le_trans htail ?_
+  dsimp only
+  have hs0 : s 0 = σ * ρ ^ w := by
+    rw [hs]
+    show σ * ρ ^ ((w : ℤ) - ((0 : ℕ) : ℤ)) = σ * ρ ^ w
+    rw [show (w : ℤ) - ((0 : ℕ) : ℤ) = (w : ℤ) from by push_cast; ring, zpow_natCast]
+  have hb0 : b 0 = β * (w : ℝ) := by
+    rw [hb]
+    push_cast
+    ring
+  have hsw : s w = σ := by
+    rw [hs]
+    show σ * ρ ^ ((w : ℤ) - ((w : ℕ) : ℤ)) = σ
+    rw [sub_self, zpow_zero, mul_one]
+  have hbw : b w = 0 := by
+    rw [hb]
+    push_cast
+    ring
+  rw [hs0, hb0, hsw, hbw]
+  rw [← ENNReal.ofReal_div_of_pos (Real.exp_pos _), ← Real.exp_sub]
+  apply ENNReal.ofReal_le_ofReal
+  apply Real.exp_le_exp.mpr
+  rw [hβ, hA]
+  ring_nf
+  exact le_refl _
+
 end EarlyDripMarked
 
 end ExactMajority
