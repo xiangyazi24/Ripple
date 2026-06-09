@@ -1743,6 +1743,144 @@ theorem tainted_marked_tail (T θn n : ℕ) (hn : 2 ≤ n) (s b : ℕ → ℝ)
     t mc₀ (ENNReal.ofReal (Real.exp (s t * (a : ℝ) + b t)))
     (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
 
+/-! ## Part 10 — the explicit slope/intercept sequences (brick 3.4c-iii).
+
+The recursions are satisfied by the geometric slope `s_j = σ·ρ^{t−j}` (`ρ = 1 + 4/n`) and the
+linear intercept `b_j = β·(t−j)` (`β = 2σρ^t·(θn/n)²`), as long as the START slope stays small
+(`σρ^t ≤ 1/2`, so that `e^x − 1 ≤ 2x` applies).  Packaged: from an all-clean start the taint tail
+is `exp(2σρ^t·(θn/n)²·t − σ·a)` — at the paper scales (`θn/n = n^{-0.45}`, `t = O(n log log n)`,
+`σ = Θ(1)`, `a = n^{0.15}`) this is `exp(O(n^{0.1} log log n) − Θ(1)·n^{0.15}) = n^{-ω(1)}`. -/
+
+/-- `e^x − 1 ≤ 2x` on `[0, 1/2]`. -/
+theorem exp_sub_one_le_two_mul {x : ℝ} (h0 : 0 ≤ x) (h2 : x ≤ 1 / 2) :
+    Real.exp x - 1 ≤ 2 * x := by
+  have hb := Real.exp_bound_div_one_sub_of_interval h0 (by linarith : x < 1)
+  have h1x : (0 : ℝ) < 1 - x := by linarith
+  have hdiv : 1 / (1 - x) ≤ 1 + 2 * x := by
+    rw [div_le_iff₀ h1x]
+    nlinarith
+  linarith
+
+/-- **The marked taint tail at the explicit sequences.**  With the geometric slope and linear
+intercept, from any start `mc₀`:
+
+  `P[taintedCount ≥ a at t] ≤ hour-escape + exp(σρ^t·N₀ + 2σρ^t(θn/n)²·t − σ·a)`,
+
+`ρ = 1 + 4/n`, provided `σρ^t ≤ 1/2`.  (From the all-clean start `N₀ = 0`.) -/
+theorem tainted_marked_tail_explicit (T θn n : ℕ) (hn : 2 ≤ n)
+    (σ : ℝ) (hσ : 0 < σ) (t : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ t ≤ 1 / 2)
+    (mc₀ : Config (MarkedAgent L K)) (a : ℕ) :
+    ((markedK (L := L) (K := K) T θn) ^ t) mc₀
+        {mc | a ≤ taintedCount (L := L) (K := K) mc} ≤
+      (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (taintedGate (L := L) (K := K) n) ^ t) (some mc₀) {none} +
+        ENNReal.ofReal
+          (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ t * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+            + 2 * σ * (1 + 4 / (n : ℝ)) ^ t * ((θn : ℝ) / (n : ℝ)) ^ 2 * (t : ℝ)
+            - σ * (a : ℝ))) := by
+  classical
+  have hnpos : (0 : ℝ) < (n : ℝ) := by
+    have : 0 < n := by omega
+    exact_mod_cast this
+  set ρ : ℝ := 1 + 4 / (n : ℝ) with hρ
+  have hρ1 : (1 : ℝ) ≤ ρ := by
+    rw [hρ]
+    have h4 : (0 : ℝ) ≤ 4 / (n : ℝ) := by positivity
+    linarith
+  have hρpos : (0 : ℝ) < ρ := by linarith
+  have hρ0 : ρ ≠ 0 := by linarith
+  set β : ℝ := 2 * σ * ρ ^ t * ((θn : ℝ) / (n : ℝ)) ^ 2 with hβ
+  set s : ℕ → ℝ := fun j => σ * ρ ^ ((t : ℤ) - (j : ℤ)) with hs
+  set b : ℕ → ℝ := fun j => β * (((t : ℤ) - (j : ℤ) : ℤ) : ℝ) with hb
+  have hs_pos : ∀ j, 0 < s j := by
+    intro j
+    rw [hs]
+    positivity
+  have hs_le : ∀ j, s j ≤ 1 / 2 := by
+    intro j
+    rw [hs]
+    calc σ * ρ ^ ((t : ℤ) - (j : ℤ)) ≤ σ * ρ ^ (t : ℤ) := by
+          apply mul_le_mul_of_nonneg_left _ hσ.le
+          apply zpow_le_zpow_right₀ hρ1
+          omega
+      _ = σ * ρ ^ t := by rw [zpow_natCast]
+      _ ≤ 1 / 2 := hsmall
+  have hs1 : ∀ j, 0 ≤ s (j + 1) := fun j => (hs_pos (j + 1)).le
+  have hslope : ∀ j, s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ s j := by
+    intro j
+    have hexp := exp_sub_one_le_two_mul (hs_pos (j + 1)).le (hs_le (j + 1))
+    have hstep : s (j + 1) * ρ = s j := by
+      rw [hs]
+      show σ * ρ ^ ((t : ℤ) - ((j : ℕ) + 1 : ℕ)) * ρ = σ * ρ ^ ((t : ℤ) - (j : ℤ))
+      rw [mul_assoc, ← zpow_add_one₀ hρ0]
+      congr 1
+      push_cast
+      ring_nf
+    have hd : 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ) ≤ 2 * (2 * s (j + 1)) / (n : ℝ) := by
+      apply div_le_div_of_nonneg_right (by linarith) hnpos.le
+    calc s (j + 1) + 2 * (Real.exp (s (j + 1)) - 1) / (n : ℝ)
+        ≤ s (j + 1) + 2 * (2 * s (j + 1)) / (n : ℝ) := by linarith
+      _ = s (j + 1) * ρ := by
+          rw [hρ]
+          field_simp
+          ring
+      _ = s j := hstep
+  have hicept : ∀ j, b (j + 1) + ((θn : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1)
+      ≤ b j := by
+    intro j
+    have hexp := exp_sub_one_le_two_mul (hs_pos (j + 1)).le (hs_le (j + 1))
+    have hsmax : s (j + 1) ≤ σ * ρ ^ t := by
+      rw [hs]
+      calc σ * ρ ^ ((t : ℤ) - (((j : ℕ) + 1 : ℕ) : ℤ)) ≤ σ * ρ ^ (t : ℤ) := by
+            apply mul_le_mul_of_nonneg_left _ hσ.le
+            apply zpow_le_zpow_right₀ hρ1
+            push_cast
+            omega
+        _ = σ * ρ ^ t := by rw [zpow_natCast]
+    have hbdiff : b j - b (j + 1) = β := by
+      rw [hb]
+      push_cast
+      ring
+    have hθnn : (0 : ℝ) ≤ ((θn : ℝ) / (n : ℝ)) ^ 2 := by positivity
+    have hkey : ((θn : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1) ≤ β := by
+      calc ((θn : ℝ) / (n : ℝ)) ^ 2 * (Real.exp (s (j + 1)) - 1)
+          ≤ ((θn : ℝ) / (n : ℝ)) ^ 2 * (2 * s (j + 1)) :=
+            mul_le_mul_of_nonneg_left (by linarith) hθnn
+        _ ≤ ((θn : ℝ) / (n : ℝ)) ^ 2 * (2 * (σ * ρ ^ t)) := by
+            apply mul_le_mul_of_nonneg_left _ hθnn
+            linarith
+        _ = β := by rw [hβ]; ring
+    linarith
+  have htail := tainted_marked_tail (L := L) (K := K) T θn n hn s b hs1 hslope hicept
+    t (hs_pos t).le mc₀ a
+  refine le_trans htail ?_
+  gcongr
+  have hs0 : s 0 = σ * ρ ^ t := by
+    rw [hs]
+    show σ * ρ ^ ((t : ℤ) - ((0 : ℕ) : ℤ)) = σ * ρ ^ t
+    rw [show (t : ℤ) - ((0 : ℕ) : ℤ) = (t : ℤ) from by push_cast; ring, zpow_natCast]
+  have hb0 : b 0 = β * (t : ℝ) := by
+    rw [hb]
+    push_cast
+    ring
+  have hst : s t = σ := by
+    rw [hs]
+    show σ * ρ ^ ((t : ℤ) - ((t : ℕ) : ℤ)) = σ
+    rw [sub_self, zpow_zero, mul_one]
+  have hbt : b t = 0 := by
+    rw [hb]
+    push_cast
+    ring
+  unfold taintedPot
+  rw [hs0, hb0, hst, hbt]
+  rw [← ENNReal.ofReal_div_of_pos (Real.exp_pos _), ← Real.exp_sub]
+  apply ENNReal.ofReal_le_ofReal
+  apply Real.exp_le_exp.mpr
+  rw [hβ]
+  ring_nf
+  exact le_refl _
+
 end EarlyDripMarked
 
 end ExactMajority

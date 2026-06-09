@@ -216,11 +216,18 @@ ClockFrontProfile.lean:
   the per-state rate (θn/n)² + 2N/n is uniform over the window because the mark rule stops drip
   seeds post-gate); capstone **`tainted_marked_tail`: (markedK^t) mc₀ {a ≤ taintedCount} ≤
   hour-escape + Φ_0(mc₀)/exp(s_t·a + b_t)** via stepIndexed_gated_tail.
-  REMAINING 3.4c-iii: the SCALE instantiation — explicit sequences s_j = s_T·(1+4/n)^{T−j}-style
-  satisfying the recursions (pure real arithmetic), the paper exponents (θn = n^{0.55}, a = n^{0.15},
-  window t = O(n loglog n) → tail n^{-ω(1)}), the hour-escape mass, and the initial Φ_0(mc₀) = e^{b_0}
-  (all-unmarked start). Then 3.5: Lemma 6.3's window recurrence (clean part y ≤ 0.9px² via the
-  cleanAbove machinery + bulk epidemic) → WindowedFrontProfile whp → rewire the clock. the constant-rate gated MGF
+- 3.4c-iii **DONE (EarlyDripMarked.lean Part 10, 0-sorry axiom-clean)** — the explicit sequences:
+  `exp_sub_one_le_two_mul` (e^x − 1 ≤ 2x on [0,1/2], via exp_bound_div_one_sub_of_interval);
+  geometric slope s_j = σρ^{(t:ℤ)−j} (ρ = 1+4/n, INTEGER exponent so the recursion holds at every j),
+  linear intercept b_j = β((t:ℤ)−j), β = 2σρ^t(θn/n)²; capstone **`tainted_marked_tail_explicit`:
+  P[taintedCount ≥ a at t] ≤ hour-escape + exp(σρ^t·N₀ + 2σρ^t(θn/n)²t − σa)** given σρ^t ≤ 1/2.
+  Paper scales: θn/n = n^{-0.45}, t = O(n loglog n) (so ρ^t = e^{O(loglog n)} = polylog — pick
+  σ = 1/(2ρ^t) = Θ(1/polylog)), a = n^{0.15}: exponent = O(n^{0.1}·polylog) − n^{0.15}/polylog
+  = −n^{0.15−o(1)} → tail e^{-n^{0.15−o(1)}} = n^{-ω(1)} ✓. **BRICK 3.4 COMPLETE** (a, b, c-i—iii).
+  REMAINING: numeric scale plug-in when assembling 3.5 + the hour-escape mass + 3.5: Lemma 6.3's
+  window recurrence (clean part y ≤ 0.9px² via cleanAbove machinery + bulk epidemic
+  ConstantDensityEpidemic) → WindowedFrontProfile whp + ClimbBound whp (escape of climb_real_tail =
+  this 3.4 deliverable) → goodFrontWidth_of_windowed_profile_and_climb → rewire the clock. the constant-rate gated MGF
   CANNOT close the post-seed phase — sync-from-tainted has rate ∝ taintedCount/n (branching), and
   gating on {tainted ≤ M} makes the worst-case rate M/n accumulate to M·loglog n over the O(n loglog n)
   window — useless. The faithful tool is the paper's two-phase split: (a) pre-bulk drip count via the
