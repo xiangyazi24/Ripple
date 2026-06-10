@@ -3063,5 +3063,179 @@ noncomputable def roleSplitKernelMilestone (n a₀ : ℕ) (hn2 : 2 ≤ n)
   progress i o h_prev h_not :=
     liftMilestone_progress (L := L) (K := K) hn2 ha_le i o h_prev h_not
 
+/-- The Stage-1 milestone postcondition (good event): the last (`i = n−2`) lifted milestone,
+`phase0Milestone n ⟨n−2,_⟩` — i.e. `mcrCount ≤ 1 ∨ card ≠ n ∨ ∃ MCR at phase ≠ 0`.  With the
+carried Phase-0 invariants (`card = n`, all MCR at phase 0, both true throughout Phase 0)
+this collapses to `mcrCount ≤ 1`, exactly Doty Lemma 5.1's `|RoleMCR| → 0` (off by the
+single residual MCR the diagonal milestone family stops at). -/
+def roleSplitGoodMile (n : ℕ) (hn2 : 2 ≤ n) (c : Config (AgentState L K)) : Prop :=
+  ExactMajority.phase0Milestone n ⟨n - 2, by omega⟩ c
+
+/-- **`post_sound`.**  `Post (some y)` (all `n−1` lifted milestones reached) forces the
+postcondition `roleSplitGoodMile` (the last milestone). -/
+theorem roleSplitKernelMilestone_post_sound (n a₀ : ℕ) (hn2 : 2 ≤ n)
+    (ha1 : 1 ≤ a₀) (ha_le : a₀ ≤ n - 1) (y : Config (AgentState L K)) :
+    (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).Post (some y) →
+      roleSplitGoodMile (L := L) (K := K) n hn2 y := by
+  intro hPost
+  have hlt : n - 2 < n - 1 := by omega
+  have hmile := hPost ⟨n - 2, hlt⟩
+  exact hmile
+
+/-- **`hPre`.**  From the `Phase0Initial` all-`RoleMCR` start, `mcrCount c₀ = n`, so no lifted
+milestone has fired (each threshold `n−1−i < n`). -/
+theorem roleSplitKernelMilestone_hPre (n a₀ : ℕ) (hn2 : 2 ≤ n)
+    (ha1 : 1 ≤ a₀) (ha_le : a₀ ≤ n - 1) {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀) :
+    ∀ i : Fin (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).k,
+      ¬ (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).milestone i (some c₀) := by
+  intro i
+  have hik : i.val < n - 1 := i.isLt
+  -- mcrCount c₀ = n (all agents MCR), card = n.
+  obtain ⟨hcard, hall⟩ := hinit
+  have hmcr_eq : ExactMajority.mcrCount (L := L) (K := K) c₀ = n := by
+    unfold ExactMajority.mcrCount
+    rw [Multiset.filter_eq_self.mpr (fun a ha => (hall a ha).2)]
+    exact hcard
+  show ¬ liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ (some c₀)
+  show ¬ ExactMajority.phase0Milestone n ⟨i.val, by omega⟩ c₀
+  unfold ExactMajority.phase0Milestone
+  push_neg
+  refine ⟨?_, hcard, ?_⟩
+  · -- mcrCount = n > mcrThreshold n i = n-1-i.
+    have hthr : ExactMajority.mcrThreshold n ⟨i.val, by omega⟩ = n - 1 - i.val := rfl
+    rw [hthr, hmcr_eq]; omega
+  · -- no MCR at phase ≠ 0 (all at phase 0).
+    intro a ha _
+    have := (hall a ha).1
+    simpa using congrArg Fin.val this
+
+/-- `floorRate n a₀ M` is monotone in `M` (the larger the `mcrCount`, the faster the
+decrement): `M ≤ M' → floorRate n a₀ M ≤ floorRate n a₀ M'`. -/
+theorem floorRate_mono {n a₀ M M' : ℕ} (hn : 2 ≤ n) (hMM : M ≤ M') :
+    floorRate n a₀ M ≤ floorRate n a₀ M' := by
+  unfold floorRate
+  have hden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by
+    have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+    have : (1 : ℝ) ≤ (n : ℝ) - 1 := by linarith
+    positivity
+  have hnum : ((M * a₀ : ℕ) : ℝ) ≤ ((M' * a₀ : ℕ) : ℝ) := by
+    exact_mod_cast Nat.mul_le_mul_right a₀ hMM
+  gcongr
+
+/-- **`pMin` of the witness = `2·a₀/(n(n−1))` (the `M = 2` rate, `Θ(1/n)`).**  The minimum
+floor-driven rate is at the last (`M = 2`) milestone, since `floorRate` is increasing in `M`.
+This is the `Θ(1/n)` `pMin` — vs. the plain engine's `Θ(1/n²)` — that lifts the Janson
+potential `pMin·meanTime` to `Θ(log n)`. -/
+theorem roleSplitKernelMilestone_pMin_eq (n a₀ : ℕ) (hn2 : 2 ≤ n)
+    (ha1 : 1 ≤ a₀) (ha_le : a₀ ≤ n - 1) :
+    (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).pMin =
+      floorRate n a₀ 2 := by
+  set mp := roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le with hmp
+  have hk : mp.k = n - 1 := rfl
+  have hlt : n - 2 < n - 1 := by omega
+  set i₀ : Fin mp.k := ⟨n - 2, by rw [hk]; exact hlt⟩ with hi₀
+  -- p i₀ = floorRate n a₀ (n - (n-2)) = floorRate n a₀ 2.
+  have hpi₀ : mp.p i₀ = floorRate n a₀ 2 := by
+    show floorRate n a₀ (n - i₀.val) = floorRate n a₀ 2
+    have : n - i₀.val = 2 := by simp only [hi₀]; omega
+    rw [this]
+  haveI : Nonempty (Fin mp.k) := ⟨i₀⟩
+  refine le_antisymm ?_ ?_
+  · -- pMin ≤ p i₀ = floorRate n a₀ 2.
+    rw [← hpi₀]; exact mp.pMin_le i₀
+  · -- pMin ≥ floorRate n a₀ 2: every p i ≥ floorRate n a₀ 2 (M = n - i.val ≥ 2).
+    rw [KernelMilestone.pMin]
+    apply le_ciInf
+    intro i
+    show floorRate n a₀ 2 ≤ floorRate n a₀ (n - i.val)
+    have hMge2 : 2 ≤ n - i.val := by
+      have : i.val < n - 1 := by rw [← hk]; exact i.isLt
+      omega
+    exact floorRate_mono hn2 hMge2
+
+/-- **The Janson potential `pMin·meanTime` — the floor cancels.**  For the floor-driven
+witness, `pMin·meanTime = ∑_{i} 2/(n−i.val) = 2·∑_{M=2}^{n} 1/M = 2(H_n − 1)`, INDEPENDENT of
+the floor value `a₀` (both `a₀` and `n(n−1)` cancel in `floorRate(2)/floorRate(M)`).  This is
+`Θ(log n)` — the quantitative reason the floor route reaches the Janson `O(1/n²)` budget,
+where the plain `phase0MilestonePhase` (potential `Θ(1)`) cannot. -/
+theorem roleSplitKernelMilestone_pMin_meanTime (n a₀ : ℕ) (hn2 : 2 ≤ n)
+    (ha1 : 1 ≤ a₀) (ha_le : a₀ ≤ n - 1) :
+    (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).pMin *
+      (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).meanTime =
+      ∑ i : Fin (n - 1), (2 : ℝ) / ((n : ℝ) - (i.val : ℝ)) := by
+  have hk : (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).k = n - 1 := rfl
+  rw [roleSplitKernelMilestone_pMin_eq, KernelMilestone.meanTime, Finset.mul_sum]
+  have hdenpos : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by
+    have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn2
+    have : (1 : ℝ) ≤ (n : ℝ) - 1 := by linarith
+    positivity
+  have ha0pos : (0 : ℝ) < (a₀ : ℝ) := by exact_mod_cast ha1
+  apply Finset.sum_congr rfl
+  intro i _
+  have hile : i.val < n - 1 := i.isLt
+  have hMpos : 2 ≤ n - i.val := by omega
+  have hMreal : ((n - i.val : ℕ) : ℝ) = (n : ℝ) - (i.val : ℝ) := by
+    have : i.val ≤ n := by omega
+    push_cast [Nat.cast_sub this]; ring
+  -- per term: floorRate(2) * floorRate(n-i)⁻¹ = 2/(n-i).
+  show floorRate n a₀ 2 * (floorRate n a₀ (n - i.val))⁻¹ = 2 / ((n : ℝ) - (i.val : ℝ))
+  have hMrpos : (0 : ℝ) < (n : ℝ) - (i.val : ℝ) := by rw [← hMreal]; positivity
+  have hnum2 : (((2 * a₀ : ℕ)) : ℝ) = 2 * (a₀ : ℝ) := by push_cast; ring
+  have hnumM : (((n - i.val) * a₀ : ℕ) : ℝ) = ((n : ℝ) - (i.val : ℝ)) * (a₀ : ℝ) := by
+    rw [Nat.cast_mul, hMreal]
+  unfold floorRate
+  rw [hnum2, hnumM]
+  rw [eq_div_iff (ne_of_gt hMrpos), mul_comm, ← mul_assoc]
+  rw [inv_mul_eq_div, div_mul_eq_mul_div, eq_div_iff (by positivity)]
+  field_simp
+  ring
+
+/-! ## Phase C-1 (relay 7) — Stage-1 assembly: `phase0_stage1_whp`.
+
+Plugging the concrete witness `roleSplitKernelMilestone` into the relay-6 headline
+`real_bad_le_janson_add_escape` discharges the entire structural side of Doty Lemma 5.1.
+The two genuinely-probabilistic Chernoff numbers — the per-step gate-escape rate `q` and the
+side-set `Sᶜ`-prefix mass — enter as the explicit `hstep`/`S` hypotheses of the headline
+(they are the residual Lemma-5.1 floor-concentration content).  With `S := floorGate` (the
+campaign's simplification), `Sᶜ`-prefix is *exactly* the floor-failure probability
+`∑_τ P(assignableCount < a₀ at τ)`, and the headline reads: real Stage-1 bad ≤ Janson tail +
+`t·q + ∑_τ P(floor fails at τ)`. -/
+
+open ExactMajority GatedDrift in
+/-- **`phase0_stage1_whp` (real-kernel Stage-1 concentration, witness assembled).**  From the
+`Phase0Initial` all-`RoleMCR` start `c₀ ∈ floorGate`, the real-kernel `t`-step mass on the
+Stage-1 bad event `¬ roleSplitGoodMile` is at most the witness's Janson hitting-time tail PLUS
+the floor-escape union budget `t·q + ∑_{τ<t} (K^τ) c₀ Sᶜ`.  The Janson tail uses the
+floor-driven `pMin = Θ(1/n)` and `meanTime`, so its exponent reaches `Θ(log n)`.  `q` and the
+`Sᶜ`-prefix are the residual Chernoff numbers (hypotheses `hstep`, free `S`). -/
+theorem phase0_stage1_whp (n a₀ : ℕ) (hn2 : 2 ≤ n) (ha1 : 1 ≤ a₀) (ha_le : a₀ ≤ n - 1)
+    (S : Set (Config (AgentState L K))) (q : ℝ≥0∞)
+    (hstep : ∀ x ∈ floorGate (L := L) (K := K) n a₀, x ∈ S →
+      (NonuniformMajority L K).transitionKernel x (floorGate (L := L) (K := K) n a₀)ᶜ ≤ q)
+    {c₀ : Config (AgentState L K)} (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (hc₀ : c₀ ∈ floorGate (L := L) (K := K) n a₀)
+    (lam : ℝ) (hlam : 1 ≤ lam) (t : ℕ)
+    (ht : lam * (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).meanTime
+      ≤ (t : ℝ)) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {y | ¬ roleSplitGoodMile (L := L) (K := K) n hn2 y} ≤
+      ENNReal.ofReal (Real.exp
+        (-(roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).pMin *
+          (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).meanTime *
+          (lam - 1 - Real.log lam))) +
+      ((t : ℝ≥0∞) * q +
+        ∑ τ ∈ Finset.range t, ((NonuniformMajority L K).transitionKernel ^ τ) c₀ Sᶜ) :=
+  real_bad_le_janson_add_escape
+    (K := (NonuniformMajority L K).transitionKernel)
+    (G := floorGate (L := L) (K := K) n a₀) (S := S)
+    (good := fun y => roleSplitGoodMile (L := L) (K := K) n hn2 y) (q := q)
+    (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le)
+    (NonuniformMajority L K)
+    (roleSplitKernelMilestone_post_sound (L := L) (K := K) n a₀ hn2 ha1 ha_le)
+    hstep c₀ hc₀
+    (roleSplitKernelMilestone_hPre (L := L) (K := K) n a₀ hn2 ha1 ha_le hinit)
+    lam hlam t ht
+
 end RoleSplitConcentration
 end ExactMajority

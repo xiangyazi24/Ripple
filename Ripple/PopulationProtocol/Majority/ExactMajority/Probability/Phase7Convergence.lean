@@ -1445,6 +1445,56 @@ theorem classMass_stepOrSelf_le (σ : Sign) (n : ℕ) (c : Config (AgentState L 
     linarith [hpair]
   · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
 
+/-- **Config-level σ-class mass STRICT DROP under a gap-1 eliminator×minority step**
+(Phase-7 window).  Mirror of `minorityU_stepOrSelf_drop` for the σ-class MASS: an
+applicable pair `(s, t)` with `s` = σ.flip eliminator at index `i`, `t` = σ-minority at
+index `j = i+1`, fires the gap-1 `cancelSplit` branch which zeroes `t` (mass `2^{L-j} ≥
+1`), so `classMass σ` over the whole config DROPS by `≥ 1`.  Uses
+`cancelSplit_classMass_pair_drop` (the per-pair `+1 ≤` strict drop) lifted through the
+`c − {s,t} + {out₁,out₂}` step decomposition. -/
+theorem classMass_stepOrSelf_drop (σ ss : Sign) (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase7AllMain n c) (s t : AgentState L K)
+    (happ : Protocol.Applicable c s t)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic ss i)
+    (htb : t.bias = Bias.dyadic σ j) (hss : ss ≠ σ) (hg1 : i.val + 1 = j.val) :
+    classMass σ (Protocol.stepOrSelf (NonuniformMajority L K) c s t) + 1
+      ≤ classMass σ c := by
+  classical
+  obtain ⟨_, hph⟩ := hInv
+  have hm1 := mem_of_app_left7 happ
+  have hm2 := mem_of_app_right7 happ
+  obtain ⟨h17, h1M⟩ := hph s hm1
+  obtain ⟨h27, h2M⟩ := hph t hm2
+  have hcs := Transition_eq_cancelSplit_of_phase7_main s t h17 h27 h1M h2M
+  have hpair : agentClassMass σ (Transition L K s t).1
+        + agentClassMass σ (Transition L K s t).2 + 1
+      ≤ agentClassMass σ s + agentClassMass σ t := by
+    rw [hcs]; exact cancelSplit_classMass_pair_drop σ ss s t i j hsb htb hss hg1
+  have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c s t
+      = c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2} := by
+    unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+  have happ_le : (s ::ₘ {t} : Multiset (AgentState L K)) ≤ c := happ
+  have hrestore : c - s ::ₘ {t} + s ::ₘ {t} = c :=
+    Multiset.sub_add_cancel happ_le
+  have hsum_c : classMass σ c
+      = classMass σ (c - s ::ₘ {t})
+          + (agentClassMass σ s + agentClassMass σ t) := by
+    rw [← hrestore]; simp [classMass, add_left_comm]
+  have hsum_c' : classMass σ
+        (c - s ::ₘ {t} +
+          (Transition L K s t).1 ::ₘ {(Transition L K s t).2})
+      = classMass σ (c - s ::ₘ {t})
+          + (agentClassMass σ (Transition L K s t).1
+            + agentClassMass σ (Transition L K s t).2) := by
+    simp [classMass, add_left_comm]
+  rw [hc']
+  show classMass σ
+      (c - s ::ₘ {t} +
+        (Transition L K s t).1 ::ₘ {(Transition L K s t).2}) + 1
+    ≤ classMass σ c
+  rw [hsum_c', hsum_c]
+  linarith [hpair]
+
 /-- **Support-level σ-class mass non-increase** (Phase-7 window): every successor in the
 kernel's step support has `classMass σ` no larger than the source. -/
 theorem classMass_support_le (σ : Sign) (n : ℕ) (c c' : Config (AgentState L K))
@@ -1479,6 +1529,124 @@ theorem classMassN_support_le (σ : Sign) (n : ℕ) (c c' : Config (AgentState L
     classMassN σ c' ≤ classMassN σ c := by
   unfold classMassN
   exact Int.toNat_le_toNat (classMass_support_le σ n c c' hw hc')
+
+/-- **ℕ-level σ-class mass STRICT DROP** (the per-cell drain, ℕ form).  Since `classMass
+σ ≥ 0`, the ℤ strict drop `classMass(stepOrSelf) + 1 ≤ classMass c` transfers to
+`classMassN(stepOrSelf) + 1 ≤ classMassN c`.  This is the per-cell `Φ`-drop the rectangle
+machinery `drop_prob_of_rect` consumes (`Φ := classMassN σ`). -/
+theorem classMassN_stepOrSelf_drop (σ ss : Sign) (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase7AllMain n c) (s t : AgentState L K)
+    (happ : Protocol.Applicable c s t)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic ss i)
+    (htb : t.bias = Bias.dyadic σ j) (hss : ss ≠ σ) (hg1 : i.val + 1 = j.val) :
+    classMassN σ (Protocol.stepOrSelf (NonuniformMajority L K) c s t) + 1
+      ≤ classMassN σ c := by
+  have hZ := classMass_stepOrSelf_drop σ ss n c hInv s t happ i j hsb htb hss hg1
+  have hnn := classMass_nonneg σ (Protocol.stepOrSelf (NonuniformMajority L K) c s t)
+  have hnnc := classMass_nonneg σ c
+  unfold classMassN
+  omega
+
+/-- **Per-level eliminator×minority gap-1 rectangle MASS-drop probability** (Phase 7).
+The σ-class-MASS analogue of `minorityU_drop_prob_rect7`: on a phase-7 all-Main window,
+the probability that one step drops `classMassN σ` (by `≥ 1`) is at least
+`(#elim@i)·(#minority@j)/(n(n−1))`, for any gap-1 level pair `i+1 = j`.  Same rectangle
+geometry (`elimGap1(i) ×ˢ minorityAt7(j)`); only the cell potential is swapped from the
+count to the mass via `classMassN_stepOrSelf_drop`. -/
+theorem classMassN_drop_prob_rect7 (σ : Sign) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : Phase7AllMain n c)
+    (i j : Fin (L + 1)) (hg1 : i.val + 1 = j.val) :
+    ENNReal.ofReal
+        (((elimGap1 (L := L) (K := K) σ i).sum c.count *
+          (minorityAt7 (L := L) (K := K) σ j).sum c.count : ℕ) /
+          ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | classMassN σ c' + 1 ≤ classMassN σ c} := by
+  have hcardn : c.card = n := hInv.1
+  refine drop_prob_of_rect (fun c => classMassN σ c) n hn c hcardn
+    ((elimGap1 (L := L) (K := K) σ i) ×ˢ (minorityAt7 (L := L) (K := K) σ j))
+    _ ?_ (le_of_eq ?_)
+  · rintro ⟨s, t⟩ hp hcs hct _
+    rw [Finset.mem_product] at hp
+    obtain ⟨hsmem, htmem⟩ := hp
+    simp only [elimGap1, Finset.mem_filter] at hsmem
+    simp only [minorityAt7, Finset.mem_filter] at htmem
+    obtain ⟨_, hsM, ss, hss, hsb⟩ := hsmem
+    obtain ⟨_, htM, htb⟩ := htmem
+    have happ : Protocol.Applicable c s t := by
+      have hsm : s ∈ c := Multiset.one_le_count_iff_mem.mp hcs
+      have htm : t ∈ c := Multiset.one_le_count_iff_mem.mp hct
+      have hne : s ≠ t :=
+        elimGap1_minorityAt7_disjoint σ i j hg1 s
+          (by simp only [elimGap1, Finset.mem_filter]
+              exact ⟨Finset.mem_univ _, hsM, ss, hss, hsb⟩) t
+          (by simp only [minorityAt7, Finset.mem_filter]; exact ⟨Finset.mem_univ _, htM, htb⟩)
+      exact applicable_of_mem_distinct7 hsm htm hne
+    exact classMassN_stepOrSelf_drop σ ss n c hInv s t happ i j hsb htb hss hg1
+  · rw [sum_interactionCount_cross_disjoint7 c _ _ (elimGap1_minorityAt7_disjoint σ i j hg1)]
+
+/-- **The level-engine `hdrop` from a σ-class-mass drop-probability floor** (Phase 7).
+σ-class-MASS analogue of `minorityU_hdrop_of_floor7`: from a drop-probability floor `p`
+on the strict-drop event, the failure mass on `(potBelow (classMassN σ) m)ᶜ` is
+`= 1 − success ≤ 1 − p` (`transitionKernel` is Markov).  This is the `potBelow`-floor
+`hdrop` shape that `OneSidedCancel.level_occ_geometric_on` consumes for the level-`m`
+mass-occupation geometric decay (the level chain). -/
+theorem classMassN_hdrop_of_floor7 (σ : Sign) (m : ℕ)
+    (p : ℝ≥0∞) (b : Config (AgentState L K)) (hbm : classMassN σ b = m)
+    (hfloor : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        {c' | classMassN σ c' + 1 ≤ classMassN σ b}) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (classMassN σ) m)ᶜ ≤ 1 - p := by
+  classical
+  have hKb : (NonuniformMajority L K).transitionKernel b
+      = ((NonuniformMajority L K).stepDistOrSelf b).toMeasure := rfl
+  have hsucc_eq : {c' : Config (AgentState L K) | classMassN σ c' + 1 ≤ classMassN σ b}
+      = OneSidedCancel.potBelow (classMassN σ) m := by
+    ext c'; simp only [OneSidedCancel.potBelow, Set.mem_setOf_eq, hbm]; omega
+  have hmeas : MeasurableSet (OneSidedCancel.potBelow (classMassN σ) m) :=
+    OneSidedCancel.potBelow_measurable (classMassN (L := L) (K := K) σ) m
+  haveI hprob : IsProbabilityMeasure
+      (((NonuniformMajority L K).stepDistOrSelf b).toMeasure) := by
+    rw [← hKb]
+    exact (inferInstance :
+      IsMarkovKernel (NonuniformMajority L K).transitionKernel).isProbabilityMeasure b
+  have htot : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure Set.univ = 1 :=
+    hprob.measure_univ
+  have hcompl : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        (OneSidedCancel.potBelow (classMassN σ) m)ᶜ
+      = 1 - ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+          (OneSidedCancel.potBelow (classMassN σ) m) := by
+    rw [measure_compl hmeas (measure_ne_top _ _), htot]
+  rw [hKb, hcompl]
+  have hp_le : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+      (OneSidedCancel.potBelow (classMassN σ) m) := by
+    rw [← hsucc_eq]; exact hfloor
+  exact tsub_le_tsub_left hp_le 1
+
+/-- **The crude-engine `hstep` from a σ-class-mass drop-probability floor at `m = 1`**
+(Phase 7).  `phase7Convergence''` is the CRUDE engine: its `hstep` is on
+`(potDone (classMassN σ))ᶜ = (potBelow (classMassN σ) 1)ᶜ` (the still-has-mass event).
+At `classMassN σ b = 1` the strict-drop event `{classMassN σ c' + 1 ≤ 1} = {classMassN σ
+c' = 0} = potDone`, so a drop-probability floor `p` gives failure `(potDone)ᶜ` mass
+`≤ 1 − p` — the crude `hstep` with `q := 1 − p`.  (For `b` with `classMassN σ b ≥ 2` the
+crude single-step `hstep` is genuinely vacuous — one cancel drops the mass by `≥ 1` but
+not to `0`; the honest multi-level drain uses the level chain via
+`classMassN_hdrop_of_floor7` + `level_occ_geometric_on`.) -/
+theorem classMassN_hstep_of_floor7 (σ : Sign)
+    (p : ℝ≥0∞) (b : Config (AgentState L K)) (hb1 : classMassN σ b = 1)
+    (hfloor : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        {c' | classMassN σ c' + 1 ≤ classMassN σ b}) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => classMassN σ c))ᶜ ≤ 1 - p := by
+  classical
+  have hdone_eq :
+      (OneSidedCancel.potDone (fun c : Config (AgentState L K) => classMassN σ c))ᶜ
+      = (OneSidedCancel.potBelow (fun c : Config (AgentState L K) => classMassN σ c) 1)ᶜ := by
+    ext y
+    simp only [OneSidedCancel.potDone, OneSidedCancel.potBelow,
+      Set.mem_compl_iff, Set.mem_setOf_eq]; omega
+  rw [hdone_eq]
+  exact classMassN_hdrop_of_floor7 (L := L) (K := K) σ 1 p b hb1 hfloor
 
 /-- **The engine's `hmono` for `Φ = classMassN σ`** on the genuinely-closed `Inv7Sum`.
 From an `Inv7Sum`-config the kernel never raises `classMassN σ` (the honest one-sided
@@ -1581,6 +1749,95 @@ theorem phase7Convergence''_post_noMinority (σ : Sign) (n : ℕ)
     (hpost : Inv7Sum n c ∧ classMassN σ c = 0) :
     NoMinority σ c :=
   minorityU_eq_zero_of_classMassN_zero σ c hpost.2
+
+/-! ## Part L — the THREE-WINDOW chaining (Doty Lemma 7.5).
+
+Doty's Lemma 7.5 eliminates minority at the three top levels `−l`, `−(l+1)`, `−(l+2)`
+in succession (`|B_{-l}|→0`, then `|B_{-(l+1)}|→0`, then `|B_{-(l+2)}|→0`).  Relay 6's
+discharge replaced the per-level COUNT potential (which can RISE, the relay-5
+obstruction) with the GLOBAL σ-class MASS `classMassN σ`, which is genuinely
+non-increasing (`potNonincrOn_classMassN`).
+
+**Honest structural note (the chaining COLLAPSES under the global mass potential).**
+With the per-level count `minorityAt7 i`, the three windows are genuinely successive:
+level `−l` must be drained before level `−(l+1)`, etc., so three DIFFERENT potentials are
+chained.  But the global mass `classMassN σ` bounds ALL levels at once: `classMassN σ c =
+0` already forces `minorityU σ c = 0` (every σ-signed Main, at any level, contributes mass
+`≥ 1`).  So a SINGLE `phase7Convergence''` instance — driving `classMassN σ → 0` — already
+eliminates the minority at every level simultaneously; the three Lemma-7.5 windows are
+SUBSUMED into one.  This is the mass argument's strength: it does the work of all three
+count windows in one geometric decay.
+
+For completeness (and to exhibit that the `PhaseConvergenceW` composition machinery does
+chain the cleaned engine), `phase7_three_window` chains THREE `phase7Convergence''`
+instances via `composeW_two_phases` twice.  The chain links trivially because each
+instance's `Post` (`classMassN σ = 0`) implies the next's `Pre` (`classMassN σ ≤ M₀`),
+`0 ≤ M₀`; after the FIRST window the mass is already `0`, so the later windows are
+post-drain (this is exactly why the global mass subsumes the per-level chaining). -/
+
+/-- **Three-window chaining of the cleaned Phase-7 engine** (Doty Lemma 7.5).  Composes
+three `phase7Convergence''` instances on the SAME global σ-class-mass potential via
+`composeW_two_phases` (twice): from `Pre₁ = Inv7Sum n ∧ classMassN σ ≤ M₀₁`, after
+`t₁ + t₂ + t₃` interactions the residual `¬(Inv7Sum n ∧ classMassN σ = 0)` mass is
+`≤ ε₁ + ε₂ + ε₃`.  (The honest note above: the FIRST window already drives the global mass
+to `0`, eliminating minority at every level — so this chained form is a faithful but
+redundant rendering of Lemma 7.5; the single first window suffices.) -/
+theorem phase7_three_window (σ : Sign) (n : ℕ)
+    (q₁ q₂ q₃ : ℝ≥0∞)
+    (hstep₁ : ∀ b : Config (AgentState L K), Inv7Sum n b → 1 ≤ classMassN σ b →
+      ((NonuniformMajority L K).transitionKernel b)
+        (OneSidedCancel.potDone (fun c => classMassN σ c))ᶜ ≤ q₁)
+    (hstep₂ : ∀ b : Config (AgentState L K), Inv7Sum n b → 1 ≤ classMassN σ b →
+      ((NonuniformMajority L K).transitionKernel b)
+        (OneSidedCancel.potDone (fun c => classMassN σ c))ᶜ ≤ q₂)
+    (hstep₃ : ∀ b : Config (AgentState L K), Inv7Sum n b → 1 ≤ classMassN σ b →
+      ((NonuniformMajority L K).transitionKernel b)
+        (OneSidedCancel.potDone (fun c => classMassN σ c))ᶜ ≤ q₃)
+    (M₀₁ M₀₂ M₀₃ t₁ t₂ t₃ : ℕ) (ε₁ ε₂ ε₃ : ℝ≥0)
+    (hε₁ : (q₁ ^ t₁ : ℝ≥0∞) ≤ (ε₁ : ℝ≥0∞))
+    (hε₂ : (q₂ ^ t₂ : ℝ≥0∞) ≤ (ε₂ : ℝ≥0∞))
+    (hε₃ : (q₃ ^ t₃ : ℝ≥0∞) ≤ (ε₃ : ℝ≥0∞))
+    (x₀ : Config (AgentState L K))
+    (hPre : Inv7Sum n x₀ ∧ classMassN σ x₀ ≤ M₀₁) :
+    ((NonuniformMajority L K).transitionKernel ^ (t₁ + t₂ + t₃)) x₀
+        {y | ¬(Inv7Sum n y ∧ classMassN σ y = 0)} ≤ (ε₁ + ε₂ + ε₃ : ℝ≥0∞) := by
+  classical
+  -- the three windows.
+  let P₁ := phase7Convergence'' (L := L) (K := K) σ n q₁ hstep₁ M₀₁ t₁ ε₁ hε₁
+  let P₂ := phase7Convergence'' (L := L) (K := K) σ n q₂ hstep₂ M₀₂ t₂ ε₂ hε₂
+  let P₃ := phase7Convergence'' (L := L) (K := K) σ n q₃ hstep₃ M₀₃ t₃ ε₃ hε₃
+  -- chain P₁ → P₂ (Post₁ = Inv7Sum ∧ classMassN = 0 ⟹ Pre₂ = Inv7Sum ∧ classMassN ≤ M₀₂).
+  have h12 : ∀ x, P₁.Post x → P₂.Pre x := by
+    intro x hx
+    obtain ⟨hInv, h0⟩ := hx
+    exact ⟨hInv, by rw [h0]; exact Nat.zero_le _⟩
+  -- compose P₁ ∘ P₂ into a single PhaseConvergenceW (horizon t₁+t₂, budget ε₁+ε₂).
+  let P₁₂ : PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+    { Pre := P₁.Pre
+      Post := P₂.Post
+      t := P₁.t + P₂.t
+      ε := ε₁ + ε₂
+      convergence := by
+        intro x hx
+        have := composeW_two_phases (K := (NonuniformMajority L K).transitionKernel)
+          P₁ P₂ h12 x hx
+        simpa using this }
+  -- chain P₁₂ → P₃ (Post₂ = classMassN = 0 ⟹ Pre₃ = classMassN ≤ M₀₃).
+  have h23 : ∀ x, P₁₂.Post x → P₃.Pre x := by
+    intro x hx
+    obtain ⟨hInv, h0⟩ := hx
+    exact ⟨hInv, by rw [h0]; exact Nat.zero_le _⟩
+  have hx₀ : P₁₂.Pre x₀ := hPre
+  have hfinal := composeW_two_phases (K := (NonuniformMajority L K).transitionKernel)
+    P₁₂ P₃ h23 x₀ hx₀
+  -- P₁₂.t = t₁+t₂, P₃.t = t₃; P₁₂.ε = ε₁+ε₂, P₃.ε = ε₃; P₃.Post = Inv7Sum ∧ classMassN = 0.
+  have hε_eq : ((P₁₂.ε + P₃.ε : ℝ≥0) : ℝ≥0∞) = (ε₁ + ε₂ + ε₃ : ℝ≥0∞) := by
+    show (((ε₁ + ε₂) + ε₃ : ℝ≥0) : ℝ≥0∞) = (ε₁ + ε₂ + ε₃ : ℝ≥0∞)
+    push_cast; ring
+  have ht_eq : P₁₂.t + P₃.t = t₁ + t₂ + t₃ := rfl
+  rw [ht_eq] at hfinal
+  refine le_trans ?_ (le_of_eq hε_eq)
+  exact hfinal
 
 end Phase7Convergence
 

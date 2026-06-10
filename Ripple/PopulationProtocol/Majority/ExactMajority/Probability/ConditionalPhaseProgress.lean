@@ -1503,6 +1503,211 @@ theorem sum_interactionCount_posPhaseP_square (p : ℕ) (c : Config (AgentState 
   rw [← hNval, Nat.mul_sub_one]
   omega
 
+/-- A pair of distinct present states forms an applicable pair. -/
+theorem pair_le_of_mem_ne {α : Type*} {c : Multiset α} {s t : α}
+    (hs : s ∈ c) (ht : t ∈ c) (hne : s ≠ t) :
+    ({s, t} : Multiset α) ≤ c := by
+  classical
+  rw [Multiset.le_iff_count]
+  intro x
+  by_cases hxs : x = s
+  · subst x
+    have hs_pos : 0 < Multiset.count s c := (Multiset.count_pos).2 hs
+    simp [hne, Nat.succ_le_iff, hs_pos]
+  · by_cases hxt : x = t
+    · subst x
+      have ht_pos : 0 < Multiset.count t c := (Multiset.count_pos).2 ht
+      simp [hxs, Nat.succ_le_iff, ht_pos]
+    · simp [hxs, hxt]
+
+/-- The drop target at level `m`: configurations whose `clockCounterSumAt p` is `< m`. -/
+def dropBelow (p m : ℕ) : Set (Config (AgentState L K)) :=
+  {c' | clockCounterSumAt p c' < m}
+
+/-- An APPLICABLE ordered pair of positive-counter phase-`p` clocks, scheduled on an
+`AllClockGEp p` config at level `m`, lands in `dropBelow p m`.  Covers both distinct
+pairs and the diagonal `(a,a)` with `count ≥ 2` (two copies of the same positive clock
+state).  (`transition_pair_wtAt_lt` plus the per-pair additivity of `clockCounterSumAt`.) -/
+theorem scheduledStep_posPair_in_dropBelow (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (c : Config (AgentState L K))
+    (m : ℕ) (hm : clockCounterSumAt p c = m)
+    {a b : AgentState L K}
+    (ha : isPosPhaseP (L := L) (K := K) p a) (hb : isPosPhaseP (L := L) (K := K) p b)
+    (happ : Protocol.Applicable c a b) :
+    (NonuniformMajority L K).scheduledStep c (a, b) ∈ dropBelow (L := L) (K := K) p m := by
+  classical
+  have hsub : ({a, b} : Multiset (AgentState L K)) ≤ c := happ
+  have hstep : Protocol.scheduledStep (NonuniformMajority L K) c (a, b)
+      = c - {a, b} + {(Transition L K a b).1, (Transition L K a b).2} := by
+    unfold Protocol.scheduledStep Protocol.stepOrSelf
+    rw [if_pos happ]; rfl
+  simp only [dropBelow, Set.mem_setOf_eq, hstep]
+  set D : Multiset (AgentState L K) := c - {a, b} with hD
+  have hcD : c = ({a, b} : Multiset (AgentState L K)) + D := by
+    rw [hD, Multiset.add_comm, tsub_add_cancel_of_le hsub]
+  have hsumD : ∀ X : Multiset (AgentState L K), ∀ u v : AgentState L K,
+      clockCounterSumAt p (({u, v} : Multiset (AgentState L K)) + X)
+        = wtAt (L := L) (K := K) p u + wtAt (L := L) (K := K) p v
+          + (X.map (wtAt (L := L) (K := K) p)).sum := by
+    intro X u v
+    unfold clockCounterSumAt
+    rw [Multiset.map_add, Multiset.sum_add]
+    simp only [Multiset.insert_eq_cons, Multiset.map_cons, Multiset.map_singleton,
+      Multiset.sum_cons, Multiset.sum_singleton]
+    unfold wtAt; ring
+  have hlt := transition_pair_wtAt_lt (L := L) (K := K) p hp a b ha.1 hb.1 ha.2.1 hb.2.1 ha.2.2
+  rw [Multiset.add_comm D _, hsumD D (Transition L K a b).1 (Transition L K a b).2]
+  rw [← hm]
+  conv_rhs => rw [hcD, hsumD D a b]
+  omega
+
+/-- The positive-phase-`p` clock square rectangle, restricted to actually-present states. -/
+def presentPosPairs (p : ℕ) (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  ((Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a)) ×ˢ
+    (Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a))).filter
+    (fun q => 1 ≤ c.count q.1 ∧ 1 ≤ c.count q.2)
+
+/-- The `interactionProb`-sum over the present positive-pair square equals
+`posClockCount·(posClockCount−1)/totalPairs` (absent pairs carry `interactionCount = 0`). -/
+theorem sum_interactionProb_presentPosPairs (p : ℕ) (c : Config (AgentState L K)) :
+    (∑ q ∈ presentPosPairs (L := L) (K := K) p c, c.interactionProb q.1 q.2)
+      = (↑(posClockCount (L := L) (K := K) p c * (posClockCount (L := L) (K := K) p c - 1)) : ℝ≥0∞)
+          / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hpresent : (∑ q ∈ presentPosPairs (L := L) (K := K) p c, c.interactionProb q.1 q.2)
+      = ∑ q ∈ (Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a)) ×ˢ
+          (Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a)),
+          c.interactionProb q.1 q.2 := by
+    apply Finset.sum_subset (Finset.filter_subset _ _)
+    intro q hq_in hqnot
+    have hqnot' : ¬ (1 ≤ c.count q.1 ∧ 1 ≤ c.count q.2) := by
+      intro hpres
+      exact hqnot (Finset.mem_filter.mpr ⟨hq_in, hpres⟩)
+    rw [not_and_or, not_le, not_le, Nat.lt_one_iff, Nat.lt_one_iff] at hqnot'
+    have hcounts : c.count q.1 = 0 ∨ c.count q.2 = 0 := hqnot'
+    have hzero : c.interactionCount q.1 q.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases hqq : q.1 = q.2
+      · rw [if_pos hqq]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [hqq, h2, Nat.zero_mul]
+      · rw [if_neg hqq]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [h2, Nat.mul_zero]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hpresent]
+  have heqterm : ∀ q : AgentState L K × AgentState L K,
+      c.interactionProb q.1 q.2 = (↑(c.interactionCount q.1 q.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro q; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun q _ => heqterm q), ← Finset.sum_mul, ← Nat.cast_sum,
+    sum_interactionCount_posPhaseP_square, ← div_eq_mul_inv]
+
+open Classical in
+/-- The applicable subset of the present positive-pair square. -/
+noncomputable def applicablePosPairs (p : ℕ) (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (presentPosPairs (L := L) (K := K) p c).filter (fun q => Protocol.Applicable c q.1 q.2)
+
+/-- The non-applicable present positive-pairs carry zero `interactionProb`, so the sum over
+the applicable subset equals the full present-square sum. -/
+theorem sum_interactionProb_applicablePosPairs (p : ℕ) (c : Config (AgentState L K)) :
+    (∑ q ∈ applicablePosPairs (L := L) (K := K) p c, c.interactionProb q.1 q.2)
+      = (↑(posClockCount (L := L) (K := K) p c * (posClockCount (L := L) (K := K) p c - 1)) : ℝ≥0∞)
+          / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  rw [← sum_interactionProb_presentPosPairs (L := L) (K := K) p c]
+  apply Finset.sum_subset (Finset.filter_subset _ _)
+  intro q hq_in hqnot
+  -- present but not applicable ⇒ {q.1,q.2} ⊄ c ⇒ q.1 = q.2 ∧ count = 1 ⇒ interactionCount = 0
+  have hnotapp : ¬ Protocol.Applicable c q.1 q.2 := by
+    intro happ
+    exact hqnot (Finset.mem_filter.mpr ⟨hq_in, happ⟩)
+  have hpres : 1 ≤ c.count q.1 ∧ 1 ≤ c.count q.2 :=
+    (Finset.mem_filter.mp hq_in).2
+  -- not applicable with both counts ≥ 1 forces q.1 = q.2 with count = 1
+  have hzero : c.interactionCount q.1 q.2 = 0 := by
+    by_cases hqq : q.1 = q.2
+    · -- diagonal: not applicable ⇒ count q.1 < 2 ⇒ count = 1 ⇒ interactionCount = count·(count-1) = 0
+      have hc1 : c.count q.1 ≤ 1 := by
+        by_contra hgt
+        push_neg at hgt
+        refine hnotapp ?_
+        show ({q.1, q.2} : Multiset (AgentState L K)) ≤ c
+        rw [hqq, Multiset.le_iff_count]
+        intro x; by_cases hx : x = q.2
+        · subst x
+          have hcnt2 : Multiset.count q.2 ({q.2, q.2} : Multiset (AgentState L K)) = 2 := by
+            simp [Multiset.insert_eq_cons]
+          rw [hcnt2, ← hqq]
+          show 2 ≤ c.count q.1
+          omega
+        · simp [hx]
+      have hcnt1 : c.count q.1 = 1 := by omega
+      unfold Config.interactionCount; rw [if_pos hqq, hcnt1]
+    · -- off-diagonal: both counts ≥ 1 ⇒ applicable, contradicting hnotapp
+      exact absurd (pair_le_of_mem_ne (Multiset.count_pos.mp (by omega : 0 < c.count q.1))
+        (Multiset.count_pos.mp (by omega : 0 < c.count q.2)) hqq) hnotapp
+  unfold Config.interactionProb; rw [hzero]; simp
+
+/-- **Brick 2 — the clock-clock rectangle drop mass.**  From an `AllClockGEp p` config
+with `≥ 2` agents at level `clockCounterSumAt p c = m`, the one-step kernel mass on
+`{clockCounterSumAt p drops below m}` is `≥ clockPairRate posClockCount n`, where
+`posClockCount` counts the positive-counter phase-`p` clocks and `n = c.card`.  Each
+applicable ordered pair of positive phase-`p` clocks strictly drops the sum
+(`scheduledStep_posPair_in_dropBelow`); the square rectangle aggregates to
+`posCount·(posCount−1)/(n(n−1))`. -/
+theorem posPair_drop_prob (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ))
+    (c : Config (AgentState L K)) (hc : 2 ≤ c.card)
+    (m : ℕ) (hm : clockCounterSumAt p c = m) :
+    (NonuniformMajority L K).transitionKernel c (dropBelow (L := L) (K := K) p m)
+      ≥ clockPairRate (posClockCount (L := L) (K := K) p c) c.card := by
+  classical
+  -- every applicable positive-pair lands in the drop target
+  have hgood : ∀ q ∈ applicablePosPairs (L := L) (K := K) p c,
+      (NonuniformMajority L K).scheduledStep c q ∈ dropBelow (L := L) (K := K) p m := by
+    intro q hq
+    rw [applicablePosPairs, Finset.mem_filter, presentPosPairs, Finset.mem_filter,
+      Finset.mem_product, Finset.mem_filter, Finset.mem_filter] at hq
+    obtain ⟨⟨⟨⟨_, ha⟩, ⟨_, hb⟩⟩, _⟩, happ⟩ := hq
+    exact scheduledStep_posPair_in_dropBelow (L := L) (K := K) p hp c m hm ha hb happ
+  -- kernel mass ≥ interactionPMF mass of the good finset (inline reduction)
+  have hmeas : MeasurableSet (dropBelow (L := L) (K := K) p m) :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  have hstepDist : (NonuniformMajority L K).stepDistOrSelf c
+      = (NonuniformMajority L K).stepDist c hc := by
+    unfold Protocol.stepDistOrSelf; rw [dif_pos hc]
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure (dropBelow (L := L) (K := K) p m)
+    ≥ _
+  have hbase : ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        (dropBelow (L := L) (K := K) p m)
+      = (c.interactionPMF hc).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            (dropBelow (L := L) (K := K) p m)) := by
+    rw [hstepDist]
+    unfold Protocol.stepDist
+    rw [PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hmeas]
+  rw [hbase]
+  have hsub : (↑(applicablePosPairs (L := L) (K := K) p c) :
+      Set (AgentState L K × AgentState L K))
+      ⊆ (Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+          (dropBelow (L := L) (K := K) p m) := by
+    intro q hq
+    rw [Finset.mem_coe] at hq
+    exact hgood q hq
+  have hmono := measure_mono (μ := (c.interactionPMF hc).toMeasure) hsub
+  refine le_trans ?_ hmono
+  have hfinset : (c.interactionPMF hc).toMeasure
+      (↑(applicablePosPairs (L := L) (K := K) p c) :
+        Set (AgentState L K × AgentState L K))
+      = ∑ q ∈ applicablePosPairs (L := L) (K := K) p c, c.interactionProb q.1 q.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  rw [hfinset, sum_interactionProb_applicablePosPairs]
+  unfold clockPairRate Config.totalPairs
+  exact le_refl _
+
 end ConditionalPhaseProgress
 
 end ExactMajority
