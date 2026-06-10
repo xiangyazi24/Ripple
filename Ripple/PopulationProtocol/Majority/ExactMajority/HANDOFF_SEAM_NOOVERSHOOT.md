@@ -682,3 +682,51 @@ big-bias / minute-hour-width guards, NOT this clock-counter tail — documented 
 (no weakening needed). **Final hypothesis surface** (`hNoOvershoot_one_seam_honest`): seam `Pre` (threaded
 to `NoOvershoot`-start + `card = n`) + `tseam ≤ n(L+1)` + `log n ≤ L+1` + initial-potential bound +
 `CounterResetDest (p+1)` / `SeamRegimeDispatch p` / `DetSeamOvershootBridge p` structural guards + arithmetic.
+
+---
+
+## UPDATE (2026-06-10): `DetSeamOvershootBridge p` DISCHARGED under well-formedness `W`
+
+`Probability/SeamOvershootBridge.lean` (append-only; imports `SeamPairAdapter`) PROVES the
+deterministic bridge that the no-overshoot chain carried as the named guard `hdet`.
+
+**The well-formedness predicate `W` (minimal, sufficient).**
+`WfAgent a := a.role ≠ .mcr ∧ 2 ≤ a.smallBias.val ∧ a.smallBias.val ≤ 4`;
+`Wf c := ∀ a ∈ c, WfAgent a`.  This closes EVERY `phaseInit` error-to-`10` branch on the
+seam region: the only `enterPhase10` paths for `q ≤ 9` are `q=1 ∧ mcr` and
+`q∈{2,9} ∧ (smallBias ≤ 1 ∨ ≥ 5)` (verified against FROZEN `phaseInit`), all excluded by
+`WfAgent`; `phaseInit 10` is never invoked on a seam to `p+1 ≤ 8`.  `W` is one-step
+preserved (`phaseInit_preserves_wf`, `runInitsBetween_preserves_wf`,
+`phaseEpidemicUpdate_{left,right}_preserves_wf`): `phaseInit` preserves `smallBias`
+(`phaseInit_smallBias_eq`) and never creates an `mcr` (its only role write is `cr→reserve`).
+Provenance: phase-0 EXIT `RoleSplitStage2Good` gives `mcr = 0`, no rule re-creates `mcr` or
+pushes `smallBias` out of `{2,3,4}`.
+
+**The proof (honest per-phase case analysis, 0-sorry, axiom-clean).**
+1. Per-phase LEFT/RIGHT `+1` bounds for phases `0–8` (`PhaseQTransition_{left,right}_phase_le_succ…`),
+   threaded through `stdCounterSubroutine`/`advancePhaseWithInit`/`clockCounterStep` `≤ +1`
+   (`…_of_wf` using `phaseInit_phase_eq_of_wf`, plus a clock-safe `…_of_clock` for the
+   `cr→clock` Rule-5/Rule-1 advances at phases `0,3`).
+2. Epidemic no-error phase identity under `W`: `ep.s.phase = max(a,b) ≤ p+1`
+   (`phaseEpidemicUpdate_{left,right}_phase_eq_max_of_wf`).
+3. Dispatcher `+1` bound: `(Transition a b).s.phase ≤ max(a,b)+1`
+   (`Transition_{left,right}_phase_le_ep_succ_of_wf`, `interval_cases` on `ep.1.phase`).
+4. Advance characterization for `CounterResetDest (p+1) = {1,6,7,8}`: an output beyond
+   `p+1` ⟹ `ep.s` is a clock at `p+1` with `counter = 0` (`dispatch_{left,right}_clock_eq_std`
+   + `…_not_clock_phase_eq` + `stdCounterSubroutine_phase_eq_of_counter_ne_zero`).
+5. Source-tracing: `ep.s` clock@`p+1` counter `0` ⟹ the SOURCE `rᵢ` is already a clock@`p+1`
+   with counter `0` (`ep_{left,right}_clock_zero_imp_source`; an epidemic-dragged immigrant
+   would be reset to FULL counter `≠ 0`, so a zero-counter `ep.s` was not dragged).
+
+**Headlines.**
+* `det_seam_overshoot_bridge_of_wf p hq c r₁ r₂ (Wf c) hno hexit : AtRiskClockZero p c` —
+  the bridge under `Wf c` and `CounterResetDest (p+1)`.
+* `detSeamOvershootBridge_of_wf p hq (hWf : ∀ c, Wf c) : DetSeamOvershootBridge p` — the
+  wire-up that ELIMINATES `hdet`, given the seam-region `W` (from the Analysis invariants).
+* `hNoOvershoot_one_seam_wf` — the budget wrapper with `W` + `CounterResetDest` supplied.
+
+**Final hypothesis surface (with the bridge eliminated):** seam timing/initial-potential
+(folded into `hbound`) + seam-region `Wf` (`∀ c, Wf c`, from the Analysis-layer reachability
+invariants) + `CounterResetDest (p+1)` + arithmetic.  The previously-carried
+`DetSeamOvershootBridge p` is now a THEOREM, not an assumption.  Axiom audit: every headline
+`⊆ [propext, Classical.choice, Quot.sound]`; no `sorry`/`native_decide`.

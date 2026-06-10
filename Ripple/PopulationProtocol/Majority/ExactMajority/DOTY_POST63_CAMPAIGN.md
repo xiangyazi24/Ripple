@@ -3371,3 +3371,27 @@ Commits: `da04fda5` (S1), `76901cc1` (S2), `0330a8c8` (S3), `f58c45d8` (S4).
   protocol residual is `hLadder` = deterministic phase-regime classification of reachable
   not-done states + per-phase clock floors (whp via Lemma 5.2, not a deterministic
   invariant). Everything above it is discharged.
+
+---
+
+## SeamOvershootBridge (2026-06-10): `DetSeamOvershootBridge p` discharged under `W`
+
+New append-only file `Probability/SeamOvershootBridge.lean` PROVES
+`SeamNoOvershoot.DetSeamOvershootBridge p` (the deterministic first-overshoot guard the
+seam no-overshoot chain carried as `hdet`) for counter-reset destinations
+`p+1 ∈ {1,6,7,8}`, under the minimal well-formedness side condition
+`W = WfAgent (no mcr + smallBias ∈ {2,3,4})` — the condition the obstruction
+(`HANDOFF_SEAM_NOOVERSHOOT.md` finding 2: `phaseInit 1` sends `mcr` to phase 10) requires.
+
+* `det_seam_overshoot_bridge_of_wf` — bridge under `Wf c`.
+* `detSeamOvershootBridge_of_wf` — wire-up: `(∀ c, Wf c) → DetSeamOvershootBridge p`.
+* `hNoOvershoot_one_seam_wf` — budget wrapper with the bridge eliminated.
+
+`W` is one-step preserved on the seam region and its provenance is the phase-0 EXIT
+(`RoleSplitConcentration.RoleSplitStage2Good`: `mcr = 0`).  Honest per-phase `+1` bounds for
+phases `0–8` (both sides), epidemic no-error identity, dispatcher bound, advance
+characterization, and source-tracing — all 0-sorry, axiom-clean
+(`[propext, Classical.choice, Quot.sound]`), no `native_decide`.  The residual seam
+no-overshoot surface is now: timing/initial-potential + seam-region `Wf` (from the Analysis
+reachability invariants) + `CounterResetDest (p+1)` + arithmetic; `DetSeamOvershootBridge p`
+is no longer an assumption.
