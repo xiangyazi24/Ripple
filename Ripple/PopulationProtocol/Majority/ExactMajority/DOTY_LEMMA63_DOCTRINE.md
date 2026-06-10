@@ -666,3 +666,43 @@ REMAINING in DotyParams (in build order): KK/σ choice + hsmall; neg_params (via
 tt_scale); start dischargers (recInv_of_window_closed / markInv_of_clean for the all-clean Doty
 start); the hB ladder (item 1 — the two-regime split; the genuinely hard ceiling arithmetic);
 the assembled windowedFrontProfile/goodFrontWidth/climbBound concretes.
+
+## PHASE B steps 1–2 — DotyParams.lean ASSEMBLY COMPLETE (2026-06-10 family line)
+## commits fbb7a929 (B-1), b4e69312 (B-2), a1cec3d5 (B-3), 08bf8cad (B-4)
+## DotyParams.lean: 0-sorry; per-theorem #print axioms = [propext, Classical.choice, Quot.sound]
+## (tt_scale, neg_params, hsmall_eq, windowedFrontProfile_whp_concrete, climbBound_whp_concrete,
+## goodFrontWidth_whp_concrete all checked clean); single-file lake env lean GREEN.
+
+DELIVERED (the concrete-parameter discharge of the carried scale hypotheses):
+- Parameters fixed ONCE: θn=⌊n^{3/5}⌋, tt=⌊n^{3/20}⌋, w=⌊3n/200⌋, θ=θn/n, KK=capMinute+1,
+  σ = (1/2)(1+4/n)^{−(w·KK)} (matched to KK so hsmall holds with EQUALITY), aM=n/10+1, N₀=10^40.
+- ALL scale facts discharged: θn≥30000, θn>0, θn≤n, 1/n≤θ, θ>0, σ>0, hsmall (=1/2≤1/2),
+  the negligibility scale tt·n≤(1−9/10)θn² (tt_scale), neg_params (negligibility holds AUTOMATICALLY
+  on every n-card config → dropped from the event), the all-clean Doty-start h0/hmark dischargers.
+- ASSEMBLED CONCRETES: windowedFrontProfile_whp_concrete (packaged specialized; hsmall discharged,
+  neg-conjunct removed, start supplied), climbBound_whp_concrete (self-contained specialization),
+  goodFrontWidth_whp_concrete (the WFP+climb glue at θ=θn/n).
+
+THE TWO GENUINELY-REMAINING RESIDUALS (carried as NAMED hypotheses in the concretes, NOT forced):
+1. **hB (item 1 — the two-regime ceiling ladder).**  windowedFrontProfile_whp_concrete carries `hB`
+   (+ δ + hdB) as a hypothesis.  STRUCTURAL BLOCKER found this session: `hB_discharge` fixes a SINGLE
+   global `M` and `aM`, but the doctrine's two-regime 4n/41 split needs M=0 (regime 2: 4n/41<X₀≤n/10)
+   and M large (regime 1: θn≤X₀≤4n/41) for DIFFERENT mc₀.  So a SINGLE `hB_discharge` call cannot
+   serve both regimes — hB_params must case-split on the regime and call `per_window_delta` (or a
+   plateau-padded ladder where rungs ≥ regime-2-threshold are flat at aM) per branch, then bound both
+   by a uniform δ.  The numerics are VERIFIED sound at the concrete params: regime-1 ha0 holds
+   (40g/41 = 0.99961 < 1, ceiling slack absorbed at N₀); floor margin holds though TIGHT
+   (w·cg−sg(g−1) = 1.094e-4 ≥ δgLocked = 1.05e-4 at n≥N₀).  This is the campaign's "last big
+   arithmetic" — multi-lemma (ladder construction `a m=⌈G^m·⌈g·X₀⌉⌉` w/ plateau, M=⌈log_G(n/(10gθn))⌉,
+   per-rung hsliceB drip caps with ⌈⌉ inflation ≤1+3/θn, regime-2 single-floor) — left for the next
+   session; the assembly is structured to receive it (supply δ = hB_discharge's uniform value).
+2. **eB (the hour-escape mass).**  windowedFrontProfile_whp_concrete carries `heB` (the
+   `killK ... {none}` mass = bulk-arrival epidemic, benign).  Per the doctrine this is the flagged
+   unresolved residual — not yet bounded as a Lean term (needs ConstantDensityEpidemic transfer to the
+   killed marked kernel).  Carried as a named hypothesis; documented.
+
+NET: Phase B steps 1–2 are CLOSED for every carried scale hypothesis that has an existing discharger
+(items 2–5 dischargers + the parameter facts).  The two open residuals (hB ladder, eB escape) are
+exactly the doctrine's pre-existing two open pieces, now localized as named hypotheses in the
+concrete corollaries.  Phase B step 3–4 (the FrontSync consumer rethread) is the next family-line
+work and consumes goodFrontWidth_whp_concrete.

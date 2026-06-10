@@ -180,25 +180,24 @@ theorem pow_absorbing (K : Kernel α α) [IsMarkovKernel K]
       have : K x Doneᶜ = 0 := hAbs x hx
       simpa using this
 
-/-- **One-block geometric contraction.** If from every not-yet-done state the
-`s`-step kernel fails to reach `Done` with probability `≤ q`
-(`∀ b ∈ Doneᶜ, (K^s) b Doneᶜ ≤ q`), and `Done` is absorbing, then a single block
-of `s` steps contracts the not-done mass by a factor `q`:
-`(K^((k+1)·s)) c₀ Doneᶜ ≤ q · (K^(k·s)) c₀ Doneᶜ`. -/
-theorem bad_block_contracts (K : Kernel α α) [IsMarkovKernel K]
+/-- **One-block geometric contraction (from arbitrary base `m`).** If from every
+not-yet-done state the `s`-step kernel fails to reach `Done` with probability `≤ q`
+(`∀ b ∈ Doneᶜ, (K^s) b Doneᶜ ≤ q`), and `Done` is absorbing, then appending a block
+of `s` steps to any base horizon `m` contracts the not-done mass by a factor `q`:
+`(K^(m+s)) c₀ Doneᶜ ≤ q · (K^m) c₀ Doneᶜ`. -/
+theorem bad_block_contracts_from (K : Kernel α α) [IsMarkovKernel K]
     {Done : Set α} (hDone : MeasurableSet Done)
     (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
     (s : ℕ) (q : ℝ≥0∞)
     (hblock : ∀ b ∈ (Doneᶜ : Set α), (K ^ s) b Doneᶜ ≤ q)
-    (c₀ : α) (k : ℕ) :
-    (K ^ ((k + 1) * s)) c₀ Doneᶜ ≤ q * (K ^ (k * s)) c₀ Doneᶜ := by
+    (c₀ : α) (m : ℕ) :
+    (K ^ (m + s)) c₀ Doneᶜ ≤ q * (K ^ m) c₀ Doneᶜ := by
   have hbad : MeasurableSet (Doneᶜ : Set α) := hDone.compl
-  -- (K^(k·s + s)) c₀ Doneᶜ = ∫⁻ b, (K^s) b Doneᶜ ∂(K^(k·s) c₀).
-  rw [show (k + 1) * s = k * s + s from by ring,
-    Kernel.pow_add_apply_eq_lintegral K (k * s) s c₀ hbad]
+  -- (K^(m + s)) c₀ Doneᶜ = ∫⁻ b, (K^s) b Doneᶜ ∂(K^m c₀).
+  rw [Kernel.pow_add_apply_eq_lintegral K m s c₀ hbad]
   -- Pointwise: (K^s) b Doneᶜ ≤ q · 1_{Doneᶜ}(b).  On Done it is 0; on Doneᶜ it is ≤ q.
-  calc ∫⁻ b, (K ^ s) b Doneᶜ ∂((K ^ (k * s)) c₀)
-      ≤ ∫⁻ b, q * Set.indicator Doneᶜ (fun _ => (1 : ℝ≥0∞)) b ∂((K ^ (k * s)) c₀) := by
+  calc ∫⁻ b, (K ^ s) b Doneᶜ ∂((K ^ m) c₀)
+      ≤ ∫⁻ b, q * Set.indicator Doneᶜ (fun _ => (1 : ℝ≥0∞)) b ∂((K ^ m) c₀) := by
         apply lintegral_mono
         intro b
         dsimp only
@@ -207,12 +206,24 @@ theorem bad_block_contracts (K : Kernel α α) [IsMarkovKernel K]
         · have hb' : b ∈ (Doneᶜ : Set α) := hb
           rw [Set.indicator_of_mem hb', mul_one]
           exact hblock b hb'
-    _ = q * (K ^ (k * s)) c₀ Doneᶜ := by
+    _ = q * (K ^ m) c₀ Doneᶜ := by
         rw [lintegral_const_mul q (by
           exact (measurable_const.indicator hbad))]
         congr 1
         rw [lintegral_indicator hbad]
         simp
+
+/-- One-block contraction along the `k·s` grid (special case of
+`bad_block_contracts_from`): `(K^((k+1)·s)) c₀ Doneᶜ ≤ q · (K^(k·s)) c₀ Doneᶜ`. -/
+theorem bad_block_contracts (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (s : ℕ) (q : ℝ≥0∞)
+    (hblock : ∀ b ∈ (Doneᶜ : Set α), (K ^ s) b Doneᶜ ≤ q)
+    (c₀ : α) (k : ℕ) :
+    (K ^ ((k + 1) * s)) c₀ Doneᶜ ≤ q * (K ^ (k * s)) c₀ Doneᶜ := by
+  rw [show (k + 1) * s = k * s + s from by ring]
+  exact bad_block_contracts_from K hDone hAbs s q hblock c₀ (k * s)
 
 /-- **Geometric tail.** Under uniform per-block success `q` (from every not-done
 state, `s` steps fail to finish with probability `≤ q`) and `Done` absorbing,
@@ -297,3 +308,53 @@ theorem expectedHitting_split (K : Kernel α α) [IsMarkovKernel K]
       _ = (t₀ : ℝ≥0∞) := by simp
   · -- ∑' t, a (t + t₀) = ∑' t, a (t₀ + t)
     rw [Nat.add_comm]
+
+/-- **Block form of the shifted tail.** For `s ≠ 0`,
+`∑' t, P(T > t₀ + t) ≤ s · ∑' k, P(T > t₀ + k·s)`. Same block argument as
+`expectedHitting_le_block`, shifted by the base horizon `t₀`. -/
+theorem tail_le_block (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (c : α) (t₀ s : ℕ) (hs : s ≠ 0) :
+    ∑' t : ℕ, (K ^ (t₀ + t)) c Doneᶜ ≤
+      (s : ℝ≥0∞) * ∑' k : ℕ, (K ^ (t₀ + k * s)) c Doneᶜ := by
+  haveI : NeZero s := ⟨hs⟩
+  rw [← Equiv.tsum_eq (Nat.divModEquiv s).symm (fun t => (K ^ (t₀ + t)) c Doneᶜ)]
+  rw [ENNReal.tsum_prod']
+  have hinner : ∀ k : ℕ,
+      ∑' j : Fin s, (K ^ (t₀ + (Nat.divModEquiv s).symm (k, j))) c Doneᶜ ≤
+        (s : ℝ≥0∞) * (K ^ (t₀ + k * s)) c Doneᶜ := by
+    intro k
+    have hkey : ∀ j : Fin s,
+        (K ^ (t₀ + (Nat.divModEquiv s).symm (k, j))) c Doneᶜ ≤
+          (K ^ (t₀ + k * s)) c Doneᶜ := by
+      intro j
+      apply bad_antitone_le K hDone hAbs c
+      simp only [Nat.divModEquiv_symm_apply]
+      omega
+    calc ∑' j : Fin s, (K ^ (t₀ + (Nat.divModEquiv s).symm (k, j))) c Doneᶜ
+        ≤ ∑' _ : Fin s, (K ^ (t₀ + k * s)) c Doneᶜ := ENNReal.tsum_le_tsum hkey
+      _ = (s : ℝ≥0∞) * (K ^ (t₀ + k * s)) c Doneᶜ := by rw [ENNReal.tsum_const]; simp
+  calc ∑' (k : ℕ) (j : Fin s), (K ^ (t₀ + (Nat.divModEquiv s).symm (k, j))) c Doneᶜ
+      ≤ ∑' k : ℕ, (s : ℝ≥0∞) * (K ^ (t₀ + k * s)) c Doneᶜ := ENNReal.tsum_le_tsum hinner
+    _ = (s : ℝ≥0∞) * ∑' k : ℕ, (K ^ (t₀ + k * s)) c Doneᶜ := by rw [ENNReal.tsum_mul_left]
+
+/-- **Geometric tail from a base horizon.** Under uniform per-block success `q` and
+`Done` absorbing, the not-done mass at time `t₀ + k·s` decays geometrically off its
+value `δ := P(T > t₀)` at `t₀`: `(K^(t₀ + k·s)) c₀ Doneᶜ ≤ (K^t₀) c₀ Doneᶜ · q^k`. -/
+theorem bad_block_geometric_from (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (s : ℕ) (q : ℝ≥0∞)
+    (hblock : ∀ b ∈ (Doneᶜ : Set α), (K ^ s) b Doneᶜ ≤ q)
+    (c₀ : α) (t₀ k : ℕ) :
+    (K ^ (t₀ + k * s)) c₀ Doneᶜ ≤ (K ^ t₀) c₀ Doneᶜ * q ^ k := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+      calc (K ^ (t₀ + (k + 1) * s)) c₀ Doneᶜ
+          = (K ^ ((t₀ + k * s) + s)) c₀ Doneᶜ := by rw [show t₀ + (k + 1) * s = (t₀ + k * s) + s from by ring]
+        _ ≤ q * (K ^ (t₀ + k * s)) c₀ Doneᶜ :=
+            bad_block_contracts_from K hDone hAbs s q hblock c₀ (t₀ + k * s)
+        _ ≤ q * ((K ^ t₀) c₀ Doneᶜ * q ^ k) := by gcongr
+        _ = (K ^ t₀) c₀ Doneᶜ * q ^ (k + 1) := by rw [pow_succ]; ring
