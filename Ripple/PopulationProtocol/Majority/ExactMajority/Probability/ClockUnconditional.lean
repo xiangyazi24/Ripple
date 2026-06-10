@@ -128,6 +128,3 @@ theorem clock_unconditional_part1_status : True := trivial
 end ClockUnconditional
 
 end ExactMajority
-
-#print axioms ExactMajority.ClockUnconditional.hstep_of_sideGood
-#print axioms ExactMajority.ClockUnconditional.qbulk_succ_of_sideGood
