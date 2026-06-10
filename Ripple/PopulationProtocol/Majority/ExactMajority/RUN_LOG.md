@@ -193,3 +193,10 @@ into the reduction pieces. A major deliberate single coupled probabilistic argum
 
 DISCIPLINE: 9+ false-shapes/mis-indexes caught+corrected (hfrontier, hcross_full, hfloor, det counterPos, ∀c
 hwin_all, det envelope, det-∀c rEnvelope_maintained, 2 absolute-low regressions). None left in any claimed result.
+
+## Run 2026-06-10 00:35 (overnight, /automode)
+- doctrine version: DOTY_POST63_CAMPAIGN.md @ 7499c454 (Phase E scoped) + DOTY_LEMMA63_DOCTRINE.md
+- approval: dad's overnight directive 2026-06-09 night ("今晚通宵证明...") + explicit /automode 00:35
+- starting avenue: Phase B (family line) — DotyParams (agent 4) + FrontSync rethread (self, awaiting ChatGPT map); Phase E1 ExpectedHitting (agent 5) in parallel
+- end: <fill on close>
+- final result: <fill on close>

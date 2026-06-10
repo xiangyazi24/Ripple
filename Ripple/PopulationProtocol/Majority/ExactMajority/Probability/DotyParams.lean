@@ -43,6 +43,17 @@ noncomputable def tt (n : ℕ) : ℕ := ⌊(n : ℝ) ^ ((3 : ℝ) / 20)⌋₊
 /-- The per-window step count `w = ⌊3n/200⌋` (= `wp·n`, `wp = 3/200` parallel time). -/
 def w (n : ℕ) : ℕ := 3 * n / 200
 
+/-- The number of recurrence windows over the per-hour horizon.  Free at the steps-1–2 level (the
+O(log n) clock coupling is the downstream Phase-B step 3–4 work); chosen here to cover the per-minute
+clock run `capMinute = K(L+1)` with one window per minute. -/
+def KK (L K : ℕ) : ℕ := ClockFrontShape.capMinute (L := L) (K := K) + 1
+
+/-- The global MGF scale `σ`, chosen so that the smallness gate `σ·(1+4/n)^{w·KK} ≤ 1/2` holds with
+EQUALITY — the tightest value (any smaller `σ` also works).  This couples `σ` and `KK` together as
+the doctrine requires. -/
+noncomputable def σ (L K n : ℕ) : ℝ :=
+  (1/2) * (1 + 4 / (n : ℝ)) ^ (-(((w n * KK L K : ℕ) : ℤ)))
+
 /-- The clock-floor scale `N₀`.  Raised well past the negligibility crossover (`≈10^{20}`) so every
 binding inequality holds with comfortable margins; recorded in the doctrine.  The exponent `40` is
 chosen a multiple of `20` so the rpow powers `N₀^{3/5} = 10^{24}` and `N₀^{3/20} = 10^{6}` are clean
@@ -210,6 +221,222 @@ theorem tt_scale (n : ℕ) (hn : N₀ ≤ n) :
         rw [hsq_eq]; ring
     _ ≤ (1 - (9/10 : ℝ)) * (θn n : ℝ) ^ 2 := by
         apply mul_le_mul_of_nonneg_left hθsq (by norm_num)
+
+/-! ## Part 5 — the `σ`/`KK` smallness gate `hsmall : σ·(1+4/n)^{w·KK} ≤ 1/2`. -/
+
+/-- `0 < 1 + 4/n` for `n ≥ N₀`. -/
+theorem base_pos (n : ℕ) (hn : N₀ ≤ n) : (0 : ℝ) < 1 + 4 / (n : ℝ) := by
+  have h2 : (0 : ℝ) < (n : ℝ) := by exact_mod_cast N₀_pos n hn
+  positivity
+
+/-- `0 < σ` for `n ≥ N₀`. -/
+theorem σ_pos (n : ℕ) (hn : N₀ ≤ n) : 0 < σ (L := L) (K := K) n := by
+  unfold σ
+  have hb := base_pos n hn
+  positivity
+
+/-- The smallness gate holds with equality: `σ·(1+4/n)^{w·KK} = 1/2 ≤ 1/2`. -/
+theorem hsmall_eq (n : ℕ) (hn : N₀ ≤ n) :
+    σ (L := L) (K := K) n * (1 + 4 / (n : ℝ)) ^ (w n * KK L K) ≤ 1 / 2 := by
+  unfold σ
+  have hb := base_pos n hn
+  have hb0 : (1 + 4 / (n : ℝ)) ≠ 0 := ne_of_gt hb
+  rw [mul_assoc]
+  rw [show ((1 + 4 / (n : ℝ)) ^ (-(((w n * KK L K : ℕ) : ℤ)))) * (1 + 4 / (n : ℝ)) ^ (w n * KK L K)
+      = (1 + 4 / (n : ℝ)) ^ (-(((w n * KK L K : ℕ) : ℤ))) * (1 + 4 / (n : ℝ)) ^ (((w n * KK L K : ℕ) : ℤ)) by
+        rw [zpow_natCast]]
+  rw [← zpow_add₀ hb0]
+  simp
+
+/-! ## Part 6 — `neg_params`: the negligibility predicate holds for ALL `n`-card configs.
+
+The negligibility conjunct in `windowedFrontProfile_whp_packaged`'s event is a CONDITIONING; here we
+show it holds AUTOMATICALLY on every `n`-card config (`n ≥ N₀`), so the concrete corollary can drop it
+from the event.  At a level `T` with `θ ≤ frac T c` (i.e. the feeder is past the floor `θn`), the
+`d`-term `tt` is absorbed by the `(1−cc)X²/n` recurrence slack via `negligibility_le` + `tt_scale`. -/
+
+/-- **`neg_params`** — for every `n`-card config (`n ≥ N₀`), the per-level negligibility
+`cc·X²/n + tt ≤ X²/n` holds at every level `T` whose fraction is past the floor `θ`.  This is the
+exact negligibility conjunct of `windowedFrontProfile_whp_packaged` at `cc = 9/10`, `θ = θn/n`,
+`tt = tt n`, and it holds for ALL such configs (so the corollary drops it from the event). -/
+theorem neg_params (n : ℕ) (hn : N₀ ≤ n) (c : Config (AgentState L K)) (hcard : c.card = n) :
+    ∀ T, θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+      (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt n : ℝ)
+        ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) := by
+  intro T hfrac
+  have hnpos : 0 < n := N₀_pos n hn
+  have hnℝ : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hnpos
+  -- frac T c = rBeyond T c / card = rBeyond T c / n; θ = θn/n; so θ ≤ frac ⟹ θn ≤ rBeyond T c.
+  have hθX : θn n ≤ rBeyond (L := L) (K := K) T c := by
+    unfold ClockFrontProfile.frac θ at hfrac
+    rw [hcard] at hfrac
+    rw [div_le_div_iff_of_pos_right hnℝ] at hfrac
+    exact_mod_cast hfrac
+  exact negligibility_le n hnpos (9/10) (by norm_num) (θn n)
+    (rBeyond (L := L) (K := K) T c) (tt n) hθX (tt_scale n hn)
+
+/-! ## Part 7 — the all-clean Doty start dischargers (`h0`/`hmark` inputs).
+
+The Doty start is the all-clean marked configuration (every agent mark `= false`) in the hour region
+(`card = n`, all clocks at phase ≥ 3) with the recurrence window NOT yet open at any level (some
+clock still at phase 3, i.e. `¬AllClockP3`).  At such a start, `MarkInv T` is vacuous (no taint) and
+`recInv T` holds via `recInv_of_window_closed` for every `T`.  These supply the per-level `h0`/`hmark`
+inputs of `windowedFrontProfile_whp_packaged`. -/
+
+/-- **`hmark_params`** — the all-clean start satisfies `MarkInv` at every level. -/
+theorem hmark_params (mc₀ : Config (MarkedAgent L K)) (hclean : ∀ m ∈ mc₀, m.2 = false) :
+    ∀ T, MarkInv (L := L) (K := K) T mc₀ :=
+  fun T => markInv_of_clean (L := L) (K := K) T mc₀ hclean
+
+/-- **`h0_params`** — the all-clean, window-closed start (in-region, but the recurrence window not yet
+open: `¬AllClockP3`) satisfies `recInv T θn n cc` at every level `T`, for any `cc`.  This is the
+genuine Doty start (every clock still ≤ phase 3). -/
+theorem h0_params (n : ℕ) (cc : ℝ) (mc₀ : Config (MarkedAgent L K))
+    (hcard : mc₀.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀)) :
+    ∀ T, recInv (L := L) (K := K) T (θn n) n cc mc₀ :=
+  fun T => recInv_of_window_closed (L := L) (K := K) T (θn n) n cc mc₀ hcard hge3 (Or.inl hnotP3)
+
+/-! ## Part 8 — the ladder cap `aM` and its `n ≤ 10·aM` fact. -/
+
+/-- The ladder cap `aM := n/10 + 1` (so `10·aM ≥ n`, the `recurrence_checkpoint` cap honest). -/
+def aM (n : ℕ) : ℕ := n / 10 + 1
+
+/-- `n ≤ 10·aM n`. -/
+theorem n_le_ten_aM (n : ℕ) : n ≤ 10 * aM n := by
+  unfold aM; omega
+
+/-! ## Part 9 — the assembled concrete corollary `windowedFrontProfile_whp_concrete`.
+
+Specializes `windowedFrontProfile_whp_packaged` at the concrete parameters (`θn n`, `w n`, `θ n`,
+`aM n`, `KK`, `σ`, `tt n`).  The smallness gate `hsmall` is discharged (`hsmall_eq`); the negligibility
+conjunct is dropped from the event (it holds automatically via `neg_params`, so the event sets are
+equal); the per-level start hypotheses `h0`/`hmark` come from the all-clean window-closed start.
+
+GENUINELY-REMAINING inputs, carried as NAMED hypotheses (these are the two pieces still open in the
+campaign — documented in the doctrine):
+- `hB` — the per-window recurrence bad-event bound (item 1, the two-regime ceiling ladder; the
+  doctrine's last big arithmetic; `hB_discharge` supplies its shape but carries ceiling/scale facts).
+- `hdB`/`heB`/`htB` — the uniform per-level tail bounds.  `htB` is the explicit taint tail
+  (`tainted_marked_tail_explicit`'s shape); `heB` is the hour-escape mass (the bulk-arrival epidemic,
+  benign but not yet bounded as a Lean term — the doctrine's flagged residual).  `hdB` = `δ T ≤ dB`. -/
+
+open ClockFrontProfile in
+/-- **`windowedFrontProfile_whp_concrete`** — `windowedFrontProfile_whp_packaged` specialized at the
+concrete parameters, with `hsmall` discharged, the negligibility conjunct removed from the event (it
+holds automatically), and the all-clean window-closed start supplying `h0`/`hmark`.  The per-window
+bound `hB` and the uniform tail bounds `hdB`/`heB`/`htB` are carried as named hypotheses (the campaign's
+two open residuals). -/
+theorem windowedFrontProfile_whp_concrete (n : ℕ) (hn : N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hcard : mc₀.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (δ : ℕ → ℝ≥0∞)
+    (hB : ∀ T, ∀ mc, recInv (L := L) (K := K) T (θn n) n (9/10) mc →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n →
+      ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc
+          {mc' | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc') : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc' : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc') ≤ aM n ∧
+            mc'.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc')}
+        ≤ δ T)
+    (dB eB tB : ℝ≥0∞)
+    (hdB : ∀ T < Tcap, δ T ≤ dB)
+    (heB : ∀ T < Tcap,
+      (GatedDrift.killK (markedK (L := L) (K := K) T (θn n))
+          (taintedGate (L := L) (K := K) n) ^ (w n * KK L K)) (some mc₀) {none} ≤ eB)
+    (htB : ∀ T < Tcap,
+      ENNReal.ofReal
+        (Real.exp (σ (L := L) (K := K) n * (1 + 4 / (n : ℝ)) ^ (w n * KK L K)
+            * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+          + 2 * σ (L := L) (K := K) n * (1 + 4 / (n : ℝ)) ^ (w n * KK L K)
+              * ((θn n : ℝ) / (n : ℝ)) ^ 2 * ((w n * KK L K : ℕ) : ℝ)
+          - σ (L := L) (K := K) n * ((tt n + 1 : ℕ) : ℝ))) ≤ tB) :
+    ((NonuniformMajority L K).transitionKernel ^ (w n * KK L K))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c}
+      ≤ (Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * dB + (eB + tB)) := by
+  classical
+  -- the no-neg event equals the with-neg event (neg holds automatically on card=n configs).
+  have hset : {c : Config (AgentState L K) | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+        ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c}
+      ⊆ {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+          (∀ T, θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+            (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt n : ℝ)
+              ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+        ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c} := by
+    intro c hc
+    obtain ⟨⟨hcardc, hP3⟩, hwfp⟩ := hc
+    exact ⟨⟨hcardc, hP3, neg_params n hn c hcardc⟩, hwfp⟩
+  refine le_trans (measure_mono hset) ?_
+  exact windowedFrontProfile_whp_packaged (L := L) (K := K) (θn n) n (two_le n hn) (9/10) (w n)
+    (θ n) (θ_pos n hn) (fun _ => aM n) (fun _ => n_le_ten_aM n) δ hB
+    (σ (L := L) (K := K) n) (σ_pos n hn) (KK L K) (hsmall_eq (L := L) (K := K) n hn)
+    (tt n) Tcap hcap mc₀
+    (fun T _ => h0_params n (9/10) mc₀ hcard hge3 hnotP3 T)
+    (fun T _ => hmark_params mc₀ hclean T)
+    dB eB tB hdB heB htB
+
+/-! ## Part 10 — `climbBound_whp_concrete`: the climb-failure mass at the concrete `θ = θn/n`.
+
+`climbBound_whp` is already self-contained (it produces the level-sum of `ClimbTail.climb_real_tail`'s
+gated tails, no carried scale hypotheses), so the concrete version is a direct specialization at
+`θ n = θn n / n`.  The climb window `W₂`, the per-level gate bound `B'`, and the MGF slope `s` and
+horizon `t` are free parameters (the paper scales `B' = n^{0.2}`, `s = Θ(log n)`, `W₂ = Θ(loglog n)`
+are plugged when the climb tail is shown `n^{−ω(1)}` downstream). -/
+
+open ClockFrontProfile in
+theorem climbBound_whp_concrete (n W₂ : ℕ) (hn : N₀ ≤ n) (hW₂ : 2 ≤ W₂)
+    (B' : ℕ) (s : ℝ) (hs : 0 ≤ s) (t : ℕ) (c₀ : Config (AgentState L K)) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+          ∧ ¬ ClimbBound (L := L) (K := K) (θ n) W₂ c}
+      ≤ ∑ k ∈ Finset.range (ClockFrontShape.capMinute (L := L) (K := K) + 1),
+          ((GatedDrift.killK ((NonuniformMajority L K).transitionKernel)
+              (ClimbTail.climbGate (L := L) (K := K) n k B' (θn n)) ^ t) (some c₀) {none} +
+            (ENNReal.ofReal (1 + ((B' : ℝ) / (n : ℝ)) ^ 2 * (Real.exp s - 1))) ^ t *
+              ClimbTail.climbPot (L := L) (K := K) k (θn n) s c₀ /
+              ENNReal.ofReal (Real.exp (s * ((W₂ : ℝ) - 1)))) :=
+  climbBound_whp (L := L) (K := K) n (θn n) W₂ (N₀_pos n hn) hW₂ (θ n) rfl B' s hs t c₀
+
+/-! ## Part 11 — `goodFrontWidth_whp_concrete`: the moving-frame width invariant whp.
+
+`goodFrontWidth_whp` is the deterministic glue `GoodFrontWidth (W₁+W₂) ⟸ WindowedFrontProfile ∧
+ClimbBound` lifted to the real kernel.  Its two inputs are the WindowedFrontProfile tail
+(`windowedFrontProfile_whp_concrete`'s packaging — carried here as `hwfp`) and the ClimbBound mass
+(`climbBound_whp_concrete` — carried as `hclimb`).  At the concrete floor `1/n ≤ θ n` (Part 3), the
+glue gives `GoodFrontWidth (frontWidthBound n + W₂)` whp.  This is the exact clock-consumer shape that
+retires the false `hwin_all` (the downstream rewire, Phase-B step 3–4). -/
+
+open ClockFrontProfile in
+theorem goodFrontWidth_whp_concrete (n : ℕ) (hn : N₀ ≤ n) (W₂ : ℕ) (t : ℕ)
+    (mc₀ : Config (MarkedAgent L K)) (wfpB climbB : ℝ≥0∞)
+    (hwfp : ((NonuniformMajority L K).transitionKernel ^ t) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt n : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c} ≤ wfpB)
+    (hclimb : ((NonuniformMajority L K).transitionKernel ^ t) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+          ∧ ¬ ClimbBound (L := L) (K := K) (θ n) W₂ c} ≤ climbB) :
+    ((NonuniformMajority L K).transitionKernel ^ t) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt n : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ GoodFrontWidth (L := L) (K := K)
+              (FrontTail.frontWidthBound n + W₂) c}
+      ≤ wfpB + climbB :=
+  goodFrontWidth_whp (L := L) (K := K) n (two_le n hn) (9/10) (θ n) (one_div_le_θ n hn)
+    (tt n) W₂ t mc₀ wfpB climbB hwfp hclimb
 
 end DotyParams
 
