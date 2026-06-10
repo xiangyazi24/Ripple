@@ -3769,3 +3769,30 @@ conservation, from the FROZEN `phase3CancelSplit_preserves_dyadicBiasSum_pair`) 
   constructible via `theorem62_entry_of_confinement`; the carried fields are the precise named
   remainders (the per-hour drift rate + the collapse readout), after the real Stage-1 ledger attack
   on `phase3CancelSplit`, not faked bounds.
+
+## Per-level localization B/C — band-position bookkeeping (2026-06-10, BandLocalization.lean)
+
+Per `HANDOFF_PERLEVEL.md` (ChatGPT Pro blueprint): B and C are band-position / Phase-6 Post
+exports, NOT counting questions — the global `4n/15` majority-eliminator budget is already proved
+in `MarginLedgers.majorityProfileMass_floor`. New append-only file
+`Probability/BandLocalization.lean` (EXIT_0, all 5 headlines axiom ⊆ [propext, Classical.choice,
+Quot.sound], 0 sorry/admit/axiom/native_decide):
+
+* **Band-position structure** — `MajorityBandAtGap1` (gap-1 predecessor of each live minority
+  carries `≥ E` σ-opposite eliminators; `= MarginLedgers.majorityAtExp = Phase7Convergence.elimGap1`
+  defeq) + `MinorityConfinedGap1` (each live minority has a gap-1 predecessor index, the band-floor
+  fact) + `Phase6BandPositionFacts` bundle + `SurvivalBandAbove` (C-side, defeq
+  `Phase7SurvivalUpperBounds`).
+* **B-localization** `phase6HighMassDrained_of_bandPosition` (band ⟹ `Phase6HighMassDrained`,
+  deterministic gap-1 bookkeeping) → `phase6_to_phase7_of_bandPosition` through the landed adapter
+  ⟹ `Phase6To7Structure`.
+* **C-localization** `cancelSplit_gap1_preserves_smaller_sign` — the FROZEN `cancelSplit` gap-1
+  branch proven directly (smaller-index eliminator re-emerges incremented, same sign): gap-1
+  preserves σ-opposite supply, gap-2 preserves/grows it (sign-takeover), only same-level cancels
+  SPEND — the blueprint's §2 "gap-2 not an obstruction" verdict, no new probability tail. →
+  `phase7_to_phase8_of_survivalBand` through the landed adapter ⟹ `Phase7To8Structure`.
+* **Named residual (Phase 6/7 convergence Post must export):** `Phase6BandPositionFacts σ E c` (the
+  per-level ROUTING the `doSplit` magnitude-halving achieves — only routing is missing, the global
+  budget is proved) and `SurvivalBandAbove σ E c` (the surviving eliminator LOWER bound; landed
+  `lemma_7_5/7_6` are minority-survival UPPER bounds only). Genuine attack: the `cancelSplit` gap-1
+  preservation is PROVED from the frozen rule, not asserted.

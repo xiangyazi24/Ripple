@@ -4,6 +4,43 @@ Source: ChatGPT Pro, 14,375 B via network. Verbatim below.
 
 ---
 
+## STATUS (2026-06-10, agent: BandLocalization.lean landed, EXIT_0, axiom-clean)
+
+New file `Probability/BandLocalization.lean` (append-only; no existing file edited). Single-file
+`lake env lean … BandLocalization.lean` EXIT_0; `#print axioms` on all 5 headlines ⊆
+[propext, Classical.choice, Quot.sound]; no sorry/admit/axiom/native_decide.
+
+Faithful to the blueprint's short verdict (B/C are band-position, NOT counting; global 4n/15 budget
+already proved in `MarginLedgers.majorityProfileMass_floor`).
+
+**Band-position structure defined (honest Props, documented provenance):**
+- `MajorityBandAtGap1 σ E c` — every gap-1 predecessor level `i = j−1` of a live minority level `j`
+  carries `≥ E` σ-opposite eliminators (`= MarginLedgers.majorityAtExp σ i = Phase7Convergence.elimGap1 σ i`, defeq).
+- `MinorityConfinedGap1 σ c` — every live minority level `j` has a gap-1 predecessor index in range
+  (`j.val ≥ 1`), the band-floor confinement.
+- `Phase6BandPositionFacts σ E c` — bundle of the two; definitionally assembles into `Phase6HighMassDrained`.
+- `SurvivalBandAbove σ E c` (C-side) — surviving above-level eliminator LOWER bound after the bounded
+  Phase-7 same-level spend; defeq to `Phase7SurvivalUpperBounds`.
+
+**Localizations closed deterministically:**
+- B: `phase6HighMassDrained_of_bandPosition` (band ⟹ `Phase6HighMassDrained`) and
+  `phase6_to_phase7_of_bandPosition` (wired through the landed adapter ⟹ `Phase6To7Structure`).
+- C: `cancelSplit_gap1_preserves_smaller_sign` — the FROZEN `cancelSplit` gap-1 reading proven directly
+  (smaller-index eliminator re-emerges at incremented index, same sign → gap-1 preserves σ-opposite
+  supply; per the blueprint's §2 verdict, gap-2 is NOT an obstruction, only same-level cancellation
+  spends). `phase7SurvivalUpperBounds_of_survivalBand` + `phase7_to_phase8_of_survivalBand` (wired
+  through the landed adapter ⟹ `Phase7To8Structure`).
+
+**Named residual — what Phase 6/7's convergence proof must additionally export:**
+- Phase-6 Post must export `Phase6BandPositionFacts σ E c`: (1) `MinorityConfinedGap1` (the drain
+  separates the two bands by one step, no live minority at bottom index 0); (2) `MajorityBandAtGap1`
+  (the per-level ROUTING — `doSplit` magnitude-halving deposits eliminators at the partner band one
+  index below each minority; the GLOBAL 4n/15 budget is already proved, only routing is missing).
+- Phase-7 Post must export `SurvivalBandAbove σ E c` (the surviving above-level eliminator LOWER
+  bound; the landed `lemma_7_5/7_6` are minority-survival UPPER bounds only).
+
+---
+
 [intro]
 I’ll inspect the newly landed ledgers and margin structures first, then cross-check the paper §7 wording so the localization claim is not inferred from comments alone.
 
