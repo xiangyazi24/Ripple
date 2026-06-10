@@ -5619,6 +5619,94 @@ theorem windowedFrontProfile_whp_packaged
         - σ * ((tt + 1 : ℕ) : ℝ))))
     dB eB tB hdB heB htB
 
+/-! ## Part 41 — the glue wiring (item 5): `GoodFrontWidth` whp from `WindowedFrontProfile` whp
+(item 4) and `ClimbBound` whp.
+
+`goodFrontWidth_of_windowed_profile_and_climb` (ClockFrontProfile) is the DETERMINISTIC reduction
+`GoodFrontWidth (W₁+W₂) ⟸ WindowedFrontProfile θ ∧ ClimbBound θ W₂` on a full-population all-phase-3
+config with floor `θ ≥ 1/card`.  So the failure event for `GoodFrontWidth` is covered by the union
+of the two failure events.  We bound it by the `windowedFrontProfile_whp_packaged` tail (item 4) plus
+the `ClimbBound`-failure mass; the latter is bounded from `ClimbTail.climb_real_tail` (a union over
+levels `k ≤ capMinute`), carried here as the `hclimb` input so the WindowedFrontProfile-side wiring is
+complete and the ClimbBound-side residual is exactly localized. -/
+
+open ClockFrontProfile in
+/-- **The deterministic GoodFrontWidth bad-event cover.**  On a full-population all-phase-3 config
+with floor `θ ≥ 1/card`, if `GoodFrontWidth (W₁+W₂)` fails (`W₁ = frontWidthBound card`), then either
+`WindowedFrontProfile θ` fails or `ClimbBound θ W₂` fails. -/
+theorem goodFrontWidth_bad_subset (θ : ℝ) (W₂ : ℕ) (c : Config (AgentState L K))
+    (hcard : 2 ≤ c.card) (hall : AllClockP3 (L := L) (K := K) c)
+    (hθ : 1 / (c.card : ℝ) ≤ θ)
+    (hbad : ¬ GoodFrontWidth (L := L) (K := K)
+      (FrontTail.frontWidthBound c.card + W₂) c) :
+    ¬ WindowedFrontProfile (L := L) (K := K) θ c ∨
+      ¬ ClimbBound (L := L) (K := K) θ W₂ c := by
+  by_contra hcon
+  push Not at hcon
+  obtain ⟨hwp, hcb⟩ := hcon
+  exact hbad (goodFrontWidth_of_windowed_profile_and_climb (L := L) (K := K) θ W₂ c hcard hall hθ
+    hwp hcb)
+
+open ClockFrontProfile in
+/-- **STEP 5 — `GoodFrontWidth` whp (the glue capstone).**  On the real kernel, the probability that
+the end config is a full-population all-phase-3 clock config (with the negligibility, the floor
+`θ ≥ 1/n`) yet FAILS the moving-frame width invariant `GoodFrontWidth (W₁+W₂)` is at most the
+`WindowedFrontProfile` tail (item 4's packaging) plus the `ClimbBound`-failure mass `climbB`.  This
+wires the whole windowed-front engine (items 1–4) into the clock consumers' shape; the `ClimbBound`
+mass `climbB` is the `ClimbTail.climb_real_tail` deliverable (the level-union of the gated climb
+tail), carried here as `hclimb`. -/
+theorem goodFrontWidth_whp (n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (θ : ℝ) (hθn : 1 / (n : ℝ) ≤ θ)
+    (tt : ℕ) (W₂ : ℕ) (t : ℕ) (mc₀ : Config (MarkedAgent L K))
+    (wfpB climbB : ℝ≥0∞)
+    (hwfp : ((NonuniformMajority L K).transitionKernel ^ t) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c} ≤ wfpB)
+    (hclimb : ((NonuniformMajority L K).transitionKernel ^ t) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+          ∧ ¬ ClimbBound (L := L) (K := K) θ W₂ c} ≤ climbB) :
+    ((NonuniformMajority L K).transitionKernel ^ t) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ GoodFrontWidth (L := L) (K := K)
+              (FrontTail.frontWidthBound n + W₂) c}
+      ≤ wfpB + climbB := by
+  classical
+  set wfpSet : Set (Config (AgentState L K)) :=
+    {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+        (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+          cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+            ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+      ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c} with hwfpSet
+  set climbSet : Set (Config (AgentState L K)) :=
+    {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+      ∧ ¬ ClimbBound (L := L) (K := K) θ W₂ c} with hclimbSet
+  have hsub : {c : Config (AgentState L K) |
+      (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+        (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+          cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+            ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+      ∧ ¬ GoodFrontWidth (L := L) (K := K)
+          (FrontTail.frontWidthBound n + W₂) c}
+      ⊆ wfpSet ∪ climbSet := by
+    intro c hc
+    obtain ⟨⟨hcard, hP3, hnegc⟩, hgfw⟩ := hc
+    have hcard2 : 2 ≤ c.card := by rw [hcard]; omega
+    have hθc : 1 / (c.card : ℝ) ≤ θ := by rw [hcard]; exact hθn
+    have hgfw' : ¬ GoodFrontWidth (L := L) (K := K)
+        (FrontTail.frontWidthBound c.card + W₂) c := by
+      rwa [hcard]
+    rcases goodFrontWidth_bad_subset (L := L) (K := K) θ W₂ c hcard2 hP3 hθc hgfw' with h | h
+    · exact Or.inl ⟨⟨hcard, hP3, hnegc⟩, h⟩
+    · exact Or.inr ⟨⟨hcard, hP3⟩, h⟩
+  refine le_trans (measure_mono hsub) ?_
+  refine le_trans (measure_union_le _ _) ?_
+  exact add_le_add hwfp hclimb
+
 end EarlyDripMarked
 
 end ExactMajority
