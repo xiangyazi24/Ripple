@@ -68,7 +68,7 @@ protocol core = `Protocol/Transition.lean` (FROZEN); reusable pieces =
 `SeamPairBound.lean`; blueprint = `HANDOFF_SEAM_NOOVERSHOOT.md`.
 -/
 
-import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamPairBound
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamPairAdapter
 
 namespace ExactMajority
 
@@ -627,6 +627,233 @@ theorem Phase8Transition_left_phase_le_succ_of_wf (a b : AgentState L K)
       show (if _ then stdCounterSubroutine L K _ else _).phase.val = a.phase.val
       rw [if_neg hs1role, hs1phase]
     omega
+
+/-! ### Stage 2 capstone — the dispatcher one-step `+1` bound and the advance
+characterization. -/
+
+/-- The left epidemic output is well-formed under `Wf` on both inputs (and both phases
+`≤ 9`): no error, so `ep.1 = runInitsBetween … { a with phase := max }`, which preserves
+`WfAgent` (`runInitsBetween_preserves_wf`). -/
+theorem phaseEpidemicUpdate_left_preserves_wf (a b : AgentState L K)
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha9 : a.phase.val ≤ 9) (hb9 : b.phase.val ≤ 9) :
+    WfAgent (L := L) (K := K) (phaseEpidemicUpdate L K a b).1 := by
+  unfold phaseEpidemicUpdate
+  set p := max a.phase b.phase with hp
+  have hpval : p.val = max a.phase.val b.phase.val := by rw [hp]; rfl
+  have hp9 : p.val ≤ 9 := by rw [hpval]; omega
+  have hwfa' : WfAgent (L := L) (K := K) ({ a with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfa; exact ⟨h1, h2, h3⟩
+  have hwfb' : WfAgent (L := L) (K := K) ({ b with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfb; exact ⟨h1, h2, h3⟩
+  have hs' : (runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val = p.val :=
+    runInitsBetween_phase_eq_of_wf a.phase.val p.val _ hwfa' hp9
+  have ht' : (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val = p.val :=
+    runInitsBetween_phase_eq_of_wf b.phase.val p.val _ hwfb' hp9
+  have herr_false :
+      ¬ ((a.phase.val < 10 ∨ b.phase.val < 10) ∧
+        ((runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val = 10 ∨
+          (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val = 10)) := by
+    rintro ⟨-, hor⟩
+    rcases hor with h | h
+    · rw [hs'] at h; omega
+    · rw [ht'] at h; omega
+  simp only [herr_false, if_false]
+  exact runInitsBetween_preserves_wf a.phase.val p.val _ hwfa'
+
+/-- **Dispatcher one-step `+1` bound (left).**  Under `Wf` on both inputs with both
+phases `≤ p+1` (`≤ 8`), the left `Transition` output phase is at most `max(a,b)+1`:
+`finishPhase10Entry` preserves the phase, so it equals the phase-`q` dispatch output on
+`ep.1` (`q = ep.1.phase = max(a,b) ≤ p+1 ≤ 8`), which is `≤ q+1` by the per-phase
+bounds. -/
+theorem Transition_left_phase_le_ep_succ_of_wf (a b : AgentState L K)
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha8 : a.phase.val ≤ 8) (hb8 : b.phase.val ≤ 8) :
+    (Transition L K a b).1.phase.val ≤ max a.phase.val b.phase.val + 1 := by
+  -- ep.1.phase = max(a,b) ≤ 8; ep.1 is well-formed.
+  have hepphase : (phaseEpidemicUpdate L K a b).1.phase.val = max a.phase.val b.phase.val :=
+    phaseEpidemicUpdate_left_phase_eq_max_of_wf a b hwfa hwfb (by omega) (by omega)
+  have hepwf : WfAgent (L := L) (K := K) (phaseEpidemicUpdate L K a b).1 :=
+    phaseEpidemicUpdate_left_preserves_wf a b hwfa hwfb (by omega) (by omega)
+  have hep8 : (phaseEpidemicUpdate L K a b).1.phase.val ≤ 8 := by rw [hepphase]; omega
+  -- Transition.1.phase = dispatch output phase (finishPhase10Entry preserves phase)
+  set s' := (phaseEpidemicUpdate L K a b).1 with hs'def
+  set t' := (phaseEpidemicUpdate L K a b).2 with ht'def
+  have hdisp : (Transition L K a b).1.phase.val ≤ s'.phase.val + 1 := by
+    rw [show (Transition L K a b).1 = finishPhase10Entry L K s'
+          (match s'.phase with
+            | ⟨0, _⟩ => Phase0Transition L K s' t'
+            | ⟨1, _⟩ => Phase1Transition L K s' t'
+            | ⟨2, _⟩ => Phase2Transition L K s' t'
+            | ⟨3, _⟩ => Phase3Transition L K s' t'
+            | ⟨4, _⟩ => Phase4Transition L K s' t'
+            | ⟨5, _⟩ => Phase5Transition L K s' t'
+            | ⟨6, _⟩ => Phase6Transition L K s' t'
+            | ⟨7, _⟩ => Phase7Transition L K s' t'
+            | ⟨8, _⟩ => Phase8Transition L K s' t'
+            | ⟨9, _⟩ => Phase9Transition L K s' t'
+            | ⟨10, _⟩ => Phase10Transition L K s' t'
+            | _ => (s', t')).1 from rfl]
+    rw [finishPhase10Entry_phase_val]
+    rcases hphase : s'.phase with ⟨n, hn⟩
+    have hn8 : n ≤ 8 := by rw [hphase] at hep8; exact hep8
+    have hs'wf : WfAgent (L := L) (K := K) s' := hepwf
+    have hns' : s'.phase.val = n := by rw [hphase]
+    match n, hn, hn8 with
+    | 0, _, _ => simp only [hphase]
+                 have := Phase0Transition_left_phase_le_succ_of_phase0 s' t' hns'; omega
+    | 1, _, _ => simp only [hphase]
+                 have := Phase1Transition_left_phase_le_succ_of_wf s' t' hs'wf (by rw [hns']; omega)
+                 omega
+    | 2, _, _ => simp only [hphase]
+                 have := Phase2Transition_left_phase_le_succ_of_wf s' t' hs'wf (by rw [hns']; omega)
+                 omega
+    | 3, _, _ => simp only [hphase]
+                 have := Phase3Transition_left_phase_le_succ_of_phase3 s' t' hns'; omega
+    | 4, _, _ => simp only [hphase]
+                 have := Phase4Transition_left_phase_le_succ s' t'; omega
+    | 5, _, _ => simp only [hphase]
+                 have := Phase5Transition_left_phase_le_succ_of_wf s' t' hs'wf (by rw [hns']; omega)
+                 omega
+    | 6, _, _ => simp only [hphase]
+                 have := Phase6Transition_left_phase_le_succ_of_wf s' t' hs'wf (by rw [hns']; omega)
+                 omega
+    | 7, _, _ => simp only [hphase]
+                 have := Phase7Transition_left_phase_le_succ_of_wf s' t' hs'wf (by rw [hns']; omega)
+                 omega
+    | 8, _, _ => simp only [hphase]
+                 have := Phase8Transition_left_phase_le_succ_of_wf s' t' hs'wf
+                   (le_of_eq hns')
+                 omega
+    | n + 9, hn, hn8 => omega
+  rw [← hepphase]; exact hdisp
+
+/-! ### The per-side advance characterization for the counter-reset destinations. -/
+
+/-- `stdCounterSubroutine` keeps the phase unless `counter = 0` (the decrement branch
+preserves the phase). -/
+theorem stdCounterSubroutine_phase_eq_of_counter_ne_zero (a : AgentState L K)
+    (hctr : a.counter.val ≠ 0) :
+    (stdCounterSubroutine L K a).phase.val = a.phase.val := by
+  unfold stdCounterSubroutine; rw [dif_neg hctr]
+
+/-- Phase 1 keeps a non-clock LEFT initiator's phase (`clockCounterStep` is identity off
+clocks; the main–main averaging pre-step is `smallBias`-only). -/
+theorem Phase1Transition_left_phase_eq_of_not_clock (e f : AgentState L K)
+    (hc : e.role ≠ .clock) :
+    (Phase1Transition L K e f).1.phase.val = e.phase.val := by
+  by_cases hmain : e.role = .main ∧ f.role = .main
+  · simp [Phase1Transition, hmain.1, hmain.2, clockCounterStep]
+  · have : (Phase1Transition L K e f).1 = clockCounterStep L K e := by
+      unfold Phase1Transition; rw [if_neg hmain]
+    rw [this]; unfold clockCounterStep; rw [if_neg hc]
+
+/-- Phase 6 keeps a non-clock LEFT initiator's phase. -/
+theorem Phase6Transition_left_phase_eq_of_not_clock (e f : AgentState L K)
+    (hc : e.role ≠ .clock) :
+    (Phase6Transition L K e f).1.phase.val = e.phase.val := by
+  simp only [Phase6Transition]
+  have hs1role : (if e.role = .reserve ∧ f.role = .main ∧ (f.bias ≠ .zero) then
+        (doSplit L K e f).1
+      else if f.role = .reserve ∧ e.role = .main ∧ (e.bias ≠ .zero) then
+        (doSplit L K f e).2 else e).role ≠ .clock := by
+    split_ifs
+    · exact doSplit_role_fst_ne_clock e f hc
+    · rw [doSplit_role_snd]; exact hc
+    · exact hc
+  have hs1phase : (if e.role = .reserve ∧ f.role = .main ∧ (f.bias ≠ .zero) then
+        (doSplit L K e f).1
+      else if f.role = .reserve ∧ e.role = .main ∧ (e.bias ≠ .zero) then
+        (doSplit L K f e).2 else e).phase.val = e.phase.val := by
+    split_ifs
+    · exact doSplit_phase_fst e f
+    · exact doSplit_phase_snd f e
+    · rfl
+  show (if _ then stdCounterSubroutine L K _ else _).phase.val = e.phase.val
+  rw [if_neg hs1role, hs1phase]
+
+/-- Phase 7 keeps a non-clock LEFT initiator's phase. -/
+theorem Phase7Transition_left_phase_eq_of_not_clock (e f : AgentState L K)
+    (hc : e.role ≠ .clock) :
+    (Phase7Transition L K e f).1.phase.val = e.phase.val := by
+  simp only [Phase7Transition]
+  have hs1role : (if e.role = .main ∧ f.role = .main then
+        (cancelSplit L K e f).1 else e).role ≠ .clock := by
+    split_ifs
+    · rw [cancelSplit_role_fst]; exact hc
+    · exact hc
+  have hs1phase : (if e.role = .main ∧ f.role = .main then
+        (cancelSplit L K e f).1 else e).phase.val = e.phase.val := by
+    split_ifs
+    · exact cancelSplit_phase_fst e f
+    · rfl
+  show (if _ then stdCounterSubroutine L K _ else _).phase.val = e.phase.val
+  rw [if_neg hs1role, hs1phase]
+
+/-- Phase 8 keeps a non-clock LEFT initiator's phase. -/
+theorem Phase8Transition_left_phase_eq_of_not_clock (e f : AgentState L K)
+    (hc : e.role ≠ .clock) :
+    (Phase8Transition L K e f).1.phase.val = e.phase.val := by
+  simp only [Phase8Transition]
+  have hs1role : (if e.role = .main ∧ f.role = .main then
+        (absorbConsume L K e f).1 else e).role ≠ .clock := by
+    split_ifs
+    · rw [absorbConsume_role_fst]; exact hc
+    · exact hc
+  have hs1phase : (if e.role = .main ∧ f.role = .main then
+        (absorbConsume L K e f).1 else e).phase.val = e.phase.val := by
+    split_ifs
+    · exact absorbConsume_phase_fst e f
+    · rfl
+  show (if _ then stdCounterSubroutine L K _ else _).phase.val = e.phase.val
+  rw [if_neg hs1role, hs1phase]
+
+/-- The phase-`q` LEFT dispatch output `PhaseQTransition.1.phase` for a clock initiator at
+a counter-reset destination `q ∈ {1,6,7,8}` is `stdCounterSubroutine`'s phase (phase 1 =
+`clockCounterStep`, identical on clocks). -/
+theorem dispatch_left_clock_eq_std (e f : AgentState L K) (q : ℕ)
+    (hq : CounterResetDest q) (heq : e.phase.val = q) (hc : e.role = .clock) :
+    ((match e.phase with
+        | ⟨1, _⟩ => Phase1Transition L K e f
+        | ⟨6, _⟩ => Phase6Transition L K e f
+        | ⟨7, _⟩ => Phase7Transition L K e f
+        | ⟨8, _⟩ => Phase8Transition L K e f
+        | _ => (e, f)).1).phase.val = (stdCounterSubroutine L K e).phase.val := by
+  rcases hq with h | h | h | h <;>
+    (have hfe : e.phase = (⟨q, by rcases h with rfl <;> omega⟩ : Fin 11) := Fin.ext heq
+     rw [hfe]; subst h; simp only)
+  · rw [Phase1Transition_left_clock e f hc]; unfold clockCounterStep; rw [if_pos hc]
+  · rw [Phase6Transition_left_clock e f hc]
+  · rw [Phase7Transition_left_clock e f hc]
+  · rw [Phase8Transition_left_clock e f hc]
+
+/-- The phase-`q` LEFT dispatch output keeps a NON-clock initiator's phase, for a
+counter-reset destination `q ∈ {1,6,7,8}`. -/
+theorem dispatch_left_not_clock_phase_eq (e f : AgentState L K) (q : ℕ)
+    (hq : CounterResetDest q) (heq : e.phase.val = q) (hc : e.role ≠ .clock) :
+    ((match e.phase with
+        | ⟨1, _⟩ => Phase1Transition L K e f
+        | ⟨6, _⟩ => Phase6Transition L K e f
+        | ⟨7, _⟩ => Phase7Transition L K e f
+        | ⟨8, _⟩ => Phase8Transition L K e f
+        | _ => (e, f)).1).phase.val = e.phase.val := by
+  have key : ∀ g : AgentState L K → AgentState L K × AgentState L K,
+      g e = (e, f) →
+      ((match e.phase with
+        | ⟨1, _⟩ => Phase1Transition L K e f
+        | ⟨6, _⟩ => Phase6Transition L K e f
+        | ⟨7, _⟩ => Phase7Transition L K e f
+        | ⟨8, _⟩ => Phase8Transition L K e f
+        | _ => (e, f)).1).phase.val = e.phase.val := fun _ _ => by trivial
+  rcases hq with h | h | h | h
+  · rw [show e.phase = (⟨1, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
+    exact Phase1Transition_left_phase_eq_of_not_clock e f hc
+  · rw [show e.phase = (⟨6, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
+    exact Phase6Transition_left_phase_eq_of_not_clock e f hc
+  · rw [show e.phase = (⟨7, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
+    exact Phase7Transition_left_phase_eq_of_not_clock e f hc
+  · rw [show e.phase = (⟨8, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
+    exact Phase8Transition_left_phase_eq_of_not_clock e f hc
 
 end SeamNoOvershoot
 
