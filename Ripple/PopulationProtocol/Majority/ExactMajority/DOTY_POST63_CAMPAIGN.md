@@ -2739,3 +2739,75 @@ b=e^{−50(L+1)}, Φ(c₀)≤n·e^{−50(L+1)} via `clockCounterPotential_init_l
 per-τ `hτ`, then `allPhase0_window_whp` (Gap 2) assembles.  The missing Lean object is
 the `Q ⊆ allPhase0` absorbing witness, which lives in the role-split layer (not in
 Phase0Window.lean).  Commits `9dec6f8d`/`2ecc36ae` record the in-file gap note + header.
+
+## Phase C — TopSplit (Lemma 5.1/5.2 RoleSplitWindows via top-split) — STAGES A+B+D+C+E DONE (2026-06-10, 0-sorry axiom-clean)
+
+New file `Probability/TopSplit.lean` (namespace `ExactMajority.RoleSplitConcentration`; imports
+`RoleSplitConcentration` + `AzumaKernel`; APPEND-ONLY, no existing file touched). All headline
+theorems `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; single-file `lake env lean`
+EXIT_0; zero sorry / zero admit / zero native_decide / zero new axiom. SHAs on main:
+A+B 37066f79 · D+C 07c9c9ba · E 39bb769a (synced xiangyazi24/Ripple opus-wip d0461f7).
+
+Worked the blueprint `HANDOFF_ROLESPLIT_TOPSPLIT.md` (family3 ChatGPT Pro letter) stage-by-stage.
+
+### Stage A+B (defs + deterministic conversion) — FULLY PROVEN.
+- `topCRMass = crCount + clockCount + reserveCount`, `TopSplitWindow δ n` (`|main−topCRMass|≤δn`),
+  `CRDrainWindow δ` (`crCount ≤ δ·topCRMass`) — exactly the blueprint shapes.
+- `RoleSplitWindows_of_topSplit_crDrain` (δ=η/4, η=1/25, δ=1/100): pure algebra via
+  `roleCount_conservation` + `balanced_conservation`. `mainCount+topCRMass=n` (mcr=0) ⟹ Main window
+  from `|main−topCRMass|≤δn`; `topCRMass=cr+2·clock` (balance) + drain `cr≤δ·topCRMass` ⟹
+  `clock≥(1−δ)²n/4≥(1−η)n/4` since `(1−η/4)²=1−η/2+η²/16≥1−η`. Helpers `mainCount_add_topCRMass`,
+  `topCRMass_balanced`. nlinarith/omega.
+
+### Stage D (abstract sign-drift Chernoff brick) — FULLY PROVEN, RESHAPED.
+RESHAPING (recorded in TopSplit.lean header + HANDOFF): the blueprint's §D `signDrift_abs_chernoff`
+cited `stepIndexed_gated_tail` with `Φ_j=exp(s|X|+corr_j)` and a schematic `h_inward`. After studying
+how `AzumaKernel` (`stepMGF_bound`/`expSupermartingale_drift`/`azuma_tail`) instantiates MGF drifts,
+the CLEANER fit is the already-audited `AzumaKernel.azuma_tail` at `Φ=|X|`, `c=1`:
+- the blueprint's `h_inward` ("X>0 ⇒ down≥up; X<0 ⇒ up≥down") IS the downward |X|-supermartingale
+  drift `∫|X|dK≤|X|` — taken as the precise non-schematic hypothesis `hdrift`;
+- the blueprint's `hjump` (`|ΔX|≤1`) gives `||X y|−|X x||≤|ΔX|≤1` by `abs_abs_sub_abs_le_abs_sub`
+  (reverse triangle), supplying `c=1`;
+- the blueprint's killed-kernel `hgate_tail`/escape term is UNNECESSARY in the abstract brick (drift
+  global ⟹ no escape). The protocol's region-restriction is folded into the named `hdrift` at
+  instantiation (Stage C carries it explicitly).
+Result `signDrift_abs_chernoff`: `X x₀=0` + `hjump` + `hdrift` ⟹ `(K^T)x₀{a≤|X|}≤exp(−a²/(2T))`.
+Strictly cleaner than the gated route; reuses the audited engine verbatim.
+
+### Stage C (instantiate for X = mainCount − topCRMass) — NAMED-HYPOTHESIS, with proven start-fact.
+- `topSplitX c = mainCount c − topCRMass c`, `topSplitX_measurable`.
+- `topSplit_X_init_zero` PROVEN: `Phase0Initial` (all RoleMCR) ⟹ main=cr=clock=reserve=0 ⟹ X=0.
+- `topSplitWindow_whp` = `signDrift_abs_chernoff` at `X=topSplitX`, `a=δn`, via
+  `{¬TopSplitWindow δ n} ⊆ {δn ≤ |topSplitX|}`. The two protocol residuals `hjump` (`|ΔX|≤1`,
+  each Phase0Transition moves main−topCRMass by ≤1) and `hdrift` (inward |X|-drift from the Lemma-5.1
+  invariant `sf+2st=mf+2mt`) are carried as EXPLICIT named hypotheses with full doc.
+  GENUINE ATTACK on `hdrift` documented in-file (campaign "no naming-and-stopping" rule): reduces to
+  the one-step balance-changing-pair count comparison `#(decreasing) ≥ #(increasing)` on the good
+  region = the existing `phase0_mcrCount_decrease_prob_*` rectangle applied to the sf-vs-mf pools;
+  threading `sf+2st=mf+2mt` through a Phase-0 milestone (analogue of `assignableCount≥n/5`) is the
+  documented C-1 protocol-side gap.
+
+### Stage E (union-bound assembly) — FULLY PROVEN (named εrest input).
+- `RestLedgerBad δ` = `¬CRDrainWindow δ ∨ ¬ClockReserveBalanced ∨ roleMCRCount≠0`.
+- `roleSplitWindows_whp` (η=1/25, δ=1/100): deterministic inclusion (contrapositive of B)
+  `{¬RoleSplitWindows (1/25) n} ⊆ {¬TopSplitWindow (1/100)} ∪ ({RestLedgerBad (1/100)} ∪ {card≠n})`,
+  union-bounded by εtop (Stage-C `topSplitWindow_whp` at δ=1/100) + εrest. `εrest` = the Stage-2
+  drain/balance/mcr0 failure mass INCLUDING the `card≠n` slice (kernel-card-conservation makes that
+  slice 0 from a card=n start), carried as a NAMED whp input per the Stage-E campaign rule.
+
+### BLUEPRINT CLAIMS vs ACTUAL REPO (verdicts).
+1. Stage A+B defs/conversion: blueprint shapes used VERBATIM; the existing `roleCount_conservation`/
+   `balanced_conservation`/`ClockReserveBalanced`/`RoleSplitWindows`/`crCount`/`mainCount`/
+   `clockCount`/`reserveCount` are all in `RoleSplitConcentration` as the blueprint claimed.
+2. Stage D `stepIndexed_gated_tail` route: the engine EXISTS (`GatedGeometricDrift.lean`) but the
+   blueprint's `h_inward` was schematic. The cleaner instantiation is `AzumaKernel.azuma_tail`
+   (also already in-repo) — RESHAPED accordingly (documented). The blueprint EXPLICITLY licensed
+   restating hypothesis shapes "to whatever the engine actually needs" — done.
+3. Stage E target `{¬RoleSplitWindows (1/25) n} ≤ ofReal(3·(n²)⁻¹)`: the `3·(n²)⁻¹` is the
+   eventual numeric budget; this file proves the STRUCTURAL union bound `εtop + εrest` with εtop the
+   concrete Stage-C exp-tail and εrest named (the `≤ 3/n²` collapse is the Stage-2 εrest discharge +
+   horizon choice, downstream). Insertion point `phase0_roleSplit_whp_assembled_stage2` confirmed
+   present and consuming (hstage2, hbal, hwin) exactly as the blueprint stated.
+4. The protocol invariant `sf+2st=mf+2mt` (Lemma 5.1) is NOT yet formalized in the ExactMajority
+   tree (grep-confirmed) — it is the genuine residual behind Stage-C's `hdrift`, carried as a named
+   hypothesis with the documented attack route, NOT faked.

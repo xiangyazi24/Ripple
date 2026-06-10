@@ -136,8 +136,23 @@ Insertion point: `phase0_roleSplit_whp_assembled_stage2` already takes
 
 ## Status
 
-- [ ] A+B (defs + deterministic conversion) — pure algebra, dispatch first
-- [ ] D (abstract sign-drift brick) — needs the one-step inward-drift
-      computation from the protocol invariant sf+2st = mf+2mt
-- [ ] C (instantiate for X = mainCount − topCRMass)
-- [ ] E (union-bound assembly)
+- [x] A+B (defs + deterministic conversion) — DONE 2026-06-10, 0-sorry axiom-clean.
+      `Probability/TopSplit.lean`: `topCRMass`/`TopSplitWindow`/`CRDrainWindow` +
+      `RoleSplitWindows_of_topSplit_crDrain` (δ=η/4, η=1/25, δ=1/100). Pure algebra via
+      `roleCount_conservation` + `balanced_conservation`. Commit 37066f79.
+- [x] D (abstract sign-drift brick) — DONE 2026-06-10, 0-sorry axiom-clean. RESHAPED to fit the
+      EXISTING `AzumaKernel.azuma_tail` engine (Φ=|X|, c=1), NOT `stepIndexed_gated_tail`: the
+      blueprint's schematic `h_inward` IS the downward |X|-supermartingale drift `∫|X|dK≤|X|`;
+      `hjump` gives `||X y|-|X x||≤1` by reverse triangle. No killed-kernel escape term (drift
+      global in the abstract brick; region-restriction folded into the named `hdrift` at
+      instantiation). `signDrift_abs_chernoff`: `(K^T)x₀{a≤|X|}≤exp(-a²/(2T))`. Commit 07c9c9ba.
+- [x] C (instantiate for X = mainCount − topCRMass) — DONE 2026-06-10 as NAMED-HYPOTHESIS version
+      (the one-step inward `|X|`-drift `hdrift` + bounded jump `hjump` are the documented protocol
+      residuals; `topSplit_X_init_zero` PROVEN from `Phase0Initial`). Genuine attack on `hdrift`
+      documented in-file (reduces to #decreasing-pairs ≥ #increasing-pairs, the
+      `phase0_mcrCount_decrease_prob` rectangle + the `sf+2st=mf+2mt` invariant thread = the
+      C-1 gap). `topSplitWindow_whp`. Commit 07c9c9ba.
+- [x] E (union-bound assembly) — DONE 2026-06-10, 0-sorry axiom-clean. `roleSplitWindows_whp`:
+      `{¬RoleSplitWindows (1/25) n} ⊆ {¬TopSplitWindow (1/100)} ∪ ({RestLedgerBad} ∪ {card≠n})`
+      (contrapositive of B), union bound εtop (Stage-C) + εrest (named Stage-2 drain/balance/mcr0
+      slice). Commit 39bb769a. All 4 headlines `#print axioms ⊆ [propext,Classical.choice,Quot.sound]`.
