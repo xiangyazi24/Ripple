@@ -2803,14 +2803,10 @@ change from the plain engine is the per-step rate: `floorRate n a₀ M = M·a₀
 whose `M=2` worst case gave `pMin = Θ(1/n²)`).  With the floor `a₀ = Θ(n)` this lifts
 `pMin` to `Θ(1/n)` and `pMin·meanTime` to `Θ(log n)` — the quantitative point.  -/
 
-namespace RoleSplitConcentration
-
 open MeasureTheory ProbabilityTheory ExactMajority GatedDrift
 open scoped ENNReal NNReal Real
 
 attribute [local instance] Classical.propDecidable
-
-variable {L K : ℕ}
 
 /-- The floor gate region: the three hypotheses `phase0_mcrCount_decrease_prob_floor`
 consumes (card, the Chernoff floor `a₀`, the Phase-0 phase invariant). -/
@@ -2828,6 +2824,77 @@ theorem floorGate_floor {n a₀ : ℕ} {c : Config (AgentState L K)}
 theorem floorGate_phase0 {n a₀ : ℕ} {c : Config (AgentState L K)}
     (hc : c ∈ floorGate (L := L) (K := K) n a₀) :
     ∀ a ∈ c, a.role = .mcr → a.phase.val = 0 := hc.2.2
+
+/-- The lifted milestone predicate on `Option (Config …)`: the cemetery `none` is
+milestone-`True` (absorbing, counted as `Post`); an alive `some c` reuses the plain
+`phase0Milestone`. -/
+def liftMilestone (n : ℕ) (i : Fin n) : Option (Config (AgentState L K)) → Prop
+  | none => True
+  | some c => phase0Milestone n i c
+
+/-- **The progress-mass lemma (heart of `progress`).**  At a gated `some c` where the
+`mcrCount` frontier sits at `M = n − i.val` (so `mcrCount c = M`, all milestones `< i`
+reached, `i` unreached) the killed-kernel mass on the lifted milestone-`i` target is at
+least the floor rate `floorRate n a₀ M = M·a₀/(n(n−1))`.  Two facts combine: (1) the floor
+→ rate bridge gives the *real* kernel `≥ floorRate` mass on the strict-`mcrCount`-decrease
+set; (2) every such decrease successor (in-gate or pushed to the cemetery) lands in the
+lifted milestone-`i` target, so the gate-filtered mass only grows.  Alive ⟹ gated makes the
+bridge's three hypotheses available from `c ∈ floorGate`. -/
+theorem liftMilestone_progress_mass {n a₀ : ℕ} (hn2 : 2 ≤ n) (i : Fin (n - 1))
+    (c : Config (AgentState L K)) (hc : c ∈ floorGate (L := L) (K := K) n a₀)
+    (h_mcr_eq : ExactMajority.mcrCount (L := L) (K := K) c = n - i.val) :
+    (killK_now (NonuniformMajority L K).transitionKernel
+        (floorGate (L := L) (K := K) n a₀) (some c))
+        {o | liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o} ≥
+      ENNReal.ofReal (floorRate n a₀ (n - i.val)) := by
+  classical
+  -- gated: killK_now (some c) = (K c).map (gateMap G).
+  rw [killK_now_some_gated (K := (NonuniformMajority L K).transitionKernel)
+        (G := floorGate (L := L) (K := K) n a₀) c hc,
+      Measure.map_apply (gateMap_measurable _)
+        (DiscreteMeasurableSpace.forall_measurableSet _)]
+  -- real-kernel floor → rate bound on the strict-decrease set.
+  have hbridge := phase0_mcrCount_decrease_prob_floor (L := L) (K := K) c n a₀
+    (floorGate_card (L := L) (K := K) hc) hn2 (floorGate_phase0 (L := L) (K := K) hc)
+    (floorGate_floor (L := L) (K := K) hc)
+  -- the floorRate equals the bridge's RHS argument (mcrCount c = n - i.val).
+  have hrate : floorRate n a₀ (n - i.val) =
+      (((ExactMajority.mcrCount (L := L) (K := K) c * a₀ : ℕ) : ℝ) /
+        ((n : ℝ) * ((n : ℝ) - 1))) := by
+    unfold floorRate; rw [h_mcr_eq]
+  rw [hrate]
+  -- the decrease set ⊆ (gateMap G)⁻¹' (lifted milestone i).
+  have hsub : {c' : Config (AgentState L K) |
+        ExactMajority.mcrCount (L := L) (K := K) c' <
+          ExactMajority.mcrCount (L := L) (K := K) c} ⊆
+      (gateMap (floorGate (L := L) (K := K) n a₀)) ⁻¹'
+        {o | liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o} := by
+    intro c' hc'
+    simp only [Set.mem_preimage, Set.mem_setOf_eq]
+    unfold gateMap
+    by_cases hcG : c' ∈ floorGate (L := L) (K := K) n a₀
+    · rw [if_pos hcG]
+      show liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ (some c')
+      show ExactMajority.phase0Milestone n ⟨i.val, by omega⟩ c'
+      -- decrease + mcrCount c = n - i.val ⟹ mcrCount c' ≤ n-1-i = mcrThreshold (left disjunct).
+      refine Or.inl ?_
+      have hdec : ExactMajority.mcrCount (L := L) (K := K) c' <
+          ExactMajority.mcrCount (L := L) (K := K) c := hc'
+      unfold ExactMajority.mcrThreshold
+      have hval : (⟨i.val, by omega⟩ : Fin n).val = i.val := rfl
+      rw [hval, h_mcr_eq] at *
+      omega
+    · rw [if_neg hcG]; exact trivial
+  calc ENNReal.ofReal
+        (((ExactMajority.mcrCount (L := L) (K := K) c * a₀ : ℕ) : ℝ) /
+          ((n : ℝ) * ((n : ℝ) - 1)))
+      ≤ ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+          {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+            ExactMajority.mcrCount (L := L) (K := K) c} := hbridge
+    _ ≤ ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+          ((gateMap (floorGate (L := L) (K := K) n a₀)) ⁻¹'
+            {o | liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o}) :=
+        measure_mono hsub
 
 end RoleSplitConcentration
 end ExactMajority

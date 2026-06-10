@@ -1397,6 +1397,61 @@ this is conserved/monotone by the same `cancelSplit_agentSignedMass_pair_eq` mac
 restricted to each sign class, and DOES force the per-pair ordering.  Not yet built; the
 signed-mass split by sign class is the natural next atom.
 
+### Phase C-7n…C-7p (relay 6) — `hmono` DISCHARGED via the SIGN-CLASS MASS potential
+
+Relay 6 closes the residual `hmono` gap, NOT by carrying an extra inequality, but by
+**replacing the potential**: the engine is driven by the σ-class MASS `classMassN σ`
+(non-increasing) instead of the count `minorityU σ` (which the relay-5 obstruction showed
+can RISE).  All in `Phase7Convergence.lean`, single-file EXIT_0, Phase8 importer EXIT_0,
+every new theorem `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.
+
+**Licensed-check outcome (global vs per-level potential).**  Verified against the paper
+(`/tmp/doty_paper.txt`).  Lemma 7.4 is a MASS-floor (`|M'| ≥ 0.8|M|` because the only way
+to lose a majority agent is cancelling against minority, bounded by the minority MASS
+`β_ ≤ 0.004|M|2^{-l}`); Lemma 7.5 is SUCCESSIVE per-level elimination
+(`|B_{-l}|→0`, then `|B_{-(l+1)}|→0`, then `|B_{-(l+2)}|→0`).  **Both a global `minorityU`
+and any per-level `minorityAt7 i` potential need `PotNonincrOn` for THAT Φ, and BOTH are
+broken by the identical gap-2 sign-copy** (the engine `crude_PhaseConvergenceW`
+structurally requires `hmono` — it makes `{Φ ≤ m}` absorbing).  Switching to per-level does
+NOT dodge the obstruction.  The genuinely non-increasing object is the **σ-class mass**:
+the paper's own Lemma 7.4 mass argument.  So: built the mass potential, NOT a per-level
+count.  Documented.
+
+- **C-7n** SHA `739da267` — `biasClassMass σ`/`agentClassMass σ`/`classMass σ`
+  (nonnegative `2^L`-scaled σ-class dyadic mass) + `cancelSplit_classMass_pair_le`:
+  per-pair σ-class mass NON-INCREASE in EVERY `cancelSplit` branch, NO index-ordering
+  hypothesis.  Crucial gap-2 branch (the relay-5 obstruction): the smaller-index class
+  GAINS `2^{L-(i+1)}+2^{L-(i+2)} = 2^{L-i}-2^{L-(i+2)}` and LOSES `2^{L-i}`, net DROP
+  `2^{L-(i+2)}` — the minority *mass* DROPS exactly where its *count* rises.
+- **C-7o** SHA `e88d93e4` — `classMass_stepOrSelf_le`/`classMass_support_le` (config &
+  support lift, mirror of `phase7SignedSum_stepOrSelf_eq` with `=`→`≤`), the ℕ-potential
+  `classMassN σ := (classMass σ).toNat`, `potNonincrOn_classMassN` (**the engine `hmono`
+  on `Inv7Sum`, DISCHARGED**), and the bridge `minorityU_eq_zero_of_classMassN_zero`
+  (`classMass σ c = 0` ⟹ `minorityU σ c = 0`, since each σ-Main contributes mass `≥ 1`).
+- **C-7p** SHA `1f4b7654` — `phase7Convergence''`: the CLEANED engine on `Inv7Sum` with
+  `Φ = classMassN σ`, **BOTH** `hClosed = invClosed_Inv7Sum n` **AND**
+  `hmono = potNonincrOn_classMassN σ n` PROVED INTERNAL (no longer carried).
+  `phase7Convergence''_post_noMinority`: `Post` (`Inv7Sum ∧ classMassN σ = 0`) ⟹
+  `NoMinority σ`.
+
+**Net status (relay 6).**
+- `hClosed` — DISCHARGED (`invClosed_Inv7Sum n`).
+- `hmono`   — **DISCHARGED** (`potNonincrOn_classMassN σ n`).  The relay-5 residual is
+  closed: the obstruction was to the COUNT, not the MASS.
+- `hstep`   — carried, **now phrased on `classMassN σ`** (a σ-class-MASS drain, the Doty
+  Lemma 7.4/7.5 floor as a mass drain), in `phase7Convergence''`.
+
+**Precise remaining gap (for the next relay).**  The drain rectangle layer (C-7i/j,
+`minorityU_drop_prob_rect7`) proves a *count* drop per gap-1 cell; the cleaned engine's
+`hstep` needs a *mass* drop.  The re-derivation is mechanical: a gap-1 cancel
+(minority@i+1, majority@i) removes the minority agent, dropping `classMassN σ` by
+`2^{L-(i+1)}` (its mass) — so the per-pair `classMass`-drop building block
+(`cancelSplit_classMass_pair_drop`, gap-1, `+2^{L-(i+1)} ≤`) plus the existing
+`drop_prob_of_rect` machinery re-instantiated for `classMassN` yields the carried `hstep`.
+The signed/count rectangle geometry is unchanged; only the potential in the cells differs.
+Three-window chaining (Lemma 7.5's `B_{-l}→B_{-(l+1)}→B_{-(l+2)}`) then chains three
+`phase7Convergence''` instances at the per-level mass budgets.
+
 ### Phase C-1 (relay 4) — GAP (A) CLOSED + GAP (B) PINNED DETERMINISTICALLY
 
 **Gap (A) — the invariant-relative milestone engine — COMPLETE (0-sorry, axiom-clean).**

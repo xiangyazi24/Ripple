@@ -1503,6 +1503,55 @@ theorem minorityU_eq_zero_of_classMassN_zero (σ : Sign) (c : Config (AgentState
   unfold classMassN at h
   omega
 
+/-! ## Part K — the CLEANED Phase-7 `PhaseConvergenceW` with BOTH `hClosed` AND `hmono`
+discharged on the genuinely-closed signed-class-mass invariant.
+
+`phase7Convergence''` instantiates the crude engine with `Φ = classMassN σ` (the honest
+NON-INCREASING σ-class mass, vs the count `minorityU σ` which can RISE).  Now BOTH
+structural ingredients are PROVED INTERNAL:
+
+* `hClosed = invClosed_Inv7Sum n`  — the genuinely-closed signed-sum invariant (relay 5).
+* `hmono   = potNonincrOn_classMassN σ n`  — the relay-6 discharge: `classMassN σ` never
+  rises along the kernel from an `Inv7Sum`-state.  This is exactly the residual gap the
+  relay-5 `gap2_minorityU_rise_compatible_with_pos_sum` pinned: the obstruction was to
+  `minorityU` (a COUNT), not to the σ-class MASS, which drops in the very gap-2 branch.
+
+Only the drain `hstep` is carried — now phrased on `classMassN σ` (the Doty Lemma 7.4
+mass floor / Lemma 7.5 successive level elimination as a MASS drain).  The post-condition
+`classMassN σ = 0` is `NoMinority σ` via `minorityU_eq_zero_of_classMassN_zero`. -/
+
+/-- **The cleaned Phase-7 cancellation `PhaseConvergenceW`** — engine form (b) on the
+genuinely-closed `Inv7Sum`, with `Φ = classMassN σ`.  `hClosed` (= `invClosed_Inv7Sum`)
+and `hmono` (= `potNonincrOn_classMassN`) are BOTH PROVED INTERNAL; only the drain
+`hstep` (now a σ-class-MASS drain, the Doty Lemma 7.4/7.5 floor) is carried.
+
+`Pre x = Inv7Sum n x ∧ classMassN σ x ≤ M₀`, `Post x = Inv7Sum n x ∧ classMassN σ x = 0`;
+the latter implies `minorityU σ x = 0` by `minorityU_eq_zero_of_classMassN_zero`. -/
+noncomputable def phase7Convergence'' (σ : Sign) (n : ℕ)
+    (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Inv7Sum n b → 1 ≤ classMassN σ b →
+      ((NonuniformMajority L K).transitionKernel b)
+        (OneSidedCancel.potDone (fun c => classMassN σ c))ᶜ ≤ q)
+    (M₀ t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.crude_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Inv7Sum (L := L) (K := K) n c)
+    (invClosed_Inv7Sum n)
+    (fun c => classMassN σ c)
+    (potNonincrOn_classMassN σ n)
+    q hstep M₀ t ε hε
+
+/-- **The Phase-7 post-condition is `NoMinority`.**  The cleaned engine's `Post`
+(`Inv7Sum ∧ classMassN σ = 0`) implies the genuine Phase-7 target `minorityU σ = 0`
+(`NoMinority σ`), via the mass→count bridge.  So driving `classMassN σ → 0` drives the
+minority count to `0`. -/
+theorem phase7Convergence''_post_noMinority (σ : Sign) (n : ℕ)
+    (c : Config (AgentState L K))
+    (hpost : Inv7Sum n c ∧ classMassN σ c = 0) :
+    NoMinority σ c :=
+  minorityU_eq_zero_of_classMassN_zero σ c hpost.2
+
 end Phase7Convergence
 
 end ExactMajority
