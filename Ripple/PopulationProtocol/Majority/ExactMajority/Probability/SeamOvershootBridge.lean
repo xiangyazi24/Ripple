@@ -836,24 +836,81 @@ theorem dispatch_left_not_clock_phase_eq (e f : AgentState L K) (q : ℕ)
         | ⟨6, _⟩ => Phase6Transition L K e f
         | ⟨7, _⟩ => Phase7Transition L K e f
         | ⟨8, _⟩ => Phase8Transition L K e f
-        | _ => (e, f)).1).phase.val = e.phase.val := by
-  have key : ∀ g : AgentState L K → AgentState L K × AgentState L K,
-      g e = (e, f) →
+        | _ => (e, f)).1).phase.val = q := by
+  rcases hq with h | h | h | h
+  · have hfe : e.phase = (⟨1, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    rw [show (Phase1Transition L K e f).1.phase.val = e.phase.val from
+      Phase1Transition_left_phase_eq_of_not_clock e f hc, heq, h]
+  · have hfe : e.phase = (⟨6, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    rw [show (Phase6Transition L K e f).1.phase.val = e.phase.val from
+      Phase6Transition_left_phase_eq_of_not_clock e f hc, heq, h]
+  · have hfe : e.phase = (⟨7, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    rw [show (Phase7Transition L K e f).1.phase.val = e.phase.val from
+      Phase7Transition_left_phase_eq_of_not_clock e f hc, heq, h]
+  · have hfe : e.phase = (⟨8, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    rw [show (Phase8Transition L K e f).1.phase.val = e.phase.val from
+      Phase8Transition_left_phase_eq_of_not_clock e f hc, heq, h]
+
+/-- **Left advance ⟹ source clock with zero counter (counter-reset destination).**  Under
+`Wf` on both inputs (and the no-overshoot phase ceiling `≤ p+1`), if `ep.1.phase = p+1 ∈
+{1,6,7,8}` and the LEFT `Transition` output advances beyond `p+1`, then `ep.1` is a CLOCK
+with `counter = 0`. -/
+theorem Transition_left_advance_imp_ep_clock_zero (a b : AgentState L K) (p : ℕ)
+    (hq : CounterResetDest (p + 1))
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha : a.phase.val ≤ p + 1) (hb : b.phase.val ≤ p + 1)
+    (hepphase : (phaseEpidemicUpdate L K a b).1.phase.val = p + 1)
+    (hadv : (Transition L K a b).1.phase.val > p + 1) :
+    (phaseEpidemicUpdate L K a b).1.role = .clock ∧
+      (phaseEpidemicUpdate L K a b).1.counter.val = 0 := by
+  set e := (phaseEpidemicUpdate L K a b).1 with hedef
+  set f := (phaseEpidemicUpdate L K a b).2 with hfdef
+  have hp1le8 : p + 1 ≤ 8 := by rcases hq with h | h | h | h <;> omega
+  -- Transition.1.phase = dispatch output phase
+  have hdispval : (Transition L K a b).1.phase.val =
       ((match e.phase with
         | ⟨1, _⟩ => Phase1Transition L K e f
         | ⟨6, _⟩ => Phase6Transition L K e f
         | ⟨7, _⟩ => Phase7Transition L K e f
         | ⟨8, _⟩ => Phase8Transition L K e f
-        | _ => (e, f)).1).phase.val = e.phase.val := fun _ _ => by trivial
-  rcases hq with h | h | h | h
-  · rw [show e.phase = (⟨1, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
-    exact Phase1Transition_left_phase_eq_of_not_clock e f hc
-  · rw [show e.phase = (⟨6, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
-    exact Phase6Transition_left_phase_eq_of_not_clock e f hc
-  · rw [show e.phase = (⟨7, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
-    exact Phase7Transition_left_phase_eq_of_not_clock e f hc
-  · rw [show e.phase = (⟨8, by omega⟩ : Fin 11) from Fin.ext (by rw [heq, h])]
-    exact Phase8Transition_left_phase_eq_of_not_clock e f hc
+        | _ => (e, f)).1).phase.val := by
+    -- only the {1,6,7,8} arms are reachable since e.phase = p+1 ∈ {1,6,7,8}
+    rw [show (Transition L K a b).1 = finishPhase10Entry L K e
+          (match e.phase with
+            | ⟨0, _⟩ => Phase0Transition L K e f
+            | ⟨1, _⟩ => Phase1Transition L K e f
+            | ⟨2, _⟩ => Phase2Transition L K e f
+            | ⟨3, _⟩ => Phase3Transition L K e f
+            | ⟨4, _⟩ => Phase4Transition L K e f
+            | ⟨5, _⟩ => Phase5Transition L K e f
+            | ⟨6, _⟩ => Phase6Transition L K e f
+            | ⟨7, _⟩ => Phase7Transition L K e f
+            | ⟨8, _⟩ => Phase8Transition L K e f
+            | ⟨9, _⟩ => Phase9Transition L K e f
+            | ⟨10, _⟩ => Phase10Transition L K e f
+            | _ => (e, f)).1 from rfl]
+    rw [finishPhase10Entry_phase_val]
+    rcases hq with h | h | h | h
+    · rw [show e.phase = (⟨1, by omega⟩ : Fin 11) from Fin.ext (by rw [hepphase, h])]
+    · rw [show e.phase = (⟨6, by omega⟩ : Fin 11) from Fin.ext (by rw [hepphase, h])]
+    · rw [show e.phase = (⟨7, by omega⟩ : Fin 11) from Fin.ext (by rw [hepphase, h])]
+    · rw [show e.phase = (⟨8, by omega⟩ : Fin 11) from Fin.ext (by rw [hepphase, h])]
+  rw [hdispval] at hadv
+  by_cases hc : e.role = .clock
+  · -- clock: output = std e; advance ⟹ counter 0
+    refine ⟨hc, ?_⟩
+    by_contra hctr
+    rw [dispatch_left_clock_eq_std e f (p + 1) hq hepphase hc] at hadv
+    rw [stdCounterSubroutine_phase_eq_of_counter_ne_zero e hctr, hepphase] at hadv
+    omega
+  · -- non-clock: phase preserved at p+1, contradicting the advance
+    exfalso
+    rw [dispatch_left_not_clock_phase_eq e f (p + 1) hq hepphase hc] at hadv
+    omega
 
 end SeamNoOvershoot
 
