@@ -1716,6 +1716,83 @@ theorem posPair_drop_prob (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ
   unfold clockPairRate Config.totalPairs
   exact le_refl _
 
+/-! ## Part 8 — Real-kernel E4-ready corollaries
+
+The engine (`timed_phase_progress_{tinyClock,bigClock}_on`) consumes `InvClosed`,
+`PotNonincrOn`, and a per-level `hdrop` carrying a UNIFORM rate `clockPairRate mC n`.
+We supply `Inv := AllClockGEpCard p n` (`AllClockGEp p` + fixed card `n`), which is
+one-step-closed; `hmono := clockCounterSumAt_PotNonincrOn`; and discharge `hdrop` from
+`posPair_drop_prob` via the carried floor `mC ≤ posClockCount p b` (the protocol-level
+"clock floor", the ONE probabilistic ingredient E4 supplies — `n/5 ≤ mC ≤ posCount`
+holds whp while the timed phase runs, not deterministically closed, so it enters as a
+hypothesis, NOT through `InvClosed`). -/
+
+/-- The closed engine invariant: all clocks at phase `≥ p`, fixed card `n`. -/
+def AllClockGEpCard (p n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  AllClockGEp (L := L) (K := K) p c ∧ c.card = n
+
+/-- `AllClockGEpCard p n` is one-step-support-closed (`AllClockGEp_absorbing` + card
+preservation). -/
+theorem AllClockGEpCard_InvClosed (p n : ℕ) (hp : 3 ≤ p) :
+    Engine.InvClosed (NonuniformMajority L K).transitionKernel
+      (AllClockGEpCard (L := L) (K := K) p n) := by
+  classical
+  intro b hb
+  obtain ⟨hbGE, hbcard⟩ := hb
+  show (NonuniformMajority L K).transitionKernel b
+    {x | ¬ AllClockGEpCard (L := L) (K := K) p n x} = 0
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ AllClockGEpCard (L := L) (K := K) p n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro c' hsupp hbad
+  apply hbad
+  refine ⟨AllClockGEp_absorbing (L := L) (K := K) p hp b c' hbGE hsupp, ?_⟩
+  rw [Protocol.stepDistOrSelf_support_card_eq (NonuniformMajority L K) b c' hsupp]; exact hbcard
+
+/-- **`hdrop` discharge.**  From the carried floor `mC ≤ posClockCount p b` on every
+`AllClockGEpCard p n`-state, `posPair_drop_prob` + `clockPairRate` monotonicity give the
+engine's per-level drop hypothesis with the UNIFORM rate `clockPairRate mC n`. -/
+theorem clockCounterSumAt_hdrop_of_floor (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (mC n : ℕ)
+    (hfloor : ∀ b : Config (AgentState L K), AllClockGEpCard (L := L) (K := K) p n b →
+      mC ≤ posClockCount (L := L) (K := K) p b) :
+    ∀ m : ℕ, ∀ b : Config (AgentState L K), AllClockGEpCard (L := L) (K := K) p n b →
+      clockCounterSumAt p b = m →
+      (NonuniformMajority L K).transitionKernel b
+          (Engine.potBelow (clockCounterSumAt p) m)ᶜ
+        ≤ 1 - clockPairRate mC n := by
+  classical
+  intro m b hb hbm
+  have hcard : b.card = n := hb.2
+  by_cases hc : 2 ≤ b.card
+  · have hdrop := posPair_drop_prob (L := L) (K := K) p hp b hc m hbm
+    -- dropBelow p m = potBelow (clockCounterSumAt p) m
+    have hset : dropBelow (L := L) (K := K) p m = Engine.potBelow (clockCounterSumAt p) m := by
+      unfold dropBelow Engine.potBelow; rfl
+    rw [hset] at hdrop
+    -- complement mass = 1 - mass; rate floor mC ≤ posCount, n = card
+    have hmeas : MeasurableSet (Engine.potBelow (clockCounterSumAt (L := L) (K := K) p) m) :=
+      Engine.potBelow_measurable _ _
+    rw [MeasureTheory.prob_compl_eq_one_sub hmeas]
+    have hmono := clockPairRate_mono_left mC (posClockCount (L := L) (K := K) p b) b.card
+      (hfloor b hb)
+    rw [hcard] at hmono
+    have hrate : clockPairRate mC n
+        ≤ (NonuniformMajority L K).transitionKernel b
+            (Engine.potBelow (clockCounterSumAt p) m) :=
+      le_trans hmono (by rw [← hcard] at hdrop ⊢; exact hdrop)
+    exact tsub_le_tsub_left hrate 1
+  · -- card < 2: only with n < 2; then mC ≤ posCount ≤ card < 2 ≤ ... rate uses n = card < 2
+    -- clockPairRate mC n with n = card; 1 - clockPairRate mC n ≤ 1 trivially when card < 2
+    have hn : n < 2 := by rw [← hcard]; omega
+    have hzero : clockPairRate mC n = 0 := by
+      unfold clockPairRate
+      have : n * (n - 1) = 0 := by omega
+      rw [this]; simp
+    rw [hzero, tsub_zero]
+    exact MeasureTheory.prob_le_one
+
 end ConditionalPhaseProgress
 
 end ExactMajority
