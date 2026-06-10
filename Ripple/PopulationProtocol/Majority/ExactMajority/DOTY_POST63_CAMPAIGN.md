@@ -384,6 +384,18 @@ C's clock-count concentration.
 
 ## Phase F — audit, headline, release  [~6–10 bricks]
 
+**F-prep INDEPENDENT AUDIT DONE 2026-06-10** → see `AUDIT_2026-06-10.md` (sibling file).
+Verdict: all 25 scope files axiom-clean + sorry-free (16 headline `#print axioms` =
+[propext, Classical.choice, Quot.sound]; source-grep clean on the 9 not-yet-rebuilt files). No
+vacuous capstone, no smuggled `True := trivial` (the 2 in-scope markers are honest status anchors),
+no overstatement in 12 spot-checked DONE-claims, cross-file `sideEps`/`heB`/`htB` feeders consistent,
+FALSE `hwin_all` genuinely retired (no scope file carries it). Consolidated open Phase-D/F surface =
+8 items (see AUDIT §6): the eight non-width `εside` feeders, the post-hour width mode, the per-phase
+drain rates `q`/`hstep` for phases 0/5/7/8, and the Lemma-5.2 clock floor `hfloor`. ONE shape to
+watch in Phase-D wiring: `ConditionalPhaseProgress.timed_phase_progress_real_*`'s `hfloor` (hwin_all
+shape — honest as a whp/E4 input, defect only if treated as deterministic-for-all-reachable). Recommend
+a confirming `#print axioms` pass on the 9 not-yet-rebuilt files after the next remote `lake build`.
+
 1. Repo-wide independent audit: axioms per theorem (not just the newest), no undischarged
    `_of_X`-style reduction hypotheses smuggling assumptions, no vacuous `True := trivial` markers
    standing in for content.

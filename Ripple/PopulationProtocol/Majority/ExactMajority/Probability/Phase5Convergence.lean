@@ -47,6 +47,8 @@ NEW file; no existing file is edited; no sorry/admit/axiom/native_decide.
 -/
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ReserveSampling
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EarlyDripMarked
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.WindowConcentration
 
 namespace ExactMajority
 
@@ -644,6 +646,149 @@ theorem unsampledReserveU_drop_prob_rect5 (n : ℕ) (hn : 2 ≤ n)
     exact unsampledReserveU_stepOrSelf_drop n c hInv r m happ hrmem.2 hmmem.2
   · rw [sum_interactionCount_cross_disjoint5 c _ _
         unsampledReserves_usefulMains_disjoint]
+
+/-! ## Part D'' — the sampled-class RISE rectangle and the in-house lower-MGF drift.
+
+The quantity the Chernoff side controls is `sampledReserveClassU i` — the count of Reserves
+whose recorded sample is exponent index `i`.  When an unsampled Reserve `r` (`hour = L`) meets a
+class-`i` biased Main `m` (`bias = .dyadic σ i`, `i.val < L`), `r` samples `i`, so
+`sampledReserveClassU i` RISES by one.  The rise rectangle `unsampledReserves × classMains i`
+feeds a `rise`-probability floor; the in-house exponential-MGF on the deficit potential
+`exp(−s·sampledReserveClassU i)` then contracts via `EarlyDripMarked.mgf_one_step_lower` (the
+monotone-counter lower MGF), i.e. the genuinely-probabilistic drift. -/
+
+/-- `countP sampledReserveClass` over a two-element pair as a sum of indicators. -/
+theorem countP_sampledReserveClass_pair (i : Fin (L + 1)) (x y : AgentState L K) :
+    Multiset.countP (fun a => sampledReserveClass i a) ({x, y} : Multiset (AgentState L K))
+      = (if sampledReserveClass i x then 1 else 0)
+        + (if sampledReserveClass i y then 1 else 0) := by
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl]
+  rw [Multiset.countP_cons, Multiset.countP_cons, Multiset.countP_zero]; ring
+
+/-- The class-`i` biased Mains (sampling against one lands a Reserve in class `i`). -/
+def classMains (σ : Sign) (i : Fin (L + 1)) (a : AgentState L K) : Prop :=
+  a.role = Role.main ∧ a.bias = Bias.dyadic σ i
+
+instance (σ : Sign) (i : Fin (L + 1)) (a : AgentState L K) :
+    Decidable (classMains σ i a) := by unfold classMains; infer_instance
+
+/-- **Per-pair RISE of `sampledReserveClass i` under `Phase5Transition`.**  An unsampled Reserve
+`r` meeting a class-`i` biased Main `m` (index `i.val < L`) leaves the pair with exactly one
+class-`i` Reserve (the freshly-sampled `r`), up from zero. -/
+theorem Phase5Transition_sampledClass_pair_rise (σ : Sign) (i : Fin (L + 1)) (hiL : i.val < L)
+    (r m : AgentState L K) (hr : unsampled r) (hm : classMains σ i m) :
+    Multiset.countP (fun a => sampledReserveClass i a) ({r, m} : Multiset (AgentState L K)) + 1
+      ≤ Multiset.countP (fun a => sampledReserveClass i a)
+          ({(Phase5Transition L K r m).1, (Phase5Transition L K r m).2}
+            : Multiset (AgentState L K)) := by
+  classical
+  obtain ⟨hrole, hhour⟩ := hr
+  obtain ⟨hmrole, hmb⟩ := hm
+  -- RHS-before pair (input): r not class i (hour=L≠i<L), m not reserve ⟹ count 0.
+  have hr_not : ¬ sampledReserveClass i r := by
+    intro hu; have : r.hour.val = i.val := hu.2; rw [hhour] at this; omega
+  have hm_not : ¬ sampledReserveClass i m := by
+    intro hu; rw [hu.1] at hmrole; exact absurd hmrole (by decide)
+  have hlhs : Multiset.countP (fun a => sampledReserveClass i a)
+      ({r, m} : Multiset (AgentState L K)) = 0 := by
+    rw [countP_sampledReserveClass_pair, if_neg hr_not, if_neg hm_not]
+  -- the firing form.
+  have hbias_ne : m.bias ≠ Bias.zero := by rw [hmb]; exact fun h => by simp at h
+  have hguard : r.role = Role.reserve ∧ m.role = Role.main ∧ m.bias ≠ Bias.zero :=
+    ⟨hrole, hmrole, hbias_ne⟩
+  have hr_nc : ¬ ({ r with hour := exponentOf L m.bias } : AgentState L K).role = Role.clock := by
+    show r.role ≠ Role.clock; rw [hrole]; decide
+  have hm_not_clock : ¬ m.role = Role.clock := by rw [hmrole]; decide
+  have hfire : Phase5Transition L K r m
+      = ({ r with hour := exponentOf L m.bias }, m) := by
+    unfold Phase5Transition
+    simp only [if_pos hguard, if_pos hhour]
+    rw [if_neg hr_nc, if_neg hm_not_clock]
+  rw [hfire, hlhs]
+  have hexp : exponentOf L m.bias = i := by rw [hmb]; rfl
+  -- output1 = {r with hour := i} IS class i; output2 = m not class i.
+  have hout1 : sampledReserveClass i ({ r with hour := exponentOf L m.bias } : AgentState L K) := by
+    refine ⟨hrole, ?_⟩; rw [hexp]
+  rw [countP_sampledReserveClass_pair, if_pos hout1, if_neg hm_not]
+
+/-- For a Reserve with `hour ≠ L`, the first `Phase5Transition` output keeps its `hour` (the
+sampling branch fires only on `hour = L`; a Reserve is never a clock). -/
+theorem Phase5Transition_fst_hour_eq_of_reserve_ne_L (s t : AgentState L K)
+    (hrole : s.role = Role.reserve) (hne : s.hour.val ≠ L) :
+    (Phase5Transition L K s t).1.hour = s.hour := by
+  have hr_nc : ¬ s.role = Role.clock := by rw [hrole]; decide
+  unfold Phase5Transition
+  simp only
+  by_cases hb1 : s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero
+  · rw [if_pos hb1, if_neg hne]
+    rw [if_neg hr_nc]
+  · rw [if_neg hb1]
+    by_cases hb2 : t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero
+    · -- s.role = main contradicts hrole = reserve.
+      exact absurd hb2.2.1 (by rw [hrole]; decide)
+    · rw [if_neg hb2, if_neg hr_nc]
+
+/-- Symmetric: a Reserve `t` with `hour ≠ L` keeps its `hour` in the second output. -/
+theorem Phase5Transition_snd_hour_eq_of_reserve_ne_L (s t : AgentState L K)
+    (hrole : t.role = Role.reserve) (hne : t.hour.val ≠ L) :
+    (Phase5Transition L K s t).2.hour = t.hour := by
+  have ht_nc : ¬ t.role = Role.clock := by rw [hrole]; decide
+  unfold Phase5Transition
+  simp only
+  by_cases hb1 : s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero
+  · exact absurd hb1.2.1 (by rw [hrole]; decide)
+  · rw [if_neg hb1]
+    by_cases hb2 : t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero
+    · rw [if_pos hb2, if_neg hne, if_neg ht_nc]
+    · rw [if_neg hb2, if_neg ht_nc]
+
+/-- **Per-pair NON-DECREASE of `sampledReserveClass i` under `Phase5Transition`.**  A class-`i`
+Reserve (`hour = i ≠ L`) is frozen by the sampling rule (the guard fires only on `hour = L`),
+so the pair's class-`i` count never drops.  Forward-stability: a class-`i` input maps to a
+class-`i` output. -/
+theorem Phase5Transition_sampledClass_pair_ge (i : Fin (L + 1)) (s t : AgentState L K)
+    (hs : s.phase.val = 5) (ht : t.phase.val = 5) :
+    Multiset.countP (fun a => sampledReserveClass i a) ({s, t} : Multiset (AgentState L K))
+      ≤ Multiset.countP (fun a => sampledReserveClass i a)
+          ({(Phase5Transition L K s t).1, (Phase5Transition L K s t).2}
+            : Multiset (AgentState L K)) := by
+  classical
+  rw [countP_sampledReserveClass_pair, countP_sampledReserveClass_pair]
+  -- forward-stability via role/hour: a class-i input gives a class-i output.
+  -- Output role = input role (Phase5Transition_fst/snd_role_eq); output hour preserved when the
+  -- sampling guard doesn't fire (which it can't on hour = i ≠ L).
+  have hfwd1 : sampledReserveClass i s → sampledReserveClass i (Phase5Transition L K s t).1 := by
+    intro hsi
+    have hrole : (Phase5Transition L K s t).1.role = s.role :=
+      Phase5Transition_fst_role_eq (L := L) (K := K) s t hs
+    have hhour : (Phase5Transition L K s t).1.hour.val = s.hour.val := by
+      -- s is a class-i reserve: hour.val = i.val.  Backward-stability of the sampled value:
+      -- the only way the first output's hour differs from s is the sampling branch, which
+      -- requires s.hour.val = L; but s.hour.val = i.val.  We use the fst role/hour disjunct.
+      rcases Phase5Transition_fst_role_hour (L := L) (K := K) s t with hclk | ⟨_, hh⟩
+      · -- output is clock; but output role = s.role = reserve ⟹ contradiction.
+        rw [hrole, hsi.1] at hclk; exact absurd hclk (by decide)
+      · -- hh : output.hour.val = L → s.hour.val = L.  We need output.hour.val = s.hour.val.
+        -- The first output's hour is either s.hour (no-op/clock-free) or exponentOf (sampling).
+        -- Use the explicit fst hour computation.
+        exact Phase5Transition_fst_hour_eq_of_not_unsampled (L := L) (K := K) s t hs
+          (by intro hu; have := hu.2; rw [hsi.2] at this; omega)
+    exact ⟨by rw [hrole]; exact hsi.1, by rw [hhour]; exact hsi.2⟩
+  have hfwd2 : sampledReserveClass i t → sampledReserveClass i (Phase5Transition L K s t).2 := by
+    intro hti
+    have hrole : (Phase5Transition L K s t).2.role = t.role :=
+      Phase5Transition_snd_role_eq (L := L) (K := K) s t ht
+    have hhour : (Phase5Transition L K s t).2.hour.val = t.hour.val :=
+      Phase5Transition_snd_hour_eq_of_not_unsampled (L := L) (K := K) s t ht
+        (by intro hu; have := hu.2; rw [hti.2] at this; omega)
+    exact ⟨by rw [hrole]; exact hti.1, by rw [hhour]; exact hti.2⟩
+  gcongr
+  · by_cases h : sampledReserveClass i s
+    · rw [if_pos h, if_pos (hfwd1 h)]
+    · rw [if_neg h]; positivity
+  · by_cases h : sampledReserveClass i t
+    · rw [if_pos h, if_pos (hfwd2 h)]
+    · rw [if_neg h]; positivity
 
 /-! ### The Phase-5 post predicate and the assembled `PhaseConvergenceW`.
 
