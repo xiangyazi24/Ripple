@@ -512,7 +512,7 @@ theorem timed_phase_progress_tinyClock [DiscreteMeasurableSpace α]
         rw [Nat.cast_one, div_one]
     _ ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
         gcongr
-        exact_mod_cast Nat.mul_le_mul_left n (by omega : n - 1 ≤ n)
+        · exact_mod_cast (by omega : n - 1 ≤ n)
 
 end ConditionalPhaseProgress
 
