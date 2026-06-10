@@ -175,14 +175,14 @@ theorem Phase6Transition_right_clock (s c : AgentState L K) (hc : c.role = .cloc
 theorem Phase7Transition_right_clock (s c : AgentState L K) (hc : c.role = .clock) :
     (Phase7Transition L K s c).2 = stdCounterSubroutine L K c := by
   unfold Phase7Transition
-  simp only [hc, reduceCtorEq, and_false, false_and, ↓reduceIte]
+  simp only [hc, reduceCtorEq, and_false, ↓reduceIte]
 
 /-- For a clock RESPONDER, the Phase-8 dispatch RIGHT output equals
 `stdCounterSubroutine c`. -/
 theorem Phase8Transition_right_clock (s c : AgentState L K) (hc : c.role = .clock) :
     (Phase8Transition L K s c).2 = stdCounterSubroutine L K c := by
   unfold Phase8Transition
-  simp only [hc, reduceCtorEq, and_false, false_and, ↓reduceIte]
+  simp only [hc, reduceCtorEq, and_false, ↓reduceIte]
 
 end SeamNoOvershoot
 

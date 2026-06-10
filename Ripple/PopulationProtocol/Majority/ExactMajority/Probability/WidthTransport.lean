@@ -229,6 +229,82 @@ theorem goodFrontWidth_of_checkpoint_profile_climb_transport
       (base + j₀ + W₂ + W₃) i hle c₁
     omega
 
+/-- **Stage 2b (width-to-width transport).**  The cleaner transport the checkpoint consumer needs:
+from a checkpoint that ALREADY satisfies the scalar `GoodFrontWidth W` (the `r = 0` checkpoint feeder
+`widthFail_chk_concrete` discharges its complement), level-wise monotonicity, and the cross-config
+`CrossEmptyClimbGood`, the endpoint satisfies `GoodFrontWidth (W + W₃)`.
+
+Mechanism: at the contradiction floor `10·rBeyond base c₁ < card`, monotonicity pushes the bulk below
+`base` at the checkpoint `c₀`; the checkpoint width invariant's contrapositive empties level `base+W`
+at `c₀`; `CrossEmptyClimbGood` transports the emptiness `W₃` levels up at `c₁`; antitonicity closes.
+This consumes the checkpoint `GoodFrontWidth` directly (no profile/climb hypotheses), so the
+checkpoint feeder is exactly `widthFail_chk_concrete`. -/
+theorem goodFrontWidth_transport_of_width
+    (W W₃ : ℕ)
+    (c₀ c₁ : Config (AgentState L K))
+    (hcard : c₁.card = c₀.card)
+    (hmono : ∀ T, rBeyond (L := L) (K := K) T c₀ ≤ rBeyond (L := L) (K := K) T c₁)
+    (hgood₀ : GoodFrontWidth (L := L) (K := K) W c₀)
+    (hcross : CrossEmptyClimbGood (L := L) (K := K) c₀.card W₃ c₀ c₁) :
+    GoodFrontWidth (L := L) (K := K) (W + W₃) c₁ := by
+  intro i hi
+  by_cases hiW : i ≤ W + W₃
+  · -- i small: base = 0; rBeyond 0 c₁ = card needs all-clock at c₁, derived from hmono and c₀…
+    -- but we have no all-clock hyp.  Use instead the bulk monotonicity contrapositive directly:
+    -- it suffices to show card ≤ 10 * rBeyond (i - (W+W₃)) c₁.  With i - (W+W₃) = 0 and rBeyond 0
+    -- antitone-dominating every level, rBeyond 0 c₁ ≥ rBeyond i c₁ > 0, but we need the full card.
+    -- Provide it via hmono from rBeyond 0 c₀: rBeyond 0 c₁ ≥ rBeyond 0 c₀.  We still need
+    -- rBeyond 0 c₀ relation to card.  Without all-clock we cannot conclude; so route through the
+    -- contradiction branch uniformly instead.
+    by_contra hcon
+    rw [not_le] at hcon
+    have hzero : i - (W + W₃) = 0 := by omega
+    rw [hzero] at hcon
+    -- rBeyond i c₁ ≤ rBeyond 0 c₁ (antitone), and rBeyond 0 c₁ ≥ rBeyond 0 c₀.
+    -- We need a lower bound on rBeyond 0 c₁; use that 0 < rBeyond i c₁ and antitone gives
+    -- 0 < rBeyond 0 c₁, then GoodFrontWidth at c₀? Not directly.  Instead empty level W at c₀.
+    -- Run the same empty-and-transport argument with base = 0.
+    have hanti0 := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K) 0 i (Nat.zero_le _) c₁
+    have hbulk0 : 10 * rBeyond (L := L) (K := K) 0 c₁ < c₀.card := by rw [hcard] at hcon; omega
+    have hgw0 : rBeyond (L := L) (K := K) W c₀ = 0 := by
+      by_contra hpos
+      have hpos' : 0 < rBeyond (L := L) (K := K) W c₀ := Nat.pos_of_ne_zero hpos
+      have := hgood₀ W hpos'
+      simp only [Nat.sub_self] at this
+      have hm := hmono 0
+      omega
+    have hcrossEmpty : rBeyond (L := L) (K := K) (0 + W + W₃) c₁ = 0 := by
+      have := hcross 0 (by simpa using hgw0) (by simpa using hbulk0)
+      simpa using this
+    have hle : 0 + W + W₃ ≤ i := by omega
+    have hanti := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K) (0 + W + W₃) i hle c₁
+    omega
+  · by_contra hcon
+    rw [not_le] at hcon  -- 10 * rBeyond (i - (W+W₃)) c₁ < c₁.card
+    set base := i - (W + W₃) with hbase
+    -- monotonicity pushes the bulk below `base` at the checkpoint.
+    have hbasec₀ : 10 * rBeyond (L := L) (K := K) base c₀ < c₀.card := by
+      have := hmono base; rw [hcard] at hcon; omega
+    -- checkpoint width contrapositive: level base + W is empty at c₀.
+    have hgwEmpty : rBeyond (L := L) (K := K) (base + W) c₀ = 0 := by
+      by_contra hpos
+      have hpos' : 0 < rBeyond (L := L) (K := K) (base + W) c₀ := Nat.pos_of_ne_zero hpos
+      have hw := hgood₀ (base + W) hpos'
+      simp only [Nat.add_sub_cancel] at hw
+      omega
+    -- the endpoint bulk test at base + W is below card (antitone from base at c₁).
+    have hbulkc₁ : 10 * rBeyond (L := L) (K := K) (base + W) c₁ < c₀.card := by
+      have hanti := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K)
+        base (base + W) (by omega) c₁
+      rw [hcard] at hcon; omega
+    -- CrossEmptyClimbGood transports the emptiness W₃ levels up at c₁.
+    have hcrossEmpty : rBeyond (L := L) (K := K) (base + W + W₃) c₁ = 0 :=
+      hcross (base + W) hgwEmpty hbulkc₁
+    have hle : base + W + W₃ ≤ i := by omega
+    have hanti := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K)
+      (base + W + W₃) i hle c₁
+    omega
+
 end ClockFrontProfile
 
 /-! ## Stage 3 — the probabilistic complement `CrossEmptyClimbBad` + `crossEmptyClimb_whp`. -/
