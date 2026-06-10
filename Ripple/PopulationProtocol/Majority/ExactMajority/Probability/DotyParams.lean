@@ -1414,6 +1414,126 @@ theorem goodFrontWidth_whp_final (n : ℕ) (hn : N₀ ≤ n)
   exact goodFrontWidth_whp_concrete n hn W₂ (w n * KK L K) mc₀
     ((Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * deltaB n + (eB + tB))) climbB hwfp hclimbB
 
+/-! ## Part 16 — `_final2`: `heB` discharged to the uniform side-budget `sideB`.
+
+The §6 `_final` carries `heB` (the hour-escape mass) as a named input.  `HourEscape.heB_of_sideB`
+discharges it from a GATED start (`mc₀ ∈ taintedGate n`, i.e. `card = n ∧ AllClockP3`) to a single
+uniform side-budget `sideB` bounding the REAL-kernel `FrontSync`-failure prefix sum
+`∑_{τ < w·KK} (realκ^τ) (erase mc₀) {¬ FrontSync}` — the marked one-step closure closes at `q = 0`
+(`HourEscape.markedK_hstep_q0`), so the entire escape is that ONE side-budget family (the same
+`FrontSync`-concentration feeder the clock chain consumes).
+
+The start regime CHANGES from `_final`'s window-OPEN start (`hge3 ∧ hnotP3`, recInv via
+`recInv_of_window_closed`) to the hour-window start (`hgate ∧ hrecInv`, recInv supplied by the
+caller via `recInv_of_floor`).  This is the honest regime for the hour-escape analysis: heB is only
+meaningful once the hour window is entered.  The `_final` global-start heB stays as a separate
+burn-in feeder (the gap to campaign, §below). -/
+
+open ClockFrontProfile in
+/-- **`windowedFrontProfile_whp_final2`** — `windowedFrontProfile_whp_packaged` with `hB` discharged
+by `hB_params` and `heB` discharged by `HourEscape.heB_of_sideB` (gated start, single `sideB`
+feeder).  Remaining feeders: `sideB` (the `FrontSync`-failure prefix budget) and `htB` (the explicit
+taint tail). -/
+theorem windowedFrontProfile_whp_final2 (n : ℕ) (hn : N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hgate : mc₀ ∈ taintedGate (L := L) (K := K) n)
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (hrecInv : ∀ T < Tcap, recInv (L := L) (K := K) T (θn n) n (9/10) mc₀)
+    (sideB tB : ℝ≥0∞)
+    (hside : ∀ T < Tcap,
+      ∑ τ ∈ Finset.range (w n * KK L K),
+        ((NonuniformMajority L K).transitionKernel ^ τ)
+          (eraseConfig (L := L) (K := K) mc₀)
+          (HourSideBad (L := L) (K := K)) ≤ sideB)
+    (htB : ∀ T < Tcap,
+      ENNReal.ofReal
+        (Real.exp (σ (L := L) (K := K) n * (1 + 4 / (n : ℝ)) ^ (w n * KK L K)
+            * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+          + 2 * σ (L := L) (K := K) n * (1 + 4 / (n : ℝ)) ^ (w n * KK L K)
+              * ((θn n : ℝ) / (n : ℝ)) ^ 2 * ((w n * KK L K : ℕ) : ℝ)
+          - σ (L := L) (K := K) n * ((tt n + 1 : ℕ) : ℝ))) ≤ tB) :
+    ((NonuniformMajority L K).transitionKernel ^ (w n * KK L K))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c}
+      ≤ (Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * deltaB n + (sideB + tB)) := by
+  classical
+  have hset : {c : Config (AgentState L K) | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+        ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c}
+      ⊆ {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+          (∀ T, θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+            (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt n : ℝ)
+              ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+        ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c} := by
+    intro c hc
+    obtain ⟨⟨hcardc, hP3⟩, hwfp⟩ := hc
+    exact ⟨⟨hcardc, hP3, neg_params n hn c hcardc⟩, hwfp⟩
+  refine le_trans (measure_mono hset) ?_
+  exact windowedFrontProfile_whp_packaged (L := L) (K := K) (θn n) n (two_le n hn) (9/10) (w n)
+    (θ n) (θ_pos n hn) (fun _ => deltaB n) (hB_params n hn)
+    (σ (L := L) (K := K) n) (σ_pos n hn) (KK L K) (hsmall_eq (L := L) (K := K) n hn)
+    (tt n) Tcap hcap mc₀ hrecInv (fun T _ => hmark_params mc₀ hclean T)
+    (deltaB n) sideB tB (fun _ _ => le_refl _)
+    (fun T hT => heB_of_sideB (L := L) (K := K) n T (θn n) (w n * KK L K) mc₀ hgate sideB
+      (hside T hT))
+    htB
+
+open ClockFrontProfile in
+/-- **`goodFrontWidth_whp_final2`** — the moving-frame width invariant whp, with both `hB` and `heB`
+discharged: `heB` via the gated-start single side-budget `sideB` (`heB_of_sideB`).  Mirrors
+`goodFrontWidth_whp_final`; the WindowedFrontProfile leg now comes from
+`windowedFrontProfile_whp_final2`. -/
+theorem goodFrontWidth_whp_final2 (n : ℕ) (hn : N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hgate : mc₀ ∈ taintedGate (L := L) (K := K) n)
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (hrecInv : ∀ T < Tcap, recInv (L := L) (K := K) T (θn n) n (9/10) mc₀)
+    (sideB tB : ℝ≥0∞)
+    (hside : ∀ T < Tcap,
+      ∑ τ ∈ Finset.range (w n * KK L K),
+        ((NonuniformMajority L K).transitionKernel ^ τ)
+          (eraseConfig (L := L) (K := K) mc₀)
+          (HourSideBad (L := L) (K := K)) ≤ sideB)
+    (htB : ∀ T < Tcap,
+      ENNReal.ofReal
+        (Real.exp (σ (L := L) (K := K) n * (1 + 4 / (n : ℝ)) ^ (w n * KK L K)
+            * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+          + 2 * σ (L := L) (K := K) n * (1 + 4 / (n : ℝ)) ^ (w n * KK L K)
+              * ((θn n : ℝ) / (n : ℝ)) ^ 2 * ((w n * KK L K : ℕ) : ℝ)
+          - σ (L := L) (K := K) n * ((tt n + 1 : ℕ) : ℝ))) ≤ tB)
+    (W₂ : ℕ) (climbB : ℝ≥0∞)
+    (hclimbB : ((NonuniformMajority L K).transitionKernel ^ (w n * KK L K))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+          ∧ ¬ ClimbBound (L := L) (K := K) (θ n) W₂ c} ≤ climbB) :
+    ((NonuniformMajority L K).transitionKernel ^ (w n * KK L K))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt n : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ GoodFrontWidth (L := L) (K := K)
+              (FrontTail.frontWidthBound n + W₂) c}
+      ≤ ((Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * deltaB n + (sideB + tB))) + climbB := by
+  classical
+  have hwfp : ((NonuniformMajority L K).transitionKernel ^ (w n * KK L K))
+      (eraseConfig (L := L) (K := K) mc₀)
+      {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+          (∀ T, θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+            (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt n : ℝ)
+              ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+        ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c}
+      ≤ (Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * deltaB n + (sideB + tB)) := by
+    refine le_trans (measure_mono ?_)
+      (windowedFrontProfile_whp_final2 n hn mc₀ hgate hclean Tcap hcap hrecInv
+        sideB tB hside htB)
+    intro c hc
+    exact ⟨⟨hc.1.1, hc.1.2.1⟩, hc.2⟩
+  exact goodFrontWidth_whp_concrete n hn W₂ (w n * KK L K) mc₀
+    ((Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * deltaB n + (sideB + tB))) climbB hwfp hclimbB
+
 end DotyParams
 
 end ExactMajority

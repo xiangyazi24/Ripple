@@ -3902,5 +3902,42 @@ theorem crCount_config_decrease_of_phase0_cr_pair
     _ = crCount (L := L) (K := K) (c - {s, t} + {s, t}) := (crCount_add _ _).symm
     _ = crCount (L := L) (K := K) c := by rw [h_restore]
 
+/-! ## Phase C-1 (relay 11) — Stage-2 gate, escape-zero, milestone instance, and composition.
+
+The Stage-2 `KernelMilestone` runs on the gate `noMCRShell n = {card = n ∧ roleMCRCount = 0}`,
+which is **genuinely absorbing** under the real kernel: from a no-MCR pair, no rule produces an
+MCR (`Phase0Transition_first/second_no_mcr`), so `roleMCRCount` stays `0`; `Transition` preserves
+`card`.  Hence the killed-kernel floor-escape mass `(killK_now K G ^ t)(some c₀){none}` is
+identically `0` (no alive state ever leaves the gate), and the Stage-2 `progress` rate (the R4
+`crCount`-diagonal) carries the milestone family down to `crCount ≤ 1` with NO floor obligation. -/
+
+/-- `roleMCRCount` of a pair, as a sum of role indicators (clone of `crCount_pair'`). -/
+theorem roleMCRCount_pair' (a b : AgentState L K) :
+    roleMCRCount (L := L) (K := K) ({a, b} : Config (AgentState L K)) =
+      (if a.role = .mcr then 1 else 0) + (if b.role = .mcr then 1 else 0) := by
+  show Multiset.countP (fun y => y.role = .mcr) ({a} + {b}) = _
+  rw [Multiset.countP_add, Multiset.countP_eq_card_filter, Multiset.countP_eq_card_filter]
+  by_cases ha : a.role = .mcr <;> by_cases hb : b.role = .mcr <;>
+    simp [ha, hb, Multiset.filter_singleton]
+
+/-- `roleMCRCount` additivity (it is a `Multiset.countP`). -/
+theorem roleMCRCount_add (c₁ c₂ : Config (AgentState L K)) :
+    roleMCRCount (L := L) (K := K) (c₁ + c₂) =
+      roleMCRCount (L := L) (K := K) c₁ + roleMCRCount (L := L) (K := K) c₂ := by
+  unfold roleMCRCount; rw [Multiset.countP_add]
+
+/-- **Per-pair no-MCR closure (deterministic).**  If neither input agent is `RoleMCR`,
+neither `Phase0Transition` output is `RoleMCR`, so the output pair carries `roleMCRCount = 0`.
+This is the *absorbing* atom for the Stage-2 gate: a config with no MCR can never reacquire one,
+because no rule produces an MCR (the only MCR-producers, R1/R2, need an MCR input). -/
+theorem Phase0Transition_roleMCRCount_noMCR_pair (s t : AgentState L K)
+    (hs : s.role ≠ .mcr) (ht : t.role ≠ .mcr) :
+    roleMCRCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} :
+          Config (AgentState L K)) = 0 := by
+  rw [roleMCRCount_pair']
+  rw [if_neg (Phase0Transition_first_no_mcr (L := L) (K := K) s t hs),
+      if_neg (Phase0Transition_second_no_mcr (L := L) (K := K) s t ht)]
+
 end RoleSplitConcentration
 end ExactMajority
