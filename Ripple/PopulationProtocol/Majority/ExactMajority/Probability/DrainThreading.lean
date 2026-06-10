@@ -135,6 +135,73 @@ theorem phase8_hstep_of_struct_one {L K : ℕ} (σ : Sign) (n : ℕ) (hn : 2 ≤
   rw [hdone_eq]
   exact phase8_hdrop_of_struct σ n 1 hn b hb8 hb1 i E hmin helim
 
+/-! ## Part C — Phase 7 (`classMassN σ`, `Inv7Sum`, α = 4/15).
+
+The carried eliminator floor (Doty Lemma 7.4 `elimGap1 ≥ 0.8·mainCount ≥ 4n/15`) supplies,
+at a gap-1 witness pair of levels `(i, j)` with `j = i + 1`, an eliminator margin
+`(elimGap1 σ i).sum count ≥ E` and at least one minority at the larger level `j`
+(`(minorityAt7 σ j).sum count ≥ 1`).  Threaded through `classMassN_drop_prob_rect7`, this
+yields the drop floor `ofReal(E/(n(n−1))) ≤ classMass-drop-mass`, which the existing
+packagers `classMassN_hdrop_of_floor7` (levels) / `classMassN_hstep_of_floor7` (crude
+`m = 1`) turn into the engine `hdrop` / `hstep`. -/
+
+/-- **Phase 7 — structural floor ⟹ concrete σ-class-mass drop floor.**  At a gap-1 witness
+`(i, j=i+1)` with `≥ 1` minority at `j` and eliminator margin `≥ E` at `i`, the one-step
+drop probability of `classMassN σ` is `≥ ofReal(E/(n(n−1)))`. -/
+theorem phase7_drop_floor_of_struct {L K : ℕ} (σ : Sign) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : Phase7Convergence.Phase7AllMain n c)
+    (i j : Fin (L + 1)) (hg1 : i.val + 1 = j.val) (E : ℕ)
+    (hmin : 1 ≤ (Phase7Convergence.minorityAt7 (L := L) (K := K) σ j).sum c.count)
+    (helim : E ≤ (Phase7Convergence.elimGap1 (L := L) (K := K) σ i).sum c.count) :
+    ENNReal.ofReal ((E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Phase7Convergence.classMassN σ c' + 1 ≤ Phase7Convergence.classMassN σ c} := by
+  refine le_trans ?_ (Phase7Convergence.classMassN_drop_prob_rect7 σ n hn c hInv i j hg1)
+  have hprod : (E : ℕ) ≤
+      (Phase7Convergence.elimGap1 (L := L) (K := K) σ i).sum c.count *
+        (Phase7Convergence.minorityAt7 (L := L) (K := K) σ j).sum c.count := by
+    calc (E : ℕ) ≤ E * 1 := by omega
+      _ ≤ E * (Phase7Convergence.minorityAt7 (L := L) (K := K) σ j).sum c.count :=
+          Nat.mul_le_mul_left _ hmin
+      _ ≤ (Phase7Convergence.elimGap1 (L := L) (K := K) σ i).sum c.count *
+            (Phase7Convergence.minorityAt7 (L := L) (K := K) σ j).sum c.count :=
+          Nat.mul_le_mul_right _ helim
+  have hnR : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  apply DrainThreading.ofReal_div_le_of_num_le _ (by positivity) (by nlinarith)
+  exact_mod_cast hprod
+
+/-- **Phase 7 — the levels-engine `hdrop` from the structural floor.** -/
+theorem phase7_hdrop_of_struct {L K : ℕ} (σ : Sign) (n m : ℕ) (hn : 2 ≤ n)
+    (b : Config (AgentState L K)) (hb7 : Phase7Convergence.Phase7AllMain n b)
+    (hbm : Phase7Convergence.classMassN σ b = m)
+    (i j : Fin (L + 1)) (hg1 : i.val + 1 = j.val) (E : ℕ)
+    (hmin : 1 ≤ (Phase7Convergence.minorityAt7 (L := L) (K := K) σ j).sum b.count)
+    (helim : E ≤ (Phase7Convergence.elimGap1 (L := L) (K := K) σ i).sum b.count) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (Phase7Convergence.classMassN σ) m)ᶜ
+      ≤ 1 - ENNReal.ofReal ((E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) :=
+  Phase7Convergence.classMassN_hdrop_of_floor7 σ m
+    (ENNReal.ofReal ((E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))) b hbm
+    (phase7_drop_floor_of_struct σ n hn b hb7 i j hg1 E hmin helim)
+
+/-- **Phase 7 — the crude-engine `hstep` from the structural floor, at `m = 1`.**  At
+`classMassN σ b = 1` the strict-drop event reaches `potDone`, so the structural floor gives
+the crude `hstep` failure `(potDone)ᶜ ≤ 1 − ofReal(E/(n(n−1)))`.  (For `classMassN σ b ≥ 2`
+a single cancel drops the mass by `≥ 1` but not to `0`, so the crude `hstep` is structurally
+vacuous there; the honest multi-level mass drain uses `phase7_hdrop_of_struct` + levels.) -/
+theorem phase7_hstep_of_struct_one {L K : ℕ} (σ : Sign) (n : ℕ) (hn : 2 ≤ n)
+    (b : Config (AgentState L K)) (hb7 : Phase7Convergence.Phase7AllMain n b)
+    (hb1 : Phase7Convergence.classMassN σ b = 1)
+    (i j : Fin (L + 1)) (hg1 : i.val + 1 = j.val) (E : ℕ)
+    (hmin : 1 ≤ (Phase7Convergence.minorityAt7 (L := L) (K := K) σ j).sum b.count)
+    (helim : E ≤ (Phase7Convergence.elimGap1 (L := L) (K := K) σ i).sum b.count) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => Phase7Convergence.classMassN σ c))ᶜ
+      ≤ 1 - ENNReal.ofReal ((E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) :=
+  Phase7Convergence.classMassN_hstep_of_floor7 σ
+    (ENNReal.ofReal ((E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))) b hb1
+    (phase7_drop_floor_of_struct σ n hn b hb7 i j hg1 E hmin helim)
+
 end DrainThreading
 
 end ExactMajority

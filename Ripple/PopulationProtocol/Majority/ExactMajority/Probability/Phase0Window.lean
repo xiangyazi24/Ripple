@@ -737,22 +737,36 @@ theorem clockCounterPotential_drift_affine (s : ℝ) (hs : 0 ≤ s)
     rw [Finset.sum_congr rfl (fun pair _ => hsplit pair), Finset.sum_add_distrib]
     rw [sum_fst_interactionProb c hc2 (clockSummand (L := L) (K := K) s),
         sum_snd_interactionProb c hc2 (clockSummand (L := L) (K := K) s)]
-    rw [hcard]
+    rw [hcard]; rfl
   rw [hΦsum, hMsum, hmid]
-  -- 4) the affine recombination: Φ + (eˢ-1)·(2Φ/n) + M ≤ ofReal(1+2(eˢ-1)/n)·Φ + M.
-  gcongr ?_ + M
-  -- Φ + (eˢ-1)·(2Φ/n) = (1 + 2(eˢ-1)/n)·Φ
+  -- 4) the affine recombination is an EXACT equality on the Φ-part.
+  refine le_of_eq ?_
+  congr 1
+  -- Φ + (eˢ-1)·(Φ/n + Φ/n) = ofReal(1 + 2(eˢ-1)/n)·Φ
+  have hnpos : (0 : ℝ) < (n : ℝ) := by
+    have : 2 ≤ n := by rw [← hcard]; exact hc2
+    exact_mod_cast (by omega : 0 < n)
+  have hnne : (n : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by positivity : (n:ℝ) ≠ 0)
+  have hntop : (n : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top n
+  have he1 : (0 : ℝ) ≤ Real.exp s - 1 := by linarith [Real.one_le_exp hs]
+  -- ofReal(1 + 2(eˢ-1)/n) = 1 + ofReal(eˢ-1)·(2/n) (with 2/n = ofReal 2 / ofReal n)
   have hofac : ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
-      = 1 + ENNReal.ofReal (Real.exp s - 1) * (2 / (n : ℝ≥0∞)) := by
-    sorry
+      = 1 + ENNReal.ofReal (Real.exp s - 1) * ((2 : ℝ≥0∞) / (n : ℝ≥0∞)) := by
+    rw [ENNReal.ofReal_add (by norm_num) (by positivity)]
+    rw [ENNReal.ofReal_one]
+    congr 1
+    rw [show 2 * (Real.exp s - 1) / (n : ℝ) = (Real.exp s - 1) * (2 / (n : ℝ)) by ring]
+    rw [ENNReal.ofReal_mul he1]
+    congr 1
+    rw [ENNReal.ofReal_div_of_pos hnpos, ENNReal.ofReal_natCast]
+    norm_num
   rw [hofac, add_mul, one_mul]
-  gcongr
-  -- (eˢ-1)·(Φ/n+Φ/n) = (eˢ-1)·(2/n)·Φ
-  rw [mul_comm (ENNReal.ofReal (Real.exp s - 1)) (2 / (n : ℝ≥0∞)), mul_assoc]
-  gcongr
+  congr 1
+  -- (eˢ-1)·(Φ/n + Φ/n) = ofReal(eˢ-1)·(2/n)·Φ
   rw [ENNReal.div_add_div_same, ← two_mul]
-  rw [ENNReal.mul_div_assoc, mul_comm]
-  sorry
+  rw [mul_assoc, ENNReal.mul_div_assoc, mul_comm Φ ((2:ℝ≥0∞)/(n:ℝ≥0∞)),
+      ← ENNReal.mul_div_assoc, ← mul_assoc, mul_comm Φ (2:ℝ≥0∞), mul_assoc,
+      ENNReal.mul_div_assoc]
 
 /-! ## The kernel-level tail from a supplied one-step drift.
 
