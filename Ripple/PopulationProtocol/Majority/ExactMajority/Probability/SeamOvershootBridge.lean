@@ -303,6 +303,45 @@ theorem clockCounterStep_phase_le_succ_of_wf (a : AgentState L K)
   · exact stdCounterSubroutine_phase_le_succ_of_wf a hwf hle
   · simp
 
+/-! ### Per-phase left-output `+1` bound (under `Wf`).
+
+Every per-phase rule's LEFT output advances the phase ONLY through
+`stdCounterSubroutine` / `clockCounterStep` / `advancePhaseWithInit` applied to a
+well-formed agent (the role/smallBias-touching pre-steps set `role` to a non-`mcr` value
+and preserve `smallBias`), so the advance is `≤ +1`.  We prove the bound phase-by-phase
+for the phases the seam can dispatch (`q ≤ 8`). -/
+
+/-- Phase 1 left output advances by `≤ +1` (it is `clockCounterStep` of a well-formed
+agent, modulo a `smallBias`-only averaging pre-step). -/
+theorem Phase1Transition_left_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) a) (hle : a.phase.val ≤ 8) :
+    (Phase1Transition L K a b).1.phase.val ≤ a.phase.val + 1 := by
+  by_cases hmain : a.role = .main ∧ b.role = .main
+  · -- main–main: the averaged agent has role = main ≠ clock, so clockCounterStep is id.
+    have hccs : (clockCounterStep L K
+        ({ a with smallBias := (avgFin7 a.smallBias b.smallBias).1 } : AgentState L K)).phase.val
+        = a.phase.val := by
+      unfold clockCounterStep
+      rw [if_neg (show ¬ (({ a with smallBias := (avgFin7 a.smallBias b.smallBias).1 }
+        : AgentState L K).role = .clock) from by rw [show _ = a.role from rfl, hmain.1]; decide)]
+    have hval : (Phase1Transition L K a b).1.phase.val ≤ a.phase.val + 1 := by
+      simp only [Phase1Transition, hmain, and_self, if_true]
+      rw [hccs]
+    exact hval
+  · have hval : (Phase1Transition L K a b).1.phase.val
+        = (clockCounterStep L K a).phase.val := by
+      simp only [Phase1Transition, hmain, if_false]
+    rw [hval]
+    exact clockCounterStep_phase_le_succ_of_wf a hwf hle
+
+/-- Phase 4 left output advances by `≤ +1` (`advancePhase` or identity). -/
+theorem Phase4Transition_left_phase_le_succ (a b : AgentState L K) :
+    (Phase4Transition L K a b).1.phase.val ≤ a.phase.val + 1 := by
+  unfold Phase4Transition; dsimp; split_ifs <;>
+    first
+      | exact advancePhase_phase_le_succ a
+      | omega
+
 end SeamNoOvershoot
 
 end ExactMajority

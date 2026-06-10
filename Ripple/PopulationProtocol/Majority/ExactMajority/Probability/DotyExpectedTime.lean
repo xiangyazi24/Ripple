@@ -350,7 +350,7 @@ This isolates the single genuinely-numeric side condition (`hrecmass`) and prove
 the surrounding cast/`add`/`mul` closure cleanly. -/
 theorem doty_harith_concrete
     (n L C0 Cbad Brecover sRecover : ℕ)
-    (hsRec : (sRecover : ℝ≥0∞) = 2 * (Brecover : ℝ≥0∞))
+    (_hsRec : (sRecover : ℝ≥0∞) = 2 * (Brecover : ℝ≥0∞))
     (hrecmass :
       (1 / n : ℝ≥0∞) * (sRecover : ℝ≥0∞) * (1 - (1 / 2 : ℝ≥0∞))⁻¹
         ≤ ((4 * Cbad * n * (L + 1) : ℕ) : ℝ≥0∞)) :

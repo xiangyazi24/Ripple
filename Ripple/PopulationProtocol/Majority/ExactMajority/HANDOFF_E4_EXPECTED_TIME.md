@@ -399,3 +399,47 @@ The final proof order is:
    `(1/n²) * O(n²(L+1)) ≤ O(n(L+1))`.
 
 That is E4: a pure tail-sum assembly over the already landed engines.
+
+---
+
+## STATUS — IMPLEMENTED 2026-06-10 (Probability/DotyExpectedTime.lean)
+
+All four blueprint stages landed in the new append-only file
+`Probability/DotyExpectedTime.lean`. Single-file `lake env lean … DotyExpectedTime.lean`
+EXIT 0, zero warnings; `#print axioms` on all 7 headlines ⊆ `[propext, Classical.choice,
+Quot.sound]`; 0 sorry / 0 admit / 0 axiom / 0 native_decide. Commit `2b9f0986`.
+
+### Delivered theorems
+- `block_half_from_recovery_expected` (§4.1) — exactly E1 `bad_le_half_of_expectedHitting`.
+- `expected_time_from_whp_and_recovery` (§4.2) — exactly E1 `expectedHitting_split_geometric`
+  at `q = 1/2`.
+- `StableDone`, `compl_StableDone` — the Done set; its complement is the headline's bad set (rfl).
+- `RecoveryClass`, `RecoveryClass.expectedHitting_le`, `doty_recovery_expected_bound` (§5).
+- `doty_expected_time` (§4.3) — top-level assembly.
+- `doty_harith_concrete`, `doty_expected_time_concrete` — concrete `Cexp = 21·C0 + 4·Cbad`.
+
+### Final hypothesis surface of `doty_expected_time`
+`{L K n C0 Cexp : ℕ}`, `init c₀`, the 8 `doty_time_headline_W2` inputs
+(`Cphase δ phases ht hε h_chain hx₀ h_post hC0 hδ`), `hDone`/`hDoneAbs` (StableDone measurable +
+absorbing), the recovery cap quartet (`Brecover hBfin sRecover hsRecover_pos hsRecover hRecover`),
+and the explicit `harith`. Conclusion:
+`expectedHitting K0 c₀ (StableDone L K init) ≤ ((Cexp*n*(L+1) : ℕ) : ℝ≥0∞)`.
+
+### Concrete corollary `doty_expected_time_concrete`
+`Cexp = 21·C0 + 4·Cbad`, `sRecover = 2·Brecover`. The single genuinely-open numeric side
+condition is `hrecmass : (1/n)·(2·Brecover)·(1−1/2)⁻¹ ≤ ((4·Cbad·n·(L+1) : ℕ) : ℝ≥0∞)`
+(blueprint §3 "recovery contribution is O(n(L+1))" estimate), kept as an explicit hypothesis.
+
+### Blueprint signatures that DRIFTED from the real repo
+1. **E3 wrappers** are `ConditionalPhaseProgress.timed_phase_progress_real_bigClock/_tinyClock`
+   and conclude on `Engine.potBelow (clockCounterSumAt p) 1`, NOT on `StableDone`. The blueprint's
+   §5 hoped to discharge `hClassBound` directly from them; in reality the progress-set ⟹ StableDone
+   transfer is missing, so `RecoveryClass` carries each branch's StableDone witness as explicit
+   constructor data and `hClassify` stays named. This is the documented protocol residual.
+2. **`doty_time_headline_W2`** uses `(phases lastPhaseW2).Post` (`private lastPhaseW2 := ⟨21-1,_⟩`)
+   in `h_post`; the blueprint's `⟨21-1, by omega⟩` is defeq (Fin proof irrelevance) and used verbatim.
+3. **E2 stabilization headlines** (`phase10_expected_stabilization_O_nsq_log` `≤ 3·n²(1+2 log n)`,
+   tie analogue `≤ 2·n²(1+2 log n)`) live in `ExactMajority.Phase10Drop`; `S1`/`Tie1plus` likewise.
+4. **`doty_expected_time` proof body**: the blueprint's `let K0 := …` / `set Tgood := …` rewrites
+   inside `phases`'s kernel-indexed type, producing a `phases✝` application mismatch. Fixed by
+   computing the headline `hhead` BEFORE any abbreviation and inlining the kernel literally.

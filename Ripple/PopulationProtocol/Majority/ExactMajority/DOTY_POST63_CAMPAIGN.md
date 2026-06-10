@@ -3249,3 +3249,42 @@ b94a951d). Single-file `lake env lean … KilledTailConsumers.lean` EXIT 0; ever
   (the absorbing-drift-region maintenance in the role-split layer), NOT an engine gap — the killed
   formalism relocates the reachability need (escape = real side masses, non-contracting recursion
   since `{¬noClockAtZero} ⊆ {1≤Φ_clock}`), it does not remove it.
+
+### Phase E4 completion record (2026-06-10, expected-time half of Theorem 3.1)
+Probability/DotyExpectedTime.lean COMPLETE (Stages 1–4; append-only, no edit to any existing
+file). Single-file `lake env lean … DotyExpectedTime.lean` EXIT 0, zero warnings; all 7 headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry / 0 admit / 0 axiom / 0 native_decide.
+
+Honest conditioning-free shape (per ChatGPT-Pro blueprint HANDOFF_E4_EXPECTED_TIME.md): the start
+`c₀` is deterministic in the kernel formalism, so NO conditional-expectation split. Instead
+`E[T] ≤ Tgood + δgood·sRecover·(1−q)⁻¹` via E1's `expectedHitting_split_geometric`, with the
+good/bad classification pushed INSIDE the recovery cap.
+
+- Stage 1 (2b9f0986): `block_half_from_recovery_expected` (= E1 `bad_le_half_of_expectedHitting`
+  lifted uniform-over-`Doneᶜ`) + `expected_time_from_whp_and_recovery` (= E1
+  `expectedHitting_split_geometric` at `q = 1/2`). Pure ExpectedHitting compositions, no protocol content.
+- Stage 2 (2b9f0986): `StableDone` + `RecoveryClass` (4-way disjunction
+  bigClockTimed/tinyClockTimed/phase10Majority/phase10Tie) + `doty_recovery_expected_bound`.
+  Each `RecoveryClass` branch carries its `expectedHitting … StableDone ≤ B` witness as EXPLICIT
+  constructor data — because the E2/E3 wrappers land on PROGRESS sets
+  (`Engine.potBelow (clockCounterSumAt p) 1`, `potBelow wrongACount 1`), and the transfer
+  progress-set ⟹ StableDone is the documented protocol residual. `hClassify` (deterministic
+  classification of arbitrary reachable not-done states) stays a named hypothesis.
+- Stage 3 (2b9f0986): `doty_expected_time` — top-level assembly against the REAL
+  `doty_time_headline_W2` interface. `hhead.1` (whp bad-set mass `≤ 1/n`) and `hhead.2`
+  (`Tgood ≤ 21·C0·n·(L+1)`) destructure cleanly; the headline's bad set
+  `{c | ¬ majorityStableEndpoint init c}` is defeq to `(StableDone)ᶜ` (rfl via `compl_StableDone`).
+- Stage 4 (2b9f0986): `doty_harith_concrete` + `doty_expected_time_concrete` — concrete corollary
+  with `Cexp = 21·C0 + 4·Cbad`, `sRecover = 2·Brecover`. Recovery contribution
+  `(1/n)·(2·Brecover)·2 = 4·Brecover/n`; the single open numeric side condition
+  `4·Brecover/n ≤ 4·Cbad·n·(L+1)` is the EXPLICIT hypothesis `hrecmass` (blueprint §3 estimate).
+
+Blueprint-vs-repo signature drift recorded: (a) `doty_time_headline_W2` uses `(phases lastPhaseW2)`
+(private `lastPhaseW2 := ⟨21-1, _⟩`) in `h_post`; the blueprint's `⟨21-1, by omega⟩` is defeq (Fin
+proof irrelevance), used verbatim. (b) E3 wrappers are named
+`timed_phase_progress_real_bigClock/_tinyClock` and conclude on `Engine.potBelow (clockCounterSumAt p) 1`,
+NOT on `StableDone` — hence the carried-witness design of `RecoveryClass`. (c) E2 stabilization
+headlines (`phase10_expected_stabilization_O_nsq_log`, tie analogue) live in
+`ExactMajority.Phase10Drop`, S1/Tie1plus there. (d) The blueprint `set K0`/`set Tgood` in
+`doty_expected_time` rewrites inside `phases`'s kernel-indexed type (`phases✝` mismatch); fixed by
+computing `hhead` before any abbreviation and inlining the kernel.
