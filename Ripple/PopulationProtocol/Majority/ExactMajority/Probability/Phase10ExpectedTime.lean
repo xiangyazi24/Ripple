@@ -126,6 +126,163 @@ theorem expectedHitting_le_through_mid (K : Kernel α α)
   rw [expectedHitting, expectedHitting, ← ENNReal.tsum_add]
   exact ENNReal.tsum_le_tsum (fun t => bad_split_through_mid K hsub c t)
 
+/-! ### Level occupation from a constrained start (coupon-collector core)
+
+The single rigorous waiting-time fact behind the coupon sum: if the potential
+never increases along `K` and from every state at level exactly `m` (`Φ = m`,
+`m ≥ 1`) the one-step probability of dropping to `Φ < m` is at least `1 - q`
+(`q < 1`), then starting **at or below level `m`** the expected time to hit
+`{Φ < m}` is `≤ (1 - q)⁻¹`.
+
+The trick: starting at `Φ ≤ m`, the chain stays in `{Φ ≤ m}` (`Φ` non-increasing),
+so the "not yet below `m`" event coincides with the level-`m` event, on which the
+per-step drop hypothesis applies uniformly.  We instantiate E1's
+`expectedHitting_one_step_q` with `Done := {Φ < m}` after transporting the start
+into `{Φ ≤ m}`. -/
+
+/-- The set of states strictly below level `m`. -/
+def potBelow (Φ : α → ℕ) (m : ℕ) : Set α := {x | Φ x < m}
+
+theorem potBelow_measurable [DiscreteMeasurableSpace α] (Φ : α → ℕ) (m : ℕ) :
+    MeasurableSet (potBelow Φ m) :=
+  DiscreteMeasurableSpace.forall_measurableSet _
+
+/-- Kernel-level "potential non-increasing" hypothesis: one step never strictly
+raises `Φ` (the mass placed on strictly-higher potential is `0`). -/
+def PotNonincr (K : Kernel α α) (Φ : α → ℕ) : Prop :=
+  ∀ b : α, K b {x | Φ b < Φ x} = 0
+
+/-- `{Φ < m}` is absorbing when `Φ` is non-increasing: from a state already below
+`m`, one step cannot reach `{Φ ≥ m}`. -/
+theorem potBelow_absorbing [DiscreteMeasurableSpace α]
+    (K : Kernel α α) (Φ : α → ℕ) (hmono : PotNonincr K Φ) (m : ℕ) :
+    ∀ x ∈ potBelow Φ m, K x (potBelow Φ m)ᶜ = 0 := by
+  intro x hx
+  -- (potBelow Φ m)ᶜ = {Φ ≥ m} ⊆ {Φ > Φ x} since Φ x < m.
+  have hsub : ((potBelow Φ m)ᶜ : Set α) ⊆ {y | Φ x < Φ y} := by
+    intro y hy
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hy
+    have hxlt : Φ x < m := hx
+    exact Set.mem_setOf_eq ▸ (lt_of_lt_of_le hxlt hy)
+  exact measure_mono_null hsub (hmono x)
+
+/-- The `(K^t)`-mass on strictly-above-`m` stays `0` for a start at level `≤ m`. -/
+theorem pow_above_eq_zero_of_start_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (c : α) (hc : Φ c ≤ m) (t : ℕ) :
+    (K ^ t) c {x | m < Φ x} = 0 := by
+  induction t generalizing c with
+  | zero =>
+      rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+        Measure.dirac_apply' c
+          (DiscreteMeasurableSpace.forall_measurableSet _)]
+      have : c ∉ {x | m < Φ x} := by simp only [Set.mem_setOf_eq, not_lt]; exact hc
+      simp [this]
+  | succ t ih =>
+      have hbad : MeasurableSet {x : α | m < Φ x} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral K 1 t c hbad, pow_one,
+        lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad)]
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨{y | Φ y ≤ m}, ?_, ?_⟩
+      · rw [mem_ae_iff]
+        -- complement is {Φ > m}; one step from c (Φ c ≤ m) cannot reach it.
+        have hcompl : ({y | Φ y ≤ m}ᶜ : Set α) = {x | m < Φ x} := by
+          ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_le]
+        rw [hcompl]
+        refine measure_mono_null ?_ (hmono c)
+        intro y hy
+        simp only [Set.mem_setOf_eq] at hy ⊢
+        exact lt_of_le_of_lt hc hy
+      · intro y hy
+        exact ih y hy
+
+/-- **One-step level-`m` occupation contraction.** Under non-increasing `Φ` and a
+per-step drop hypothesis at level `m` (`∀ b, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q`),
+for a start `c` with `Φ c ≤ m` the not-below-`m` mass contracts by `q` each step:
+`(K^(t+1)) c (potBelow Φ m)ᶜ ≤ q · (K^t) c (potBelow Φ m)ᶜ`. -/
+theorem level_occ_contract [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) (t : ℕ) :
+    (K ^ (t + 1)) c (potBelow Φ m)ᶜ ≤ q * (K ^ t) c (potBelow Φ m)ᶜ := by
+  classical
+  have hbad : MeasurableSet ((potBelow Φ m)ᶜ : Set α) :=
+    (potBelow_measurable Φ m).compl
+  -- Peel last step: (K^(t+1)) c Bᶜ = ∫ b, K b Bᶜ ∂(K^t c).
+  rw [Kernel.pow_succ_apply_eq_lintegral K t c hbad]
+  -- The (K^t c)-mass lives on {Φ = m} ∪ {Φ < m}; on {Φ < m}, Bᶜ-reach is 0
+  -- (absorbing); on {Φ = m}, K b Bᶜ ≤ q; {Φ > m} carries 0 mass.
+  calc ∫⁻ b, K b (potBelow Φ m)ᶜ ∂((K ^ t) c)
+      ≤ ∫⁻ b, q * Set.indicator ((potBelow Φ m)ᶜ) (fun _ => (1 : ℝ≥0∞)) b
+          ∂((K ^ t) c) := by
+        apply lintegral_mono_ae
+        -- a.e. b: handle by cases on Φ b vs m, using that {Φ > m} is null.
+        have hnull : (K ^ t) c {x | m < Φ x} = 0 :=
+          pow_above_eq_zero_of_start_le K Φ hmono m c hc t
+        rw [Filter.eventually_iff_exists_mem]
+        refine ⟨{x | Φ x ≤ m}, ?_, ?_⟩
+        · rw [mem_ae_iff]
+          have : ({x | Φ x ≤ m}ᶜ : Set α) = {x | m < Φ x} := by
+            ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_le]
+          rw [this]; exact hnull
+        · intro b hb
+          simp only [Set.mem_setOf_eq] at hb
+          rcases lt_or_eq_of_le hb with hlt | heq
+          · -- Φ b < m: b ∈ potBelow, absorbing ⇒ K b Bᶜ = 0 ≤ q·indicator
+            have hbb : b ∈ potBelow Φ m := hlt
+            rw [potBelow_absorbing K Φ hmono m b hbb]; exact zero_le'
+          · -- Φ b = m: b ∉ potBelow (since not < m), so indicator = 1.
+            have hbmem : b ∈ ((potBelow Φ m)ᶜ : Set α) := by
+              simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+              exact heq.ge
+            rw [Set.indicator_of_mem hbmem, mul_one]
+            exact hdrop b heq
+    _ = q * (K ^ t) c (potBelow Φ m)ᶜ := by
+        rw [lintegral_const_mul q (measurable_const.indicator hbad)]
+        congr 1
+        rw [lintegral_indicator hbad]; simp
+
+/-- Geometric decay of the level-`m` occupation mass: `(K^t) c (potBelow Φ m)ᶜ ≤ q^t`
+for a start `c` at level `≤ m`. -/
+theorem level_occ_geometric [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) (t : ℕ) :
+    (K ^ t) c (potBelow Φ m)ᶜ ≤ q ^ t := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      calc (K ^ 0) c (potBelow Φ m)ᶜ ≤ (K ^ 0) c Set.univ :=
+            measure_mono (Set.subset_univ _)
+        _ = 1 := by
+            rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply, measure_univ]
+  | succ t ih =>
+      calc (K ^ (t + 1)) c (potBelow Φ m)ᶜ
+          ≤ q * (K ^ t) c (potBelow Φ m)ᶜ :=
+            level_occ_contract K Φ hmono m q hdrop c hc t
+        _ ≤ q * q ^ t := by gcongr
+        _ = q ^ (t + 1) := by rw [pow_succ]; ring
+
+/-- **Level-`m` occupation bound (coupon waiting time).** Under non-increasing `Φ`
+and a level-`m` per-step drop probability `≥ 1 - q`, a start at level `≤ m` hits
+`{Φ < m}` in expected time `≤ (1 - q)⁻¹`:
+`expectedHitting K c (potBelow Φ m) ≤ (1 - q)⁻¹`. -/
+theorem level_occ_expectedHitting [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) :
+    expectedHitting K c (potBelow Φ m) ≤ (1 - q)⁻¹ := by
+  rw [expectedHitting]
+  calc ∑' t : ℕ, (K ^ t) c (potBelow Φ m)ᶜ
+      ≤ ∑' t : ℕ, q ^ t :=
+        ENNReal.tsum_le_tsum (fun t => level_occ_geometric K Φ hmono m q hdrop c hc t)
+    _ = (1 - q)⁻¹ := ENNReal.tsum_geometric q
+
 end Coupon
 
 end ExactMajority

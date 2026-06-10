@@ -302,14 +302,15 @@ theorem kill_escape_le_prefix_union [IsMarkovKernel K] (S : Set α) (q : ℝ≥0
       have hsum : ∑ τ ∈ Finset.range (M + 1), (K ^ τ) x₀ Sᶜ
           = (K ^ 0) x₀ Sᶜ + ∑ τ ∈ Finset.range M, (K ^ (τ + 1)) x₀ Sᶜ := by
         rw [Finset.sum_range_succ']
+        exact add_comm _ _
       calc (∫⁻ y in G, (killK K G ^ M) (some y) {(none : Option α)} ∂(K x₀)) +
             (∫⁻ y in Gᶜ, (killK K G ^ M) (some y) {(none : Option α)} ∂(K x₀))
           ≤ ((M : ℝ≥0∞) * q + ∑ τ ∈ Finset.range M, (K ^ (τ + 1)) x₀ Sᶜ)
             + (q + (K ^ 0) x₀ Sᶜ) := add_le_add hbound1 hbound2
         _ = ((M : ℝ≥0∞) * q + q)
             + ((K ^ 0) x₀ Sᶜ + ∑ τ ∈ Finset.range M, (K ^ (τ + 1)) x₀ Sᶜ) := by
-            rw [add_add_add_comm,
-              add_comm (∑ τ ∈ Finset.range M, (K ^ (τ + 1)) x₀ Sᶜ) ((K ^ 0) x₀ Sᶜ)]
+            rw [add_add_add_comm]
+            exact congrArg (((M : ℝ≥0∞) * q + q) + ·) (add_comm _ _)
         _ = ((M + 1 : ℕ) : ℝ≥0∞) * q + ∑ τ ∈ Finset.range (M + 1), (K ^ τ) x₀ Sᶜ := by
             rw [hsum]
             congr 1
