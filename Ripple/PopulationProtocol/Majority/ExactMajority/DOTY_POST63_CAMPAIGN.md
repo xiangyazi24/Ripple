@@ -1693,3 +1693,75 @@ redundant under the global mass).  The single remaining carried Doty input is th
 itself (`p = #elim·#min/(n(n−1))`, the Lemma 7.4 `≥0.8|M|` majority vs `≤0.2|M|` minority) —
 a CARRIED INVARIANT, not derivable from the transition rule.  Phase 8: verified count-based,
 no mass needed.
+
+### Phase C-1 (relay 7) — THE CONCRETE WITNESS + STAGE-1 ASSEMBLY (0-sorry, axiom-clean)
+
+Commits: C-1A 6a199a65 · C-1B b914407d · C-1C 8626d5c8 · C-1D f2a89f41 · C-1E 1af92613
+· C-1F bda1dd03 · C-1G 49e0ce82 · C-1H 0ae64120.  All in `RoleSplitConcentration.lean`.
+
+**The single relay-6 atom — DELIVERED.**  Relay 6 isolated "construct the concrete
+`KernelMilestone (killK_now K G)` role-split witness + the Chernoff numbers."  Relay 7
+constructs the witness in full and assembles Stage 1; the genuinely-probabilistic Chernoff
+`q`/`Sᶜ`-prefix enters as explicit hypotheses (the honest residual, see below).
+
+**Gate-region + milestone design (chosen).**
+- `floorGate n a₀ := {c | card=n ∧ a₀ ≤ assignableCount c ∧ ∀a∈c, role=mcr→phase=0}` — EXACTLY
+  the three hypotheses `phase0_mcrCount_decrease_prob_floor` consumes.  On `killK_now K
+  floorGate`, alive ⟹ gated by `alive_support_gate`, so the bridge fires unconditionally
+  (`inv_closed` dissolved).
+- **Milestone granularity = the plain engine's `k = n-1` diagonal `mcrCount` thresholds**
+  (`liftMilestone n i := match · | none => True | some c => phase0Milestone n i c`; cemetery =
+  milestone-True = Post = absorbing).  The ONLY change vs. `phase0MilestonePhase`: the per-step
+  rate is `floorRate n a₀ M = M·a₀/(n(n-1))` (Θ(M/n)) in place of `M(M-1)/(n(n-1))` (Θ(M²/n²)).
+
+**The witness `roleSplitKernelMilestone n a₀ (hn2) (ha1:1≤a₀) (ha_le:a₀≤n-1)`** (C-1D):
+`KernelMilestone (killK_now (NonuniformMajority L K).transitionKernel (floorGate n a₀))`.
+Fields = the three relay-7 lemmas:
+- `milestone_monotone = liftMilestone_monotone` (C-1B): cemetery absorbing; alive→alive is a
+  gated real-support point (`alive_support_gate`+`killK_now_some_gated`+`mem_support_of_pos_toMeasure`)
+  where the plain `phase0MilestonePhase.milestone_monotone` applies — no rule creates an MCR.
+- `progress = liftMilestone_progress` (C-1C): GLOBAL (no Inv).  Cemetery: vacuous.  Ungated `some
+  c`: `killK_now = δ none`, whole mass at milestone-True ≥ floorRate (`floorRate ≤ 1`).  Gated
+  `some c`: frontier `mcrCount c = n-i.val` (`mcrCount_eq_of_milestone_frontier`) + the
+  floor→rate bridge lifted through `gateMap` (`liftMilestone_progress_mass`, C-1A).  THIS is why
+  the killed kernel dissolves `inv_closed`: off-gate the bound is FREE (cemetery mass = 1).
+
+**Stage-1 assembly `phase0_stage1_whp`** (C-1G): plugs the witness + `post_sound`
+(`Post(some y) ⟹ roleSplitGoodMile = last mcrCount milestone`) + `hPre` (Phase0Initial all-MCR
+fires no milestone, `mcrCount=n`) into the relay-6 headline `real_bad_le_janson_add_escape`:
+```
+(K^t) c₀ {¬ roleSplitGoodMile} ≤ exp(−pMin·meanTime·(λ−1−log λ)) + (t·q + ∑_{τ<t}(K^τ)c₀ Sᶜ)
+```
+`K = (NonuniformMajority L K).transitionKernel`, real-kernel, from `Phase0Initial`.
+
+**The quantitative payoff `pMin·meanTime = Θ(log n)`** (C-1F/H): `pMin = floorRate@M=2 =
+2·a₀/(n(n-1)) = Θ(1/n)` (vs. plain `Θ(1/n²)`).  `roleSplitKernelMilestone_pMin_meanTime`:
+`pMin·meanTime = ∑_{i:Fin(n-1)} 2/(n−i.val) = 2·∑_{M=2}^{n} 1/M = 2(H_n−1)` — **the floor `a₀`
+CANCELS** (both `a₀` and `n(n-1)` divide out of `floorRate(2)/floorRate(M)`).  This is the
+Θ(log n) potential the plain engine (potential Θ(1), `phase0MilestonePhase_pMin_le_two_div`)
+provably cannot reach.  All 12 new theorems: per-thm `#print axioms ⊆ {propext,
+Classical.choice, Quot.sound}`; single-file EXIT_0.
+
+**εfloor final form (HONEST residual = the genuine Lemma-5.1 Chernoff).**  `phase0_stage1_whp`
+leaves `(S, q, hstep)` as hypotheses where `hstep : ∀ x∈floorGate, x∈S → K x floorGateᶜ ≤ q`.
+With `S := floorGate` (campaign simplification), `Sᶜ`-prefix `∑_{τ<t}(K^τ)c₀ floorGateᶜ` is
+EXACTLY `∑_τ P(floor fails at τ) = ∑_τ P(assignableCount < a₀ at time τ)`.
+
+  WHY `q` IS NOT CLEANLY CLOSABLE (region analysis confirmed).  Gate-escape `K x floorGateᶜ`
+  fails only via the floor disjunct (card conserved by every transition; MCR never advances
+  phase in Phase 0 — the other two disjuncts cannot break in one step).  But the per-step
+  floor-breach from the boundary `assignableCount = a₀` is `Θ(1)`, NOT small: the pool moves by
+  ≤2/step and a single pool-decreasing R3/R4 interaction breaches.  A uniform per-step `q` is
+  therefore Θ(1) — too weak.  The honest content is the CUMULATIVE in-house MGF drift on
+  `exp(−s·assignableCount)`: births (R1, rate ~u²/n²) outpace deaths (R3/R4, rate ~u·pool/n²) in
+  the early regime `u ≥ n/2` (R1 alone gives rate ≥1/4), keeping the pool ≥ floor whp; the late
+  regime `u<n/2` needs the two-phase split.  This is `GatedGeometricDrift`'s machinery on the
+  REAL kernel — a separate development, NOT assemblable from the count/rate atoms (matches the
+  relay-5/6 assessment that the floor concentration is irreducibly probabilistic).  Target
+  `εfloor(n) ≤ n^{-2}`-shape via the MGF tail.
+
+**Status.**  Stage-1 STRUCTURAL ASSEMBLY COMPLETE 0-sorry axiom-clean (witness + headline +
+Θ(log n) potential).  Residual = the floor-failure prefix `∑_τ P(assignableCount<a₀)` bounded
+by the in-house real-kernel MGF drift (precise goal above).  Stage 2 (crCount) reuses
+`roleSplitKernelMilestone`'s template verbatim with a crCount floor downstream of Stage-1's
+assignable→cr output — blocked behind the same floor-drift residual.
