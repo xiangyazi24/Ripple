@@ -1344,6 +1344,59 @@ fragile; the correct closed Phase-7 invariant is the signed-sum potential, a dif
 construction.  The drain rectangle (C-7i/j) is INDEPENDENT of `hClosed` — it needs only
 the gap-1 cell geometry, so it stands regardless.
 
+### Phase C-7k…C-7m (relay 5) — REBUILT the Phase-7 invariant layer on the CONSERVED SIGNED SUM
+
+The relay-5 work replaces the broken `MinorityHiIdx`-carrying `Inv7Main` with the
+genuinely-closed signed-sum invariant.  All in `Phase7Convergence.lean`, single-file
+EXIT_0, every new theorem `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.
+Phase8Convergence.lean (importer) still EXIT_0, untouched.
+
+- **C-7k** SHA `45419405` — signed-mass infra + `cancelSplit_agentSignedMass_pair_eq`.
+  `biasSignedMass L : Bias L → ℤ` = the `2^L`-scaled signed dyadic mass (`±2^{L-i}` for
+  `dyadic ± i`, integer since `i ≤ L`); `agentSignedMass`, `phase7SignedSum c = ∑`.
+  Per-pair conservation across ALL FIVE `cancelSplit` branches (gap-0 `+x−x=0`; gap-1
+  `2^{L-i}−2^{L-(i+1)}=2^{L-(i+1)}`; gap-2 `2^{L-i}−2^{L-(i+2)}=2^{L-(i+1)}+2^{L-(i+2)}`),
+  proved by `cases ss <;> cases st <;> simp_all [biasSignedMass] <;> simp only [pow_succ] <;> ring`.
+- **C-7l** SHA `5ebe7148` — config+support conservation + `invClosed_Inv7Sum` (the
+  discharged `hClosed`).  `phase7SignedSum_stepOrSelf_eq` lifts the per-pair identity
+  through the `c−{r₁,r₂}+{out₁,out₂}` step decomposition (mirror of
+  `phase10ActiveSignedSum_stepRel_eq`'s `add_left_comm` arithmetic), self-case identity;
+  `phase7SignedSum_support_eq` lifts to the kernel support; `Inv7Sum n c := Phase7AllMain
+  n c ∧ 0 < phase7SignedSum c`; `invClosed_Inv7Sum` discharges the
+  `OneSidedCancel.InvClosed` shape (off-support mass 0 via the Phase-8 disjoint-support
+  pattern, on-support both conjuncts stable).
+- **C-7m** SHA `d49510fc` — the residual gap as a HARD per-pair fact +
+  the rebuilt instance.  `gap2_minorityU_rise_compatible_with_pos_sum`: a gap-2 cancel
+  on (σ-minority @ smaller index `i`, σ.flip @ `i+2`) makes BOTH outputs σ-minority
+  (pair `minorityU` RISES +1) WHILE conserving the signed mass — so `0 < phase7SignedSum`
+  CANNOT supply per-pair `minorityU` non-increase.  `phase7Convergence'`: the rebuilt
+  `PhaseConvergenceW` on `Inv7Sum` with `hClosed = invClosed_Inv7Sum n` now INTERNAL
+  (proved, not carried); `Pre = Inv7Sum ∧ minorityU ≤ M₀`, `Post = Inv7Sum ∧ minorityU = 0`.
+
+**Net status of the Phase-7 `phase7Convergence'` instance** (relay 5):
+- `hClosed` — **DISCHARGED** (`invClosed_Inv7Sum n`, fully internal).
+- `hmono : PotNonincrOn Inv7Sum K minorityU` — **carried** (honest residual).  This is
+  strictly stronger than `0 < signedSum`: `gap2_minorityU_rise_compatible_with_pos_sum`
+  proves the gap-2 minority rise is signed-sum-conserving, so per-pair `minorityU`
+  monotonicity genuinely needs the per-pair ordering content (the minority at the
+  SMALLER magnitude / LARGER index) ON TOP of the signed-sum invariant.  The
+  signed-sum is the right *closed* potential for `hClosed`; it is not by itself the
+  monotonicity certificate.  The old `Inv7Main` carried `MinorityHiIdx` to get `hmono`
+  but then could not close it — relay 5 trades that for a closed invariant + an honest
+  carried `hmono`.
+- `hstep` — carried (the eliminator floor, unchanged from relay 4; rectangle layer is
+  independent of the invariant choice).
+
+**Precise remaining gap (for the next relay).**  To discharge `hmono` honestly one
+needs a configurational invariant that (i) is one-step closed and (ii) implies, on every
+both-Main pair, that the σ-minority sits at the larger index (so the gap-2 sign-copy
+never lands on a majority agent).  Candidate: carry `Inv7Sum` PLUS a SEPARATE
+"minority-mass-bounded" fact `phase7MinoritySignedMass ≤ phase7MajoritySignedMass − margin`
+(the per-level Doty Lemma 7.4 floor as a signed-mass inequality, not an index ordering) —
+this is conserved/monotone by the same `cancelSplit_agentSignedMass_pair_eq` machinery
+restricted to each sign class, and DOES force the per-pair ordering.  Not yet built; the
+signed-mass split by sign class is the natural next atom.
+
 ### Phase C-1 (relay 4) — GAP (A) CLOSED + GAP (B) PINNED DETERMINISTICALLY
 
 **Gap (A) — the invariant-relative milestone engine — COMPLETE (0-sorry, axiom-clean).**

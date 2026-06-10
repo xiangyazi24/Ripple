@@ -2242,6 +2242,43 @@ noncomputable def truncMGF (mp : KernelMilestone Q) (s : ℝ) : β → ℝ≥0�
 theorem truncMGF_measurable (mp : KernelMilestone Q) (s : ℝ) : Measurable (mp.truncMGF s) :=
   fun _ _ => DiscreteMeasurableSpace.forall_measurableSet _
 
+/-- Monotonicity along positive-mass successors: `partialMGF` does not increase. -/
+theorem partialMGF_mono_of_support (mp : KernelMilestone Q) {s : ℝ} (hs_pos : 0 < s)
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c c' : β) (hsupp : 0 < Q c {c'}) :
+    mp.partialMGF s c' ≤ mp.partialMGF s c := by
+  refine Finset.prod_le_prod_of_subset_of_one_le ?_ ?_ ?_
+  · intro i hi
+    simp only [unreached, Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
+    exact fun h => hi (mp.milestone_monotone i c c' h hsupp)
+  · exact fun i _ => (mp.mgfFactor_pos hs_valid i).le
+  · exact fun i _ _ => mp.mgfFactor_ge_one hs_pos hs_valid i
+
+/-- When milestone `j` is reached at a positive-mass successor `c'`, `partialMGF` drops the
+`j`-th factor. -/
+theorem partialMGF_drop_reached (mp : KernelMilestone Q) {s : ℝ} (hs_pos : 0 < s)
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c c' : β) (j : Fin mp.k)
+    (hj_unreached : j ∈ mp.unreached c) (hj_reached : mp.milestone j c')
+    (hsupp : 0 < Q c {c'}) :
+    mp.partialMGF s c' ≤ mp.partialMGF s c / mp.mgfFactor s j := by
+  rw [le_div_iff₀ (mp.mgfFactor_pos hs_valid j)]
+  have h_sub : mp.unreached c' ⊆ (mp.unreached c).erase j := by
+    intro i hi
+    simp only [unreached, Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
+    rw [Finset.mem_erase]
+    refine ⟨fun h_eq => by rw [h_eq] at hi; exact hi hj_reached, ?_⟩
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    exact fun h => hi (mp.milestone_monotone i c c' h hsupp)
+  have h_prod_sub : mp.partialMGF s c' ≤ ∏ i ∈ (mp.unreached c).erase j, mp.mgfFactor s i :=
+    Finset.prod_le_prod_of_subset_of_one_le h_sub
+      (fun i _ => (mp.mgfFactor_pos hs_valid i).le)
+      (fun i _ _ => mp.mgfFactor_ge_one hs_pos hs_valid i)
+  calc mp.partialMGF s c' * mp.mgfFactor s j
+      ≤ (∏ i ∈ (mp.unreached c).erase j, mp.mgfFactor s i) * mp.mgfFactor s j := by
+        gcongr; exact (mp.mgfFactor_pos hs_valid j).le
+    _ = ∏ i ∈ insert j ((mp.unreached c).erase j), mp.mgfFactor s i := by
+        rw [Finset.prod_insert (by simp [Finset.mem_erase])]; ring
+    _ = mp.partialMGF s c := by rw [partialMGF]; congr 1; exact Finset.insert_erase hj_unreached
+
 end KernelMilestone
 
 /-! ## Gap (B), killed-kernel route: the floor as a UNION term, by construction.
