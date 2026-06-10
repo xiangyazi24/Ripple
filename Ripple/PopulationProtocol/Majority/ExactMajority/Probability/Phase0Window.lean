@@ -585,6 +585,41 @@ private lemma clockSummand_le_one (s : ℝ) (hs : 0 ≤ s) (a : AgentState L K) 
     linarith
   · rw [if_neg hrole]; exact zero_le'
 
+/-- A clock at counter `0` has summand EXACTLY `1`. -/
+private lemma clockSummand_eq_one_of_zero (s : ℝ) (a : AgentState L K)
+    (hrole : a.role = .clock) (hctr : a.counter.val = 0) :
+    clockSummand (L := L) (K := K) s a = 1 := by
+  unfold clockSummand; rw [if_pos hrole, hctr]; simp
+
+/-- **Per-side clock–clock summand bound (LEFT), any counter.**  For a clock–clock
+phase-0 pair, the LEFT output summand is `≤ eˢ·summand(r₁)`.  Positive counter:
+EXACT `eˢ` decrement (via `clockSummand_pair_clock_clock`'s left half, which is
+counter-`r₂`-independent — Rule 5 runs `stdCounterSubroutine` on each side
+separately).  Counter `0`: `summand(r₁) = 1` and `summand(δ₁) ≤ 1 ≤ eˢ·1`. -/
+private lemma clockSummand_clock_clock_left_le (s : ℝ) (hs : 0 ≤ s)
+    (r₁ r₂ : AgentState L K) (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0)
+    (hr₁ : r₁.role = .clock) (hr₂ : r₂.role = .clock) :
+    clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+      ≤ ENNReal.ofReal (Real.exp s) * clockSummand (L := L) (K := K) s r₁ := by
+  have he1 : (1 : ℝ≥0∞) ≤ ENNReal.ofReal (Real.exp s) := by
+    rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal (Real.one_le_exp hs)
+  -- reduce Transition.1 to Phase0Transition.1 (phase-0 identity), then to std(s4).
+  obtain ⟨heq1, _⟩ := Transition_summand_eq_phase0 s r₁ r₂ h₁ h₂
+  rw [heq1]
+  by_cases hc₁ : r₁.counter.val = 0
+  · -- summand δ₁ ≤ 1 = summand r₁ ≤ eˢ·summand r₁
+    rw [clockSummand_eq_one_of_zero s r₁ hr₁ hc₁, mul_one]
+    calc clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).1
+        ≤ 1 := clockSummand_le_one s hs _
+      _ ≤ ENNReal.ofReal (Real.exp s) := he1
+  · -- positive: exact decrement on the left side (Rule 5 left = std(r₁-clock)).
+    have hdec : (Phase0Transition L K r₁ r₂).1.role = .clock
+        ∧ (Phase0Transition L K r₁ r₂).1.counter.val = r₁.counter.val - 1 := by
+      unfold Phase0Transition
+      simp only [hr₁, hr₂]
+      refine ⟨?_, ?_⟩ <;> simp_all [stdCounterSubroutine]
+    rw [clockSummand_scale_of_decrement s r₁ _ hr₁ hdec.1 hc₁ hdec.2]
+
 theorem clockSummand_pair_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L K)
     (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0)
     (hpos₁ : r₁.role = .clock → r₁.counter.val ≠ 0)

@@ -2614,3 +2614,72 @@ The α floor is the honest per-step drain fraction.  It enters ONLY through the 
 2. **The horizon-as-`⌈·⌉` discharge** — the corollaries take `hT : (3/α)(n/m)log n ≤ t` with `t`
    an explicit ℕ; instantiating `t = ⌈(3/α)·(n/m)·log n⌉` and discharging `hT` via
    `Nat.le_ceil` is a one-liner at the call site (no new content).
+
+## Phase D-7 — the hstep/hdrop threading (DrainThreading.lean)
+
+Landed 2026-06-10 (SHAs 3d797801 / 533e78f9 / 2ecaa74c / caa58be6 / 7a89c6ae on `main`).
+NEW file `Probability/DrainThreading.lean` (append-only, imports `DrainCalibration` ⟹ all 5
+phases).  0-sorry, axiom-clean (`#print axioms ⊆ [propext, Classical.choice, Quot.sound]` on
+every headline, verified by temp-append), single-file `lake env lean` EXIT_0; olean staged.
+**D-7 closes gap (1) above**: it FEEDS each phase's carried structural count floor through the
+phase's drop-probability rectangle to DERIVE the concrete `hstep`/`hdrop` (no longer abstract).
+
+### Generic atom
+`ofReal_div_le_of_num_le` : `a ≤ b`, `0 ≤ a`, `0 ≤ d` ⟹ `ofReal(a/d) ≤ ofReal(b/d)` (the only
+new analytic content; `d = 0` by `simp`, `d > 0` by `gcongr`).  Everything else is honest
+`Finset.sum`-monotone count bookkeeping + the existing rectangle/packager lemmas re-applied.
+
+### STRUCTURAL FINDING (recorded for the headline assembly): crude `hstep` is vacuous for Φ ≥ 2
+`crude_PhaseConvergenceW`'s `hstep : ∀ b, Inv b → 1 ≤ Φ b → K b (potDone Φ)ᶜ ≤ q` requires
+bounding `{Φ ≥ 1}` mass from EVERY not-done state.  A single drain drops `Φ` by `≥ 1` but NOT
+to `0`, so from `Φ b ≥ 2` the kernel keeps ALL mass in `{Φ ≥ 1}` ⟹ `K b (potDone Φ)ᶜ = 1` ⟹
+the crude `hstep` forces `q = 1` (vacuous) unless `Φ b = 1`.  **Consequence:** the honest
+multi-level drain is the LEVELS engine (`levels_PhaseConvergenceW`, form a), whose per-level
+`hdrop : K b (potBelow Φ m)ᶜ ≤ q m` the rectangle discharges at EVERY level.  D-7 therefore
+delivers the per-level `hdrop` as the PRINCIPAL output for all five phases, plus the crude
+`hstep` only at `m = 1` (where the drop reaches `potDone`).  Phases 1/5/7/8 currently call the
+crude engine in their `*_calibrated` instances; the headline assembly should either run them at
+`M₀ = 1` (honest with the crude `hstep`) or re-target them onto the levels engine (Phase 6 is
+already levels).  This is a genuine engine-shape choice for the assembler, not a defect.
+
+### Per-phase threading outcome (derived-from-floor vs the ONE named structural hypothesis)
+
+For each phase the threading is: `*_drop_prob_rect*` (gives `ofReal((#tgt·#partner)/(n(n−1)))
+≤ drop-mass`) ∘ structural floor (`#partner ≥ E/P/R` carried, `#tgt ≥ 1` at the level) ∘
+`ofReal_div_le_of_num_le` ⟹ concrete `ofReal(margin/(n(n−1)))` floor ∘ `*_hdrop_of_floor*`.
+
+| phase | Φ / window | rect lemma | ONE named structural hyp (provenance) | delivered |
+|---|---|---|---|---|
+| 8 | `minorityU σ` / `Phase8AllMain` | `minorityU_drop_prob_rect` | `elimAbove σ i ≥ E` + `minorityAt σ i ≥ 1` (Lemma 7.4 `0.8\|M\|` − 7.6 `0.2\|M\|`, α=1/5) | `phase8_drop_floor_of_struct`, `phase8_hdrop_of_struct` (levels), `phase8_hstep_of_struct_one` (crude m=1) |
+| 7 | `classMassN σ` / `Inv7Sum` | `classMassN_drop_prob_rect7` | `elimGap1 σ i ≥ E` + `minorityAt7 σ j ≥ 1`, j=i+1 (Lemma 7.4 elimGap `0.8\|M\|`, α=4/15) | `phase7_drop_floor_of_struct`, `phase7_hdrop_of_struct`, `phase7_hstep_of_struct_one` |
+| 1 | `extremeU` / `Phase1AllMain` | **built in-file** `extremeU_drop_prob_rect_pos` | `pullPosSet ≥ P` + `extremePosSet ≥ 1` (`RoleSplit mainCount ≥ n/3` minus same-side, α=1/3) | full chain: `avgFin7_extremeVal_pair_drop_pos` → `Transition_extremeU_pair_drop_pos` → `extremeU_stepOrSelf_drop_pos` → rect → `extremeU_hdrop_of_floor` → `phase1_{drop_floor,hdrop,hstep}_of_struct` |
+| 5 | `unsampledReserveU` / `Phase5AllWin` | `unsampledReserveU_drop_prob_rect5` | `usefulMains ≥ P` + `unsampledReserves ≥ 1` (Thm 6.2 biased `0.92·mainCount`, α=23/75) | in-file `unsampledReserveU_hdrop_of_floor` + `phase5_{drop_floor,hdrop,hstep}_of_struct` |
+| 6 | `highMass l` / `Phase6Win` | `highMass_drop_prob_rect6` | `reserveAtHour6 h ≥ R` + `mainAt6 σ l ≥ 1`, l−1<h≠L (`ReserveSampleGood K₀`/`sampledReserveClassU`, ρ₆) | `phase6_drop_floor_of_struct`, `phase6_hdrop_of_struct` (per-level, form a) |
+
+### The HONEST Phase-1 rectangle (the trickiest — built from scratch; was nonexistent)
+Read the actual `avgFin7` rule.  An enumeration of all `7×7` `(x,y)` cells pinned the honest
+strict-drop geometry: a `+3` extreme (`smallBias.val = 6`) drops iff its partner has
+`smallBias.val ≤ 4` (anything NOT on the same `+2/+3` saturated side); symmetric for `−3`.  So
+the honest cell is `extreme × partner(val ≤ 4)`, NOT `extreme × extreme`.  **Rate-degradation
+confirmation** (the prompt's caution): the rate degrades only against same-side neighbours; the
+honest partner floor is the OPPOSITE-half Main pool `mainCount − (same-side count)`, carried as
+the single `pullPosSet ≥ P` hypothesis.  D-7 ships the `+3` side (`extremePos`/`pullPos`); the
+`−3` mirror is the verbatim symmetric copy when the assembler needs both signs.
+
+### What stays carried after D-7 (the ONE named structural hypothesis per phase)
+The α floor is NO LONGER abstract — it is `margin/(n(n−1))` with `margin` = a CARRIED COUNT
+LOWER BOUND on the partner finset (`elimAbove`/`elimGap1`/`pullPos`/`usefulMains`/`reserveAtHour6`
+sum `≥ E/P/R`) plus `≥ 1` target at the level.  That count bound is the upstream Post fact:
+Phase 0's role split (`RoleSplitWindows mainCount ≥ n/3`) for Phase 1; Theorem 6.2's biased
+structure for Phase 5; `ReserveSampleGood K₀` (Phase-5 sampling Post) for Phase 6; Doty Lemma
+7.4/7.6 for Phases 7/8.  These are NOT in the phase's own `Inv` (which carries only card/phase/
+role/signed-sum); they are Phase-D threading facts supplied by the PRIOR phase's Post — kept
+minimal as exactly ONE structural count hypothesis per phase, ready for the headline assembly.
+
+### Precise remaining gap after D-7 (for the headline assembly)
+The structural count floor (`margin ≥ α·n`-shape) is itself the upstream-Post threading fact;
+supplying its concrete numeric value (`n/5`, `4n/15`, `n/3`, `23n/75`, `ρ₆·n`) requires wiring
+the prior phase's Post invariant into each phase's start — the Phase-D composition step, not a
+drain-layer atom.  All drain-layer mathematics (rule → per-cell drop → rectangle → drop-prob →
+engine `hdrop`/`hstep`) is now FULLY DISCHARGED for all five phases; only the upstream-Post
+count-floor wiring (and the crude-vs-levels engine choice noted above) remains for assembly.
