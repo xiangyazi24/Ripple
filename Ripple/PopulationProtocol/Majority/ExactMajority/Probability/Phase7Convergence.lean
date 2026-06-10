@@ -1308,8 +1308,8 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
               = ({s with bias := .zero}, {t with bias := .zero}) := by
             unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_pos h0]
           rw [hcs]; simp only [biasClassMass]
-          have h := fun (b : Bias L) => le_refl (0 : ℤ)
-          cases ss <;> cases st <;> simp_all [biasClassMass] <;> positivity
+          rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
+            simp_all <;> first | positivity | linarith | omega
         by_cases h1 : i.val + 1 = j.val
         · have hjL : j.val < L + 1 := j.2
           have hcs : cancelSplit L K s t
@@ -1317,10 +1317,8 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
             unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_pos h1]
           rw [hcs]; simp only [biasClassMass]
           have hexp2 : L - (i.val + 1) = L - j.val := by omega
-          cases ss <;> cases st <;> simp_all [biasClassMass] <;>
-            first
-            | positivity
-            | (split_ifs <;> simp_all <;> positivity)
+          rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
+            simp_all <;> first | positivity | linarith | omega
         by_cases h1' : j.val + 1 = i.val
         · have hiL : i.val < L + 1 := i.2
           have hcs : cancelSplit L K s t
@@ -1329,10 +1327,8 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
             simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_pos h1']
           rw [hcs]; simp only [biasClassMass]
           have hexp2 : L - (j.val + 1) = L - i.val := by omega
-          cases ss <;> cases st <;> simp_all [biasClassMass] <;>
-            first
-            | positivity
-            | (split_ifs <;> simp_all <;> positivity)
+          rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
+            simp_all <;> first | positivity | linarith | omega
         by_cases h2 : i.val + 2 = j.val
         · have hjL : j.val < L + 1 := j.2
           have hcs : cancelSplit L K s t
@@ -1344,12 +1340,9 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
           have hei : L - i.val = (L - j.val) + 2 := by omega
           have hei1 : L - (i.val + 1) = (L - j.val) + 1 := by omega
           have hei2 : L - (i.val + 2) = L - j.val := by omega
-          -- ss-class: gain 2^{(L-j)+1}+2^{L-j} vs loss 2^{(L-j)+2}: net drop 2^{L-j}.
-          -- st-class: loss 2^{L-j}, gain 0.
-          rcases ss with _ | _ <;> rcases st with _ | _ <;>
-            rcases (by cases hnee <;> rfl : True) with _ <;>
-            simp_all [biasClassMass, hei, hei1, hei2, pow_succ] <;>
-            split_ifs <;> simp_all <;> nlinarith [pow_pos (show (0:ℤ) < 2 by norm_num) (L - j.val)]
+          -- ss-class: gain 2^{(L-j)+1}+2^{L-j} vs loss 2^{(L-j)+2}: net DROP 2^{L-j}.
+          rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
+            simp_all [hei, hei1, hei2, pow_succ] <;> nlinarith [pow_pos (show (0:ℤ) < 2 by norm_num) (L - j.val)]
         by_cases h2' : j.val + 2 = i.val
         · have hiL : i.val < L + 1 := i.2
           have hcs : cancelSplit L K s t
@@ -1362,9 +1355,9 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
           have hej : L - j.val = (L - i.val) + 2 := by omega
           have hej1 : L - (j.val + 1) = (L - i.val) + 1 := by omega
           have hej2 : L - (j.val + 2) = L - i.val := by omega
-          rcases ss with _ | _ <;> rcases st with _ | _ <;>
-            simp_all [biasClassMass, hej, hej1, hej2, pow_succ] <;>
-            split_ifs <;> simp_all <;> nlinarith [pow_pos (show (0:ℤ) < 2 by norm_num) (L - i.val)]
+          have hp : (0:ℤ) < 2 ^ (L - i.val) := pow_pos (by norm_num) _
+          rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
+            simp_all [hej, hej1, hej2, pow_succ] <;> nlinarith [pow_pos (show (0:ℤ) < 2 by norm_num) (L - i.val)]
         · have hcs : cancelSplit L K s t = (s, t) := by
             unfold cancelSplit
             simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,

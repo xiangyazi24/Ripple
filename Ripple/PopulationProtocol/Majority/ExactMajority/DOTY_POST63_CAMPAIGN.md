@@ -1508,3 +1508,71 @@ a union term, because the engine's deterministic `inv_closed` provably cannot ho
 assembly; the crCount milestone family is mechanically analogous to Stage-1's
 diagonal R1 part once the Stage-1 floor route is fixed, but the crCount floor
 itself flows from the Stage-1 assignable→cr output, so it sits downstream of (a)).
+
+### Phase C-1 (relay 6) — KILLED-KERNEL ROUTE: inv_closed DISSOLVED, floor as additive union (0-sorry, axiom-clean)
+
+Commits: C-1p bac180d5 · C-1q 26dcd5c2 · C-1r cbc23cb1 · C-1s 50c780f0 · C-1t 83b7beb6
+· C-1u 121394c2 · C-1v dfcaf6b4 · C-1w 082a6873 · C-1x 0c0356e3 · C-1y 4754d53c · C-1z e51febe7.
+
+**THE RESOLUTION of relay-5's structural inv_closed wall — DELIVERED.**  Relay 5 proved the
+deterministic `MilestonePhaseOn.inv_closed` provably cannot host a whp floor.  Relay 6
+realises route (a) — the floor as an additive union term — via the immediate-kill gated
+kernel `GatedDrift.killK_now` (GatedKillNow.lean, inherited).  `RoleSplitConcentration.lean`
+now imports GatedKillNow and adds the full route:
+
+1. **Structural decomposition (C-1p/q/r).**  `real_bad_le_escape_add_killedAliveBad`:
+   `(K^t) x {bad} ≤ killed{none} + killed{alive-bad}` (via `real_le_killed_now` +
+   subadditivity).  `killedEscape_le_prefix` re-exports `kill_now_escape_le_prefix_union`
+   (εfloor ≤ t·q + ∑_{τ<t}(K^τ)x Sᶜ).  `real_bad_le_killedAliveBad_add_escape` assembles
+   them.  `killedAliveBad_le_killedAliveNotGood`: alive-bad ⊆ alive-(¬good) when good⊃¬bad.
+
+2. **Kernel-generic milestone engine `KernelMilestone` (C-1s–C-1y) — THE NEW ENGINE.**
+   The protocol-bound `MilestonePhaseOn` uses `P.stepDistOrSelf.support`; `killK_now` is a
+   bare `Kernel (Option α) (Option α)`.  Re-derived the ENTIRE Janson MGF tail over an
+   ABSTRACT Markov kernel `Q : Kernel β β` ([DiscreteMeasurableSpace β] [Countable β]),
+   with kernel positive-mass support (`0 < Q c {c'}`) replacing PMF support and — crucially
+   — **NO `Inv`/`inv_closed` field**: `progress`/`milestone_monotone` are GLOBAL, so the
+   contraction holds at every state (cemetery included).  Pieces:
+   - `measure_compl_eq_zero_of_singleton` (the PMF-free support→ae bridge: on a countable
+     discrete space, zero singleton-masses ⟹ null set; replaces
+     `PMF.toMeasure_apply_eq_zero_iff`).
+   - `mgfFactor`/`partialMGF`/`truncMGF` + `partialMGF_mono_of_support`/`_drop_reached`
+     (kernel support), `post_absorbing` (via the null-set bridge), `firstUnreached`
+     selectors, `partialMGF_pointwise_bound`, `partialMGF_one_step_contraction` (where
+     `progress` is consumed; reuses `MilestonePhaseOn.mgf_contraction_identity`),
+     `truncMGF_contracts`, `lintegral_geometric_decay` (plain induction — NO inv-closure
+     threading), `not_post_subset_ge_one`, `pMin_pos`/`pMin_le`,
+     `milestone_tail_bound_via_mgf`, CAPSTONE `milestone_hitting_time_bound` (same Janson
+     tail `exp(−pMin·meanTime·(λ−1−ln λ))`, host `Protocol P` borrows the pure-MGF opt via
+     `toDummyMP`, all `(k,p)`-determined rfl-equal).
+
+3. **Stage-1 union assembly (C-1z).**  `killedAliveNotGood_le_janson`: a `KernelMilestone
+   (killK_now K G)` witness whose `Post (some y) ⟹ good y` bounds killed-alive-(¬good) by
+   the Janson tail.  `real_bad_le_janson_add_escape` (HEADLINE):
+     `(K^t) c₀ {¬good} ≤ exp(−pMin·meanTime·(λ−1−ln λ)) + (t·q + ∑_{τ<t}(K^τ)c₀ Sᶜ)`.
+   The floor enters ONLY as the additive escape budget; `inv_closed` is DISSOLVED into the
+   `killK_now` construction (`alive_support_gate` makes alive⟹gated by construction, which
+   the witness's `progress` exploits).  Per-theorem `#print axioms ⊆ [propext,
+   Classical.choice, Quot.sound]`; single-file EXIT_0.
+
+**Warm-up / gate design (chosen).**  Gate `G` := the floor region {assignableCount ≥ floor}
+∪ the milestone region.  c₀ (all-MCR, assignableCount = 0) is handled by the side-set `S`
+machinery of `kill_now_escape_le_prefix_union`: `S` = the favourable-drift regime, the
+prefix `∑ (K^τ)c₀ Sᶜ` term absorbs the warm-up where the floor is not yet established (the
+early R1-dominated phase where assignable grows from 0).  The engine clock effectively
+starts once gated; the escape prefix is the honest warm-up cost.
+
+**εfloor final form.**  `εfloor = t·q + ∑_{τ<t}(K^τ)c₀ Sᶜ`, where `q` = per-step
+gate-exit (floor-breach) probability on the favourable regime `S` (the Chernoff per-step
+rate), and the prefix is the mass of having left `S`.  Both are `n^{-2}`-shape, unioned
+with the `1/n²` Janson budget of the alive-bad term.
+
+**Stage-1 status: STRUCTURALLY COMPLETE up to one concrete construction.**  Everything
+abstract is discharged 0-sorry axiom-clean.  The SINGLE remaining atom is now sharply
+isolated: construct the concrete `KernelMilestone (killK_now K G)` witness for the role
+split — define the lifted mcrCount-threshold milestones on `Option (Config …)`, prove
+`milestone_monotone` (via `alive_support_gate` + the protocol's mcrCount monotonicity) and
+`progress` (via the floor→rate bridge `phase0_mcrCount_decrease_prob_floor`, valid because
+alive⟹gated⟹floor) — together with the Chernoff numbers for `q` and the prefix `Sᶜ`-mass.
+This is genuinely probabilistic (the paper's Lemma 5.1 content) but now plugs into a fully
+wired interface; no more engine work.  Stage 2 (crCount) reuses `KernelMilestone` verbatim.

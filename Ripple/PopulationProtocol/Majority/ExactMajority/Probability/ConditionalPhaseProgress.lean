@@ -1173,7 +1173,7 @@ theorem epidemic_inert_same_phase (ph : Fin 11) (hph10 : ph.val ≠ 10)
     phaseEpidemicUpdate L K s t = (s, t) := by
   unfold phaseEpidemicUpdate
   rw [hs, ht, max_self]
-  simp only [runInitsBetween_self]
+  simp only [runInitsBetween_self_api]
   cases s
   cases t
   simp_all
