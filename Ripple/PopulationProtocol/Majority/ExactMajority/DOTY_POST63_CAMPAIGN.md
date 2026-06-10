@@ -75,6 +75,25 @@ Lean bricks:
   powers. E[T] = ∑_t P(T > t) (or block form E[T] ≤ s·∑_k P(T > k·s)); the geometric-tail lemma
   (∀ config in a closed class, P(not done in s steps) ≤ q ⟹ P(T > k·s) ≤ q^k ⟹ E[T] ≤ s/(1−q));
   the conditioning-free split E[T] ≤ t₀ + ∑_{t≥t₀} P(T>t). Generic, no protocol content.
+  **DONE 2026-06-10** (0-sorry, axiom-clean = [propext, Classical.choice, Quot.sound] on all 13
+  thms; single-file EXIT_0). Generic over `K : Kernel α α` `[IsMarkovKernel K]` + fixed measurable
+  `Done` set + absorption hyp `∀ x ∈ Done, K x Doneᶜ = 0` (matches GeometricDrift's generic style,
+  so it applies directly to `(NonuniformMajority L K).transitionKernel`). Design choice: closure
+  class is taken to be `Doneᶜ` itself — the per-block hypothesis is `∀ b ∈ Doneᶜ, (K^s) b Doneᶜ ≤ q`
+  ("from every not-done state, s steps finish w.p. ≥ 1−q"), no separate invariant-class bookkeeping
+  needed. `expectedHitting K c Done := ∑' t, (K^t) c Doneᶜ` (= E[T] under the standard tail-sum
+  identity). Delivered (signatures abbreviated, all in namespace `ExactMajority`):
+  - `expectedHitting` (def), `expectedHitting_eq_tsum`.
+  - `bad_antitone` / `bad_antitone_le` — `(K^t) c Doneᶜ` antitone in `t` from absorption (Lemma 0).
+  - `pow_absorbing` — `Done` absorbing for 1 step ⟹ absorbing for m steps.
+  - `expectedHitting_le_block` — `E[T] ≤ s · ∑' k, (K^(k·s)) c Doneᶜ` (block form, `s ≠ 0`).
+  - `bad_block_contracts_from` / `bad_block_contracts` — `(K^(m+s)) c₀ Doneᶜ ≤ q·(K^m) c₀ Doneᶜ`.
+  - `bad_block_geometric` — `(K^(k·s)) c₀ Doneᶜ ≤ q^k`.
+  - `expectedHitting_geometric` — `E[T] ≤ s · (1−q)⁻¹`.
+  - `kernel_pow_le_one`, `expectedHitting_split` — `E[T] ≤ t₀ + ∑' t, (K^(t₀+t)) c Doneᶜ`.
+  - `tail_le_block`, `bad_block_geometric_from` — shifted-base block + geometric helpers.
+  - `expectedHitting_split_geometric` — **Phase-E4 capstone**: hyps `(K^t₀) c₀ Doneᶜ ≤ δ` +
+    per-block `q` (`s≠0`) ⟹ `E[T] ≤ t₀ + δ·s·(1−q)⁻¹`. Nothing left out.
 - **E2** Lemma 7.7: Phase-10 backup expected O(n log n) parallel time. Correctness-side
   infrastructure exists (Analysis/Phase10Backup.lean: signed sums, active counts). Probability
   side: cancel/spread reactions at rate ≥ activeCount²/n²-style → coupon-collector/geometric

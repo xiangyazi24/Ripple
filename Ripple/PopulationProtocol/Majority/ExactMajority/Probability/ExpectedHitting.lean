@@ -358,3 +358,39 @@ theorem bad_block_geometric_from (K : Kernel α α) [IsMarkovKernel K]
             bad_block_contracts_from K hDone hAbs s q hblock c₀ (t₀ + k * s)
         _ ≤ q * ((K ^ t₀) c₀ Doneᶜ * q ^ k) := by gcongr
         _ = (K ^ t₀) c₀ Doneᶜ * q ^ (k + 1) := by rw [pow_succ]; ring
+
+/-- **Combined split + geometric corollary** (the exact shape Phase E4 consumes).
+
+Suppose `Done` is absorbing and from every not-done state the `s`-step kernel
+(`s ≠ 0`) fails to finish with probability `≤ q`. If, in addition, the not-done
+mass at a horizon `t₀` is at most `δ` (`(K^t₀) c₀ Doneᶜ ≤ δ`), then
+
+    E[T] ≤ t₀ + δ · s · (1 - q)⁻¹.
+
+Here `t₀ = O(log n)` is the good-event horizon, `δ` is the whp failure
+probability, and `s · (1-q)⁻¹` is the backup expected time. -/
+theorem expectedHitting_split_geometric (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (s : ℕ) (hs : s ≠ 0) (q : ℝ≥0∞)
+    (hblock : ∀ b ∈ (Doneᶜ : Set α), (K ^ s) b Doneᶜ ≤ q)
+    (c₀ : α) (t₀ : ℕ) (δ : ℝ≥0∞) (hδ : (K ^ t₀) c₀ Doneᶜ ≤ δ) :
+    expectedHitting K c₀ Done ≤ (t₀ : ℝ≥0∞) + δ * s * (1 - q)⁻¹ := by
+  have htail : ∑' t : ℕ, (K ^ (t₀ + t)) c₀ Doneᶜ ≤ δ * s * (1 - q)⁻¹ := by
+    calc ∑' t : ℕ, (K ^ (t₀ + t)) c₀ Doneᶜ
+        ≤ (s : ℝ≥0∞) * ∑' k : ℕ, (K ^ (t₀ + k * s)) c₀ Doneᶜ :=
+          tail_le_block K hDone hAbs c₀ t₀ s hs
+      _ ≤ (s : ℝ≥0∞) * ∑' k : ℕ, δ * q ^ k := by
+          gcongr with k
+          calc (K ^ (t₀ + k * s)) c₀ Doneᶜ
+              ≤ (K ^ t₀) c₀ Doneᶜ * q ^ k :=
+                bad_block_geometric_from K hDone hAbs s q hblock c₀ t₀ k
+            _ ≤ δ * q ^ k := by gcongr
+      _ = (s : ℝ≥0∞) * (δ * (1 - q)⁻¹) := by rw [ENNReal.tsum_mul_left, ENNReal.tsum_geometric]
+      _ = δ * s * (1 - q)⁻¹ := by ring
+  calc expectedHitting K c₀ Done
+      ≤ (t₀ : ℝ≥0∞) + ∑' t : ℕ, (K ^ (t₀ + t)) c₀ Doneᶜ :=
+        expectedHitting_split K c₀ Done t₀
+    _ ≤ (t₀ : ℝ≥0∞) + δ * s * (1 - q)⁻¹ := by gcongr
+
+end ExactMajority
