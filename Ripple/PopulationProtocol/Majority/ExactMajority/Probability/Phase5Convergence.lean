@@ -746,41 +746,29 @@ theorem Phase5Transition_snd_hour_eq_of_reserve_ne_L (s t : AgentState L K)
 Reserve (`hour = i ≠ L`) is frozen by the sampling rule (the guard fires only on `hour = L`),
 so the pair's class-`i` count never drops.  Forward-stability: a class-`i` input maps to a
 class-`i` output. -/
-theorem Phase5Transition_sampledClass_pair_ge (i : Fin (L + 1)) (s t : AgentState L K)
-    (hs : s.phase.val = 5) (ht : t.phase.val = 5) :
+theorem Phase5Transition_sampledClass_pair_ge (i : Fin (L + 1)) (hiL : i.val < L)
+    (s t : AgentState L K) (hs : s.phase.val = 5) (ht : t.phase.val = 5) :
     Multiset.countP (fun a => sampledReserveClass i a) ({s, t} : Multiset (AgentState L K))
       ≤ Multiset.countP (fun a => sampledReserveClass i a)
           ({(Phase5Transition L K s t).1, (Phase5Transition L K s t).2}
             : Multiset (AgentState L K)) := by
   classical
   rw [countP_sampledReserveClass_pair, countP_sampledReserveClass_pair]
-  -- forward-stability via role/hour: a class-i input gives a class-i output.
-  -- Output role = input role (Phase5Transition_fst/snd_role_eq); output hour preserved when the
-  -- sampling guard doesn't fire (which it can't on hour = i ≠ L).
   have hfwd1 : sampledReserveClass i s → sampledReserveClass i (Phase5Transition L K s t).1 := by
     intro hsi
     have hrole : (Phase5Transition L K s t).1.role = s.role :=
       Phase5Transition_fst_role_eq (L := L) (K := K) s t hs
-    have hhour : (Phase5Transition L K s t).1.hour.val = s.hour.val := by
-      -- s is a class-i reserve: hour.val = i.val.  Backward-stability of the sampled value:
-      -- the only way the first output's hour differs from s is the sampling branch, which
-      -- requires s.hour.val = L; but s.hour.val = i.val.  We use the fst role/hour disjunct.
-      rcases Phase5Transition_fst_role_hour (L := L) (K := K) s t with hclk | ⟨_, hh⟩
-      · -- output is clock; but output role = s.role = reserve ⟹ contradiction.
-        rw [hrole, hsi.1] at hclk; exact absurd hclk (by decide)
-      · -- hh : output.hour.val = L → s.hour.val = L.  We need output.hour.val = s.hour.val.
-        -- The first output's hour is either s.hour (no-op/clock-free) or exponentOf (sampling).
-        -- Use the explicit fst hour computation.
-        exact Phase5Transition_fst_hour_eq_of_not_unsampled (L := L) (K := K) s t hs
-          (by intro hu; have := hu.2; rw [hsi.2] at this; omega)
+    have hne : s.hour.val ≠ L := by rw [hsi.2]; omega
+    have hhour : (Phase5Transition L K s t).1.hour = s.hour :=
+      Phase5Transition_fst_hour_eq_of_reserve_ne_L (L := L) (K := K) s t hsi.1 hne
     exact ⟨by rw [hrole]; exact hsi.1, by rw [hhour]; exact hsi.2⟩
   have hfwd2 : sampledReserveClass i t → sampledReserveClass i (Phase5Transition L K s t).2 := by
     intro hti
     have hrole : (Phase5Transition L K s t).2.role = t.role :=
       Phase5Transition_snd_role_eq (L := L) (K := K) s t ht
-    have hhour : (Phase5Transition L K s t).2.hour.val = t.hour.val :=
-      Phase5Transition_snd_hour_eq_of_not_unsampled (L := L) (K := K) s t ht
-        (by intro hu; have := hu.2; rw [hti.2] at this; omega)
+    have hne : t.hour.val ≠ L := by rw [hti.2]; omega
+    have hhour : (Phase5Transition L K s t).2.hour = t.hour :=
+      Phase5Transition_snd_hour_eq_of_reserve_ne_L (L := L) (K := K) s t hti.1 hne
     exact ⟨by rw [hrole]; exact hti.1, by rw [hhour]; exact hti.2⟩
   gcongr
   · by_cases h : sampledReserveClass i s
@@ -790,7 +778,262 @@ theorem Phase5Transition_sampledClass_pair_ge (i : Fin (L + 1)) (s t : AgentStat
     · rw [if_pos h, if_pos (hfwd2 h)]
     · rw [if_neg h]; positivity
 
+/-! ### Config-level monotonicity, rise rectangle, and the one-step lower MGF. -/
+
+/-- **`sampledReserveClassU i` is monotone NON-DECREASING per kernel step** on the phase-5
+window (`hmono` for the lower MGF).  Applicable pairs are phase-5; the per-pair non-decrease is
+`Phase5Transition_sampledClass_pair_ge`. -/
+theorem sampledReserveClassU_stepOrSelf_ge (i : Fin (L + 1)) (hiL : i.val < L) (n : ℕ)
+    (c : Config (AgentState L K)) (hInv : Phase5AllWin n c) (r₁ r₂ : AgentState L K) :
+    sampledReserveClassU (L := L) (K := K) i c
+      ≤ sampledReserveClassU (L := L) (K := K) i
+          (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  obtain ⟨_, hph⟩ := hInv
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have h15 : r₁.phase.val = 5 := hph r₁ (mem_of_app_left5' happ)
+    have h25 : r₂.phase.val = 5 := hph r₂ (mem_of_app_right5' happ)
+    have hsub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := happ
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    unfold sampledReserveClassU
+    rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+    rw [Transition_eq_Phase5Transition_of_phase5 (L := L) (K := K) r₁ r₂ h15 h25]
+    have hge := Phase5Transition_sampledClass_pair_ge (L := L) (K := K) i hiL r₁ r₂ h15 h25
+    -- countP over c = countP over (c - pair) + countP over pair (since pair ≤ c).
+    have hsplit : Multiset.countP (fun a => sampledReserveClass i a) c
+        = Multiset.countP (fun a => sampledReserveClass i a) (c - {r₁, r₂})
+          + Multiset.countP (fun a => sampledReserveClass i a) ({r₁, r₂}
+              : Multiset (AgentState L K)) := by
+      rw [← Multiset.countP_add, Multiset.sub_add_cancel hsub]
+    omega
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+
+/-- **Config-level RISE of `sampledReserveClassU i`.**  On the phase-5 window, an applicable
+pair `(r, m)` with `r` an unsampled Reserve and `m` a class-`i` biased Main (index `< L`) raises
+the global class-`i` count by one. -/
+theorem sampledReserveClassU_stepOrSelf_rise (σ : Sign) (i : Fin (L + 1)) (hiL : i.val < L)
+    (n : ℕ) (c : Config (AgentState L K)) (hInv : Phase5AllWin n c) (r m : AgentState L K)
+    (happ : Protocol.Applicable c r m) (hr : unsampled r) (hm : classMains σ i m) :
+    sampledReserveClassU (L := L) (K := K) i c + 1
+      ≤ sampledReserveClassU (L := L) (K := K) i
+          (Protocol.stepOrSelf (NonuniformMajority L K) c r m) := by
+  obtain ⟨_, hph⟩ := hInv
+  have h15 : r.phase.val = 5 := hph r (mem_of_app_left5' happ)
+  have h25 : m.phase.val = 5 := hph m (mem_of_app_right5' happ)
+  have hsub : ({r, m} : Multiset (AgentState L K)) ≤ c := happ
+  have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r m
+      = c - {r, m} + {(Transition L K r m).1, (Transition L K r m).2} := by
+    unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+  unfold sampledReserveClassU
+  rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+  rw [Transition_eq_Phase5Transition_of_phase5 (L := L) (K := K) r m h15 h25]
+  have hrise := Phase5Transition_sampledClass_pair_rise (L := L) (K := K) σ i hiL r m hr hm
+  have hsplit : Multiset.countP (fun a => sampledReserveClass i a) c
+      = Multiset.countP (fun a => sampledReserveClass i a) (c - {r, m})
+        + Multiset.countP (fun a => sampledReserveClass i a) ({r, m}
+            : Multiset (AgentState L K)) := by
+    rw [← Multiset.countP_add, Multiset.sub_add_cancel hsub]
+  omega
+
+/-- **The generic RISE-rectangle probability bound** (mirror of `drop_prob_of_rect5` with the
+rise event `{c' | Φ c + 1 ≤ Φ c'}`).  Each rectangle cell raises `Φ` by `≥ 1`. -/
+theorem rise_prob_of_rect5 (Φ : Config (AgentState L K) → ℕ) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hcardn : c.card = n)
+    (R : Finset (AgentState L K × AgentState L K)) (N : ℕ)
+    (hrise : ∀ p ∈ R, 1 ≤ c.count p.1 → 1 ≤ c.count p.2 → (p.1 = p.2 → 2 ≤ c.count p.1) →
+      Φ c + 1 ≤ Φ (Protocol.stepOrSelf (NonuniformMajority L K) c p.1 p.2))
+    (hcount : (N : ℕ) ≤ ∑ p ∈ R, c.interactionCount p.1 p.2) :
+    ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c + 1 ≤ Φ c'} := by
+  set j := Φ c with hjdef
+  have hcard2 : 2 ≤ c.card := by rw [hcardn]; omega
+  have hmeas : MeasurableSet {c' : Config (AgentState L K) | j + 1 ≤ Φ c'} :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  set S : Finset (AgentState L K × AgentState L K) :=
+    R.filter (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2 ∧ (p.1 = p.2 → 2 ≤ c.count p.1)) with hS
+  have hsub : (↑S : Set (AgentState L K × AgentState L K)) ⊆
+      (Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹' {c' | j + 1 ≤ Φ c'} := by
+    intro p hp
+    simp only [Finset.coe_filter, Set.mem_setOf_eq, hS] at hp
+    obtain ⟨hpc, hp1, hp2, hp3⟩ := hp
+    simp only [Set.mem_preimage, Set.mem_setOf_eq, Protocol.scheduledStep]
+    exact hrise p hpc hp1 hp2 hp3
+  have hstepDist : (NonuniformMajority L K).stepDistOrSelf c
+      = (NonuniformMajority L K).stepDist c hcard2 := by
+    unfold Protocol.stepDistOrSelf; rw [dif_pos hcard2]
+  have hbase : ((NonuniformMajority L K).stepDistOrSelf c).toMeasure {c' | j + 1 ≤ Φ c'}
+      = (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹' {c' | j + 1 ≤ Φ c'}) := by
+    rw [hstepDist]; unfold Protocol.stepDist
+    rw [PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hmeas]
+  rw [hbase]
+  have hmono : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      ≤ (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹' {c' | j + 1 ≤ Φ c'}) :=
+    measure_mono hsub
+  refine le_trans ?_ hmono
+  have hSmeasure : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      = ∑ p ∈ S, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  have hSsum : ∑ p ∈ S, c.interactionProb p.1 p.2
+      = ∑ p ∈ R, c.interactionProb p.1 p.2 := by
+    rw [hS]
+    apply Finset.sum_subset (Finset.filter_subset _ _)
+    intro p hpc hpnot
+    rw [Finset.mem_filter] at hpnot
+    push Not at hpnot
+    have hexcl := hpnot hpc
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases h1 : 1 ≤ c.count p.1
+      · by_cases h2 : 1 ≤ c.count p.2
+        · obtain ⟨hpe, hlt⟩ := hexcl h1 h2
+          rw [if_pos hpe]; have hc1 : c.count p.1 = 1 := by omega
+          rw [hc1]
+        · have hz2 : c.count p.2 = 0 := by omega
+          by_cases hpe : p.1 = p.2
+          · rw [if_pos hpe]; rw [hpe, hz2, Nat.zero_mul]
+          · rw [if_neg hpe, hz2, Nat.mul_zero]
+      · have hz1 : c.count p.1 = 0 := by omega
+        by_cases hpe : p.1 = p.2
+        · rw [if_pos hpe, hz1, Nat.zero_mul]
+        · rw [if_neg hpe, hz1, Nat.zero_mul]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hSmeasure, hSsum]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2 = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum]
+  set M := ∑ p ∈ R, c.interactionCount p.1 p.2 with hM
+  have htp : c.totalPairs = n * (n - 1) := by rw [Config.totalPairs, hcardn]
+  rw [htp, ← div_eq_mul_inv]
+  have hden_pos : (0 : ℝ) < ((n * (n - 1) : ℕ) : ℝ) := by
+    have : 0 < n * (n - 1) := Nat.mul_pos (by omega) (by omega)
+    exact_mod_cast this
+  have hdenR : ((n * (n - 1) : ℕ) : ℝ) = (n : ℝ) * ((n : ℝ) - 1) := by
+    rw [Nat.cast_mul, Nat.cast_sub (by omega)]; push_cast; ring
+  have hstep1 : ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))
+      ≤ ENNReal.ofReal (((M : ℕ) : ℝ) / ((n * (n - 1) : ℕ) : ℝ)) := by
+    apply ENNReal.ofReal_le_ofReal
+    rw [hdenR]
+    have hNM : (N : ℝ) ≤ (M : ℝ) := by exact_mod_cast hcount
+    have hposden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by rw [← hdenR]; exact hden_pos
+    gcongr
+  refine le_trans hstep1 ?_
+  rw [← ENNReal.ofReal_natCast M, ← ENNReal.ofReal_natCast (n * (n - 1)),
+      ← ENNReal.ofReal_div_of_pos hden_pos]
+
+/-- The class-`i` biased-Main states (sign `σ`). -/
+def classMainStates (σ : Sign) (i : Fin (L + 1)) : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => classMains σ i a)
+
+/-- An unsampled Reserve and a class-`i` Main are distinct (role differs). -/
+theorem unsampledReserves_classMainStates_disjoint (σ : Sign) (i : Fin (L + 1))
+    (a : AgentState L K) (ha : a ∈ unsampledReserves (L := L) (K := K))
+    (b : AgentState L K) (hb : b ∈ classMainStates (L := L) (K := K) σ i) : a ≠ b := by
+  simp only [unsampledReserves, classMainStates, Finset.mem_filter, unsampled, classMains]
+    at ha hb
+  intro heq; subst heq
+  rw [ha.2.1] at hb; exact absurd hb.2.1 (by decide)
+
+/-- **The class-`i` rise-rectangle probability floor** (Phase 5).  On a phase-5 window the
+one-step probability that `sampledReserveClassU i` rises is at least
+`(#unsampledReserves · #classMains_σi)/(n(n−1))` — the per-step conditional class-`i` sampling
+mass that the in-house lower-MGF consumes. -/
+theorem sampledReserveClassU_rise_prob_rect5 (σ : Sign) (i : Fin (L + 1)) (hiL : i.val < L)
+    (n : ℕ) (hn : 2 ≤ n) (c : Config (AgentState L K)) (hInv : Phase5AllWin n c) :
+    ENNReal.ofReal
+        (((unsampledReserves (L := L) (K := K)).sum c.count *
+          (classMainStates (L := L) (K := K) σ i).sum c.count : ℕ) /
+          ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | sampledReserveClassU (L := L) (K := K) i c + 1
+          ≤ sampledReserveClassU (L := L) (K := K) i c'} := by
+  have hcardn : c.card = n := hInv.1
+  refine rise_prob_of_rect5 (fun c => sampledReserveClassU (L := L) (K := K) i c) n hn c hcardn
+    ((unsampledReserves (L := L) (K := K)) ×ˢ (classMainStates (L := L) (K := K) σ i))
+    _ ?_ (le_of_eq ?_)
+  · rintro ⟨r, m⟩ hp hcr hcm _
+    rw [Finset.mem_product] at hp
+    obtain ⟨hrmem, hmmem⟩ := hp
+    simp only [unsampledReserves, Finset.mem_filter] at hrmem
+    simp only [classMainStates, Finset.mem_filter] at hmmem
+    have hrm : r ∈ c := Multiset.one_le_count_iff_mem.mp hcr
+    have hmm : m ∈ c := Multiset.one_le_count_iff_mem.mp hcm
+    have hne : r ≠ m :=
+      unsampledReserves_classMainStates_disjoint σ i r
+        (by simp only [unsampledReserves, Finset.mem_filter]; exact ⟨Finset.mem_univ _, hrmem.2⟩)
+        m (by simp only [classMainStates, Finset.mem_filter]; exact ⟨Finset.mem_univ _, hmmem.2⟩)
+    have happ : Protocol.Applicable c r m := applicable_of_mem_distinct5 hrm hmm hne
+    exact sampledReserveClassU_stepOrSelf_rise σ i hiL n c hInv r m happ hrmem.2 hmmem.2
+  · rw [sum_interactionCount_cross_disjoint5 c _ _
+        (unsampledReserves_classMainStates_disjoint σ i)]
+
+/-- **Support monotonicity**: every one-step successor of a phase-5-window state has
+`sampledReserveClassU i` at least its current value. -/
+theorem sampledReserveClassU_support_ge (i : Fin (L + 1)) (hiL : i.val < L) (n : ℕ)
+    (c c' : Config (AgentState L K)) (hInv : Phase5AllWin n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    sampledReserveClassU (L := L) (K := K) i c
+      ≤ sampledReserveClassU (L := L) (K := K) i c' := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact sampledReserveClassU_stepOrSelf_ge i hiL n c hInv r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact le_refl _
+
+/-- **The in-house one-step lower-MGF contraction** for the sampled-class deficit potential
+`Φ(c) = exp(−s · sampledReserveClassU i c)`.  On a phase-5 window, the counter is monotone
+(support monotonicity) and rises with probability at least the rise-rectangle floor `r`, so
+`EarlyDripMarked.mgf_one_step_lower` gives the contraction
+`∫ exp(−s·N) dK(c) ≤ (1 − r(1−e^{−s}))·exp(−s·N(c))` — the genuinely-probabilistic drift. -/
+theorem sampledClass_lower_mgf_drift (σ : Sign) (i : Fin (L + 1)) (hiL : i.val < L)
+    (n : ℕ) (hn : 2 ≤ n) (s : ℝ) (hs : 0 ≤ s) (r : ℝ) (hr0 : 0 ≤ r) (hr1 : r ≤ 1)
+    (c : Config (AgentState L K)) (hInv : Phase5AllWin n c)
+    (hrfloor : ENNReal.ofReal r ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | sampledReserveClassU (L := L) (K := K) i c + 1
+          ≤ sampledReserveClassU (L := L) (K := K) i c'}) :
+    ∫⁻ c', ENNReal.ofReal
+        (Real.exp (-(s * (sampledReserveClassU (L := L) (K := K) i c' : ℝ))))
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal ((1 - r * (1 - Real.exp (-s)))
+          * Real.exp (-(s * (sampledReserveClassU (L := L) (K := K) i c : ℝ)))) := by
+  set μ := ((NonuniformMajority L K).stepDistOrSelf c).toMeasure with hμ
+  haveI hprob : IsProbabilityMeasure μ := by
+    rw [hμ]
+    exact (inferInstance :
+      IsMarkovKernel (NonuniformMajority L K).transitionKernel).isProbabilityMeasure c
+  have hKμ : (NonuniformMajority L K).transitionKernel c = μ := rfl
+  set N := fun c' => sampledReserveClassU (L := L) (K := K) i c' with hN
+  set n₀ := sampledReserveClassU (L := L) (K := K) i c with hn0
+  -- a.e. monotonicity: support points have N ≥ n₀.
+  have hmono : ∀ᵐ y ∂μ, n₀ ≤ N y := by
+    rw [hμ, ae_iff]
+    rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+    rw [Set.disjoint_left]
+    intro x hsupp hx
+    simp only [Set.mem_setOf_eq, hN, hn0] at hx
+    exact hx (sampledReserveClassU_support_ge i hiL n c x hInv hsupp)
+  -- rise floor: μ {n₀ < N} ≥ ofReal r (the rise event = {n₀ + 1 ≤ N}).
+  have hprob_rise : ENNReal.ofReal r ≤ μ {y | n₀ < N y} := by
+    have hset : {y : Config (AgentState L K) | n₀ < N y}
+        = {c' | sampledReserveClassU (L := L) (K := K) i c + 1
+            ≤ sampledReserveClassU (L := L) (K := K) i c'} := by
+      ext y; simp only [Set.mem_setOf_eq, hN, hn0]; omega
+    rw [hset]; exact hrfloor
+  have := EarlyDripMarked.mgf_one_step_lower μ s hs N n₀ hmono r hr0 hr1 hprob_rise
+  rw [hKμ]; exact this
+
 /-! ### The Phase-5 post predicate and the assembled `PhaseConvergenceW`.
+
+`ReserveSampleGood i K₀ c` is the honest rendering of the paper's Phase-5 output for Phase 6:
 
 `ReserveSampleGood i K₀ c` is the honest rendering of the paper's Phase-5 output for Phase 6:
 *every Reserve has sampled* (`ReserveSampled`) AND *enough Reserves sampled the useful level*
