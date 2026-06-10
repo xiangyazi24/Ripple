@@ -1073,6 +1073,52 @@ theorem assignableCount_pair_mono_of_mcr_assignable
   simp only [Bool.false_eq_true, if_false, if_true]
   omega
 
+/-- **R4 is the deterministic 1:1 `Clock`/`Reserve` producer (paper second-level
+split `RoleCR,RoleCR → Clock,Reserve`).**  When `s, t` are both `RoleCR`, the
+`Phase0Transition` outputs are exactly one `Clock` (the `s`-side, counter
+initialised) and one `Reserve` (the `t`-side).  This is the foundation of the
+deterministic balance `|Clock| = |Reserve| = #(R4 firings)` underlying Lemma 5.2's
+`|C|, |R| ≥ n/4` floors. -/
+theorem Phase0Transition_rule4_clock_reserve
+    (s t : AgentState L K) (hs : s.role = .cr) (ht : t.role = .cr) :
+    (Phase0Transition L K s t).1.role = .clock ∧
+    (Phase0Transition L K s t).2.role = .reserve := by
+  have h1 : (Role.cr = Role.mcr) = False := by simp
+  have h2 : (Role.cr = Role.main) = False := by simp
+  have h3 : (Role.clock = Role.clock) = True := by simp
+  have h4 : (Role.reserve = Role.clock) = False := by simp
+  refine ⟨?_, ?_⟩ <;>
+  · unfold Phase0Transition
+    simp only [hs, ht, h1, h2, h3, h4, true_and, and_true, false_and, and_false,
+      if_true, if_false, ne_eq, not_true_eq_false, not_false_eq_true, Bool.false_eq_true]
+
+/-- **R4 drains the assignable pool by exactly `2` (per pair).**  Two assignable
+(unassigned phase-0) `RoleCR` agents become a `Clock` and a `Reserve`, neither
+assignable: the input pair carries `2` assignables, the output `0`.  This is the
+*only* pool-draining reaction (the `−2` in the ledger R1 `+2`, R2 `0`, R3 `0`,
+R4 `−2`); it is also why no deterministic floor on `assignableCount` survives the
+concurrent encoding — Rule 4 can fire on R1's fresh CRs while `mcrCount > 0`. -/
+theorem assignableCount_pair_rule4_drop
+    (s t : AgentState L K) (hs : IsAssignable s) (ht : IsAssignable t)
+    (hs_cr : s.role = .cr) (ht_cr : t.role = .cr) :
+    assignableCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} :
+          Config (AgentState L K)) + 2 =
+      assignableCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  obtain ⟨hroleC, hroleR⟩ := Phase0Transition_rule4_clock_reserve s t hs_cr ht_cr
+  have hout1_not : isAssignableBool (L := L) (K := K) (Phase0Transition L K s t).1 = false := by
+    have hne : ¬ IsAssignable (Phase0Transition L K s t).1 := by
+      rintro ⟨_, _, hr⟩; rcases hr with h | h <;> rw [hroleC] at h <;> simp at h
+    by_contra hh; exact hne ((isAssignableBool_iff _).mp (by simpa using hh))
+  have hout2_not : isAssignableBool (L := L) (K := K) (Phase0Transition L K s t).2 = false := by
+    have hne : ¬ IsAssignable (Phase0Transition L K s t).2 := by
+      rintro ⟨_, _, hr⟩; rcases hr with h | h <;> rw [hroleR] at h <;> simp at h
+    by_contra hh; exact hne ((isAssignableBool_iff _).mp (by simpa using hh))
+  have hs_yes : isAssignableBool (L := L) (K := K) s = true := (isAssignableBool_iff s).mpr hs
+  have ht_yes : isAssignableBool (L := L) (K := K) t = true := (isAssignableBool_iff t).mpr ht
+  rw [assignableCount_pair', assignableCount_pair', hs_yes, ht_yes, hout1_not, hout2_not]
+  simp only [Bool.false_eq_true, if_false, if_true]
+
 /-- The MCR filter Finset (initiators of the one-sided conversion). -/
 private def mcrF : Finset (AgentState L K) :=
   Finset.univ.filter (fun s : AgentState L K => s.role = .mcr)
@@ -3462,6 +3508,81 @@ theorem phase0_stage1_whp (n a₀ : ℕ) (hn2 : 2 ≤ n) (ha1 : 1 ≤ a₀) (ha_
     hstep c₀ hc₀
     (roleSplitKernelMilestone_hPre (L := L) (K := K) n a₀ hn2 ha1 ha_le hinit)
     lam hlam t ht
+
+/-! ## Phase C-1 (relay 9, post protocol-fix) — the floor resolution + `_final` form.
+
+**The protocol fix (2026-06-10) and what it did to the floor.**  The relay-8 note
+recommended re-encoding Rule 3 to emit a *fresh unassigned* output, predicting that
+this would restore the paper's `sf+mf`-monotonicity and *collapse the floor to a
+deterministic count bound*.  The fix landed (`assignable_rule3_conserved`,
+C-1J/K/L above): the per-rule `assignableCount` (= the paper's `sf + mf`) deltas are
+now
+
+  R1 `+2`   ·   R2 `0`   ·   R3 `0`   ·   R4 `−2`.
+
+So the first-level reactions R1/R2/R3 indeed make the pool monotone non-decreasing
+(`assignable_rule1_both_fresh`, `assignableCount_pair_mono_of_mcr_assignable`) — the
+paper's "`sf+mf` can never decrease" is now an *exact* per-pair fact in Lean.
+
+**However the floor does NOT become fully deterministic, and the honest reason is
+the concurrency of the Lean encoding (not Rule 3).**  The paper's monotonicity holds
+because Lemma 5.1 analyses ONLY the three first-level reactions; the second-level
+split `RoleCR,RoleCR → Clock,Reserve` (Rule 4) is analysed *separately and later*
+("we begin the analysis at that point" — temporal separation).  `Phase0Transition`,
+by contrast, fires R1–R4 **concurrently** in one interaction, and Rule 4 fires on
+*any* two `RoleCR` agents regardless of `assigned` — so it can drain the unassigned-CR
+half of the pool by `−2` even while `mcrCount > 0`.  Concretely the pool obeys the
+deterministic identity `assignableCount = 2·#R1 − 2·#(R4 on unassigned CR)`, and an
+adversarial scheduler may fire R4 on the fresh CRs produced by R1 to drive the pool
+low while `u > 0`.  Hence:
+
+  * the `Θ(log n)` Janson potential requires the floor-driven rate `Θ(M/n)`
+    (`roleSplitKernelMilestone_pMin_meanTime`), which requires `assignableCount ≥ a₀`
+    with `a₀ = Θ(n)`;
+  * the R1-diagonal-only rate `M(M−1)/(n(n−1))` needs no floor but gives only a `Θ(1)`
+    potential (`phase0MilestonePhase_pMin_le_two_div`), insufficient for `1/n²`;
+  * no deterministic invariant maintains `assignableCount ≥ Θ(n)` while `u > 0` under
+    the concurrent kernel (R4 drain), so the floor `εfloor = ∑_τ P(assignableCount<a₀)`
+    remains the genuine Lemma-5.1 Chernoff residual — bounded by the early-phase
+    drift (`u ≥ 2n/3 ⟹ R1 fires w.p. ≥ ½ ⟹ pool grows to `Θ(n)` whp), an in-house MGF
+    development, NOT assemblable from the deterministic count atoms.
+
+The fix therefore *halved* the drain (R3's `−1` is gone) and made the first-level pool
+exactly monotone, but R4's `−2` is the surviving obstruction; the residual is the
+*single* floor-concentration term, isolated below. -/
+
+open ExactMajority GatedDrift in
+/-- **`phase0_stage1_whp_final` — the Stage-1 headline with the residual pinned to the
+pure floor-failure prefix.**  Specialises `phase0_stage1_whp` at `S := floorGate n a₀`,
+so the side-set complement `Sᶜ` is *exactly* `floorGateᶜ` and (by
+`floorGate_escape_mass_le` + `card_eq_of_support`) the escape prefix
+`∑_{τ<t} (K^τ) c₀ floorGateᶜ` reduces to the genuine floor event
+`∑_{τ<t} P(assignableCount < a₀ at τ)` plus the deterministically-null
+`cardPhaseShellᶜ` shell.  `q` is the per-step floor-breach probability (`Θ(1)` from
+a boundary config — the reason a uniform `q` is too weak and the cumulative MGF is
+needed).  The Janson tail uses the floor-driven `pMin·meanTime = Θ(log n)`.  This is
+the final structural form: the ONLY undischarged quantity is the floor-concentration
+`εfloor`, which is the irreducible Lemma-5.1 Chernoff content (see the doctrine above). -/
+theorem phase0_stage1_whp_final (n a₀ : ℕ) (hn2 : 2 ≤ n) (ha1 : 1 ≤ a₀) (ha_le : a₀ ≤ n - 1)
+    (q : ℝ≥0∞)
+    (hstep : ∀ x ∈ floorGate (L := L) (K := K) n a₀, x ∈ floorGate (L := L) (K := K) n a₀ →
+      (NonuniformMajority L K).transitionKernel x (floorGate (L := L) (K := K) n a₀)ᶜ ≤ q)
+    {c₀ : Config (AgentState L K)} (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (hc₀ : c₀ ∈ floorGate (L := L) (K := K) n a₀)
+    (lam : ℝ) (hlam : 1 ≤ lam) (t : ℕ)
+    (ht : lam * (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).meanTime
+      ≤ (t : ℝ)) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {y | ¬ roleSplitGoodMile (L := L) (K := K) n hn2 y} ≤
+      ENNReal.ofReal (Real.exp
+        (-(roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).pMin *
+          (roleSplitKernelMilestone (L := L) (K := K) n a₀ hn2 ha1 ha_le).meanTime *
+          (lam - 1 - Real.log lam))) +
+      ((t : ℝ≥0∞) * q +
+        ∑ τ ∈ Finset.range t, ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+          (floorGate (L := L) (K := K) n a₀)ᶜ) :=
+  phase0_stage1_whp (L := L) (K := K) n a₀ hn2 ha1 ha_le
+    (floorGate (L := L) (K := K) n a₀) q hstep hinit hc₀ lam hlam t ht
 
 end RoleSplitConcentration
 end ExactMajority

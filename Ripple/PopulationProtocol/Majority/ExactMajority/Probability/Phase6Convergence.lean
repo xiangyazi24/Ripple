@@ -1177,6 +1177,249 @@ theorem Phase6Transition_highMass_pair_drop (l : ℕ) (r m : AgentState L K) {σ
   rw [hs1eq, ht1eq]
   exact doSplit_highMass_pair_drop (L := L) (K := K) l r m hl1 hlL hrR hmM hb hne hgt
 
+/-- **Global band-top strict drop under `stepOrSelf`.**  On a `Phase6Win` config, an
+applicable pair `(r, m)` with `r` a band-top-eliminating Reserve and `m` a biased
+Main at index `l−1` drops the global `highMass l` by `≥ 1`. -/
+theorem highMass_stepOrSelf_drop (l n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase6Win (L := L) (K := K) n c) (r m : AgentState L K)
+    (happ : Protocol.Applicable c r m) {σ : Sign}
+    (hl1 : 1 ≤ l) (hlL : l ≤ L) (hrR : r.role = Role.reserve) (hmM : m.role = Role.main)
+    (hb : m.bias = Bias.dyadic σ ⟨l - 1, by omega⟩)
+    (hne : r.hour.val ≠ L) (hgt : r.hour.val > l - 1) :
+    highMass (L := L) (K := K) l (Protocol.stepOrSelf (NonuniformMajority L K) c r m) + 1
+      ≤ highMass (L := L) (K := K) l c := by
+  obtain ⟨_, hph⟩ := hInv
+  have hm1 := mem_of_app_left6E2 happ
+  have hm2 := mem_of_app_right6E2 happ
+  have h16 : r.phase.val = 6 := hph r hm1
+  have h26 : m.phase.val = 6 := hph m hm2
+  have hsub : ({r, m} : Multiset (AgentState L K)) ≤ c := happ
+  have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r m
+      = c - {r, m} + {(Transition L K r m).1, (Transition L K r m).2} := by
+    unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+  have htr : Transition L K r m = Phase6Transition L K r m :=
+    Transition_eq_Phase6Transition_of_phase6 (L := L) (K := K) r m h16 h26
+  have hcsplit : c = (c - {r, m}) + {r, m} := (tsub_add_cancel_of_le hsub).symm
+  -- pair strict drop.
+  have hpairdrop : highMass (L := L) (K := K) l
+      {(Transition L K r m).1, (Transition L K r m).2} + 1
+        ≤ highMass (L := L) (K := K) l {r, m} := by
+    unfold highMass
+    rw [highMass_pair, highMass_pair, htr]
+    exact Phase6Transition_highMass_pair_drop (L := L) (K := K) l r m hl1 hlL hrR hmM hb hne hgt
+      (by omega) (by omega)
+  rw [hc', highMass_add]
+  -- highMass c = highMass(c - pair) + highMass(pair).
+  have hcval : highMass (L := L) (K := K) l c
+      = highMass (L := L) (K := K) l (c - {r, m}) + highMass (L := L) (K := K) l {r, m} := by
+    conv_lhs => rw [hcsplit]
+    rw [highMass_add]
+  omega
+
+/-! ### The generic drop-rectangle probability bound (re-derived single-file).
+
+Mirror of `Phase7Convergence.drop_prob_of_rect` (its olean is not imported here): for
+a potential `Φ` and a rectangle `R` of pairs each of which, when fired, drops `Φ` by
+`≥ 1`, the one-step drop-probability is `≥ N/(n(n−1))` with `N ≤ ∑_R interactionCount`. -/
+
+private theorem applicable_of_mem_distinct6 {c : Config (AgentState L K)}
+    {x y : AgentState L K} (hx : x ∈ c) (hy : y ∈ c) (hxy : x ≠ y) :
+    Protocol.Applicable c x y := by
+  refine Multiset.le_iff_count.mpr ?_
+  intro a
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl,
+      Multiset.count_cons, Multiset.count_cons, Multiset.count_zero]
+  have hxc : 1 ≤ Multiset.count x c := Multiset.one_le_count_iff_mem.mpr hx
+  have hyc : 1 ≤ Multiset.count y c := Multiset.one_le_count_iff_mem.mpr hy
+  by_cases hax : a = x
+  · subst hax
+    have hay : ¬ a = y := fun h => hxy (h ▸ rfl)
+    rw [if_pos rfl, if_neg hay]; omega
+  · by_cases hay : a = y
+    · subst hay; rw [if_neg hax, if_pos rfl]; omega
+    · rw [if_neg hax, if_neg hay]; omega
+
+/-- The `interactionCount` mass of `A ×ˢ B` for pairwise-distinct state-finsets. -/
+theorem sum_interactionCount_cross_disjoint6
+    (c : Config (AgentState L K)) (A B : Finset (AgentState L K))
+    (hdisj : ∀ a ∈ A, ∀ b ∈ B, a ≠ b) :
+    (∑ p ∈ A ×ˢ B, c.interactionCount p.1 p.2)
+      = (∑ a ∈ A, c.count a) * (∑ b ∈ B, c.count b) := by
+  rw [Finset.sum_product, Finset.sum_mul]
+  apply Finset.sum_congr rfl
+  intro a ha
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro b hb
+  unfold Config.interactionCount
+  rw [if_neg (hdisj a ha b hb)]
+
+/-- **The generic drop-rectangle probability bound** (Φ-agnostic). -/
+theorem drop_prob_of_rect6 (Φ : Config (AgentState L K) → ℕ) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hcardn : c.card = n)
+    (R : Finset (AgentState L K × AgentState L K)) (N : ℕ)
+    (hdrop : ∀ p ∈ R, 1 ≤ c.count p.1 → 1 ≤ c.count p.2 → (p.1 = p.2 → 2 ≤ c.count p.1) →
+      Φ (Protocol.stepOrSelf (NonuniformMajority L K) c p.1 p.2) + 1 ≤ Φ c)
+    (hcount : (N : ℕ) ≤ ∑ p ∈ R, c.interactionCount p.1 p.2) :
+    ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ Φ c} := by
+  set j := Φ c with hjdef
+  have hcard2 : 2 ≤ c.card := by rw [hcardn]; omega
+  have hmeas : MeasurableSet {c' : Config (AgentState L K) | Φ c' + 1 ≤ j} :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  set S : Finset (AgentState L K × AgentState L K) :=
+    R.filter (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2 ∧ (p.1 = p.2 → 2 ≤ c.count p.1)) with hS
+  have hsub : (↑S : Set (AgentState L K × AgentState L K)) ⊆
+      (Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+        {c' | Φ c' + 1 ≤ j} := by
+    intro p hp
+    simp only [Finset.coe_filter, Set.mem_setOf_eq, hS] at hp
+    obtain ⟨hpc, hp1, hp2, hp3⟩ := hp
+    simp only [Set.mem_preimage, Set.mem_setOf_eq, Protocol.scheduledStep]
+    exact hdrop p hpc hp1 hp2 hp3
+  have hstepDist : (NonuniformMajority L K).stepDistOrSelf c
+      = (NonuniformMajority L K).stepDist c hcard2 := by
+    unfold Protocol.stepDistOrSelf; rw [dif_pos hcard2]
+  have hbase : ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ j}
+      = (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) := by
+    rw [hstepDist]; unfold Protocol.stepDist
+    rw [PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hmeas]
+  rw [hbase]
+  have hmono : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      ≤ (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) :=
+    measure_mono hsub
+  refine le_trans ?_ hmono
+  have hSmeasure : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      = ∑ p ∈ S, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  have hSsum : ∑ p ∈ S, c.interactionProb p.1 p.2
+      = ∑ p ∈ R, c.interactionProb p.1 p.2 := by
+    rw [hS]
+    apply Finset.sum_subset (Finset.filter_subset _ _)
+    intro p hpc hpnot
+    rw [Finset.mem_filter] at hpnot
+    push Not at hpnot
+    have hexcl := hpnot hpc
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases h1 : 1 ≤ c.count p.1
+      · by_cases h2 : 1 ≤ c.count p.2
+        · obtain ⟨hpe, hlt⟩ := hexcl h1 h2
+          rw [if_pos hpe]
+          have hc1 : c.count p.1 = 1 := by omega
+          rw [hc1]
+        · have hz2 : c.count p.2 = 0 := by omega
+          by_cases hpe : p.1 = p.2
+          · rw [if_pos hpe]; rw [hpe, hz2, Nat.zero_mul]
+          · rw [if_neg hpe, hz2, Nat.mul_zero]
+      · have hz1 : c.count p.1 = 0 := by omega
+        by_cases hpe : p.1 = p.2
+        · rw [if_pos hpe, hz1, Nat.zero_mul]
+        · rw [if_neg hpe, hz1, Nat.zero_mul]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hSmeasure, hSsum]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum]
+  set M := ∑ p ∈ R, c.interactionCount p.1 p.2 with hM
+  have htp : c.totalPairs = n * (n - 1) := by rw [Config.totalPairs, hcardn]
+  rw [htp, ← div_eq_mul_inv]
+  have hden_pos : (0 : ℝ) < ((n * (n - 1) : ℕ) : ℝ) := by
+    have : 0 < n * (n - 1) := Nat.mul_pos (by omega) (by omega)
+    exact_mod_cast this
+  have hdenR : ((n * (n - 1) : ℕ) : ℝ) = (n : ℝ) * ((n : ℝ) - 1) := by
+    rw [Nat.cast_mul, Nat.cast_sub (by omega)]; push_cast; ring
+  have hstep1 : ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))
+      ≤ ENNReal.ofReal (((M : ℕ) : ℝ) / ((n * (n - 1) : ℕ) : ℝ)) := by
+    apply ENNReal.ofReal_le_ofReal
+    rw [hdenR]
+    have hNM : (N : ℝ) ≤ (M : ℝ) := by exact_mod_cast hcount
+    have hposden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by rw [← hdenR]; exact hden_pos
+    gcongr
+  refine le_trans hstep1 ?_
+  rw [← ENNReal.ofReal_natCast M, ← ENNReal.ofReal_natCast (n * (n - 1)),
+      ← ENNReal.ofReal_div_of_pos hden_pos]
+
+/-! ### The Phase-6 band-top drain rectangle.
+
+Fix the target level `l` (`1 ≤ l ≤ L`).  The band-top biased Mains are at index
+`l−1`; the eliminator Reserves are those sampled at a hour `h` with `l−1 < h ≤ L`
+and `h ≠ L` (i.e. `l ≤ h < L`) — exactly Phase-5's `sampledReserveClass h` pool.
+Each cross pair `(reserve@h, main@(l−1))` fires a band-top `doSplit`, dropping
+`highMass l` by `≥ 1` (`highMass_stepOrSelf_drop`).  Note the pair order: the
+Reserve `r` is first, the Main `m` second (matching `Phase6Transition` branch 1 and
+`highMass_stepOrSelf_drop`'s `(r, m)` convention). -/
+
+/-- The biased Mains of sign `σ` at the band-top index `l−1`. -/
+def mainAt6 (σ : Sign) (l : ℕ) (hl : 1 ≤ l) (hlL : l ≤ L) : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => a.role = Role.main ∧
+    a.bias = Bias.dyadic σ ⟨l - 1, by omega⟩)
+
+/-- The eliminator Reserves sampled at hour `h` (a `sampledReserveClass h` pool). -/
+def reserveAtHour6 (h : Fin (L + 1)) : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => a.role = Role.reserve ∧ a.hour.val = h.val)
+
+/-- Cross pairs `(reserve@h, main@(l−1))` are distinct: a Reserve is never a Main. -/
+theorem reserveAtHour6_mainAt6_disjoint (σ : Sign) (l : ℕ) (hl : 1 ≤ l) (hlL : l ≤ L)
+    (h : Fin (L + 1))
+    (a : AgentState L K) (ha : a ∈ reserveAtHour6 (L := L) (K := K) h)
+    (b : AgentState L K) (hb : b ∈ mainAt6 (L := L) (K := K) σ l hl hlL) : a ≠ b := by
+  rw [reserveAtHour6, Finset.mem_filter] at ha
+  rw [mainAt6, Finset.mem_filter] at hb
+  obtain ⟨-, hrA, -⟩ := ha
+  obtain ⟨-, hrB, -⟩ := hb
+  intro heq; subst heq
+  rw [hrA] at hrB; exact absurd hrB (by decide)
+
+/-- `countP` as a filtered-univ sum of counts (re-derivation of
+`HourCouplingV2.countP_eq_sum_count`, not imported here). -/
+theorem countP_eq_sum_count6 (p : AgentState L K → Prop) [DecidablePred p]
+    (c : Config (AgentState L K)) :
+    Multiset.countP p c
+      = ∑ a ∈ Finset.univ.filter (fun a : AgentState L K => p a), c.count a := by
+  classical
+  have hcard : (Multiset.filter (fun a : AgentState L K => p a) c).card
+      = Multiset.countP p c := (Multiset.countP_eq_card_filter _ _).symm
+  rw [← hcard, eq_comm]
+  have hcount_eq : ∀ a ∈ Finset.univ.filter (fun a : AgentState L K => p a),
+      c.count a = Multiset.count a (Multiset.filter (fun a : AgentState L K => p a) c) := by
+    intro a ha
+    rw [Finset.mem_filter] at ha
+    rw [Config.count, Multiset.count_filter, if_pos ha.2]
+  rw [Finset.sum_congr rfl hcount_eq, Multiset.sum_count_eq_card]
+  intro a ha
+  rw [Multiset.mem_filter] at ha
+  exact Finset.mem_filter.mpr ⟨Finset.mem_univ a, ha.2⟩
+
+/-- **The `reserveAtHour6 h` count equals Phase-5's `sampledReserveClassU h`.**  Both
+are `countP (role = reserve ∧ hour = h)`, so the carried Phase-5 floor
+`K₀ ≤ sampledReserveClassU h` directly lower-bounds the rectangle's eliminator pool.
+(`sampledReserveClass i a := a.role = Role.reserve ∧ a.hour.val = i.val`.) -/
+theorem reserveAtHour6_sum_eq_classU (h : Fin (L + 1)) (c : Config (AgentState L K)) :
+    (reserveAtHour6 (L := L) (K := K) h).sum c.count
+      = Multiset.countP (fun a => a.role = Role.reserve ∧ a.hour.val = h.val) c := by
+  rw [countP_eq_sum_count6 (L := L) (K := K) (fun a => a.role = Role.reserve ∧ a.hour.val = h.val) c]
+  rfl
+
+/-- The biased-Main pool count as a filtered-univ sum (used to phrase the rectangle
+floor in terms of the count of band-top biased Mains). -/
+theorem mainAt6_sum_eq_countP (σ : Sign) (l : ℕ) (hl : 1 ≤ l) (hlL : l ≤ L)
+    (c : Config (AgentState L K)) :
+    (mainAt6 (L := L) (K := K) σ l hl hlL).sum c.count
+      = Multiset.countP (fun a => a.role = Role.main ∧
+          a.bias = Bias.dyadic σ ⟨l - 1, by omega⟩) c := by
+  rw [countP_eq_sum_count6 (L := L) (K := K)
+    (fun a => a.role = Role.main ∧ a.bias = Bias.dyadic σ ⟨l - 1, by omega⟩) c]
+  rfl
+
 /-! ## Part F — the genuinely-closed window `AllZeroGE6` and the `PhaseConvergenceW`.
 
 `AllZeroGE6 n c`: size `n`, every agent at phase `≥ 6` and unbiased.  This window
