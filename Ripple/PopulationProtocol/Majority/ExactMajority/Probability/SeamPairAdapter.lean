@@ -874,6 +874,294 @@ theorem seamClockPotential_drift_affine_honest (p : ℕ)
     (2 * (ENNReal.ofReal (Real.exp s) * freshVal (L := L) s)) n c hcard hc2
     (fun a b => seamClockSummand_Transition_pair_le p hq s hs hdisp a b)
 
+/-! ## Stage 4 — the corrected numerics (`b = 2·e·e^{−50(L+1)}` at `s = 1`) and the
+end-to-end honest per-seam no-overshoot tail.
+
+The honest immigration at `s = 1` is `b = 2·e·e^{−50(L+1)}` (the extra `eˢ = e` over the
+predecessor's `2·e^{−50(L+1)}`).  We re-run the tail arithmetic with this constant and
+VERIFY it still closes to `e^{−40(L+1)}` (the predecessor's optimism is correct): the
+immigration term picks up one constant factor `e = exp 1`, absorbed by the huge slack
+between `e^{−50(L+1)}` and the target — the term-2 exponent moves from `−43(L+1)` to
+`−42(L+1)` (`exp 1 · exp(2(L+1)) ≤ exp(3(L+1))` for `L+1 ≥ 1`), and `e^{−45}+e^{−42} ≤
+e^{−40}` still holds since `2 ≤ e^{2(L+1)}`. -/
+
+/-- **The HONEST seam no-overshoot numerics (real, `s = 1`).**  Identical to
+`SeamNoOvershoot.seam_noOvershoot_numerics_real` except the immigration coefficient is the
+honest `2·e` (not `2`).  Still closes to `e^{−40(L+1)}`.  Requires `n ≥ 1`,
+`ln n ≤ (L+1)`, `t ≤ n(L+1)`. -/
+theorem seam_noOvershoot_numerics_honest (n L t : ℕ) (hn : 1 ≤ n)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ)) (ht : t ≤ n * (L + 1)) :
+    (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ t
+        * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+      + (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)))
+          * (∑ i ∈ Finset.range t, (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ i)
+      ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+  have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have he1 : (0 : ℝ) ≤ Real.exp 1 - 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
+  set x : ℝ := 2 * (Real.exp 1 - 1) / (n : ℝ) with hx
+  have hx0 : 0 ≤ x := by rw [hx]; positivity
+  have ha1 : (1 : ℝ) ≤ 1 + x := by linarith
+  have hLpos : (0 : ℝ) ≤ (L + 1 : ℕ) := by positivity
+  have hM1 : (1 : ℝ) ≤ (L + 1 : ℕ) := by
+    exact_mod_cast Nat.one_le_iff_ne_zero.mpr (by omega)
+  have he3 : Real.exp 1 ≤ 3 := by have := Real.exp_one_lt_d9; linarith
+  have hepos : (0 : ℝ) ≤ Real.exp 1 := (Real.exp_pos 1).le
+  -- (1+x)^t ≤ exp(2(e−1)(L+1))
+  have hstep1 : (1 + x) ^ t ≤ Real.exp ((t : ℝ) * x) := by
+    rw [Real.exp_nat_mul]
+    exact pow_le_pow_left₀ (by linarith) (by rw [add_comm]; exact Real.add_one_le_exp x) t
+  have htx : (t : ℝ) * x ≤ 2 * (Real.exp 1 - 1) * (L + 1 : ℕ) := by
+    have htn : (t : ℝ) ≤ (n : ℝ) * (L + 1 : ℕ) := by
+      have : (t : ℝ) ≤ ((n * (L + 1) : ℕ) : ℝ) := by exact_mod_cast ht
+      rwa [Nat.cast_mul] at this
+    rw [hx,
+      show (t : ℝ) * (2 * (Real.exp 1 - 1) / (n : ℝ))
+          = (2 * (Real.exp 1 - 1)) * ((t : ℝ) / (n : ℝ)) by ring]
+    have hdiv : (t : ℝ) / (n : ℝ) ≤ (L + 1 : ℕ) := by
+      rw [div_le_iff₀ hnpos, mul_comm]; exact htn
+    have h2e : 0 ≤ 2 * (Real.exp 1 - 1) := by linarith
+    calc (2 * (Real.exp 1 - 1)) * ((t : ℝ) / (n : ℝ))
+        ≤ (2 * (Real.exp 1 - 1)) * (L + 1 : ℕ) := mul_le_mul_of_nonneg_left hdiv h2e
+      _ = 2 * (Real.exp 1 - 1) * (L + 1 : ℕ) := rfl
+  have hpowt : (1 + x) ^ t ≤ Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ)) :=
+    le_trans hstep1 (Real.exp_le_exp.mpr htx)
+  have hpow_nonneg : (0 : ℝ) ≤ (1 + x) ^ t := by positivity
+  have hn_exp : (n : ℝ) ≤ Real.exp (L + 1 : ℕ) := by
+    calc (n : ℝ) = Real.exp (Real.log (n : ℝ)) := (Real.exp_log hnpos).symm
+      _ ≤ Real.exp (L + 1 : ℕ) := Real.exp_le_exp.mpr hlog
+  -- term 1: aᵗ·Φ₀ ≤ exp(-45(L+1))  (Phase-0 numerics verbatim)
+  have hterm1 : (1 + x) ^ t * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+      ≤ Real.exp (-(45 * (L + 1) : ℕ)) := by
+    have := Phase0Window.phase0_numerics_real n L t hn hlog ht
+    rwa [← hx] at this
+  -- term 2: (2·e)·e^{−50(L+1)}·∑ ≤ exp(-42(L+1))
+  have hsum_le : (∑ i ∈ Finset.range t, (1 + x) ^ i) ≤ (t : ℝ) * (1 + x) ^ t := by
+    calc (∑ i ∈ Finset.range t, (1 + x) ^ i)
+        ≤ ∑ _i ∈ Finset.range t, (1 + x) ^ t := by
+          apply Finset.sum_le_sum
+          intro i hi
+          exact pow_le_pow_right₀ ha1 (le_of_lt (Finset.mem_range.mp hi))
+      _ = (t : ℝ) * (1 + x) ^ t := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  have hb_nonneg : (0 : ℝ) ≤ 2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)) := by positivity
+  have hterm2 : (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)))
+        * (∑ i ∈ Finset.range t, (1 + x) ^ i)
+      ≤ Real.exp (-(42 * (L + 1) : ℕ)) := by
+    have htR : (t : ℝ) ≤ (n : ℝ) * (L + 1 : ℕ) := by
+      have : (t : ℝ) ≤ ((n * (L + 1) : ℕ) : ℝ) := by exact_mod_cast ht
+      rwa [Nat.cast_mul] at this
+    calc (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)))
+            * (∑ i ∈ Finset.range t, (1 + x) ^ i)
+        ≤ (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ))) * ((t : ℝ) * (1 + x) ^ t) :=
+          mul_le_mul_of_nonneg_left hsum_le hb_nonneg
+      _ ≤ (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)))
+            * (((n : ℝ) * (L + 1 : ℕ)) * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ))) := by
+          apply mul_le_mul_of_nonneg_left _ hb_nonneg
+          apply mul_le_mul htR hpowt hpow_nonneg
+          positivity
+      _ ≤ (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)))
+            * ((Real.exp (L + 1 : ℕ) * (L + 1 : ℕ))
+                * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ))) := by
+          apply mul_le_mul_of_nonneg_left _ hb_nonneg
+          apply mul_le_mul_of_nonneg_right _ (by positivity)
+          exact mul_le_mul_of_nonneg_right hn_exp hLpos
+      _ ≤ Real.exp (-(42 * (L + 1) : ℕ)) := by
+          -- collect: 2·e·(L+1) ≤ exp(3(L+1)); combine exponents −50+1+2(e−1) ≤ −45
+          rw [show (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)))
+                * ((Real.exp (L + 1 : ℕ) * (L + 1 : ℕ))
+                    * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ)))
+              = (2 * Real.exp 1 * (L + 1 : ℕ)) * (Real.exp (-(50 * (L + 1) : ℕ))
+                  * Real.exp (L + 1 : ℕ) * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ))) by ring]
+          rw [← Real.exp_add, ← Real.exp_add]
+          have hexp_arg : -(50 * (L + 1) : ℕ) + (L + 1 : ℕ) + 2 * (Real.exp 1 - 1) * (L + 1 : ℕ)
+              ≤ -(45 * (L + 1) : ℕ) := by
+            push_cast
+            nlinarith [hLpos, he3]
+          -- 2·e·(L+1) ≤ 6·(L+1) ≤ exp(3(L+1))
+          have hcoef : (2 * Real.exp 1 * (L + 1 : ℕ) : ℝ) ≤ Real.exp (3 * (L + 1 : ℕ)) := by
+            have hle6 : (2 * Real.exp 1 * (L + 1 : ℕ) : ℝ) ≤ 6 * (L + 1 : ℕ) := by
+              nlinarith [hLpos, he3]
+            have hexp3 : (6 * (L + 1 : ℕ) : ℝ) ≤ Real.exp (3 * (L + 1 : ℕ)) := by
+              -- exp(3M) = exp(M)·exp(2M) ≥ (1+M)(1+2M) = 1+3M+2M² ≥ 6M for M ≥ 1.
+              have hM := Real.add_one_le_exp ((L + 1 : ℕ) : ℝ)
+              have h2M := Real.add_one_le_exp (2 * ((L + 1 : ℕ) : ℝ))
+              have hpos1 : (0 : ℝ) ≤ Real.exp ((L + 1 : ℕ) : ℝ) := (Real.exp_pos _).le
+              have hsplit : Real.exp (3 * (L + 1 : ℕ))
+                  = Real.exp ((L + 1 : ℕ) : ℝ) * Real.exp (2 * ((L + 1 : ℕ) : ℝ)) := by
+                rw [← Real.exp_add]; congr 1; push_cast; ring
+              rw [hsplit]
+              nlinarith [hLpos, hM1, hM, h2M, hpos1]
+            linarith
+          calc (2 * Real.exp 1 * (L + 1 : ℕ) : ℝ)
+                * Real.exp (-(50 * (L + 1) : ℕ) + (L + 1 : ℕ)
+                    + 2 * (Real.exp 1 - 1) * (L + 1 : ℕ))
+              ≤ Real.exp (3 * (L + 1 : ℕ)) * Real.exp (-(45 * (L + 1) : ℕ)) := by
+                apply mul_le_mul hcoef (Real.exp_le_exp.mpr hexp_arg) (Real.exp_nonneg _)
+                  (Real.exp_nonneg _)
+            _ = Real.exp (3 * (L + 1 : ℕ) + -(45 * (L + 1) : ℕ)) := by rw [← Real.exp_add]
+            _ ≤ Real.exp (-(42 * (L + 1) : ℕ)) := by
+                apply Real.exp_le_exp.mpr; push_cast; nlinarith [hLpos]
+  -- combine: e^{−45} + e^{−42} ≤ e^{−40}
+  calc (1 + x) ^ t * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+        + (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ)))
+            * (∑ i ∈ Finset.range t, (1 + x) ^ i)
+      ≤ Real.exp (-(45 * (L + 1) : ℕ)) + Real.exp (-(42 * (L + 1) : ℕ)) :=
+        add_le_add hterm1 hterm2
+    _ ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+        -- e^{−45M} ≤ e^{−42M}, then 2·e^{−42M} ≤ e^{−40M} since 2 ≤ e^{2M}
+        have h45_42 : Real.exp (-(45 * (L + 1) : ℕ)) ≤ Real.exp (-(42 * (L + 1) : ℕ)) := by
+          apply Real.exp_le_exp.mpr; push_cast; nlinarith [hLpos]
+        have h2 : Real.exp (-(42 * (L + 1) : ℕ)) + Real.exp (-(42 * (L + 1) : ℕ))
+            ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+          rw [← two_mul]
+          have hexp2 : (2 : ℝ) ≤ Real.exp (2 * (L + 1 : ℕ)) := by
+            have := Real.add_one_le_exp (2 * ((L + 1 : ℕ) : ℝ))
+            nlinarith [hLpos, hM1]
+          calc (2 : ℝ) * Real.exp (-(42 * (L + 1) : ℕ))
+              ≤ Real.exp (2 * (L + 1 : ℕ)) * Real.exp (-(42 * (L + 1) : ℕ)) :=
+                mul_le_mul_of_nonneg_right hexp2 (Real.exp_nonneg _)
+            _ = Real.exp (2 * (L + 1 : ℕ) + -(42 * (L + 1) : ℕ)) := by rw [← Real.exp_add]
+            _ ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+                apply Real.exp_le_exp.mpr; push_cast; nlinarith [hLpos]
+        linarith [h45_42, h2]
+
+/-- **The HONEST early-overshoot precursor tail** (`b = 2·e·freshVal`).  Clone of
+`SeamNoOvershoot.seam_atRiskClockZero_tail` with the corrected immigration constant
+`b = 2·(eˢ·freshVal 1)` and the honest drift / numerics.  The probability of seeing an
+at-risk zero clock within the seam is STILL `≤ e^{−40(L+1)}` (Stage-4 numerics close with
+the extra `e` factor).  Requires `CounterResetDest (p+1)` and `SeamRegimeDispatch p`
+(the protocol-structural inputs replacing the carried `hpair`). -/
+theorem seam_atRiskClockZero_tail_honest (p n tseam : ℕ)
+    (hq : CounterResetDest (p + 1)) (hdisp : SeamRegimeDispatch (L := L) (K := K) p)
+    (hn : 1 ≤ n) (hn2 : 2 ≤ n)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ))
+    (ht : tseam ≤ n * (L + 1))
+    (c₀ : Config (AgentState L K)) (hcard₀ : Multiset.card c₀ = n)
+    (hinitΦ : seamClockPotential (L := L) (K := K) p 1 c₀
+        ≤ (n : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(50 * (L + 1) : ℕ)))) :
+    ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+      {c | AtRiskClockZero (L := L) (K := K) p c}
+      ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) := by
+  set a : ℝ≥0∞ := ENNReal.ofReal (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) with ha
+  set b : ℝ≥0∞ := 2 * (ENNReal.ofReal (Real.exp 1) * freshVal (L := L) 1) with hb
+  have htail := Phase0Window.phase0_window_tail_affine (NonuniformMajority L K)
+    (seamClockPotential (L := L) (K := K) p 1)
+    (measurable_seamClockPotential p 1)
+    (fun c => Multiset.card c = n)
+    (cardWindow_absorbing n)
+    a b
+    (fun c hc => by
+      have hc2 : 2 ≤ Multiset.card c := by rw [hc]; exact hn2
+      exact seamClockPotential_drift_affine_honest p hq 1 (by norm_num) hdisp n c hc hc2)
+    (fun c => ¬ AtRiskClockZero (L := L) (K := K) p c)
+    (θ := 1) (by norm_num) (by norm_num)
+    (fun c hc => seamClockPotential_ge_one_of_not_noAtRisk p 1 c hc)
+    tseam c₀ hcard₀
+  have hseteq : {c : Config (AgentState L K) | AtRiskClockZero (L := L) (K := K) p c}
+      = {c | ¬ ¬ AtRiskClockZero (L := L) (K := K) p c} := by
+    ext c; simp
+  rw [hseteq]
+  refine htail.trans ?_
+  rw [div_one]
+  have hbase_nonneg : (0 : ℝ) ≤ 1 + 2 * (Real.exp 1 - 1) / (n : ℝ) := by
+    have he1 : (0 : ℝ) ≤ Real.exp 1 - 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
+    have : (0 : ℝ) ≤ 2 * (Real.exp 1 - 1) / (n : ℝ) := by positivity
+    linarith
+  have hM50_nonneg : (0 : ℝ) ≤ Real.exp (-(50 * (L + 1) : ℕ)) := (Real.exp_pos _).le
+  have hstep_init : a ^ tseam * seamClockPotential (L := L) (K := K) p 1 c₀
+      ≤ a ^ tseam * ((n : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(50 * (L + 1) : ℕ)))) := by
+    gcongr
+  refine (add_le_add hstep_init (le_refl (b * ∑ i ∈ Finset.range tseam, a ^ i))).trans ?_
+  have hat : a ^ tseam = ENNReal.ofReal ((1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ tseam) := by
+    rw [ha, ← ENNReal.ofReal_pow hbase_nonneg]
+  have hncast : (n : ℝ≥0∞) = ENNReal.ofReal (n : ℝ) := by rw [ENNReal.ofReal_natCast]
+  -- b = ofReal(2 · e · e^{−50(L+1)})  (the honest immigration with the extra eˢ = e).
+  have hbval : b = ENNReal.ofReal (2 * Real.exp 1 * Real.exp (-(50 * (L + 1) : ℕ))) := by
+    rw [hb, freshVal]
+    rw [show (2 : ℝ≥0∞) = ENNReal.ofReal 2 from by rw [ENNReal.ofReal_ofNat],
+        ← ENNReal.ofReal_mul (Real.exp_nonneg _),
+        ← ENNReal.ofReal_mul (by norm_num)]
+    congr 1
+    push_cast; ring_nf
+  have hsumcast : (∑ i ∈ Finset.range tseam, a ^ i)
+      = ENNReal.ofReal (∑ i ∈ Finset.range tseam,
+          (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ i) := by
+    rw [ENNReal.ofReal_sum_of_nonneg (fun i _ => by positivity)]
+    apply Finset.sum_congr rfl
+    intro i _
+    rw [ha, ← ENNReal.ofReal_pow hbase_nonneg]
+  rw [hat, hncast, ← ENNReal.ofReal_mul (by positivity),
+      ← ENNReal.ofReal_mul (by positivity),
+      hbval, hsumcast, ← ENNReal.ofReal_mul (by positivity),
+      ← ENNReal.ofReal_add (by positivity) (by positivity)]
+  apply ENNReal.ofReal_le_ofReal
+  exact seam_noOvershoot_numerics_honest n L tseam hn hlog ht
+
+/-! ### The end-to-end honest per-seam no-overshoot tail.
+
+Composing the honest at-risk tail (`seam_atRiskClockZero_tail_honest`) with the public
+prefix-union machinery (`SeamNoOvershoot.seam_noOvershoot_tail`, the deterministic bridge
+`DetSeamOvershootBridge`, and `hNoOvershoot_one_seam`) gives the terminal per-seam
+no-overshoot budget with the HONEST immigration constant, still closing at `e^{−40(L+1)}`.
+
+EXCLUDED DESTINATIONS (named, not faked):
+* Phases `2, 4, 9` are UNTIMED (opinion-union / big-bias advance), so `CounterResetDest`
+  is FALSE for them — their seam no-overshoot is supplied by the work-phase / big-bias
+  guards in `SeamEpidemics`, not this clock-counter tail.
+* Phases `3, 5` are counter-timed but their entry does NOT reset the counter on a
+  counter-advance: phase 3's `phaseInit` sets `minute` (not `counter`); phase 5's
+  predecessor `Phase4Transition` advances via `advancePhase` (no `phaseInit`).  So
+  `CounterResetDest` excludes them; their no-overshoot comes from the dedicated
+  minute/hour width machinery (`ClockOLogN`/`ClockReal*`).
+The hypothesis `CounterResetDest (p+1)` is exactly the guard that admits only the honest
+set `{1,6,7,8}`; the regime dispatch `SeamRegimeDispatch p` is the per-pair structural
+fact (an output clock at `p+1` came from a source clock at `p` or `p+1`). -/
+
+/-- **The HONEST terminal no-overshoot tail (one seam), `b = 2·e·freshVal`.**  From a
+`NoOvershoot` start, with the deterministic overshoot bridge and the per-`τ` HONEST at-risk
+tails (`seam_atRiskClockZero_tail_honest`, each `≤ e^{−40(L+1)}`), the overshoot
+probability is `≤ tseam · e^{−40(L+1)}`.  Wraps the public
+`SeamNoOvershoot.seam_noOvershoot_tail`; the per-`τ` inputs `hτ` are the honest at-risk
+tails (the `CounterResetDest`/`SeamRegimeDispatch` guards are discharged inside each `hτ`
+producer, not here). -/
+theorem seam_noOvershoot_tail_honest (p tseam : ℕ)
+    (hdet : DetSeamOvershootBridge (L := L) (K := K) p)
+    (c₀ : Config (AgentState L K))
+    (h0 : NoOvershoot (L := L) (K := K) p c₀)
+    (hτ : ∀ τ ∈ Finset.range tseam,
+      ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+          {c | AtRiskClockZero (L := L) (K := K) p c}
+        ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ)))) :
+    ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+        {c | ¬ NoOvershoot (L := L) (K := K) p c}
+      ≤ (tseam : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) :=
+  seam_noOvershoot_tail p tseam hdet c₀ h0 hτ
+
+/-- **The HONEST per-seam no-overshoot budget wrapper.**  If the honest terminal overshoot
+tail is `≤ εovershoot`, the per-seam budget is met.  Identical shape to
+`SeamNoOvershoot.hNoOvershoot_one_seam` (the immigration constant is internal to the tail;
+the budget surface is unchanged).  This is the `hNoOvershoot` `seamEpidemicExactW` consumes
+— so the honest chain plugs into the SAME integration point as the predecessor's, with the
+corrected constant and the SAME `e^{−40(L+1)}` bound.
+
+HYPOTHESIS SURFACE (the entire honest end-to-end): seam `Pre` (`allPhaseGe ∧ advTriggered`,
+threaded into `NoOvershoot`-start + `card = n` by the seam layer) + `tseam ≤ n(L+1)` +
+`log n ≤ L+1` + initial-potential bound (`Φ ≤ n·e^{−50(L+1)}`) + the structural
+`CounterResetDest (p+1)` / `SeamRegimeDispatch p` / `DetSeamOvershootBridge p` guards +
+arithmetic.  No `2·freshVal` falsehood; immigration is the honest `2·e·freshVal`. -/
+theorem hNoOvershoot_one_seam_honest (p tseam : ℕ) (εovershoot : ℝ≥0)
+    (hbound : ∀ c₀ : Config (AgentState L K),
+      NoOvershoot (L := L) (K := K) p c₀ →
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+          {c | ¬ NoOvershoot (L := L) (K := K) p c}
+        ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))))
+    (hε : ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) ≤ (εovershoot : ℝ≥0∞)) :
+    ∀ c₀ : Config (AgentState L K),
+      NoOvershoot (L := L) (K := K) p c₀ →
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+          {c | ¬ NoOvershoot (L := L) (K := K) p c}
+        ≤ (εovershoot : ℝ≥0∞) :=
+  hNoOvershoot_one_seam p tseam εovershoot hbound hε
+
 end SeamNoOvershoot
 
 end ExactMajority

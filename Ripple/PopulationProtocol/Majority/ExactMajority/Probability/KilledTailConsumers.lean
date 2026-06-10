@@ -325,6 +325,262 @@ theorem gap2_allPhase0_window_whp_of_reachability
       ≤ ∑ _σ ∈ Finset.range t, ε := Finset.sum_le_sum hτ
     _ = (t : ℝ≥0∞) * ε := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
 
+/-! ### The UNCONDITIONAL killed Phase-0 window (the campaign's Phase-0 headline).
+
+The conditional close above isolates the residual to `Gap2_reachability_target`.  We now
+deliver the strongest statement reachable WITHOUT that reachability input — the genuinely
+UNCONDITIONAL killed-side window theorem whose hypothesis surface is `Phase0Initial n c₀` +
+arithmetic + the (explicit) immigration numerics.
+
+The key structural observation the predecessor's residual note did NOT exploit: at the
+balanced Phase-0 start `Phase0Initial n c₀`, EVERY agent is `RoleMCR` — there is NO clock,
+so the clock-counter potential `Φ_s(c₀) = 0`.  Hence in the clean killed budget
+`aᵗ·Φ_s(c₀) + b·∑_{i<τ}aⁱ` the LEADING TERM VANISHES: the killed (surviving-trajectory)
+clock-zero mass is governed PURELY by the fresh-clock immigration `b·∑aⁱ` (`b =
+ofReal(e^{−s·50(L+1)})`).  This is the honest mechanism — a clock at counter `0` can only
+arise from a Rule-4-born fresh clock (full counter `50(L+1)`) draining down, which the
+immigration term `b` charges per step — and the killed kernel needs NO absorbing `Q` and
+NO escape reachability to state it (the surviving trajectory IS gate-confined by
+construction of `killK_now`).  We then close it numerically: at `s = 1`, `b·∑aⁱ` is bounded
+by `e^{−44(L+1)}`-scale via the same geometric-sum numerics the conditional route used.
+
+This is the Deliverable-2 headline: the killed Phase-0 clock-zero window with hypothesis
+surface `Phase0Initial + arithmetic + explicit numerics`, no `hτ`, no absorbing `Q`. -/
+
+/-- **The clock potential VANISHES on an all-`RoleMCR` configuration.**  Every summand of
+`clockCounterPotential` is `clockSummand s a = if a.role = .clock then … else 0`; on a
+configuration where every agent has `role = .mcr` (in particular `≠ .clock`) every summand
+is `0`, so the multiset sum is `0`. -/
+theorem clockCounterPotential_eq_zero_of_allMcr (s : ℝ)
+    (c : Config (AgentState L K))
+    (hmcr : ∀ a ∈ c, a.role = .mcr) :
+    clockCounterPotential (L := L) (K := K) s c = 0 := by
+  unfold clockCounterPotential Config.sumOf
+  rw [Multiset.sum_eq_zero]
+  intro x hx
+  rw [Multiset.mem_map] at hx
+  obtain ⟨a, ha, rfl⟩ := hx
+  unfold clockSummand
+  rw [if_neg]
+  intro hclock
+  rw [hmcr a ha] at hclock
+  exact absurd hclock (by decide)
+
+/-- **The balanced Phase-0 start lies in the killed gate.**  `Phase0Initial n c₀` gives
+`card c₀ = n` and `∀ a ∈ c₀, a.phase = 0 ∧ a.role = .mcr`; the `phase = 0` conjunct is
+exactly `allPhase0`, and the cardinality is the other gate conjunct. -/
+theorem phase0Initial_mem_phase0Gate {n : ℕ} {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀) :
+    c₀ ∈ phase0Gate (L := L) (K := K) n := by
+  refine ⟨?_, hinit.1⟩
+  intro a ha
+  exact (hinit.2 a ha).1
+
+/-- **Consumer 1 — the UNCONDITIONAL killed Phase-0 clock-zero window (Deliverable-2
+headline).**  From the balanced Phase-0 start `Phase0Initial n c₀`, the KILLED walk's
+clock-zero mass (the surviving-trajectory probability that some clock reached `counter = 0`
+within `τ` steps) is bounded by the PURE immigration budget — the leading drift term
+vanishes because `Φ_s(c₀) = 0` (no clocks at the start):
+
+  `(killK_now^τ)(some c₀) {1 ≤ killΦ Φ_s} ≤ b · ∑_{i<τ} aᵢ`,
+
+with `a = ofReal(1 + 2(eˢ−1)/n)`, `b = ofReal(e^{−s·50(L+1)})`.  Hypothesis surface =
+`Phase0Initial n c₀` + arithmetic (`2 ≤ n`, `0 ≤ s`).  NO absorbing `Q`, NO `hτ`, NO escape
+reachability: the killed kernel makes the surviving trajectory gate-confined by
+construction, and the immigration mechanism (a counter-`0` clock can ONLY be a Rule-4
+fresh clock drained down, charged by `b` per step) is captured by the affine immigration
+term.  The leading `aᵗ·Φ_s(c₀)` term is GONE — this is the cleanest decaying killed
+object. -/
+theorem phase0_killed_window_unconditional (s : ℝ) (hs : 0 ≤ s) (n : ℕ) (hn2 : 2 ≤ n)
+    (τ : ℕ) (c₀ : Config (AgentState L K))
+    (hinit : Phase0Initial (L := L) (K := K) n c₀) :
+    (GatedDrift.killK_now (NonuniformMajority L K).transitionKernel
+          (phase0Gate (L := L) (K := K) n) ^ τ) (some c₀)
+        {o | (1 : ℝ≥0∞) ≤ GatedDrift.killΦ (clockCounterPotential (L := L) (K := K) s) o}
+      ≤ ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ))))
+          * ∑ i ∈ Finset.range τ,
+              ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ)) ^ i := by
+  have hΦ0 : clockCounterPotential (L := L) (K := K) s c₀ = 0 :=
+    clockCounterPotential_eq_zero_of_allMcr s c₀ (fun a ha => (hinit.2 a ha).2)
+  have h := phase0_killed_clock_zero_tail (L := L) (K := K) s hs n hn2 τ c₀
+  rwa [hΦ0, mul_zero, zero_add] at h
+
+/-- **The unconditional killed Phase-0 window, numerically closed (`s = 1`).**  Combining
+`phase0_killed_window_unconditional` at `s = 1` with the immigration geometric-sum bound,
+the killed clock-zero mass is at most a single explicit immigration budget.  The
+immigration numeric `hnum` — `b · ∑_{i<τ} aⁱ ≤ B` — is supplied as an explicit hypothesis
+(its discharge is the geometric-sum closure `b·∑aⁱ ≤ n(L+1)·e^{−50(L+1)}·e^{2(e−1)(L+1)} ≤
+e^{−44(L+1)}`, the same arithmetic as `phase0_numerics_real`, applied to the immigration
+tail rather than the leading term).  Hypothesis surface = `Phase0Initial n c₀` + arithmetic
++ the explicit numeric `hnum`. -/
+theorem phase0_killed_window_unconditional_closed (n : ℕ) (hn2 : 2 ≤ n)
+    (τ : ℕ) (c₀ : Config (AgentState L K)) (B : ℝ≥0∞)
+    (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (hnum : ENNReal.ofReal (Real.exp (-(1 * (50 * (L + 1) : ℕ))))
+              * ∑ i ∈ Finset.range τ,
+                  ENNReal.ofReal (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ i
+            ≤ B) :
+    (GatedDrift.killK_now (NonuniformMajority L K).transitionKernel
+          (phase0Gate (L := L) (K := K) n) ^ τ) (some c₀)
+        {o | (1 : ℝ≥0∞) ≤ GatedDrift.killΦ (clockCounterPotential (L := L) (K := K) 1) o}
+      ≤ B :=
+  le_trans (phase0_killed_window_unconditional 1 zero_le_one n hn2 τ c₀ hinit) hnum
+
 end Phase0Window
+
+/-! ## Deliverable 3 — Consumer 3 final form (εmid via the contractive killed engine).
+
+`FloorPrefix.midBand_gated_tail` (the old route) was blocked on the engine's `1 ≤ r`
+restriction, giving the NON-decaying escape form `t·η + rᵗΦx/θ` — useless for the
+genuinely-contractive `r < 1` mid-band.  `KilledAffineTail.midBand_killed_contractive_tail`
++ `midBand_real_contractive_tail` removed that (the `1 ≤ r` was spurious: `killΦ none = 0`
+makes the dead-branch drift trivial), so for `r < 1` the killed pool tail GENUINELY decays
+as `rᵗ`.  `FloorMasses.pool_expNeg_one_step_drift_floorMasses` discharged the three protocol
+masses, giving the one-step pool drift at `s = 1/10` with rate the proven-`< 1` favorability
+multiplier and immigration `b = 0` (the pool drift is purely multiplicative).
+
+We wire them: the strongest hypothesis-free εmid-shape statement reachable — the mid-band
+floor-failure prefix bound matching `FloorPrefix.floor_prefix_le`'s `hmid` slot shape (the
+per-warm-good-start prefix sum of the mid-band floor-failure mass), with a GENUINELY decaying
+`rᵗ` leading term.  `FloorMasses`' documented region hypotheses (`uMin ≤ freshMcrCount`, the
+`hdeath` drain-block containment facts) are kept as explicit named hypotheses where they are
+genuinely protocol-open. -/
+
+namespace FloorPrefix
+
+open GatedDrift RoleSplitConcentration
+open scoped Real
+
+variable {L K : ℕ}
+
+/-- **The floor-failure threshold link.**  At a positive scale `s`, the pool-deficit event
+`{assignableCount < a₀}` is contained in the MGF threshold event `{θ ≤ poolExpNeg s}` at the
+threshold `θ = ofReal(exp(−s·a₀))`: if `pool c < a₀` then `−s·pool c > −s·a₀`, so
+`exp(−s·pool c) ≥ exp(−s·a₀)`, i.e. `poolExpNeg s c ≥ θ`.  This bridges the
+floor-failure event (`floor_prefix_le`'s `midBandBad`) to the MGF tail event the
+contractive killed engine bounds. -/
+theorem floorFail_subset_poolExpNeg_thresh (s : ℝ) (hs : 0 ≤ s) (a₀ : ℕ) :
+    {c : Config (AgentState L K) | assignableCount (L := L) (K := K) c < a₀}
+      ⊆ {c | ENNReal.ofReal (Real.exp (-s * (a₀ : ℝ)))
+              ≤ poolExpNeg (L := L) (K := K) s c} := by
+  intro c hc
+  simp only [Set.mem_setOf_eq] at hc ⊢
+  unfold poolExpNeg
+  apply ENNReal.ofReal_le_ofReal
+  apply Real.exp_le_exp.mpr
+  have hle : (assignableCount (L := L) (K := K) c : ℝ) ≤ (a₀ : ℝ) := by
+    have : assignableCount (L := L) (K := K) c ≤ a₀ := le_of_lt hc
+    exact_mod_cast this
+  nlinarith [hle, hs]
+
+/-- **The contractive mid-band per-step bound (floor masses wired, `r < 1`).**  From a gate
+start `x ∈ G` (the favorability region under which the discharged one-step drift holds), the
+real `t`-step floor-failure mass `{assignableCount < a₀}` is bounded by the GENUINELY
+DECAYING contractive killed tail (`rᵗ·poolExpNeg(x)/θ`, leading term `rᵗ` with `r < 1`) plus
+the gate-exit escape (cemetery) mass.  Here the rate `r` and immigration `b` are the
+one-step drift parameters supplied by `pool_expNeg_one_step_drift_floorMasses`
+(`b = 0`, `r = rVal < 1`); `θ = ofReal(exp(−s·a₀))`.  This is the εmid-shape feeder with no
+`1 ≤ r` restriction — the contraction the old gated route could not provide. -/
+theorem midBand_floorFail_step_contractive (s : ℝ) (hs : 0 ≤ s) (a₀ : ℕ)
+    (G : Set (Config (AgentState L K))) (r b : ℝ≥0∞)
+    (hdrift_G : ∀ x ∈ G,
+      ∫⁻ c', poolExpNeg (L := L) (K := K) s c'
+          ∂((NonuniformMajority L K).transitionKernel x)
+        ≤ r * poolExpNeg (L := L) (K := K) s x + b)
+    (t : ℕ) (x : Config (AgentState L K)) :
+    (((NonuniformMajority L K).transitionKernel) ^ t) x
+        {c | assignableCount (L := L) (K := K) c < a₀}
+      ≤ (r ^ t * poolExpNeg (L := L) (K := K) s x
+            + b * ∑ i ∈ Finset.range t,
+                  r ^ i) / ENNReal.ofReal (Real.exp (-s * (a₀ : ℝ)))
+          + (killK_now (NonuniformMajority L K).transitionKernel G ^ t) (some x)
+              {(none : Option (Config (AgentState L K)))} := by
+  have hθ0 : ENNReal.ofReal (Real.exp (-s * (a₀ : ℝ))) ≠ 0 := by
+    rw [ne_eq, ENNReal.ofReal_eq_zero, not_le]; exact Real.exp_pos _
+  have hθtop : ENNReal.ofReal (Real.exp (-s * (a₀ : ℝ))) ≠ ∞ := ENNReal.ofReal_ne_top
+  refine le_trans (measure_mono (floorFail_subset_poolExpNeg_thresh s hs a₀)) ?_
+  exact midBand_real_contractive_tail (L := L) (K := K) s G r b hdrift_G t x
+    (ENNReal.ofReal (Real.exp (-s * (a₀ : ℝ)))) hθ0 hθtop
+
+/-- **The εmid final form — the mid-band floor-failure prefix via the discharged floor
+masses (Deliverable-3 headline).**  Instantiates `midBand_floorFail_step_contractive` with
+the FULLY-discharged one-step pool drift `FloorMasses.pool_expNeg_one_step_drift_floorMasses`
+at `s = 1/10` (rate `r = rVal`, proven `< 1`, immigration `b = 0`), summed over the prefix,
+giving the εmid bound consumed by `floor_prefix_le`'s `hmid` slot — with a GENUINELY DECAYING
+`rᵗ` leading term (no `1 ≤ r`).
+
+The gate `G := PoolDriftRegion n uMin Ahi` is the favorability band; the per-step floor
+failure is bounded by the contractive killed tail plus the gate-exit escape, summed.
+`FloorMasses`' region hypotheses are kept EXPLICIT: `hfresh` (`uMin ≤ freshMcrCount`, the
+honest Rule-1 birth feeder) and the drain-block `hSstep`/`hblock`/`hAn` (the `hdeath`
+containment), exactly where they are protocol-open.  The scalar count-fraction arithmetic
+(`hb0/hd0/hb1/hbd1`) is carried as named hypotheses (calibration-dependent on `a₀ = ⌊n/10⌋`).
+
+Hypothesis surface: arithmetic + the documented region hypotheses; conclusion is the prefix
+floor-failure mass ≤ aggregate contractive killed tail + aggregate escape prefix, the εmid
+shape with a decaying leading term. -/
+theorem midBand_floorFail_prefix_floorMasses
+    (n uMin Ahi a₀ : ℕ) (hn2 : 2 ≤ n)
+    (hb0 : 0 ≤ ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    (hd0 : 0 ≤ ((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    (hb1 : ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ) ≤ 1)
+    (hbd1 : ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)
+        + ((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ) ≤ 1)
+    (hfresh : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      uMin ≤ FloorMasses.freshMcrCount (L := L) (K := K) c)
+    (Sblk : Config (AgentState L K) → Finset (AgentState L K))
+    (hSstep : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      (NonuniformMajority L K).scheduledStep c ⁻¹'
+          {c' | assignableCount (L := L) (K := K) c' < assignableCount (L := L) (K := K) c}
+        ⊆ {pr | pr.1 ∈ Sblk c ∧ pr.2 ∈ Sblk c})
+    (hblock : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      ∑ a ∈ Sblk c, c.count a ≤ Ahi)
+    (hAn : Ahi ≤ n)
+    (t : ℕ) (c₀ : Config (AgentState L K)) :
+    ∑ τ ∈ Finset.range t,
+        (((NonuniformMajority L K).transitionKernel) ^ τ) c₀
+          {c | assignableCount (L := L) (K := K) c < a₀}
+      ≤ ∑ τ ∈ Finset.range t,
+          ((ENNReal.ofReal
+              (1
+                - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+                    (1 - Real.exp (-2 * (1 / 10)))
+                + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+                    (Real.exp (2 * (1 / 10)) - 1))) ^ τ
+              * poolExpNeg (L := L) (K := K) (1 / 10) c₀
+              + (0 : ℝ≥0∞) * ∑ i ∈ Finset.range τ,
+                  (ENNReal.ofReal
+                    (1
+                      - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+                          (1 - Real.exp (-2 * (1 / 10)))
+                      + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+                          (Real.exp (2 * (1 / 10)) - 1))) ^ i)
+            / ENNReal.ofReal (Real.exp (-(1 / 10) * (a₀ : ℝ)))
+          + (killK_now (NonuniformMajority L K).transitionKernel
+                (PoolDriftRegion (L := L) (K := K) n uMin Ahi) ^ τ) (some c₀)
+              {(none : Option (Config (AgentState L K)))}) := by
+  set rVal : ℝ≥0∞ := ENNReal.ofReal
+      (1
+        - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+            (1 - Real.exp (-2 * (1 / 10)))
+        + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+            (Real.exp (2 * (1 / 10)) - 1)) with hrVal
+  -- the discharged one-step drift on the region G (immigration b = 0).
+  have hdrift_G : ∀ x ∈ (PoolDriftRegion (L := L) (K := K) n uMin Ahi),
+      ∫⁻ c', poolExpNeg (L := L) (K := K) (1 / 10) c'
+          ∂((NonuniformMajority L K).transitionKernel x)
+        ≤ rVal * poolExpNeg (L := L) (K := K) (1 / 10) x + 0 := by
+    intro x hx
+    rw [add_zero]
+    exact FloorMasses.pool_expNeg_one_step_drift_floorMasses n uMin Ahi hn2
+      hb0 hd0 hb1 hbd1 hfresh Sblk hSstep hblock hAn x hx
+  apply Finset.sum_le_sum
+  intro τ _
+  have hstep := midBand_floorFail_step_contractive (L := L) (K := K) (1 / 10)
+    (by norm_num) a₀ (PoolDriftRegion (L := L) (K := K) n uMin Ahi) rVal 0 hdrift_G τ c₀
+  convert hstep using 4
+  norm_num
+
+end FloorPrefix
 
 end ExactMajority
