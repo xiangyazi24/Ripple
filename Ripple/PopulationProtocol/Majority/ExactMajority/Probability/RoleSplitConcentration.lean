@@ -839,5 +839,120 @@ theorem assignableCount_pred_iff (a : AgentState L K) :
   · rintro ⟨hp, ha, hr⟩
     exact ⟨⟨hp, by simpa using ha⟩, hr⟩
 
+/-! ## Phase C-1 (relay 2, continued) — the one-sided interactionPMF mass route.
+
+We now build the `Θ(M·assignable/n²)` per-step decrease probability for the
+one-sided good set, cloning the MCR–MCR mass route of `Phase0Convergence`
+(`sum_interactionCount_mcr → interactionPMF_toMeasure_mcr_phase0_ge →
+phase0_mcrCount_decrease_prob`).  The key simplification over the MCR–MCR case:
+an MCR initiator and an assignable responder are **always distinct** states
+(`mcr ≠ main, cr`), so each `interactionCount` term is the clean product
+`count s₁ · count s₂` with **no `−1`**, giving the exact product
+`mcrCount c · assignableCount c` (vs the `M·(M−1)` of the diagonal case).
+
+### The role/Bool predicate the assignable Finset filters on. -/
+
+/-- The decidable predicate that the `assignableCount` `countP` and the
+assignable Finset filter share.  Equals `IsAssignable` pointwise
+(`assignableCount_pred_iff`). -/
+def isAssignableBool (a : AgentState L K) : Bool :=
+  decide (a.phase.val = 0) && (!a.assigned) &&
+    (decide (a.role = .main) || decide (a.role = .cr))
+
+/-- `assignableCount` re-expressed via `isAssignableBool` (definitional). -/
+theorem assignableCount_eq_countP (c : Config (AgentState L K)) :
+    assignableCount (L := L) (K := K) c =
+      Multiset.countP (fun a => isAssignableBool (L := L) (K := K) a) c := rfl
+
+/-- The MCR filter Finset (initiators of the one-sided conversion). -/
+private def mcrF : Finset (AgentState L K) :=
+  Finset.univ.filter (fun s : AgentState L K => s.role = .mcr)
+
+/-- The assignable filter Finset (responders of the one-sided conversion). -/
+private def assignF : Finset (AgentState L K) :=
+  Finset.univ.filter (fun s : AgentState L K => isAssignableBool (L := L) (K := K) s = true)
+
+/-- `∑_{s ∈ mcrF} c.count s = mcrCount c`.  (Clone of `sum_count_mcr_filter`,
+re-derived locally since the upstream is `private`.) -/
+private lemma sum_count_mcrF (c : Config (AgentState L K)) :
+    ∑ s ∈ mcrF (L := L) (K := K), c.count s =
+      ExactMajority.mcrCount (L := L) (K := K) c := by
+  set F := mcrF (L := L) (K := K) with hF
+  set cm := Multiset.filter (fun a : AgentState L K => a.role = .mcr) c with hcm
+  have hcount : ∀ s ∈ F, c.count s = Multiset.count s cm := fun s hs => by
+    show Multiset.count s c = Multiset.count s cm
+    have hs_mcr : (fun a : AgentState L K => a.role = .mcr) s :=
+      (Finset.mem_filter.mp hs).2
+    simp only [cm, Multiset.count_filter, hs_mcr, ite_true]
+  calc ∑ s ∈ F, c.count s
+      = ∑ s ∈ F, Multiset.count s cm := Finset.sum_congr rfl hcount
+    _ = Multiset.card cm :=
+        Multiset.sum_count_eq_card (s := F) (m := cm)
+          (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a,
+            (Multiset.mem_filter.mp ha).2⟩)
+    _ = ExactMajority.mcrCount (L := L) (K := K) c := by
+        rw [ExactMajority.mcrCount, hcm]
+
+/-- `∑_{s ∈ assignF} c.count s = assignableCount c`.  The assignable analogue of
+`sum_count_mcrF`; `assignableCount` is a `countP`, hence a `filter`-card. -/
+private lemma sum_count_assignF (c : Config (AgentState L K)) :
+    ∑ s ∈ assignF (L := L) (K := K), c.count s =
+      assignableCount (L := L) (K := K) c := by
+  set F := assignF (L := L) (K := K) with hF
+  set ca := Multiset.filter (fun a : AgentState L K =>
+    isAssignableBool (L := L) (K := K) a = true) c with hca
+  have hcount : ∀ s ∈ F, c.count s = Multiset.count s ca := fun s hs => by
+    show Multiset.count s c = Multiset.count s ca
+    have hs_a : isAssignableBool (L := L) (K := K) s = true :=
+      (Finset.mem_filter.mp hs).2
+    simp only [ca, Multiset.count_filter, hs_a, ite_true]
+  calc ∑ s ∈ F, c.count s
+      = ∑ s ∈ F, Multiset.count s ca := Finset.sum_congr rfl hcount
+    _ = Multiset.card ca :=
+        Multiset.sum_count_eq_card (s := F) (m := ca)
+          (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a,
+            (Multiset.mem_filter.mp ha).2⟩)
+    _ = assignableCount (L := L) (K := K) c := by
+        rw [assignableCount_eq_countP, hca, ← Multiset.countP_eq_card_filter]
+
+/-- For a fixed MCR initiator `s₁`, summing `interactionCount s₁ s₂` over
+assignable responders gives `count s₁ · assignableCount c` — **no `−1`**, since
+an MCR initiator is never equal to an assignable responder. -/
+private lemma sum_interactionCount_assignF_right (c : Config (AgentState L K))
+    (s₁ : AgentState L K) (hs₁ : s₁.role = .mcr) :
+    ∑ s₂ ∈ assignF (L := L) (K := K), c.interactionCount s₁ s₂ =
+      c.count s₁ * assignableCount (L := L) (K := K) c := by
+  have hne : ∀ s₂ ∈ assignF (L := L) (K := K), s₁ ≠ s₂ := by
+    intro s₂ hs₂ heq
+    have hs₂_a : isAssignableBool (L := L) (K := K) s₂ = true :=
+      (Finset.mem_filter.mp hs₂).2
+    have hs₂_assignable : IsAssignable s₂ :=
+      (assignableCount_pred_iff (L := L) (K := K) s₂).mp hs₂_a
+    obtain ⟨_, _, hrole⟩ := hs₂_assignable
+    rw [← heq] at hrole
+    rcases hrole with h | h <;> rw [hs₁] at h <;> exact absurd h (by decide)
+  have hfactor : ∀ s₂ ∈ assignF (L := L) (K := K),
+      c.interactionCount s₁ s₂ = c.count s₁ * c.count s₂ := by
+    intro s₂ hs₂
+    unfold Config.interactionCount
+    rw [if_neg (hne s₂ hs₂)]
+  rw [Finset.sum_congr rfl hfactor, ← Finset.mul_sum, sum_count_assignF]
+
+/-- **Cross-class interaction-count sum.**  Summing `interactionCount` over the
+rectangle `mcrF ×ˢ assignF` gives the clean product `mcrCount c · assignableCount
+c` (Phase C-1 gap atom #1). -/
+private lemma sum_interactionCount_mcr_assign (c : Config (AgentState L K)) :
+    ∑ s₁ ∈ mcrF (L := L) (K := K), ∑ s₂ ∈ assignF (L := L) (K := K),
+        c.interactionCount s₁ s₂ =
+      ExactMajority.mcrCount (L := L) (K := K) c *
+        assignableCount (L := L) (K := K) c := by
+  have hstep : ∀ s₁ ∈ mcrF (L := L) (K := K),
+      ∑ s₂ ∈ assignF (L := L) (K := K), c.interactionCount s₁ s₂ =
+        c.count s₁ * assignableCount (L := L) (K := K) c := by
+    intro s₁ hs₁
+    exact sum_interactionCount_assignF_right c s₁
+      (Finset.mem_filter.mp (show s₁ ∈ Finset.univ.filter _ from hs₁)).2
+  rw [Finset.sum_congr rfl hstep, ← Finset.sum_mul, sum_count_mcrF]
+
 end RoleSplitConcentration
 end ExactMajority

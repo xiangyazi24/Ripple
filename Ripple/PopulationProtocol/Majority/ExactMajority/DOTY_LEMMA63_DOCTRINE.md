@@ -953,3 +953,49 @@ NET: hReg2Cap stays a named hypothesis (unchanged from 254b6e43).  It is NOT lad
 NOT a vacuous boundary case; it is the regime-2 bulk-arrival escape, structurally identical to eB.
 Recommend route (b1) by the EarlyDripMarked owner (one-line cap relax in the packaged consumer),
 after which hB_params regime 2 closes with hB_regime2 alone and hReg2Cap is deleted everywhere.
+
+## PHASE B-5z hReg2Cap RESOLVED via route (b1) — DONE (2026-06-10 relay, 3 commits, 0-sorry axiom-clean)
+## Commits: EarlyDripMarked a2f21544 (swept into a concurrent monorepo commit), DotyParams c067afbf, WidthPrefix 7b9e7bcb.
+
+CONFIRMED the predecessor's route (b1).  The slice S={rBeyond=n/10+1} was spurious in the END
+consumer because window_failure_le's hsub (EarlyDripMarked ~4883) derives the cap from the window
+guard `10·rBeyond ≤ n`, never from the slice.  So the fix is to make the carried hB EVENT carry the
+window-aligned cap `rBeyond ≤ ⌊n/10⌋` instead of `rBeyond ≤ aM (= n/10+1)`.
+
+EXACT CONJUNCT CHANGE (everywhere the hB event is threaded):
+  OLD:  rBeyond … T (eraseConfig … mc) ≤ aM   (scalar)  /  ≤ aM T  (per-level)
+  NEW:  rBeyond … T (eraseConfig … mc) ≤ n / 10         (Nat floor division, both forms)
+window_failure_le's `by omega` proves `rBeyond ≤ n/10` from `10·rBeyond ≤ n` verbatim (no haM
+needed), so the consumer proof is unchanged.  The `aM : ℕ`/`aM : ℕ→ℕ` and `haM : n ≤ 10·aM`
+parameters became pure passthrough and were DELETED from the whole chain.
+
+FILES / THEOREMS TOUCHED (aM/haM dropped, cap → ⌊n/10⌋):
+ EarlyDripMarked.lean (engine): window_failure_le, recurrence_checkpoint, front_squares_whp,
+   real_front_squares_whp, real_front_union, windowedFrontProfile_whp, windowedFrontProfile_whp_packaged.
+   (hB_discharge is UNCALLED self-contained — left untouched, keeps its own ladder-cap aM.)
+ WidthPrefix.lean (prefix/checkpoint mirrors): windowedFrontProfile_whp_checkpoint,
+   front_squares_whp_prefix, real_front_squares_whp_prefix, real_front_union_prefix,
+   windowedFrontProfile_whp_prefix.
+ DotyParams.lean: windowedFrontProfile_whp_concrete's carried hB cap → ⌊n/10⌋ (and dropped the
+   `(fun _ => aM n) (fun _ => n_le_ten_aM n)` args to the packaged call).  hB_params: regime 2 now
+   closes by `hB_regime2` ALONE (its floor cap ⌊n/10⌋ matches the carried cap exactly — no
+   reconciliation); regime 1 measure_mono now monotonizes `⌊n/10⌋ ≤ aM n ≤ ladderA X₀` (reach via
+   G_pow_n_reach still proves aM n ≤ ladderA, then ⌊n/10⌋ ≤ aM n by omega).  The `hReg2Cap`
+   hypothesis was DELETED from hB_params / windowedFrontProfile_whp_final / goodFrontWidth_whp_final.
+   (def aM / n_le_ten_aM kept: aM still used by the regime-1 reach; n_le_ten_aM now unused but
+   harmless, left to avoid unrelated churn.)
+
+FINAL HYP LISTS (hReg2Cap GONE):
+ windowedFrontProfile_whp_final (n hn mc₀ hcard hge3 hnotP3 hclean Tcap hcap eB tB heB htB).
+ goodFrontWidth_whp_final       (n hn mc₀ hcard hge3 hnotP3 hclean Tcap hcap eB tB heB htB W₂ climbB hclimbB).
+
+NO weakening of any FINAL theorem: only the intermediate event SHAPE changed (smaller cap ⟹ smaller
+bad event ⟹ same or tighter bound); the consumer (window_failure_le) only ever exercises rBeyond ≤
+n/10, exactly as the predecessor verified.  Per-theorem `#print axioms` on all touched capstones ⊆
+{propext, Classical.choice, Quot.sound}.  Single-file compiles all EXIT_0 (EarlyDripMarked,
+DotyParams, WidthPrefix); oleans regenerated.
+
+The named residuals eB/heB (hour-escape) and htB (taint tail) are UNCHANGED — the regime-2
+bulk-arrival escape that hReg2Cap used to name is the SAME mass eB controls (structurally identical),
+so retiring hReg2Cap does not leak any new open obligation: the window-aligned cap simply stops the
+END consumer from ever touching the slice that produced it.

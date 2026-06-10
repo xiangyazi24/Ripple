@@ -169,8 +169,146 @@ theorem Transition_eq_cancelSplit_of_phase7_main (s t : AgentState L K)
   rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) s _ (by rw [hcs1, hs7]; omega),
       finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) t _ (by rw [hcs2, ht7]; omega)]
 
+/-! ## Part C — per-pair minority-count behavior under `cancelSplit`.
+
+The minority count `countP (minoritySt σ)` over the produced pair is **at most**
+that over the consumed pair, EXCEPT in the single gap-2 case where the minority is
+the *smaller-index* (higher-magnitude) agent `s` and the majority is the
+*larger-index* agent `t` — there `cancelSplit` copies `s`'s (minority) sign onto
+`t`, raising the count.  The honest Phase-6/7 structural input rules this out: the
+minority always has index **≥** the majority partner's index (the majority holds
+the larger mass / smaller exponent), captured by `minorityHiIndex σ`.  Under that
+hypothesis, `cancelSplit` never raises the σ-count. -/
+
+/-- `countP minoritySt` over a two-element pair as a sum of indicators. -/
+theorem countP_minoritySt_pair (σ : Sign) (x y : AgentState L K) :
+    Multiset.countP (fun a => minoritySt σ a) ({x, y} : Multiset (AgentState L K))
+      = (if minoritySt σ x then 1 else 0) + (if minoritySt σ y then 1 else 0) := by
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl]
+  rw [Multiset.countP_cons, Multiset.countP_cons, Multiset.countP_zero]
+  ring
+
+/-- An agent that is not a Main is never a minority agent (regardless of bias). -/
+theorem not_minoritySt_of_not_main (σ : Sign) (a : AgentState L K)
+    (h : a.role ≠ Role.main) : ¬ minoritySt σ a := fun ⟨hm, _⟩ => h hm
+
+/-- A Main with `.zero` bias is not a minority agent. -/
+theorem not_minoritySt_zero (σ : Sign) (a : AgentState L K) (h : a.bias = Bias.zero) :
+    ¬ minoritySt σ a := by
+  rw [minoritySt_iff]; rintro ⟨_, hb⟩; rw [h] at hb; exact hb
+
+/-- A Main with a `σ`-signed dyadic bias is a minority agent. -/
+theorem minoritySt_of_signed (σ : Sign) (a : AgentState L K) (i : Fin (L + 1))
+    (hr : a.role = Role.main) (hb : a.bias = Bias.dyadic σ i) : minoritySt σ a :=
+  ⟨hr, i, hb⟩
+
+/-- **Per-pair σ-count non-increase under the index ordering** (both Main).  If,
+whenever both agents are opposite-sign dyadics, the σ-signed one has index `≥` the
+σ.flip one, then `cancelSplit` does not raise the pair's σ-Main count.  Read off
+directly from the five `cancelSplit` branches: gap 0 drains both signs; gap 1
+drains the larger-index agent; gap 2 sign-flips the larger-index agent to the
+smaller-index agent's sign — and the index hypothesis forces the larger-index
+agent to be the σ one, so it is exactly the minority being removed; gap ≥ 3 is the
+identity.  `cancelSplit` preserves roles, so both outputs stay Main. -/
+theorem cancelSplit_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
+    (hsM : s.role = Role.main) (htM : t.role = Role.main)
+    (hidx : ∀ ss i st j, s.bias = Bias.dyadic ss i → t.bias = Bias.dyadic st j →
+      ss ≠ st → (ss = σ → j.val ≤ i.val) ∧ (st = σ → i.val ≤ j.val)) :
+    Multiset.countP (fun a => minoritySt σ a)
+        ({(cancelSplit L K s t).1, (cancelSplit L K s t).2} : Multiset (AgentState L K))
+      ≤ Multiset.countP (fun a => minoritySt σ a)
+          ({s, t} : Multiset (AgentState L K)) := by
+  classical
+  have hr1 : (cancelSplit L K s t).1.role = s.role := cancelSplit_role_fst L K s t
+  have hr2 : (cancelSplit L K s t).2.role = t.role := cancelSplit_role_snd L K s t
+  rw [countP_minoritySt_pair, countP_minoritySt_pair]
+  -- Reduce `minoritySt σ x` to `biasIsSigned σ x.bias` (roles are all `main`).
+  have key : ∀ x : AgentState L K, x.role = Role.main →
+      (minoritySt σ x ↔ biasIsSigned σ x.bias) := fun x hx => by
+    rw [minoritySt_iff]; exact ⟨fun h => h.2, fun h => ⟨hx, h⟩⟩
+  have ks : (minoritySt σ s ↔ biasIsSigned σ s.bias) := key s hsM
+  have kt : (minoritySt σ t ↔ biasIsSigned σ t.bias) := key t htM
+  have ko1 : (minoritySt σ (cancelSplit L K s t).1 ↔
+      biasIsSigned σ (cancelSplit L K s t).1.bias) := key _ (by rw [hr1]; exact hsM)
+  have ko2 : (minoritySt σ (cancelSplit L K s t).2 ↔
+      biasIsSigned σ (cancelSplit L K s t).2.bias) := key _ (by rw [hr2]; exact htM)
+  -- It suffices to bound the bias-signed indicators.
+  rw [if_congr ks rfl rfl, if_congr kt rfl rfl,
+      if_congr ko1 rfl rfl, if_congr ko2 rfl rfl]
+  -- Now a pure `Bias`-level case analysis on the two output biases of `cancelSplit`.
+  -- Extract the output biases explicitly per branch.
+  cases hsb : s.bias with
+  | zero =>
+      -- s not dyadic ⇒ cancelSplit = (s,t); both sides unchanged.
+      have : cancelSplit L K s t = (s, t) := by unfold cancelSplit; rw [hsb]
+      rw [this]
+  | dyadic ss i =>
+    cases htb : t.bias with
+    | zero =>
+        have : cancelSplit L K s t = (s, t) := by
+          unfold cancelSplit; rw [hsb, htb]
+        rw [this]
+    | dyadic st j =>
+      by_cases hne : ss = st
+      · -- same sign ⇒ identity.
+        have hcs : cancelSplit L K s t = (s, t) := by
+          unfold cancelSplit; rw [hsb, htb, if_neg (by simpa using hne)]
+        rw [hcs]
+      · -- opposite signs: branch on gap.
+        obtain ⟨hσs, hσt⟩ := hidx ss i st j hsb htb hne
+        by_cases h0 : i.val = j.val
+        · have hcs : cancelSplit L K s t
+              = ({s with bias := .zero}, {t with bias := .zero}) := by
+            unfold cancelSplit; rw [hsb, htb, if_pos hne, dif_pos h0]
+          rw [hcs]; simp [biasIsSigned]
+        by_cases h1 : i.val + 1 = j.val
+        · have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic ss ⟨i.val + 1, by
+                    have hj : j.val < L + 1 := j.2; omega⟩}, {t with bias := .zero}) := by
+            unfold cancelSplit; rw [hsb, htb, if_pos hne, dif_neg h0, dif_pos h1]
+          rw [hcs]
+          by_cases hssσ : ss = σ
+          · exfalso; have := hσs hssσ; omega
+          · simp [biasIsSigned, hssσ]
+        by_cases h1' : j.val + 1 = i.val
+        · have hcs : cancelSplit L K s t
+              = ({s with bias := .zero}, {t with bias := .dyadic st ⟨j.val + 1, by
+                    have hi : i.val < L + 1 := i.2; omega⟩}) := by
+            unfold cancelSplit; rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_pos h1']
+          rw [hcs]
+          by_cases hstσ : st = σ
+          · exfalso; have := hσt hstσ; omega
+          · simp [biasIsSigned, hstσ]
+        by_cases h2 : i.val + 2 = j.val
+        · have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic ss ⟨i.val + 1, by
+                    have hj : j.val < L + 1 := j.2; omega⟩},
+                 {t with bias := .dyadic ss ⟨i.val + 2, by
+                    have hj : j.val < L + 1 := j.2; omega⟩}) := by
+            unfold cancelSplit
+            rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_neg h1', dif_pos h2]
+          rw [hcs]
+          by_cases hssσ : ss = σ
+          · exfalso; have := hσs hssσ; omega
+          · simp [biasIsSigned, hssσ]
+        by_cases h2' : j.val + 2 = i.val
+        · have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic st ⟨j.val + 2, by
+                    have hi : i.val < L + 1 := i.2; omega⟩},
+                 {t with bias := .dyadic st ⟨j.val + 1, by
+                    have hi : i.val < L + 1 := i.2; omega⟩}) := by
+            unfold cancelSplit
+            rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2, dif_pos h2']
+          rw [hcs]
+          by_cases hstσ : st = σ
+          · exfalso; have := hσt hstσ; omega
+          · simp [biasIsSigned, hstσ]
+        · -- gap ≥ 3: identity.
+          have hcs : cancelSplit L K s t = (s, t) := by
+            unfold cancelSplit
+            rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2, dif_neg h2']
+          rw [hcs]
+
 end Phase7Convergence
 
 end ExactMajority
-
-#print axioms ExactMajority.Phase7Convergence.Transition_eq_cancelSplit_of_phase7_main

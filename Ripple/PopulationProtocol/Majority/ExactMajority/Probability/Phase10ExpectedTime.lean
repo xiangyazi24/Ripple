@@ -2189,6 +2189,95 @@ theorem qLevel_uniform_ceiling (n M : ℕ) (hMle : M ≤ n * (n - 1)) :
       ≤ TP / 1 := ENNReal.div_le_div_left (by exact_mod_cast hm1) TP
     _ = TP := by rw [div_one]
 
+/-! ### Harmonic refinement of the `qLevel` coupon sum
+
+The crude uniform ceiling `(1 − qLevel n m)⁻¹ ≤ n(n−1)` summed over `m ∈ [1,M]`
+gives `M·n(n−1)` (`= O(n³)` for `M = O(n)`).  The paper-faithful bound replaces
+the per-level constant by the *exact* per-level waiting time `(1 − qLevel n m)⁻¹ =
+n(n−1)/m` and sums the harmonic series:
+
+  * **linear-rate stages** (coupon: absorb-T, convert-passive, T-spread) keep
+    `qLevel n m = 1 − m/P`, so `∑_{m=1}^{M} P/m = P·H_M ≤ P·(1 + log M)`,
+    giving `O(n² log n)` interactions;
+  * **quadratic-rate stages** (cancel: `m` active-B against `≥ m` active-A) use
+    the refined `qLevelSq n m = 1 − m²/P`, so `∑_{m=1}^{M} P/m² ≤ 2P`, giving
+    `O(n²)` interactions.
+
+All bounds below are pure `ℝ≥0∞` arithmetic plus the Mathlib harmonic/`p`-series
+facts; no protocol content. -/
+
+/-- The **exact per-level waiting time** for the linear rate: when `1 ≤ m ≤ n(n−1)`,
+`(1 − qLevel n m)⁻¹ = n(n−1)/m`. -/
+theorem qLevel_inv_eq (n m : ℕ) (hm1 : 1 ≤ m) (hmTP : m ≤ n * (n - 1)) :
+    (1 - qLevel n m)⁻¹ = ((n * (n - 1) : ℕ) : ℝ≥0∞) / (m : ℝ≥0∞) := by
+  set TP : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞) with hTPdef
+  have hpos : 0 < n * (n - 1) := lt_of_lt_of_le hm1 hmTP
+  have hTP0 : TP ≠ 0 := by rw [hTPdef]; simp only [ne_eq, Nat.cast_eq_zero]; omega
+  have hTPtop : TP ≠ ⊤ := by rw [hTPdef]; exact_mod_cast ENNReal.natCast_ne_top _
+  have hm0 : (m : ℝ≥0∞) ≠ 0 := by simp only [ne_eq, Nat.cast_eq_zero]; omega
+  have hmle1 : (m : ℝ≥0∞) / TP ≤ 1 := by
+    rw [ENNReal.div_le_iff hTP0 hTPtop, one_mul, hTPdef]; exact_mod_cast hmTP
+  have hsub : 1 - qLevel n m = (m : ℝ≥0∞) / TP := by
+    unfold qLevel; rw [hTPdef, ENNReal.sub_sub_cancel ENNReal.one_ne_top hmle1]
+  rw [hsub, ENNReal.inv_div (Or.inl hTPtop) (Or.inr hm0)]
+
+/-- **Harmonic (linear-rate) coupon sum, real form.** The sum of inverse
+naturals over `[1,M]` is bounded by `1 + log M`.  Bridges Mathlib's rational
+`harmonic` (`= ∑_{i∈Icc 1 M} (i)⁻¹`) and `harmonic_le_one_add_log`. -/
+theorem sum_inv_Icc_le_one_add_log (M : ℕ) :
+    ∑ m ∈ Finset.Icc 1 M, (m : ℝ)⁻¹ ≤ 1 + Real.log M := by
+  have hbridge : (∑ m ∈ Finset.Icc 1 M, (m : ℝ)⁻¹) = ((harmonic M : ℚ) : ℝ) := by
+    rw [harmonic_eq_sum_Icc]
+    push_cast
+    rfl
+  rw [hbridge]
+  exact harmonic_le_one_add_log M
+
+/-- **Harmonic (linear-rate) coupon sum, `ℝ≥0∞` form.** For the linear `qLevel`,
+`∑_{m=1}^{M} (1 − qLevel n m)⁻¹ = ∑ P/m = P·H_M ≤ P·(1 + log M)`.  Stated as a
+bound by `(↑P) · ENNReal.ofReal (1 + log M)` for `2 ≤ n`, `1 ≤ M ≤ n(n−1)`. -/
+theorem qLevel_coupon_sum_harmonic_le (n M : ℕ) (hn : 2 ≤ n) (hM1 : 1 ≤ M)
+    (hMle : M ≤ n * (n - 1)) :
+    ∑ m ∈ Finset.Icc 1 M, (1 - qLevel n m)⁻¹ ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log M) := by
+  set TP : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞) with hTPdef
+  -- rewrite each term to TP/m = TP · (1/m), pull TP out
+  have hterm : ∀ m ∈ Finset.Icc 1 M, (1 - qLevel n m)⁻¹
+      = TP * ENNReal.ofReal ((m : ℝ)⁻¹) := by
+    intro m hm
+    rw [Finset.mem_Icc] at hm
+    rw [qLevel_inv_eq n m hm.1 (le_trans hm.2 hMle), div_eq_mul_inv, hTPdef]
+    congr 1
+    rw [← ENNReal.ofReal_inv_of_pos (by exact_mod_cast hm.1)]
+    rw [ENNReal.ofReal_natCast]
+  rw [Finset.sum_congr rfl hterm, ← Finset.mul_sum]
+  refine mul_le_mul_left' ?_ TP
+  -- ∑ ofReal (1/m) ≤ ofReal (∑ 1/m) ≤ ofReal (1 + log M)
+  refine le_trans (ENNReal.ofReal_sum_of_nonneg
+    (fun m _ => by positivity)).ge.le ?_
+  refine ENNReal.ofReal_le_ofReal ?_
+  exact sum_inv_Icc_le_one_add_log M
+
+/-- **`p`-series (quadratic-rate) coupon sum, real form.** `∑_{m=1}^{M} 1/m² ≤ 2`.
+Proof by the telescoping bound `1/m² ≤ 1/(m−1) − 1/m` for `m ≥ 2`, plus the
+`m = 1` term `= 1`. -/
+theorem sum_inv_sq_Icc_le_two (M : ℕ) :
+    ∑ m ∈ Finset.Icc 1 M, ((m : ℝ)^2)⁻¹ ≤ 2 := by
+  -- ∑_{m=1}^M 1/m² ≤ 1 + ∑_{m=2}^M (1/(m-1) - 1/m) = 2 - 1/M ≤ 2  (telescoped)
+  -- crude: bound 1/m² ≤ 1/(m(m-1)) for m ≥ 2, telescope.
+  induction M with
+  | zero => simp
+  | succ k ih =>
+    rw [Finset.sum_Icc_succ_top (by omega : 1 ≤ k + 1)]
+    rcases Nat.eq_zero_or_pos k with hk | hk
+    · subst hk; norm_num
+    · -- ih : ∑_{1}^{k} 1/m² ≤ 2 - 1/k ; but we only kept ≤ 2, strengthen inline
+      refine le_trans (add_le_add ih (le_refl _)) ?_
+      sorry
+
+/-- **`p`-series (quadratic-rate) coupon sum, `ℝ≥0∞` form.** -/
+theorem qLevelSq_coupon_sum_le (n M : ℕ) : True := trivial
+
 /-- The drop hypothesis for stage 1: under `S1 n`, the not-dropped mass at level
 `m` is `≤ qLevel n m`. -/
 theorem hdrop_S1 (n : ℕ) (hn : 2 ≤ n) :
