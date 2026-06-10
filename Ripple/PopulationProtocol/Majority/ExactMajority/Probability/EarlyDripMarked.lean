@@ -5524,6 +5524,101 @@ theorem negligibility_le (n : ℕ) (hn : 0 < n) (cc : ℝ) (hcc1 : cc ≤ 1)
   rw [div_add' _ _ _ (ne_of_gt hnℝ), div_le_div_iff_of_pos_right hnℝ]
   nlinarith [hslack]
 
+/-! ## Part 40 — the tail-sum smallness packaging (item 4): the `windowedFrontProfile_whp` RHS
+collapses to `Tcap · (uniform per-level tail)`.
+
+`windowedFrontProfile_whp`'s RHS is `Σ_{T<Tcap} (KK·δ T + escape_T + tail_T)`.  Under the locked-
+constant margins each summand is bounded by a single deterministic value (`δ T ≤ dB`, the hour-escape
+`≤ eB`, the taint tail `≤ tB`, all uniform in `T`), so the whole sum collapses to
+`Tcap · (KK·dB + eB + tB)`.  With `Tcap = O(log n)`, `KK = O(n loglog n)`, `dB = exp(−Ω(n^{0.1}))`,
+`eB` = bulk-not-arrived, `tB = exp(−n^{0.15−o(1)})`, the package stays `n^{−ω(1)}`.  Pure ENNReal
+monotone summation — the per-level smallness is the locked-margin input, not re-derived here. -/
+
+/-- **The per-level uniform bound on the `windowedFrontProfile_whp` summand.**  Given uniform bounds
+on the three pieces of the `T`-th term, the term is at most `KK·dB + (eB + tB)`. -/
+theorem front_tail_term_le (KK : ℕ) (δT eT tT dB eB tB : ℝ≥0∞)
+    (hδ : δT ≤ dB) (he : eT ≤ eB) (ht : tT ≤ tB) :
+    (KK : ℝ≥0∞) * δT + (eT + tT) ≤ (KK : ℝ≥0∞) * dB + (eB + tB) := by
+  exact add_le_add (mul_le_mul_left' hδ _) (add_le_add he ht)
+
+/-- **The tail-sum packaging** (item 4): a finite sum of `Tcap` per-level terms, each of the
+`windowedFrontProfile_whp` shape and uniformly bounded by `KK·dB + eB + tB`, collapses to
+`Tcap · (KK·dB + eB + tB)` — a single exponential/polynomial smallness form. -/
+theorem front_tail_sum_le (KK Tcap : ℕ) (δ esc tail : ℕ → ℝ≥0∞) (dB eB tB : ℝ≥0∞)
+    (hδ : ∀ T < Tcap, δ T ≤ dB) (he : ∀ T < Tcap, esc T ≤ eB) (ht : ∀ T < Tcap, tail T ≤ tB) :
+    ∑ T ∈ Finset.range Tcap, ((KK : ℝ≥0∞) * δ T + (esc T + tail T))
+      ≤ (Tcap : ℝ≥0∞) * ((KK : ℝ≥0∞) * dB + (eB + tB)) := by
+  classical
+  calc ∑ T ∈ Finset.range Tcap, ((KK : ℝ≥0∞) * δ T + (esc T + tail T))
+      ≤ ∑ _T ∈ Finset.range Tcap, ((KK : ℝ≥0∞) * dB + (eB + tB)) := by
+        apply Finset.sum_le_sum
+        intro T hT
+        rw [Finset.mem_range] at hT
+        exact front_tail_term_le KK (δ T) (esc T) (tail T) dB eB tB
+          (hδ T hT) (he T hT) (ht T hT)
+    _ = (Tcap : ℝ≥0∞) * ((KK : ℝ≥0∞) * dB + (eB + tB)) := by
+        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+
+open ClockFrontProfile in
+/-- **STEP 4 packaged — whp `WindowedFrontProfile` with a single-form tail.**  Compose
+`windowedFrontProfile_whp` with the tail-sum packaging: from uniform per-level bounds `δ T ≤ dB`,
+hour-escape `≤ eB`, taint-tail `≤ tB` (the locked-margin smallness inputs), the real-kernel
+probability that the end config is in the hour region with the negligibility yet FAILS the windowed
+front recurrence is at most the single term `Tcap · (KK·dB + eB + tB)` — an explicit
+exponential/polynomial form (each factor `n^{−ω(1)}` at the paper scales). -/
+theorem windowedFrontProfile_whp_packaged
+    (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ) (θ : ℝ) (hθpos : 0 < θ)
+    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
+    (δ : ℕ → ℝ≥0∞)
+    (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ T)
+    (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * KK) ≤ 1 / 2)
+    (tt : ℕ) (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : ∀ T < Tcap, recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : ∀ T < Tcap, MarkInv (L := L) (K := K) T mc₀)
+    -- the locked-margin uniform smallness inputs (item 4):
+    (dB eB tB : ℝ≥0∞)
+    (hdB : ∀ T < Tcap, δ T ≤ dB)
+    (heB : ∀ T < Tcap,
+      (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+          (taintedGate (L := L) (K := K) n) ^ (w * KK)) (some mc₀) {none} ≤ eB)
+    (htB : ∀ T < Tcap,
+      ENNReal.ofReal
+        (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * KK)
+            * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+          + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * KK) * ((θn : ℝ) / (n : ℝ)) ^ 2
+              * ((w * KK : ℕ) : ℝ)
+          - σ * ((tt + 1 : ℕ) : ℝ))) ≤ tB) :
+    ((NonuniformMajority L K).transitionKernel ^ (w * KK)) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c}
+      ≤ (Tcap : ℝ≥0∞) * ((KK : ℝ≥0∞) * dB + (eB + tB)) := by
+  refine le_trans (windowedFrontProfile_whp (L := L) (K := K) θn n hn cc w θ hθpos aM haM δ hB
+    σ hσ KK hsmall tt Tcap hcap mc₀ h0 hmark) ?_
+  exact front_tail_sum_le KK Tcap δ
+    (fun T => (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+        (taintedGate (L := L) (K := K) n) ^ (w * KK)) (some mc₀) {none})
+    (fun T => ENNReal.ofReal
+      (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * KK)
+          * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+        + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * KK) * ((θn : ℝ) / (n : ℝ)) ^ 2
+            * ((w * KK : ℕ) : ℝ)
+        - σ * ((tt + 1 : ℕ) : ℝ))))
+    dB eB tB hdB heB htB
+
 end EarlyDripMarked
 
 end ExactMajority
