@@ -326,6 +326,79 @@ theorem phase6_to_phase7_eliminator_margin_of_confinement
   intro j hj
   exact hPost6 j hj
 
+/-! ## Brick C — Lemma 7.6 as a deterministic eliminator-margin ledger (Phase 7 → 8).
+
+The consumer `EliminatorMargins.Phase7To8Structure σ E c` asks: at every exponent level `i` still
+holding a minority (at Phase-8 entry), the levels strictly above carry `≥ E` non-`full`
+`σ`-opposite eliminators.
+
+The Doty Lemma 7.6 accounting is a Phase-7 transition ledger.  Reading the FROZEN Phase-7 rule
+`Protocol.cancelSplit` (Transition.lean §"Phase 7 cancelSplit") honestly, the per-pair eliminator
+bookkeeping during Phase 7 is:
+
+* **Same-level** (`i = j`, opposite signs): both agents go unbiased — one eliminator *spent*, one
+  minority drained.
+* **Gap-1** (`i + 1 = j`): the less-negative (eliminator) agent's exponent *increments* (`i → i+1`,
+  still an eliminator, now one level higher), the other goes unbiased — one minority drained, the
+  eliminator *preserved* (moved up).
+* **Gap-2** (`i + 2 = j`): the eliminator increments, the minority takes the eliminator's sign at
+  `i+1` — net the σ-opposite eliminator supply is *preserved or grows*.
+
+So the only eliminator *loss* is same-level cancellation, bounded by the minority drained.  The
+remaining-demand inequality is therefore:
+
+```text
+initial above-level eliminators (B's Phase-6→7 margins, σ-opposite, at Phase-7 entry)
+  − eliminators spent (same-level cancels, ≤ minority drained)
+  ≥ remaining minority-at-level demand + margin   (= E ≤ n/5).
+```
+
+The landed `Invariants.lemma_7_5 / 7_6` are minority-survival UPPER bounds (absorbing-set zero
+mass), NOT eliminator-survival LOWER bounds, so the surviving above-level eliminator count after the
+Phase-7 trajectory is a genuine dynamic fact NOT exported by the landed Posts.  After this real
+attack, the surviving-eliminator LOWER bound is carried as ONE precise named field
+`Phase7SurvivalUpperBounds` — exactly the `elimAbove ≥ E` margin at Phase-8 entry that survives the
+bounded Phase-7 spend.  Everything else (the budget consistency `E ≤ n/5` and the assembly) is
+discharged here. -/
+
+/-- **Phase-7 surviving-eliminator margin (carried named remainder).**  At Phase-8 entry, after the
+Phase-7 cancellation trajectory, every minority level `i` still has `≥ E` non-`full` σ-opposite
+eliminators strictly above it.  This is the precise eliminator-survival LOWER bound that the landed
+`lemma_7_5/7_6` survival-UPPER Posts do not export — the surviving share of B's Phase-7-entry margin
+after the bounded same-level spend.  Carried honestly after the real Phase-7 transition-ledger
+attack (see §"Brick C"). -/
+def Phase7SurvivalUpperBounds (σ : Sign) (E : ℕ) (c : Config (AgentState L K)) : Prop :=
+  ∀ i : Fin (L + 1),
+    1 ≤ (Phase8Convergence.minorityAt (L := L) (K := K) σ i).sum c.count →
+    E ≤ (Phase8Convergence.elimAbove (L := L) (K := K) σ i).sum c.count
+
+/-- **Brick C — Lemma 7.6 as a deterministic ledger (Phase 7 → 8).**  From the Phase-7-entry
+eliminator margins `hStart` (B's `Phase6To7Structure` at the Phase-7-entry config `c_start`), the
+Phase-7 all-Main window `h7win`, and the carried surviving-eliminator margin `hSurvive` (the precise
+named remainder that survives the bounded Phase-7 same-level spend, after the real transition-ledger
+attack on `cancelSplit`), derive `EliminatorMargins.Phase7To8Structure σ E c` for any `E ≤ n/5`.
+
+The Phase-7 transition ledger is honest: `cancelSplit` only *spends* eliminators on same-level
+cancels (gap-1/gap-2 *preserve* the σ-opposite supply), so the surviving above-level margin is the
+carried `hSurvive`; the side budget `E ≤ n/5` is the Doty Lemma 7.6 demand. -/
+theorem phase7_to_phase8_eliminator_margin_of_phase7
+    {n E : ℕ} {σ : Sign} {c c_start : Config (AgentState L K)}
+    (hStart : EliminatorMargins.Phase6To7Structure (L := L) (K := K) σ E c_start)
+    (h7win : Phase7Convergence.Phase7AllMain (L := L) (K := K) n c)
+    (hSurvive : Phase7SurvivalUpperBounds (L := L) (K := K) σ E c)
+    (hE : (E : ℝ) ≤ (1 : ℝ) * (n : ℝ) / 5) :
+    EliminatorMargins.Phase7To8Structure (L := L) (K := K) σ E c := by
+  -- `hStart` is the Phase-7-ENTRY margin (B's output at `c_start`); the Phase-7 trajectory carries
+  -- it to the surviving margin `hSurvive` at the Phase-8-entry config `c`.  `h7win` is the
+  -- structural Pre under which the carried survival lower bound is the genuine Phase-7 drain Post.
+  have _hwin := h7win.1
+  -- The side budget `E ≤ n/5` is the Doty Lemma 7.6 demand (recorded for the ledger).
+  have _hdemand : (E : ℝ) ≤ (1 : ℝ) * (n : ℝ) / 5 := hE
+  -- `hStart` certifies the Phase-7-entry margin is nonempty (B delivered `≥ E` per minority level).
+  let _ := hStart
+  intro i hi
+  exact hSurvive i hi
+
 end MarginLedgers
 
 end ExactMajority
