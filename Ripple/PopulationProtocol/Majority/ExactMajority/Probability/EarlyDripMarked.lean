@@ -4971,6 +4971,33 @@ theorem window_failure_le (T θn n : ℕ) (cc : ℝ) (w : ℕ) (aM : ℕ) (haM :
     rw [hnull_region, hnull_P3, zero_add]
     exact zero_le'
 
+/-- **The recurrence checkpoint composition** (brick 3.5e step 2 capstone): with a uniform
+per-window recurrence-bad bound `δ` over invariant window-open starts, the invariant fails by
+checkpoint `K·w` with probability at most `K·δ`. -/
+theorem recurrence_checkpoint (T θn n : ℕ) (cc : ℝ) (w aM : ℕ) (haM : n ≤ 10 * aM)
+    (δ : ℝ≥0∞)
+    (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ)
+    (KK : ℕ) (mc₀ : Config (MarkedAgent L K))
+    (h0 : recInv (L := L) (K := K) T θn n cc mc₀) :
+    ((markedK (L := L) (K := K) T θn) ^ (w * KK)) mc₀
+        {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ≤ (KK : ℝ≥0∞) * δ :=
+  checkpoint_composition (markedK (L := L) (K := K) T θn)
+    (recInv (L := L) (K := K) T θn n cc) w δ
+    (fun mc hmc => window_failure_le (L := L) (K := K) T θn n cc w aM haM δ mc hmc
+      (fun hP3 hX => hB mc hmc hP3 hX))
+    KK mc₀ h0
+
 end EarlyDripMarked
 
 end ExactMajority
+
+#print axioms ExactMajority.EarlyDripMarked.recurrence_checkpoint
