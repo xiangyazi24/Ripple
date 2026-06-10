@@ -1108,6 +1108,75 @@ theorem potNonincrOn_highMass (l n : ℕ) :
     highMass_le_on_support l n (highMass (L := L) (K := K) l c) c x hInv le_rfl hsupp
   omega
 
+/-! ## Part E3 — the band-top drain rectangle (the `hdrop` floor).
+
+A band-top split (`m` a biased Main at index `l−1`, `r` a Reserve sampled high
+enough, `r.hour > l−1` and `r.hour ≠ L`) strictly drops `highMass l` by `2 ≥ 1`.
+The eliminator pool per level `l` is the Reserves at hour `> l−1` (= Phase-5's
+`sampledReserveClassU` at the useful levels), the minority pool is the biased Mains
+at index `l−1`.  Their cross-rectangle feeds the generic drop-probability bound,
+giving the engine `hdrop`. -/
+
+/-- **The `doSplit`-level band-top strict drop.**  `r` a Reserve, `m` a Main biased
+at index `l−1` (`1 ≤ l ≤ L`), guard satisfied: the split sends both agents to index
+`l` (weight 0), so the pair mass drops by exactly `2 ≥ 1`. -/
+theorem doSplit_highMass_pair_drop (l : ℕ) (r m : AgentState L K) {σ : Sign}
+    (hl1 : 1 ≤ l) (hlL : l ≤ L) (hrR : r.role = Role.reserve) (hmM : m.role = Role.main)
+    (hb : m.bias = Bias.dyadic σ ⟨l - 1, by omega⟩)
+    (hne : r.hour.val ≠ L) (hgt : r.hour.val > l - 1) :
+    agentMassW (L := L) (K := K) l (doSplit L K r m).1
+        + agentMassW (L := L) (K := K) l (doSplit L K r m).2 + 1
+      ≤ agentMassW (L := L) (K := K) l r + agentMassW (L := L) (K := K) l m := by
+  have hjlt : (⟨l - 1, by omega⟩ : Fin (L + 1)).val < L := by show l - 1 < L; omega
+  rw [doSplit_apply (L := L) (K := K) r m hb hne (by show r.hour.val > l - 1; exact hgt) hjlt]
+  rw [agentMassW_reserve (L := L) (K := K) l r hrR]
+  have hidx : ¬ (⟨(l - 1) + 1, by omega⟩ : Fin (L + 1)).val < l := by
+    show ¬ (l - 1) + 1 < l; omega
+  have ho1 : agentMassW (L := L) (K := K) l
+      ({ r with role := Role.main, bias := Bias.dyadic σ ⟨(l - 1) + 1, by omega⟩ }) = 0 := by
+    unfold agentMassW; rw [if_pos rfl]; simp only [biasMassW, if_neg hidx]
+  have ho2 : agentMassW (L := L) (K := K) l
+      ({ m with bias := Bias.dyadic σ ⟨(l - 1) + 1, by omega⟩ }) = 0 := by
+    unfold agentMassW; rw [if_pos hmM]; simp only [biasMassW, if_neg hidx]
+  have hmW : agentMassW (L := L) (K := K) l m = 2 ^ (l - (l - 1)) := by
+    unfold agentMassW; rw [if_pos hmM, hb]; simp only [biasMassW]
+    rw [if_pos (show (⟨l - 1, by omega⟩ : Fin (L + 1)).val < l by show l - 1 < l; omega)]
+  rw [ho1, ho2, hmW]
+  have : l - (l - 1) = 1 := by omega
+  rw [this]; norm_num
+
+/-- **Per-pair band-top strict drop under `Phase6Transition`.**  `r` a Reserve with
+`r.hour ≠ L` and `r.hour > l−1`, `m` a Main biased at index `l−1` (`1 ≤ l ≤ L`):
+the pair mass drops by `≥ 1` (the split sends both to index `l`, exiting the band).
+Branch 1 of `Phase6Transition` fires; the clock subroutine preserves `agentMassW`. -/
+theorem Phase6Transition_highMass_pair_drop (l : ℕ) (r m : AgentState L K) {σ : Sign}
+    (hl1 : 1 ≤ l) (hlL : l ≤ L) (hrR : r.role = Role.reserve) (hmM : m.role = Role.main)
+    (hb : m.bias = Bias.dyadic σ ⟨l - 1, by omega⟩)
+    (hne : r.hour.val ≠ L) (hgt : r.hour.val > l - 1)
+    (hr6 : 6 ≤ r.phase.val) (hm6 : 6 ≤ m.phase.val) :
+    agentMassW (L := L) (K := K) l (Phase6Transition L K r m).1
+        + agentMassW (L := L) (K := K) l (Phase6Transition L K r m).2 + 1
+      ≤ agentMassW (L := L) (K := K) l r + agentMassW (L := L) (K := K) l m := by
+  have hmbias : m.bias ≠ Bias.zero := by rw [hb]; exact fun h => by cases h
+  unfold Phase6Transition; simp only
+  set s1 := (if r.role = Role.reserve ∧ m.role = Role.main ∧ m.bias ≠ Bias.zero then
+      (doSplit L K r m).1 else if m.role = Role.reserve ∧ r.role = Role.main ∧ r.bias ≠ Bias.zero then
+      (doSplit L K m r).2 else r) with hs1def
+  set t1 := (if r.role = Role.reserve ∧ m.role = Role.main ∧ m.bias ≠ Bias.zero then
+      (doSplit L K r m).2 else if m.role = Role.reserve ∧ r.role = Role.main ∧ r.bias ≠ Bias.zero then
+      (doSplit L K m r).1 else m) with ht1def
+  -- branch 1 fires: s1 = (doSplit r m).1, t1 = (doSplit r m).2.
+  have hs1eq : s1 = (doSplit L K r m).1 := by rw [hs1def, if_pos ⟨hrR, hmM, hmbias⟩]
+  have ht1eq : t1 = (doSplit L K r m).2 := by rw [ht1def, if_pos ⟨hrR, hmM, hmbias⟩]
+  have hp1 : 6 ≤ s1.phase.val := by
+    rw [hs1eq, doSplit_phase_fst_eq r m (L := L) (K := K)]; exact hr6
+  have hp2 : 6 ≤ t1.phase.val := by
+    rw [ht1eq, doSplit_phase_snd_eq r m (L := L) (K := K)]; exact hm6
+  rw [clockBranch_agentMassW_eq (L := L) (K := K) l s1 (by omega),
+      clockBranch_agentMassW_eq (L := L) (K := K) l t1 (by omega)]
+  rw [hs1eq, ht1eq]
+  exact doSplit_highMass_pair_drop (L := L) (K := K) l r m hl1 hlL hrR hmM hb hne hgt
+
 /-! ## Part F — the genuinely-closed window `AllZeroGE6` and the `PhaseConvergenceW`.
 
 `AllZeroGE6 n c`: size `n`, every agent at phase `≥ 6` and unbiased.  This window

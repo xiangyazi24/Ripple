@@ -1034,6 +1034,45 @@ theorem assignable_rule1_both_fresh
   · rw [hph2]; exact ht_ph
   · rw [hassg2, ht_un]; simp
 
+/-- An `RoleMCR` agent is never `IsAssignable` (the role guard fails). -/
+theorem not_isAssignable_of_mcr {a : AgentState L K} (ha : a.role = .mcr) :
+    isAssignableBool (L := L) (K := K) a = false := by
+  have hna : ¬ IsAssignable a := by
+    rintro ⟨_, _, hr⟩; rcases hr with h | h <;> rw [ha] at h <;> simp at h
+  by_contra hh
+  exact hna ((isAssignableBool_iff a).mp (by simpa using hh))
+
+/-- **R2/R3 conserve the assignable pool (per pair).**  When `s` is an unassigned
+phase-0 `RoleMCR` and `t` is `IsAssignable`, the conversion (Rule 2 if `t` is an
+unassigned Main, Rule 3 if `t` is an unassigned `RoleCR`) leaves the pair
+`assignableCount` non-decreasing: the input pair carries exactly one assignable
+(`t`; `s` is MCR hence not assignable), while the output's `s`-side is again
+assignable (`assignable_rule2_s_stays` / `assignable_rule3_conserved`).  This is
+the paper's `Sf,U → St,Mf` / `Mf,U → Mt,Sf` pool-conservation, now exact in Lean. -/
+theorem assignableCount_pair_mono_of_mcr_assignable
+    (s t : AgentState L K) (hs : s.role = .mcr)
+    (hs_un : s.assigned = false) (hs_ph : s.phase.val = 0) (ht : IsAssignable t) :
+    assignableCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} :
+          Config (AgentState L K)) ≥
+      assignableCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  have hout1 : IsAssignable (Phase0Transition L K s t).1 := by
+    obtain ⟨ht_ph, ht_un, ht_role⟩ := ht
+    have ht_un' : t.assigned = false := by simpa using ht_un
+    rcases ht_role with hm | hc
+    · exact assignable_rule2_s_stays s t hs hm ht_un' (by rw [hs_un]) hs_ph
+    · have ht_nm : t.role ≠ .main := by rw [hc]; decide
+      have ht_nmcr : t.role ≠ .mcr := by rw [hc]; decide
+      exact assignable_rule3_conserved s t hs ht_nm ht_nmcr ht_un' (by rw [hs_un]) hs_ph
+  have hs_not : isAssignableBool (L := L) (K := K) s = false :=
+    not_isAssignable_of_mcr (L := L) (K := K) hs
+  have ht_yes : isAssignableBool (L := L) (K := K) t = true := (isAssignableBool_iff t).mpr ht
+  have hout1_yes : isAssignableBool (L := L) (K := K) (Phase0Transition L K s t).1 = true :=
+    (isAssignableBool_iff _).mpr hout1
+  rw [assignableCount_pair', assignableCount_pair', hs_not, ht_yes, hout1_yes]
+  simp only [Bool.false_eq_true, if_false, if_true]
+  omega
+
 /-- The MCR filter Finset (initiators of the one-sided conversion). -/
 private def mcrF : Finset (AgentState L K) :=
   Finset.univ.filter (fun s : AgentState L K => s.role = .mcr)
