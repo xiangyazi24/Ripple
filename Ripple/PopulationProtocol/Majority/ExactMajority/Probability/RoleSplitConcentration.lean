@@ -1356,6 +1356,11 @@ The MGF *real-analysis* optimisation (`janson_exponential_tail_from_mgf`,
 a throwaway plain `MilestonePhase` with the same `(k, p)` (`toDummyMP`). Only the
 kernel-side contraction is re-proved `Inv`-relativised. -/
 
+open MeasureTheory ProbabilityTheory
+open scoped ENNReal NNReal Real
+
+attribute [local instance] Classical.propDecidable
+
 open ExactMajority in
 /-- An **invariant-relative** milestone phase over a protocol `P`: same milestone
 data as `MilestonePhase`, but `progress` is required only at `Inv`-configs, with
@@ -1524,6 +1529,179 @@ theorem partialMGF_drop_reached (mp : MilestonePhaseOn (L := L) (K := K) P)
     _ = ∏ i ∈ insert j ((mp.unreached c).erase j), mp.mgfFactor s i := by
         rw [Finset.prod_insert (by simp [Finset.mem_erase])]; ring
     _ = mp.partialMGF s c := by rw [partialMGF]; congr 1; exact Finset.insert_erase hj_unreached
+
+/-! ### `Post` absorbing and the first-unreached selector (shared with the
+plain engine but re-derived for the `_on` data). -/
+
+/-- `Post` is absorbing under the kernel: once all milestones hold they stay. -/
+theorem post_absorbing (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c : Config (AgentState L K)) (hPost : mp.Post c) :
+    (P.transitionKernel c) {c' | mp.Post c'} = 1 := by
+  change (P.stepDistOrSelf c).toMeasure {c' | mp.Post c'} = 1
+  rw [(P.stepDistOrSelf c).toMeasure_apply_eq_one_iff
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  exact fun c' hc' i => mp.milestone_monotone i c c' (hPost i) hc'
+
+/-- The unreached set is nonempty when `Post` fails. -/
+theorem unreached_nonempty_of_not_post (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c : Config (AgentState L K)) (hc : ¬ mp.Post c) : (mp.unreached c).Nonempty := by
+  rw [Finset.nonempty_iff_ne_empty]
+  intro h; apply hc; intro i; by_contra hi
+  have : i ∈ mp.unreached c := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩
+  rw [h] at this; simp at this
+
+/-- The minimal unreached milestone index. -/
+noncomputable def firstUnreached (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c : Config (AgentState L K)) (hne : (mp.unreached c).Nonempty) : Fin mp.k :=
+  (mp.unreached c).min' hne
+
+theorem firstUnreached_unhit (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c : Config (AgentState L K)) (hc : ¬ mp.Post c) :
+    mp.firstUnreached c (mp.unreached_nonempty_of_not_post c hc) ∈ mp.unreached c :=
+  Finset.min'_mem _ _
+
+theorem firstUnreached_minimal (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c : Config (AgentState L K)) (hc : ¬ mp.Post c) (i : Fin mp.k)
+    (hi : i < mp.firstUnreached c (mp.unreached_nonempty_of_not_post c hc)) :
+    mp.milestone i c := by
+  by_contra h_not
+  have h_mem : i ∈ mp.unreached c := Finset.mem_filter.mpr ⟨Finset.mem_univ _, h_not⟩
+  exact absurd (lt_of_lt_of_le hi (Finset.min'_le _ _ h_mem)) (lt_irrefl _)
+
+/-! ### The algebraic MGF contraction identity (re-derived). -/
+
+theorem mgf_contraction_identity (p s : ℝ) (hp_pos : 0 < p)
+    (hs_valid : (1 - p) * Real.exp s < 1) :
+    (1 - p) + p * ((1 - (1 - p) * Real.exp s) / (p * Real.exp s)) = Real.exp (-s) := by
+  have hp_ne : p ≠ 0 := hp_pos.ne'
+  have hexp_ne : Real.exp s ≠ 0 := (Real.exp_pos s).ne'
+  field_simp
+  rw [Real.exp_neg]; field_simp [hp_ne, hexp_ne]; ring
+
+/-! ### The one-step contraction (where `progress_on` enters, at `Inv`-configs). -/
+
+/-- Pointwise a.e. bound on `partialMGF` after one step, at the first-unreached
+milestone `j`.  Identical to JansonHitting's, no `progress` used here. -/
+theorem partialMGF_pointwise_bound (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1)
+    (c : Config (AgentState L K)) (j : Fin mp.k) (hj_unreached : j ∈ mp.unreached c) :
+    ∀ᵐ c' ∂(P.stepDistOrSelf c).toMeasure,
+      ENNReal.ofReal (mp.partialMGF s c') ≤
+        if mp.milestone j c' then
+          ENNReal.ofReal (mp.partialMGF s c / mp.mgfFactor s j)
+        else ENNReal.ofReal (mp.partialMGF s c) := by
+  rw [ae_iff]
+  rw [PMF.toMeasure_apply_eq_zero_iff (p := P.stepDistOrSelf c)
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro c' hsupp hbad
+  apply hbad
+  by_cases hm : mp.milestone j c'
+  · simp only [hm, ite_true]
+    exact ENNReal.ofReal_le_ofReal
+      (mp.partialMGF_drop_reached hs_pos hs_valid c c' j hj_unreached hm hsupp)
+  · simp only [hm, ite_false]
+    exact ENNReal.ofReal_le_ofReal
+      (mp.partialMGF_mono_of_support hs_pos hs_valid c c' hsupp)
+
+/-- **One-step contraction** of the ENNReal partial MGF — at an `Inv`-config with
+`¬ Post`.  This is the only place `progress_on` is consumed (and `Inv c` is the
+exactly-available extra hypothesis). -/
+theorem partialMGF_one_step_contraction_on (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1)
+    (c : Config (AgentState L K)) (hInv : mp.Inv c) (hc : ¬ mp.Post c) :
+    ∫⁻ c', ENNReal.ofReal (mp.partialMGF s c') ∂(P.transitionKernel c) ≤
+      ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal (mp.partialMGF s c) := by
+  set j := mp.firstUnreached c (mp.unreached_nonempty_of_not_post c hc) with hj_def
+  have hj_in : j ∈ mp.unreached c := mp.firstUnreached_unhit c hc
+  have hj_minimal : ∀ i < j, mp.milestone i c := mp.firstUnreached_minimal c hc
+  set Mj := {c' : Config (AgentState L K) | mp.milestone j c'} with hMj_def
+  have hMj_meas : MeasurableSet Mj := DiscreteMeasurableSpace.forall_measurableSet _
+  set Φc := mp.partialMGF s c with hΦc_def
+  set fj := mp.mgfFactor s j with hfj_def
+  have hΦc_pos : 0 < Φc := mp.partialMGF_pos hs_valid c
+  have hfj_pos : 0 < fj := mp.mgfFactor_pos hs_valid j
+  have hfj_ge_one : 1 ≤ fj := mp.mgfFactor_ge_one hs_pos hs_valid j
+  change ∫⁻ c', ENNReal.ofReal (mp.partialMGF s c') ∂(P.stepDistOrSelf c).toMeasure ≤ _
+  have h_bound := mp.partialMGF_pointwise_bound hs_pos hs_valid c j hj_in
+  calc ∫⁻ c', ENNReal.ofReal (mp.partialMGF s c') ∂(P.stepDistOrSelf c).toMeasure
+      ≤ ∫⁻ c', (if mp.milestone j c' then ENNReal.ofReal (Φc / fj)
+          else ENNReal.ofReal Φc) ∂(P.stepDistOrSelf c).toMeasure :=
+        lintegral_mono_ae h_bound
+    _ = (∫⁻ c' in Mj, ENNReal.ofReal (Φc / fj) ∂(P.stepDistOrSelf c).toMeasure) +
+        (∫⁻ c' in Mjᶜ, ENNReal.ofReal Φc ∂(P.stepDistOrSelf c).toMeasure) := by
+        rw [← lintegral_add_compl _ hMj_meas]
+        congr 1
+        · refine lintegral_congr_ae ?_
+          filter_upwards [ae_restrict_mem hMj_meas] with c' hc'
+          simp only [Set.mem_setOf_eq, Mj] at hc'; simp [hc']
+        · refine lintegral_congr_ae ?_
+          filter_upwards [ae_restrict_mem hMj_meas.compl] with c' hc'
+          simp only [Set.mem_compl_iff, Set.mem_setOf_eq, Mj] at hc'; simp [hc']
+    _ = ENNReal.ofReal (Φc / fj) * (P.stepDistOrSelf c).toMeasure Mj +
+        ENNReal.ofReal Φc * (P.stepDistOrSelf c).toMeasure Mjᶜ := by
+        rw [lintegral_const, Measure.restrict_apply_univ,
+            lintegral_const, Measure.restrict_apply_univ]
+    _ ≤ ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal Φc := by
+        set q := (P.stepDistOrSelf c).toMeasure Mj with hq_def
+        set qc := (P.stepDistOrSelf c).toMeasure Mjᶜ with hqc_def
+        have hq_ge : q ≥ ENNReal.ofReal (mp.p j) := by
+          have h_unhit : ¬ mp.milestone j c := (Finset.mem_filter.mp hj_in).2
+          exact mp.progress_on j c hInv hj_minimal h_unhit
+        haveI : IsProbabilityMeasure (P.stepDistOrSelf c).toMeasure :=
+          PMF.toMeasure.isProbabilityMeasure _
+        have hq_le_one : q ≤ 1 := by
+          calc q ≤ (P.stepDistOrSelf c).toMeasure Set.univ := measure_mono (Set.subset_univ _)
+            _ = 1 := measure_univ
+        have hq_ne_top : q ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hq_le_one
+        have hqc_eq : qc = 1 - q := by
+          have h_compl := measure_compl hMj_meas hq_ne_top
+          rw [show (P.stepDistOrSelf c).toMeasure Set.univ = 1 from measure_univ] at h_compl
+          exact h_compl
+        set qr := q.toReal with hqr_def
+        have hqr_nonneg : 0 ≤ qr := ENNReal.toReal_nonneg
+        have hqr_le_one : qr ≤ 1 := by
+          have := ENNReal.toReal_mono ENNReal.one_ne_top hq_le_one
+          rwa [ENNReal.toReal_one] at this
+        have hq_ofReal : q = ENNReal.ofReal qr := (ENNReal.ofReal_toReal hq_ne_top).symm
+        have hpj_le_qr : mp.p j ≤ qr := by
+          have h1 : ENNReal.ofReal (mp.p j) ≤ ENNReal.ofReal qr := by rwa [← hq_ofReal]
+          exact (ENNReal.ofReal_le_ofReal_iff hqr_nonneg).mp h1
+        have h1mqr_nonneg : 0 ≤ 1 - qr := by linarith
+        have hqc_ofReal : qc = ENNReal.ofReal (1 - qr) := by
+          rw [hqc_eq, hq_ofReal,
+              show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from ENNReal.ofReal_one.symm,
+              ← ENNReal.ofReal_sub 1 hqr_nonneg]
+        have hΦc_div_fj_nonneg : 0 ≤ Φc / fj := div_nonneg hΦc_pos.le hfj_pos.le
+        have hexp_neg_s_nonneg : (0 : ℝ) ≤ Real.exp (-s) := (Real.exp_pos _).le
+        have lhs_eq : ENNReal.ofReal (Φc / fj) * q + ENNReal.ofReal Φc * qc =
+            ENNReal.ofReal (Φc / fj * qr + Φc * (1 - qr)) := by
+          rw [hq_ofReal, hqc_ofReal,
+              ← ENNReal.ofReal_mul hΦc_div_fj_nonneg,
+              ← ENNReal.ofReal_mul hΦc_pos.le,
+              ← ENNReal.ofReal_add (mul_nonneg hΦc_div_fj_nonneg hqr_nonneg)
+                (mul_nonneg hΦc_pos.le h1mqr_nonneg)]
+        have rhs_eq : ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal Φc =
+            ENNReal.ofReal (Real.exp (-s) * Φc) := by
+          rw [← ENNReal.ofReal_mul hexp_neg_s_nonneg]
+        rw [lhs_eq, rhs_eq]
+        apply ENNReal.ofReal_le_ofReal
+        have hpj_pos := mp.hp_pos j
+        have h_factor : Φc / fj * qr + Φc * (1 - qr) = Φc * ((1 - qr) + qr / fj) := by
+          field_simp; ring
+        have h_rhs_factor : Real.exp (-s) * Φc = Φc * Real.exp (-s) := by ring
+        rw [h_factor, h_rhs_factor]
+        apply mul_le_mul_of_nonneg_left _ hΦc_pos.le
+        have h_inv_fj : (1 - (1 - mp.p j) * Real.exp s) / (mp.p j * Real.exp s) = 1 / fj := by
+          rw [hfj_def, mgfFactor]; field_simp
+        have h_identity := mgf_contraction_identity (mp.p j) s hpj_pos (hs_valid j)
+        rw [h_inv_fj] at h_identity
+        have h_identity' : 1 - mp.p j * (1 - 1 / fj) = Real.exp (-s) := by linarith
+        have h_rewrite : (1 - qr) + qr / fj = 1 - qr * (1 - 1 / fj) := by field_simp; ring
+        rw [h_rewrite, ← h_identity']
+        have h_coeff_nonneg : 0 ≤ 1 - 1 / fj := by
+          rw [sub_nonneg, div_le_one hfj_pos]; exact hfj_ge_one
+        linarith [mul_le_mul_of_nonneg_right hpj_le_qr h_coeff_nonneg]
 
 end MilestonePhaseOn
 

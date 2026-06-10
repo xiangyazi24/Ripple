@@ -345,6 +345,53 @@ theorem invClosed_phase8AllMain (n : ℕ) :
   intro x hsupp hx
   exact hx (Phase8AllMain_support_closed n c x hInv hsupp)
 
+/-! ## Part E — the Phase-8 `PhaseConvergenceW` from the engine.
+
+With both `hmono` (`potNonincrOn_minorityU`) and the FULL `hClosed`
+(`invClosed_phase8AllMain`) discharged, the only remaining input is the engine's
+**per-step drain bound** `hstep` — from any `Phase8AllMain`-config with at least one
+minority agent, one interaction fails to consume a minority with probability `≤ q`.
+This is exactly the honest carried eliminator-floor fact: by Lemma 7.6 the
+non-`full` majority pool (`≥ 0.8|M| − consumed`) stays above the minority pool
+(`≤ 0.2|M|`), so the per-step consume probability is `≥ minority·eFloor/(n(n−1))`,
+i.e. the failure is `≤ q = 1 − eFloor/(n(n−1))`-shape.  We expose it as a hypothesis
+(its derivation is the drain-rectangle atom — the eliminator × minority interaction
+count bound, the Phase-4 `advanced_advance_prob_of_rect` analogue — documented as the
+remaining work).
+
+`potDone (minorityU σ) = {c | minorityU σ c = 0} = NoMinority σ`: no `σ`-minority
+agent remains, the honest Phase-8 `Post` (Lemma 7.6). -/
+
+/-- `NoMinority σ c`: no `σ`-Main remains — the honest Phase-8 post (Lemma 7.6),
+equal to the engine's `potDone (minorityU σ)`. -/
+def NoMinority (σ : Sign) (c : Config (AgentState L K)) : Prop := minorityU σ c = 0
+
+theorem potDone_minorityU_eq (σ : Sign) :
+    OneSidedCancel.potDone (fun c : Config (AgentState L K) => minorityU σ c)
+      = {c | NoMinority σ c} := rfl
+
+/-- **The Phase-8 consumption `PhaseConvergenceW` on the REAL kernel** (engine
+form b).  `Pre c = Phase8AllMain n c ∧ minorityU σ c ≤ M₀` (the all-Main phase-8
+window with a minority budget); `Post c = Phase8AllMain n c ∧ minorityU σ c = 0`
+(still in-window, no minority left).  Horizon `t`, failure `ε ≥ q^t`.
+
+The `hmono` and full `hClosed` are the proved `potNonincrOn_minorityU` /
+`invClosed_phase8AllMain`; `hstep` is the carried eliminator-floor drain bound
+(the remaining drain-rectangle atom). -/
+noncomputable def phase8Convergence (σ : Sign) (n : ℕ) (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Phase8AllMain n b → 1 ≤ minorityU σ b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => minorityU σ c))ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.crude_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Phase8AllMain (L := L) (K := K) n c)
+    (invClosed_phase8AllMain n)
+    (fun c => minorityU σ c)
+    (potNonincrOn_minorityU σ n)
+    q hstep M₀ t ε hε
+
 end Phase8Convergence
 
 end ExactMajority

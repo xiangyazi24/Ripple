@@ -558,6 +558,47 @@ theorem Phase7AllMain_support_closed (n : ℕ) (c c' : Config (AgentState L K))
         unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
     rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact hw
 
+/-! ## Part G — the Phase-7 `PhaseConvergenceW` from the engine.
+
+`hmono` is the proved `potNonincrOn_minorityU`.  The full `InvClosed Inv7Main`
+needs, beyond the proved structural core `Phase7AllMain_support_closed`, the
+**`MinorityHiIdx σ` closure** under `cancelSplit` — the one non-trivial atom
+(cancelSplit mutates exponent indices: gap-1 lowers the surviving agent's index by
+1, gap-2 produces two new indices).  We expose `hClosed` (the full `InvClosed`) and
+the drain `hstep` as hypotheses; the result is a real `PhaseConvergenceW` on the
+actual kernel, with the honest hmono discharged.
+
+`potDone (minorityU σ) = {minorityU σ = 0}` = `NoMinority σ`, the Phase-7 post
+rendered honestly: cancellation drains the WHOLE minority pool to 0 (stronger than
+the paper's "all minority below −(l+2)", which is what the cancellation engine
+delivers — once all top-three-level minority is gone the residual is the Phase-8
+input). -/
+
+/-- `NoMinority σ c`: no `σ`-minority Main remains (engine `potDone`). -/
+def NoMinority (σ : Sign) (c : Config (AgentState L K)) : Prop := minorityU σ c = 0
+
+/-- **The Phase-7 cancellation `PhaseConvergenceW` on the REAL kernel** (engine
+form b).  `Pre = Inv7Main n σ ∧ minorityU σ ≤ M₀`, `Post = Inv7Main n σ ∧
+minorityU σ = 0`.  `hmono` is proved (`potNonincrOn_minorityU`); `hClosed`
+(full `InvClosed Inv7Main`, needing `MinorityHiIdx`-closure) and the drain `hstep`
+are the carried honest inputs. -/
+noncomputable def phase7Convergence (σ : Sign) (n : ℕ)
+    (hClosed : OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Inv7Main σ n c))
+    (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Inv7Main σ n b → 1 ≤ minorityU σ b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => minorityU σ c))ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.crude_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Inv7Main (L := L) (K := K) σ n c)
+    hClosed
+    (fun c => minorityU σ c)
+    (potNonincrOn_minorityU σ n)
+    q hstep M₀ t ε hε
+
 end Phase7Convergence
 
 end ExactMajority

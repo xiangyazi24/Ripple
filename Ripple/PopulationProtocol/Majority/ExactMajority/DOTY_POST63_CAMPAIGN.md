@@ -638,6 +638,71 @@ GONE. The OLD `ClockRealFaithfulHours` assembly is NOT deleted (later cleanup).
   `WidthPrefix.goodFrontWidth_whp_at` + endpoint bridges + DotyParams (seed drip ⟹ mC/10 floor
   whp by Tstart+tseed ⟹ post-seed prefix whp-small). This file leaves all parameters raw.
 
+## Phase B-11 — UNCONDITIONAL CLOCK WIRED, q = 0 (2026-06-10, 0-sorry axiom-clean)
+
+New file `Probability/ClockUnconditional.lean` (namespace `ExactMajority.ClockUnconditional`;
+imports ClockWeakAssembly + FrontSyncConc + ClockFrontSyncFromWidth). All theorems
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`, single-file `lake env lean` EXIT_0,
+zero sorry / zero native_decide. SHAs on main: B-11a a3c8db2c · B-11b e3ba9d7e · B-11c e1099e13.
+(NOTE: regenerated the stale `ClockFrontSyncFromWidth.olean` with `-o` before the single-file
+compiles; its only import `ClockFrontProfile` was already current.)
+
+### THE HONEST SPLIT (deterministic / whp-charged / named inputs) — settled
+
+`QbulkSet n mC T = {Q_mix n mC T ∧ mC/10 ≤ rBeyond (T+1)}`, `Q_mix = card ∧ clockPhase3 ∧
+clockSize ∧ crossedT`. One-step escape `realκ x QbulkSetᶜ` decomposes:
+- **DETERMINISTIC (contribute 0):** `card`, `clockSize`, `crossedT` (needs `1 ≤ T`),
+  `allPhaseGE3` — closed on the support by `HabsDischarge.habs_mix_deterministic_skeleton`; the
+  `mC/10` floor is MONOTONE by `ClockMonoDischarge.hmono_mix_discharged`.
+- **whp-charged (folded into the side event):** `clockPhase3` closes one step ONLY on the
+  FrontSync-good window (`FrontSyncConc.habs_mix_full`, under `allPhaseGE3 ∧ noPhaseAbove3 ∧
+  allClocksCounterPos ∧ FrontSync` + the successor `noPhaseAbove3 c'`). Bare deterministic
+  closure is FALSE (the at-cap `counter = 1` witness). FrontSync is supplied probabilistically.
+
+**RESOLUTION: q = 0.** Conditioning the one-step escape on a structural side event
+`HabsGood c := allPhaseGE3 ∧ noPhaseAbove3 ∧ allClocksCounterPos ∧ FrontSync ∧ (∀ c' on
+support, noPhaseAbove3 c')` makes EVERY successor of `QbulkSet ∩ {HabsGood}` land in `QbulkSet`,
+so the gate-escape is exactly 0 (`hstep_of_sideGood`, axiom-clean). Per the blueprint directive
+("keep the undischargeable gate INSIDE the side event, q = 0, ALL cost moves to the side
+prefixes"), the side set is `Sgood T = QbulkSet T ∩ {HabsGood}` and the per-minute side prefix is
+`∑_τ (realκ^τ) c₀ Sgood(T)ᶜ`. `HabsGood` is minute-INDEPENDENT (a single structural event).
+
+### DELIVERABLES (theorems, signatures abbreviated)
+1. `hstep_of_sideGood (1 ≤ T) : x ∈ QbulkSet ∩ {HabsGood} → realκ x QbulkSetᶜ = 0` (via
+   `qbulk_succ_of_sideGood` = habs_mix_full + hmono_mix_discharged). **q = 0.**
+2. The S-conditioned assembly variant (campaign-mandated "variant IN YOUR FILE, do NOT edit
+   ClockWeakAssembly"): `clock_real_bulk_leg_avg_sideGood` / `clock_real_minute_avg_sideGood` /
+   `minuteFailW_sideGood` / `clock_real_faithful_all_minutes_sideGood` — mirror the B-10 chain
+   with `S = Sgood`, `q = 0` (escape term `M·0 = 0`), via `ClockWeakAssembly.leg_escape_global`
+   at `S = Sgood`, `hSG = compl_subset_compl Set.inter_subset_left`, `hstep = hstep_of_sideGood`.
+3. **CAPSTONE** `clock_real_faithful_O_log_n_unconditional`: over bulk minutes `T = 1 …
+   K·(L+1)−1` (`Fin (K·(L+1)−1)` at `i.val+1`; the `1 ≤ T` boundary — minute 0 is the
+   phase-3-entry start, the cap minute is the FrontSync arrival). Failure
+   `≤ ∑_i (εbulk + tbulk·0 + ∑_τ Sgood(i+1)ᶜ prefix)`. **`q` and `hstep` are GONE from the
+   hypothesis list.**
+4. **Side-prefix discharge** `Sgood_compl_subset` + `sidePrefix_le`: `Sgood(T)ᶜ ⊆ QmixFail ∪
+   FloorFail ∪ SyncFail ∪ {PhaseGateFail}`; per-`τ` mass `≤ εQ + εfloor + εsync + εphase`, each
+   εᵢ a NAMED INPUT routed to its discharger.
+
+### CAPSTONE FINAL HYPOTHESIS LIST
+`(n mC : ℕ) (hn : 2 ≤ n) (hmC : 2 ≤ mC) (hLK : 0 < K·(L+1)) (tseed tbulk : ℕ) (htbulk : 0 <
+tbulk) (εbulk : ℝ≥0) (hεb : minuteRate^tbulk·ofReal(exp(log2·bulkHi mC))/1 ≤ εbulk) (c₀ : Cfg L
+K)`. NO `q`, NO `hstep`. The only un-bounded RHS terms are the per-minute `Sgood(i+1)ᶜ` prefixes.
+
+### WHAT REMAINS (named inputs into `sidePrefix_le`, NOT discharged in B-11)
+The four εᵢ feeders, per-`τ`, summed over the per-minute window:
+- `εQ` (`{¬Q_mix T}`) + `εfloor` (`{¬ mC/10 floor}`): `WidthPrefix.goodFrontWidth_whp_at` + the
+  `ClockFrontSyncFromWidth` bridges + `DotyParams` (seed drip ⟹ floor whp; width ⟹ window).
+- `εsync` (`{¬FrontSync}`): `FrontSyncConc.frontSync_concentration_remaining_proven` /
+  `ClockFrontSyncFromWidth.frontSync_whp_of_goodFrontWidth` (= εW + εP + εB).
+- `εphase` (`{PhaseGateFail}`): `allPhaseGE3` deterministic (`allPhaseGE3_closed`),
+  `noPhaseAbove3` the residual deterministic gate (named), `allClocksCounterPos` whp on the
+  FrontSync event (`counterPos_closed_of_frontSync`). The successor-`noPhaseAbove3` gate folds
+  in with the `noPhaseAbove3` deterministic residual.
+These are the GENUINELY-OPEN inputs; the B-11 file proves the full inclusion + union bound and
+names each feeder. Discharging them at DotyParams' concrete parameters (summing the per-`τ`
+WidthPrefix/bridge bounds over each minute window) is the remaining DotyParams follow-up.
+
 ## Phase C-1 — RoleSplitConcentration witness (Lemma 5.2 progress field) — STATUS
 
 `RoleSplitConcentration.lean` `roleSplitTail_le` (Phase0Initial + RoleSplitMilestone ⟹
@@ -931,3 +996,91 @@ rate, Stage-2 crCount family (cr,cr→clock,reserve at Θ(l²/n²), Corollary 4.
 (deterministic 1:1 counts), → `roleSplitTail_le_inv_sq` → `phase0_roleSplit_whp_inv_sq`.
 All the per-step *mass/rate* obligations are now discharged; the gap is (A) milestone-engine
 extension + (B) the Chernoff floor.
+
+## Phase C-7 / C-8 — one-sided cancellation (Phases 7 & 8) on the OneSidedCancel engine
+
+Two new files instantiate the generic `OneSidedCancel` engine (form b, crude
+uniform drain) for the minority-elimination phases.  Both deliver a real
+`PhaseConvergenceW (NonuniformMajority L K).transitionKernel` with the engine's
+`hmono` discharged from the actual transition rules; the per-step drain `hstep`
+(and, for Phase 7 only, the full `InvClosed`) are carried as honest hypotheses
+resting on the documented atoms below.
+
+### Honest predicate / potential choices (vs HANDOFF sketch placeholders)
+The sketch named `Phase6PostCore`/`Phase7PostCore`/`NoMinorityAtOrAboveL2`/
+`IsMinority`/`NoMinority`/`initialMainCount` — none exist in the repo.  Replaced
+with honest in-file predicates read off the real `cancelSplit` / `absorbConsume`
+rules:
+- `minoritySt σ a := a.role = .main ∧ ∃ i, a.bias = .dyadic σ i` — the Doty `B`-pool
+  (minority sign σ a parameter); `minorityU σ c := countP (minoritySt σ) c`.
+- `Inv7Main σ n c := card=n ∧ (∀a∈c, phase=7 ∧ role=main) ∧ MinorityHiIdx σ c` —
+  Phase-7 window with the **index ordering** `MinorityHiIdx σ` (every σ-Main at
+  exponent index ≥ every majority Main's index = Doty's "majority has larger mass").
+- `Phase8AllMain n c := card=n ∧ ∀a∈c, phase=8 ∧ role=main` — Phase-8 window (no
+  ordering needed: `absorbConsume` is sign-preserving).
+- `NoMinority σ c := minorityU σ c = 0` = engine `potDone (minorityU σ)` — the
+  honest `Post` (cancellation/consumption drains the WHOLE minority pool to 0).
+
+### The honest mathematical core (the hard part, fully proved & axiom-clean)
+**Phase 7 — `cancelSplit` minority non-increase.**  The gap-2 branch
+`+2^{-i}, −2^{-j}  →  ±2^{-(i+1)}, ±2^{-(i+2)}` (j=i+2) copies the smaller-index
+agent's sign onto BOTH outputs.  So the σ-count can only rise if the minority is the
+smaller-index (higher-magnitude) agent — which the carried `MinorityHiIdx` ordering
+forbids.  `cancelSplit_minorityU_pair_le` proves per-pair non-increase under that
+ordering by exhausting all five `cancelSplit` branches against the index hypothesis
+(C-7b).  **Phase 8 — `absorbConsume` minority non-increase** is UNCONDITIONAL: every
+branch zeroes one bias or is identity, never flips a sign, so no ordering is needed
+(`absorbConsume_minorityU_pair_le`, C-8b).
+
+These per-pair facts lift through `Transition` (the reductions
+`Transition_eq_{cancelSplit,absorbConsume}_of_phase{7,8}_main`: phase-7/8 epidemic =
+id, phase-preserving rule, finishPhase10Entry = id; not-both-main leaves Mains
+untouched) → config step (`minorityU_stepOrSelf_le`) → kernel support
+(`minorityU_le_on_support`) → the engine's `PotNonincrOn`
+(`potNonincrOn_minorityU`, typechecks against `OneSidedCancel.PotNonincrOn`).
+
+### InvClosed
+- **Phase 8: FULL** `invClosed_phase8AllMain` (typechecks against
+  `OneSidedCancel.InvClosed`) — `absorbConsume` preserves phase + role, every pair on
+  the window is both-Main, card via `reachable_card_eq`.  No documented gap.
+- **Phase 7: structural core proved** (`Phase7AllMain_support_closed`: card+phase+role
+  via `cancelSplit_phase`/`cancelSplit_role`).  The remaining atom is
+  **`MinorityHiIdx σ` closure under `cancelSplit`** (gap-1 lowers the survivor's index
+  by 1, gap-2 produces two fresh indices i+1,i+2) — exposed as the `hClosed` hypothesis
+  of `phase7Convergence`.
+
+### Remaining atoms (documented boundary, by design — both files 0-sorry)
+1. **The drain `hstep`** (both files): per-step failure-to-consume ≤ q from the
+   eliminator floor — the Phase-4 `advanced_advance_prob_of_rect` analogue
+   (eliminator-state × minority-state interaction-count rectangle → probability).
+   The eliminator floor is the carried Doty Lemma 7.4/7.6 fact (≥0.8|M| majority vs
+   ≤0.2|M| minority).  **Phase 8 shrinking-eliminator handling**: `absorbConsume` sets
+   the consumer `full := true` (it drops from the eliminator pool), but Φ=minorityU is
+   non-increasing regardless of `full` (consumption only zeroes biases — proved
+   unconditionally), and the floor enters ONLY through `q`; the honest invariant is
+   non-full-majority ≥ minority-remaining + margin (Lemma 7.6).
+2. **Phase 7 `MinorityHiIdx` closure** (Phase 7 only) — see above.
+
+### Deliverables (theorems)
+- `Phase7Convergence.phase7Convergence (σ n) (hClosed) (q) (hstep) (M₀ t ε) (hε)
+  : PhaseConvergenceW (NonuniformMajority L K).transitionKernel` — Pre = `Inv7Main n σ
+  ∧ minorityU σ ≤ M₀`, Post = `Inv7Main n σ ∧ minorityU σ = 0`.
+- `Phase8Convergence.phase8Convergence (σ n) (q) (hstep) (M₀ t ε) (hε)
+  : PhaseConvergenceW (NonuniformMajority L K).transitionKernel` — Pre = `Phase8AllMain
+  n ∧ minorityU σ ≤ M₀`, Post = `Phase8AllMain n ∧ minorityU σ = 0`.  FULL InvClosed
+  (no hClosed hypothesis needed).
+Each `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; single-file EXIT_0.
+
+### Three-window chaining (Phase 7 levels −l, −(l+1), −(l+2))
+The paper's three successive elimination windows compose via
+`composeW_two_phases` (twice) on the three `phase7Convergence` instances at the
+three index levels (the Pre/Post `minorityU σ ≤ M₀ → = 0` chain links directly).
+Documented; not assembled here pending the per-level drain `q m` from the rectangle.
+
+Commits: C-7a 33e84eae (predicate+reduction) · C-7b 10863f44 (cancelSplit pair
+non-increase) · C-7c 6a3fdebc (MinorityHiIdx + not-both-main) · C-7d f11bb389
+(Transition both-main pair) · C-7e 1c69fc85 (config+support non-increase) ·
+C-7f 2d6d24ab (kernel PotNonincrOn) · C-7g c2e709e6 (structural closure) ·
+C-7h 85eb8280 (phase7Convergence) · C-8a 4ed79373 (reduction) · C-8b 70b3ffb1
+(absorbConsume pair) · C-8c 09544472 (full non-increase chain) · C-8d 1ded5789
+(FULL InvClosed) · C-8e 1a930fe5 (phase8Convergence).
