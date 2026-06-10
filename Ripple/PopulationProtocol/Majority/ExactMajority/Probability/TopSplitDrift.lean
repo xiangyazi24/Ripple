@@ -203,5 +203,132 @@ theorem topW_pair_delta_abs_le_one_of_phase0
   rw [topW_eq_of_role_eq _ _ he1, topW_eq_of_role_eq _ _ he2]
   exact topW_Phase0_pair_delta_abs_le_one r₁ r₂
 
+/-! ## Stage 3 — the cosh-MGF inward drift (the X=0 boundary solved).
+
+`coshExpVal s c := cosh (s · topSplitXZ c)` is the per-state MGF.  The one-step
+expectation decomposes, for `X' = X(c) + Δ`, as
+
+    cosh(s·X') = cosh(s·X(c))·cosh(s·Δ) + sinh(s·X(c))·sinh(s·Δ),
+
+so summing against the interaction law,
+
+    E[cosh(s·X')] = cosh(s·X(c))·E[cosh(s·Δ)] + sinh(s·X(c))·E[sinh(s·Δ)].
+
+With `|Δ| ≤ 1` (Stage 2) the first factor `E[cosh(s·Δ)] ≤ cosh s`, and the
+**inward residual** `sinh(s·X(c))·E[sinh(s·Δ)] ≤ 0` holds in EVERY case including
+`X(c) = 0` (there `sinh 0 = 0`).  Hence `E[cosh(s·X')] ≤ cosh s · cosh(s·X(c))`:
+the cosh MGF is a multiplicative-`(cosh s)` supermartingale with NO boundary
+exception — exactly what the `Supermartingale.geometric_drift_tail_kernel` engine
+consumes. -/
+
+/-- Local helper: `1 ≤ cosh`. -/
+private lemma one_le_cosh' (x : ℝ) : 1 ≤ Real.cosh x := by
+  rw [Real.cosh_eq]
+  nlinarith [Real.add_one_le_exp x, Real.add_one_le_exp (-x),
+    Real.exp_pos x, Real.exp_pos (-x)]
+
+/-- Local helper: `cosh` is `≤`-monotone in `|·|` (here: `|x| ≤ y` with `0 ≤ y`
+gives `cosh x ≤ cosh y`).  Proved from `cosh_eq` + `exp` monotonicity. -/
+private lemma cosh_le_cosh_of_abs_le {x y : ℝ} (hy : 0 ≤ y) (h : |x| ≤ y) :
+    Real.cosh x ≤ Real.cosh y := by
+  rw [Real.cosh_eq, Real.cosh_eq]
+  have hx1 : x ≤ y := le_trans (le_abs_self x) h
+  have hx2 : -y ≤ x := by rw [neg_le]; exact le_trans (neg_le_abs x) h
+  -- Key identity: (exp y + exp(−y)) − (exp x + exp(−x)) = (exp y − exp x)·(1 − exp(−x−y)).
+  -- Both factors ≥ 0:  exp y − exp x ≥ 0 (x ≤ y);  1 − exp(−x−y) ≥ 0 (x+y ≥ 0).
+  have e1 : Real.exp x ≤ Real.exp y := Real.exp_le_exp.mpr hx1
+  have e2 : Real.exp (-(x + y)) ≤ 1 := by
+    rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
+    exact Real.exp_le_exp.mpr (by linarith)
+  have hkey : (Real.exp y - Real.exp x) * (1 - Real.exp (-(x + y))) =
+      (Real.exp y + Real.exp (-y)) - (Real.exp x + Real.exp (-x)) := by
+    have hxy : Real.exp (-(x + y)) = Real.exp (-x) * Real.exp (-y) := by
+      rw [← Real.exp_add]; congr 1; ring
+    have hyy : Real.exp y * Real.exp (-y) = 1 := by rw [← Real.exp_add]; simp
+    have hxx : Real.exp x * Real.exp (-x) = 1 := by rw [← Real.exp_add]; simp
+    rw [hxy]; nlinarith [hyy, hxx]
+  nlinarith [mul_nonneg (sub_nonneg.mpr e1) (sub_nonneg.mpr e2), hkey]
+
+/-- Local helper: `sinh` has the sign of its argument (`x ≤ 0 ⟹ sinh x ≤ 0`,
+`0 ≤ x ⟹ 0 ≤ sinh x`); stated as the product sign fact `0 ≤ x · sinh x`. -/
+private lemma mul_sinh_nonneg (x : ℝ) : 0 ≤ x * Real.sinh x := by
+  rcases le_total 0 x with hx | hx
+  · have : 0 ≤ Real.sinh x := by
+      rw [Real.sinh_eq]
+      have := Real.exp_le_exp.mpr (by linarith : -x ≤ x); linarith
+    positivity
+  · have hs : Real.sinh x ≤ 0 := by
+      rw [Real.sinh_eq]
+      have := Real.exp_le_exp.mpr (by linarith : x ≤ -x); linarith
+    nlinarith [hx, hs]
+
+/-- The per-state cosh MGF observable `coshExpVal s c = cosh (s · X c)`. -/
+noncomputable def coshExpVal (s : ℝ) (c : Config (AgentState L K)) : ℝ :=
+  Real.cosh (s * (topSplitXZ (L := L) (K := K) c : ℝ))
+
+/-- `coshExpVal ≥ 1 > 0` (so its `ofReal` is a genuine `ℝ≥0∞` potential). -/
+theorem one_le_coshExpVal (s : ℝ) (c : Config (AgentState L K)) :
+    1 ≤ coshExpVal (L := L) (K := K) s c := one_le_cosh' _
+
+/-- The per-step jump `Δ_pair = X(stepOrSelf c r₁ r₂) − X(c)` of the integer
+process is bounded by `1` in absolute value on the Phase-0 region.  (Lift of the
+per-pair `topW`-block bound to the `stepOrSelf` config delta.) -/
+theorem topSplitXZ_step_delta_abs_le_one
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c) :
+    |(topSplitXZ (L := L) (K := K)
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) : ℝ)
+      - (topSplitXZ (L := L) (K := K) c : ℝ)| ≤ 1 := by
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · -- Applicable: c' = c − {r₁,r₂} + {δ₁,δ₂}; topSplitXZ is additive (Config.sumOf topW).
+    have hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c := happ
+    have hr₁ : r₁ ∈ c := Multiset.mem_of_le hle (by simp)
+    have hr₂ : r₂ ∈ c := Multiset.mem_of_le hle (by simp)
+    have h₁ : r₁.phase.val = 0 := by have := hall r₁ hr₁; simp [this]
+    have h₂ : r₂.phase.val = 0 := by have := hall r₂ hr₂; simp [this]
+    -- Localize the additive sum: topSplitXZ c = base + topW r₁ + topW r₂,
+    -- topSplitXZ c' = base + topW δ₁ + topW δ₂.
+    have hstep : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    have hbase_src : topSplitXZ (L := L) (K := K) c
+        = Config.sumOf (topW (L := L) (K := K)) (c - {r₁, r₂})
+          + (topW (L := L) (K := K) r₁ + topW (L := L) (K := K) r₂) := by
+      unfold topSplitXZ Config.sumOf
+      conv_lhs => rw [← Multiset.sub_add_cancel hle]
+      rw [Multiset.map_add, Multiset.sum_add]
+      congr 1
+      show topW (L := L) (K := K) r₁ + (topW (L := L) (K := K) r₂ + 0) = _
+      rw [add_zero]
+    have hbase_out : topSplitXZ (L := L) (K := K)
+          (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+        = Config.sumOf (topW (L := L) (K := K)) (c - {r₁, r₂})
+          + (topW (L := L) (K := K) (Transition L K r₁ r₂).1
+             + topW (L := L) (K := K) (Transition L K r₁ r₂).2) := by
+      rw [hstep]
+      unfold topSplitXZ Config.sumOf
+      rw [Multiset.map_add, Multiset.sum_add]
+      congr 1
+      show topW (L := L) (K := K) (Transition L K r₁ r₂).1
+            + (topW (L := L) (K := K) (Transition L K r₁ r₂).2 + 0) = _
+      rw [add_zero]
+    have hdelta := topW_pair_delta_abs_le_one_of_phase0 (L := L) (K := K) r₁ r₂ h₁ h₂
+    -- The config delta equals the pair-block delta.
+    have hcast : ((topSplitXZ (L := L) (K := K)
+          (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)) : ℝ)
+        - (topSplitXZ (L := L) (K := K) c : ℝ)
+        = (((topW (L := L) (K := K) (Transition L K r₁ r₂).1
+              + topW (L := L) (K := K) (Transition L K r₁ r₂).2)
+            - (topW (L := L) (K := K) r₁ + topW (L := L) (K := K) r₂)) : ℝ) := by
+      rw [hbase_out, hbase_src]; push_cast; ring
+    rw [hcast]
+    have : |((topW (L := L) (K := K) (Transition L K r₁ r₂).1
+              + topW (L := L) (K := K) (Transition L K r₁ r₂).2)
+            - (topW (L := L) (K := K) r₁ + topW (L := L) (K := K) r₂) : ℤ)| ≤ (1 : ℤ) :=
+      hdelta
+    exact_mod_cast this
+  · -- Not applicable: stepOrSelf = c, delta = 0.
+    rw [Protocol.stepOrSelf, if_neg happ]; simp
+
 end RoleSplitConcentration
 end ExactMajority

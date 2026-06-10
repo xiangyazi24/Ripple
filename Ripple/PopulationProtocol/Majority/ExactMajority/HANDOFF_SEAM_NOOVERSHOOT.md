@@ -1,0 +1,539 @@
+# HANDOFF: hNoOvershoot via seam-generalized Phase0Window (family3 letter, task f68ca4be, 2026-06-10)
+
+Source: ChatGPT Pro (family3, Ripple connector on opus-wip). Delivered 20,641 B via bridge (sync path). Verbatim answer below.
+
+---
+
+I’ll check the frozen transition rule first, then trace how SeamEpidemics, Phase0Window, and CounterTimeout expect the no-overshoot tail to be packaged.
+
+The transition mechanism is now clear enough to rule out the “any participation increments counter” interpretation: counters decrement only through stdCounterSubroutine, and in timed work phases that is applied only to Clock-role agents. Phase 3 additionally gates counter decrement by a clock-clock pair at max minute.
+
+The seam file confirms another integration issue: seamEpidemicW currently budgets εovershoot but its convergence proof only uses hDrift; the exact-window bridge still wants a pointwise no-overshoot predicate. So the discharge should either strengthen the seam Post or add a probabilistic exactification phase.
+
+1. Exact transition mechanism: the important corrections
+
+The counter does not climb from 0 to counterMax. It counts down. The frozen rule is:
+
+lean
+def stdCounterSubroutine (a : AgentState L K) : AgentState L K :=
+  if h : a.counter.val = 0 then
+    advancePhaseWithInit L K a
+  else
+    { a with counter := ⟨a.counter.val - 1, by omega⟩ }
+
+So to advance from phase q to q+1, a clock must first be driven down to counter 0; the next call to stdCounterSubroutine advances it via advancePhaseWithInit. 
+
+Transition
+
+advancePhaseWithInit is only
+
+lean
+let b := advancePhase L K a
+phaseInit L K b.phase b
+
+so the normal counter-driven move is a one-phase advance followed by the destination phase’s initialization. There is no direct q → q+2 branch inside stdCounterSubroutine. 
+
+Transition
+
+However, two caveats matter for hNoOvershoot.
+
+First, the global dispatcher starts with the phase epidemic:
+
+lean
+let p := max s.phase t.phase
+let s' := runInitsBetween L K s.phase.val p.val { s with phase := p }
+let t' := runInitsBetween L K t.phase.val p.val { t with phase := p }
+
+so an already-existing phase p+2 agent would immediately spread p+2 by max-phase epidemic. Thus hNoOvershoot must be formulated as “no first local creation of phase ≥ p+2 occurs,” not merely “no agent copies it.” 
+
+Transition
+
+Second, phaseInit can send bad configurations to phase 10; the repo already treats phase 10 as an error/backup phase. So NoOvershoot p := ∀ a∈c, a.phase.val < p+2 also excludes accidental phase-10 entry during the seam.
+
+The tick mechanism is not uniform across all phases:
+
+Phase 0: a fresh Clock is created by CR–CR with counter 50*(L+1), and the counter subroutine runs only on Clock–Clock pairs. 
+
+Transition
+
+Phase 1: clockCounterStep runs stdCounterSubroutine on a Clock and leaves non-Clocks unchanged; Phase 1 applies it to both agents after averaging. Thus a Clock ticks whenever it participates in a Phase-1 interaction, not only Clock–Clock. 
+
+Transition
+
+Phase 3: the minute clock is special. Clock–Clock pairs first synchronize minutes, then increment minutes up to K*(L+1), and only at the hour boundary do both clocks run stdCounterSubroutine. 
+
+Transition
+
+Phases 5–8: after the phase-specific work rule, Clock agents run stdCounterSubroutine directly. For example Phase 5 does this on both outputs, and Phase 5’s zero-counter clocks advance to Phase 6. 
+
+Transition
+
+ Phase 6/7/8 follow the same “if role is clock, run the counter subroutine” pattern. 
+
+Transition
+
+ 
+
+Transition
+
+ 
+
+Transition
+
+So the honest correction is:
+
+For phases 1,5,6,7,8:
+  a risky clock tick is dominated by “this clock participates”.
+
+For phase 3:
+  a risky clock tick is much rarer, gated by the minute/hour mechanism,
+  but participation domination is still a valid upper bound.
+
+For phase 0:
+  Phase0Window already proves the corresponding early-exit pattern.
+
+Also, 50*(L+1) is not a constant in n in the intended nonuniform setting; L ≈ log₂ n, so the counter height is Θ(log n). The bare participation tail is therefore viable when the seam length is ≤ C·n·(L+1) with C well below the counter constant 50.
+
+2. Which existing engine should discharge hNoOvershoot?
+
+Use the Phase0Window early-time potential pattern, not CounterTimeout.
+
+CounterTimeout.lean is the finish-time wrapper: it proves that a phase finishes within C·n log n interactions from a per-block failure contraction. Its central theorem is:
+
+lean
+theorem counterTimeout_tail
+    ...
+    (hblock : ∀ b ∈ (Doneᶜ : Set Ω), (K ^ s) b Doneᶜ ≤ q)
+    ...
+    (K ^ (numBlocks * s)) c₀ Doneᶜ ≤ q ^ numBlocks
+
+That is the wrong direction for hNoOvershoot; hNoOvershoot is an early finish is unlikely statement. 
+
+CounterTimeout
+
+The right pattern is Phase0Window.lean. It already explains the intended early-time proof:
+
+Φ_s c := ∑_{a clock} exp(−s · a.counter)
+
+and uses the fact that one tick multiplies the summand by e^s, yielding an affine drift of the form
+
+∫ Φ_s dK(c) ≤ (1 + 2(e^s − 1)/n) · Φ_s c + fresh
+
+The file states exactly this mechanism and its numerics: with s = 1, t ≤ n*(L+1), and initial potential ≤ n*exp(-50*(L+1)), the tail is at most exp(-45*(L+1)). 
+
+Phase0Window
+
+The already-proved affine drift theorem is Phase-0-specific:
+
+lean
+theorem clockCounterPotential_drift_affine
+    ...
+    ∫⁻ c', clockCounterPotential s c' ∂K c
+      ≤ ofReal (1 + 2 * (exp s - 1) / n) * clockCounterPotential s c
+        + ofReal (exp (-(s * (50 * (L + 1)))))
+
+Phase0Window
+
+and the generic affine tail wrapper is:
+
+lean
+theorem phase0_window_tail_affine
+    ...
+    (P.transitionKernel ^ t) c₀ {c | ¬ Post c}
+      ≤ (a ^ t * Φ c₀ + b * ∑ i ∈ Finset.range t, a ^ i) / θ
+
+Phase0Window
+
+So the design should be a generic seam-counter analogue of Phase0Window, not a new binomial library and not the finish-time CounterTimeout wrapper.
+
+3. Does this consume a width event? Usually no.
+
+For the hNoOvershoot tail, do not consume the phase-clock width machinery unless you want a sharper, paper-faithful Phase-3-only proof.
+
+A safe and simpler domination is:
+
+actual counter decrement ⊆ clock participation
+
+For phases 1,5,6,7,8 this is essentially tight: a Clock ticks when it participates in that phase’s transition. For Phase 3, the actual counter decrement is rarer because it waits for the hour boundary; bounding it by participation is conservative but sufficient if the seam horizon constant is small compared with 50.
+
+This avoids a dependency cycle with the §6 width/front machinery. The seam Pre does not need to carry a clock-width event merely to prove no overshoot. Width remains part of Phase 3’s own work-phase convergence, not the seam timing separation.
+
+The only real quantitative condition needed by this route is the same shape as DotyTimeHeadline already abstracts:
+
+lean
+(phases i).t ≤ Cphase i * n * (L + 1)
+
+For the seam-corrected headline, the 21-instance theorem abstracts all times by Cphase : Fin 21 → ℕ and concludes total time ≤ 21*C0*n*(L+1) if every Cphase i ≤ C0; it does not hard-code a numeric seam length in the file. 
+
+DotyTimeHeadline
+
+So the honest constants should be packaged as a hypothesis:
+
+lean
+ht_seam : tseam ≤ Cseam * n * (L + 1)
+hCseam : Cseam ≤ Csafe
+
+where Csafe is the arithmetic constant for the no-overshoot tail. If you want to reuse Phase0Window’s existing numeric lemma directly, take the clean special case:
+
+lean
+ht_seam : tseam ≤ n * (L + 1)
+
+because phase0_numerics_real already closes that case to exp(-45*(L+1)). 
+
+Phase0Window
+
+That tail is far smaller than a per-seam O(1/n²) budget once L+1 dominates log n; union over 10 seams or even 21 instances is harmless.
+
+4. Integration issue in the current seam file
+
+SeamEpidemics.seamEpidemicW currently includes εovershoot in the declared error:
+
+lean
+ε := εepidemic + εovershoot
+
+but the convergence proof only uses hDrift to bound failure of allPhaseGe (p+1). The εovershoot is added by le_self_add; no hNoOvershoot tail is consumed there. 
+
+SeamEpidemics
+
+Then the exact-work bridge still expects a pointwise no-overshoot input:
+
+lean
+theorem seam_into_exact_work
+    {p n : ℕ} (hno : ∀ c,
+        allPhaseGe (p + 1) n c → ∀ a ∈ c, a.phase.val < p + 2) :
+    ∀ c, allPhaseGe (p + 1) n c →
+      allPhaseEq (p + 1) n c
+
+SeamEpidemics
+
+So there is a small architectural fix needed. The cleanest one is to define a strengthened seam whose Post includes no-overshoot:
+
+lean
+Post c :=
+  allPhaseGe (p+1) n c ∧ NoOvershoot p c
+
+and prove its convergence by union bound:
+
+P(¬(allPhaseGe ∧ NoOvershoot))
+  ≤ P(¬ allPhaseGe) + P(¬ NoOvershoot)
+  ≤ εepidemic + εovershoot.
+
+Then seam_into_exact_work becomes pointwise from the strengthened Post.
+
+5. Target definitions
+
+I would add these to SeamEpidemics.lean or a new file Probability/SeamNoOvershoot.lean.
+
+lean
+namespace ExactMajority
+namespace SeamNoOvershoot
+
+open MeasureTheory ProbabilityTheory
+open scoped ENNReal NNReal Real BigOperators
+
+variable {L K : ℕ}
+
+/-- No agent has run ahead two phases during the seam from `p` to `p+1`. -/
+def NoOvershoot (p : ℕ) (c : Config (AgentState L K)) : Prop :=
+  ∀ a ∈ c, a.phase.val < p + 2
+
+/-- The dangerous precursor: an at-risk clock in the new phase already has counter zero. -/
+def AtRiskClockZero (p : ℕ) (c : Config (AgentState L K)) : Prop :=
+  ∃ a ∈ c, a.role = .clock ∧ a.phase.val = p + 1 ∧ a.counter.val = 0
+
+/-- At-risk clock-counter summand for the seam from `p` to `p+1`. -/
+noncomputable def seamClockSummand (p : ℕ) (s : ℝ) (a : AgentState L K) : ℝ≥0∞ :=
+  if a.role = .clock ∧ a.phase.val = p + 1 then
+    ENNReal.ofReal (Real.exp (-(s * (a.counter.val : ℝ))))
+  else
+    0
+
+/-- At-risk clock-counter potential. -/
+noncomputable def seamClockPotential (p : ℕ) (s : ℝ)
+    (c : Config (AgentState L K)) : ℝ≥0∞ :=
+  Config.sumOf (seamClockSummand (L := L) (K := K) p s) c
+
+The threshold link is the direct analogue of Phase0Window:
+
+lean
+theorem seamClockPotential_ge_one_of_atRiskClockZero
+    (p : ℕ) (s : ℝ) (c : Config (AgentState L K))
+    (h : AtRiskClockZero (L := L) (K := K) p c) :
+    1 ≤ seamClockPotential (L := L) (K := K) p s c := by
+  -- same proof shape as
+  -- Phase0Window.clockCounterPotential_ge_one_of_clock_counter_zero
+  sorry
+
+The proof should literally clone clockCounterPotential_ge_one_of_clock_counter_zero, changing the summand predicate from “role is clock” to “role is clock and phase is p+1.” The original threshold lemma is already proved for phase 0. 
+
+Phase0Window
+
+6. Deterministic bridge: overshoot requires a zero-risk clock, except for named untimed/error guards
+
+For timed seams, the key deterministic target is:
+
+lean
+/--
+If a one-step update from a no-overshoot seam state creates an agent at phase ≥ p+2,
+then before the step there was an at-risk phase-(p+1) clock with counter zero.
+
+This is the seam analogue of `Phase0Window.det_phase0_exit`.
+-/
+theorem det_seam_overshoot_of_atRiskClockZero
+    (p : ℕ) (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hno : NoOvershoot (L := L) (K := K) p c)
+    (hge : SeamEpidemics.allPhaseGe (L := L) (K := K) p (Multiset.card c) c)
+    (hexit : ¬ NoOvershoot (L := L) (K := K) p
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)) :
+    AtRiskClockZero (L := L) (K := K) p c := by
+  -- Reduce to the first output whose phase is ≥ p+2.
+  -- Use:
+  --   stdCounterSubroutine: zero branch is the only counter-driven advance.
+  --   advancePhaseWithInit: advances by one before init.
+  --   phaseEpidemicUpdate: max-copy cannot create p+2 unless p+2 already existed,
+  --     which hno excludes.
+  sorry
+
+This is the exact analogue of the existing Phase-0 deterministic bridge:
+
+lean
+theorem det_phase0_exit
+    ...
+    (hexit : ¬ allPhase0 (Protocol.stepOrSelf ... c r₁ r₂)) :
+    ¬ noClockAtZero c
+
+Phase0Window
+
+But I would not pretend this theorem is universally true for every p without side conditions. Phase 2 can advance to Phase 3 by its opinion-union rule, not by a counter, and Phase 4 can advance by the big-bias rule. Phase 2’s transition explicitly advances both agents to Phase 3 when both signs are still present. 
+
+Transition
+
+ Phase 4 advances both agents when a big bias is detected. 
+
+Transition
+
+So the theorem should either be restricted to timed destination phases:
+
+lean
+def CounterTimedPhase (q : ℕ) : Prop :=
+  q = 1 ∨ q = 3 ∨ q = 5 ∨ q = 6 ∨ q = 7 ∨ q = 8
+
+or carry a named hypothesis excluding untimed local-advance guards:
+
+lean
+UntimedNoLocalAdvance p c
+
+For the time-half campaign, I recommend the first route: discharge hNoOvershoot by this counter argument only for seams whose destination work phase is counter-timed; handle Phase-2/4/9 seams with their specific work-phase guard facts, not with the clock-counter lemma.
+
+7. Probabilistic tail target
+
+The drift lemma should be the seam analogue of clockCounterPotential_drift_affine:
+
+lean
+/--
+One-step affine drift for the at-risk seam counter potential.
+
+`fresh` accounts for a phase-p Clock being infected by the phase-(p+1)
+epidemic and entering phase p+1 with a full counter.  A safe bound is
+`2 * exp(-s * 50(L+1))`; it can likely be sharpened to `1 * ...`.
+-/
+theorem seamClockPotential_drift_affine
+    (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (n : ℕ) (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n) (hc2 : 2 ≤ Multiset.card c)
+    (hwin : SeamEpidemics.allPhaseGe (L := L) (K := K) p n c)
+    (hno : NoOvershoot (L := L) (K := K) p c) :
+    ∫⁻ c', seamClockPotential (L := L) (K := K) p s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+          * seamClockPotential (L := L) (K := K) p s c
+        + ENNReal.ofReal (2 * Real.exp (-(s * (50 * (L + 1) : ℕ)))) := by
+  -- Clone Phase0Window.clockCounterPotential_drift_affine.
+  -- The pair-sum infrastructure already exists:
+  --   Phase0Window.lintegral_transitionKernel_eq_sum
+  -- The per-pair lemma is new:
+  --   seamClockPotential_stepOrSelf_le
+  sorry
+
+This proof should reuse the pair-sum infrastructure from Phase0Window:
+
+lean
+lintegral_transitionKernel_eq_sum
+
+which expands one-step expectation as a finite ordered-pair sum. 
+
+Phase0Window
+
+Then state the tail:
+
+lean
+/--
+Early-overshoot precursor tail: probability of seeing an at-risk zero clock
+within the seam.
+-/
+theorem seam_atRiskClockZero_tail
+    (p n tseam : ℕ) (s : ℝ)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ))
+    (hn : 1 ≤ n)
+    (ht : tseam ≤ n * (L + 1))
+    {c₀ : Config (AgentState L K)}
+    (hcard₀ : Multiset.card c₀ = n)
+    (hpre₀ : SeamEpidemics.allPhaseGe (L := L) (K := K) p n c₀)
+    (hno₀ : NoOvershoot (L := L) (K := K) p c₀)
+    (hinitΦ :
+      seamClockPotential (L := L) (K := K) p 1 c₀
+        ≤ (n : ℝ≥0∞) *
+          ENNReal.ofReal (Real.exp (-(50 * (L + 1) : ℕ)))) :
+    ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+      {c | AtRiskClockZero (L := L) (K := K) p c}
+      ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) := by
+  -- Use Phase0Window.phase0_window_tail_affine with:
+  --   Φ := seamClockPotential p 1
+  --   Post := fun c => ¬ AtRiskClockZero p c
+  --   θ := 1
+  --   a := ofReal (1 + 2*(exp 1 - 1)/n)
+  --   b := ofReal (2*exp(-50*(L+1)))
+  -- Then discharge arithmetic with a new numerics lemma.
+  sorry
+
+I used 40 instead of 45 because the seam version has possible epidemic “fresh clock” immigration; the exact exponent depends on whether the per-pair fresh term is 1*M or 2*M. The existing Phase-0 arithmetic closes 45; the seam version should get something like 40 without stress.
+
+Name the new arithmetic target explicitly:
+
+lean
+theorem seam_noOvershoot_numerics_real
+    (n L tseam : ℕ) (hn : 1 ≤ n)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ))
+    (ht : tseam ≤ n * (L + 1)) :
+    -- affine tail expression with b = 2*exp(-50(L+1))
+    ... ≤ Real.exp (-(40 * (L + 1 : ℕ))) := by
+  -- clone Phase0Window.phase0_numerics_real, with the extra affine immigration sum
+  sorry
+
+The existing numeric lemma to clone is phase0_numerics_real. 
+
+Phase0Window
+
+Finally, convert zero-clock precursor to actual no-overshoot:
+
+lean
+/--
+Terminal no-overshoot tail for one seam.
+Because phase is monotone, any terminal overshoot has a first step;
+the first-step bridge turns that step into an earlier `AtRiskClockZero`.
+-/
+theorem seam_noOvershoot_tail
+    (p n tseam : ℕ)
+    (hCounterTimed : CounterTimedSeam p)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ))
+    (hn : 1 ≤ n)
+    (ht : tseam ≤ n * (L + 1))
+    {c₀ : Config (AgentState L K)}
+    (hpre₀ : SeamEpidemics.allPhaseGe (L := L) (K := K) p n c₀)
+    (hno₀ : NoOvershoot (L := L) (K := K) p c₀)
+    (hinitΦ : ... ) :
+    ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+      {c | ¬ NoOvershoot (L := L) (K := K) p c}
+      ≤ ENNReal.ofReal (Real.exp (-(39 * (L + 1 : ℕ)))) := by
+  -- prefix-union from first overshoot step
+  -- + seam_atRiskClockZero_tail at each prefix time
+  -- or use killed-gate version to avoid explicit prefix sum.
+  sorry
+
+For the final hNoOvershoot budget consumed by the 21-instance headline, wrap it as:
+
+lean
+theorem hNoOvershoot_one_seam
+    (p n tseam : ℕ)
+    (εovershoot : ℝ≥0)
+    ...
+    (hε :
+      ENNReal.ofReal (Real.exp (-(39 * (L + 1 : ℕ)))
+        ≤ (εovershoot : ℝ≥0∞)) :
+    ∀ c₀,
+      SeamEpidemics.allPhaseGe (L := L) (K := K) p n c₀ →
+      NoOvershoot (L := L) (K := K) p c₀ →
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+        {c | ¬ NoOvershoot (L := L) (K := K) p c}
+        ≤ (εovershoot : ℝ≥0∞) := by
+  intro c₀ hge hno
+  exact le_trans (seam_noOvershoot_tail ... hge hno ...)
+    hε
+8. Strengthened seam instance to actually consume hNoOvershoot
+
+I would replace or supplement seamEpidemicW with:
+
+lean
+noncomputable def seamEpidemicExactW
+    (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+    (hDrift : ∀ c,
+        (SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+          SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c) →
+        ((NonuniformMajority L K).transitionKernel ^ tseam) c
+          {c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c'}
+          ≤ (εepidemic : ℝ≥0∞))
+    (hNoOvershoot : ∀ c,
+        (SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+          SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c) →
+        ((NonuniformMajority L K).transitionKernel ^ tseam) c
+          {c' | ¬ NoOvershoot (L := L) (K := K) p c'}
+          ≤ (εovershoot : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel where
+  Pre := fun c =>
+    SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+      SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c
+  Post := fun c =>
+    SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c ∧
+      NoOvershoot (L := L) (K := K) p c
+  t := tseam
+  ε := εepidemic + εovershoot
+  convergence := by
+    intro c hPre
+    have hA := hDrift c hPre
+    have hB := hNoOvershoot c hPre
+    -- {¬ (A ∧ B)} ⊆ {¬A} ∪ {¬B}
+    calc
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c
+          {c' | ¬ (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c' ∧
+                   NoOvershoot (L := L) (K := K) p c')}
+        ≤ ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c'} +
+          ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ NoOvershoot (L := L) (K := K) p c'} := by
+          exact measure_mono_union_not_and -- new tiny set lemma, or inline `measure_union_le`
+      _ ≤ (εepidemic : ℝ≥0∞) + (εovershoot : ℝ≥0∞) := by
+          gcongr
+      _ = ((εepidemic + εovershoot : ℝ≥0) : ℝ≥0∞) := by
+          push_cast; rfl
+
+Then the bridge becomes deterministic:
+
+lean
+theorem seamExact_into_exact_work
+    {p n : ℕ} :
+    ∀ c,
+      (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c ∧
+        NoOvershoot (L := L) (K := K) p c) →
+      SeamEpidemics.allPhaseEq (L := L) (K := K) (p + 1) n c :=
+  fun c h =>
+    SeamEpidemics.allPhaseEq_of_ge_and_no_overshoot h.1 h.2
+
+This aligns with the doty_time_headline_W2 description: the corrected 21-instance interleave uses seam phases; seam-to-work exactness relies on no overshoot; and εovershoot/hNoOvershoot is supposed to be folded into the seam instance. 
+
+DotyTimeHeadline
+
+Final recommendation
+
+Discharge hNoOvershoot with a seam-generalized Phase0Window, not with the finish-time CounterTimeout engine and not with a phase-clock width dependency.
+
+The minimal new atoms are:
+
+NoOvershoot, AtRiskClockZero, seamClockPotential.
+
+seamClockPotential_drift_affine, cloned from clockCounterPotential_drift_affine.
+
+det_seam_overshoot_of_atRiskClockZero, cloned conceptually from det_phase0_exit, but restricted to counter-timed seams or guarded against untimed local-advance phases.
+
+seam_noOvershoot_numerics_real, cloned from phase0_numerics_real.
+
+seamEpidemicExactW, so the probabilistic hNoOvershoot is actually consumed by the seam convergence, rather than appearing only as an unused εovershoot plus a pointwise bridge assumption.

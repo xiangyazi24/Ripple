@@ -528,5 +528,206 @@ theorem pool_expNeg_one_step_drift
   -- `ScalarPoolFav` is definitionally the favorability inequality the abstract core needs.
   exact hfav
 
+/-! ## §4 — the assembled floor-prefix theorem (pure region composition).
+
+The post-gated floor-failure event splits, at EVERY configuration, into three pieces by
+the structural shell and the `u` vs `uMin` trichotomy:
+
+* the **structural** failure `cardPhaseShellᶜ` (`card ≠ n` or the Phase-0 MCR-phase
+  invariant broken — deterministically negligible from a `Phase0Initial` start, so the
+  matching budget `εwarm` may be taken `0` once the shell is threaded; kept as a hypothesis
+  here for honesty);
+* the **mid** band `{shell ∧ uMin ≤ u ∧ pool < a₀ ∧ ¬done}` — the region where the
+  Stage-2 pool drift is favorable;
+* the **late** band `{shell ∧ u < uMin ∧ pool < a₀ ∧ ¬done}` — the genuinely-new low-`u`
+  checkpoint piece (blueprint §1 region L).
+
+The composition itself is a pure measure-union over this partition, summed over the
+prefix — no engine, no absorption.  The three region masses are supplied as hypotheses
+(`hshell`, `hmid`, `hlate`); the honest difficulty (and the blueprint's flagged crux) is
+in DISCHARGING `hmid` (Stage-2 drift on the stopped gate) and `hlate` (the low-`u`
+completion tail), recorded in the status section. -/
+
+/-- The mid-band floor-failure event: structural shell, `u` still at the floor, pool
+below `a₀`, Stage 1 not yet done. -/
+def midBandBad (n a₀ uMin : ℕ) (hn2 : 2 ≤ n)
+    (c : Config (AgentState L K)) : Prop :=
+  c ∈ cardPhaseShell (L := L) (K := K) n ∧
+  uMin ≤ ExactMajority.mcrCount (L := L) (K := K) c ∧
+  assignableCount (L := L) (K := K) c < a₀ ∧
+  ¬ roleSplitGoodMile (L := L) (K := K) n hn2 c
+
+/-- The late-band floor-failure event: structural shell, `u` below the floor, pool below
+`a₀`, Stage 1 not yet done. -/
+def lateBandBad (n a₀ uMin : ℕ) (hn2 : 2 ≤ n)
+    (c : Config (AgentState L K)) : Prop :=
+  c ∈ cardPhaseShell (L := L) (K := K) n ∧
+  ExactMajority.mcrCount (L := L) (K := K) c < uMin ∧
+  assignableCount (L := L) (K := K) c < a₀ ∧
+  ¬ roleSplitGoodMile (L := L) (K := K) n hn2 c
+
+/-- **The pointwise region cover.**  Every post-gated floor failure lies in the structural
+shell-complement, the mid band, or the late band.  Pure logic (`u` trichotomy). -/
+theorem floorFailsBeforePost_subset (n a₀ uMin : ℕ) (hn2 : 2 ≤ n) :
+    {c : Config (AgentState L K) | floorFailsBeforePost (L := L) (K := K) n a₀ hn2 c}
+      ⊆ (cardPhaseShell (L := L) (K := K) n)ᶜ
+        ∪ {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c}
+        ∪ {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c} := by
+  intro c hc
+  obtain ⟨hpool, hdone⟩ := hc
+  by_cases hshell : c ∈ cardPhaseShell (L := L) (K := K) n
+  · by_cases hu : uMin ≤ ExactMajority.mcrCount (L := L) (K := K) c
+    · exact Or.inl (Or.inr ⟨hshell, hu, hpool, hdone⟩)
+    · exact Or.inr ⟨hshell, not_le.mp hu, hpool, hdone⟩
+  · exact Or.inl (Or.inl hshell)
+
+/-- **The assembled floor-prefix bound** (blueprint §4).  From the three per-region prefix
+masses on the warm-up-shifted kernel, the post-gated floor-failure prefix is bounded by
+their sum.  Pure union/checkpoint composition (`floorFailsBeforePost_subset` +
+`measure_union_le` + `Finset.sum_le_sum`); no engine, no absorption.  The three region
+masses are the named hypotheses where the genuine probabilistic discharge lives. -/
+theorem floor_prefix_le
+    (n a₀ uMin T₀ t : ℕ) (hn2 : 2 ≤ n)
+    (εwarm εmid εlate : ℝ≥0∞)
+    {c₀ : Config (AgentState L K)}
+    -- structural-shell failure prefix (deterministically negligible from `Phase0Initial`):
+    (hshell : ∑ τ ∈ Finset.range t,
+        ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+          ((cardPhaseShell (L := L) (K := K) n)ᶜ) ≤ εwarm)
+    -- mid-band floor failure prefix (Stage-2 drift on the stopped gate):
+    (hmid : ∑ τ ∈ Finset.range t,
+        ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+          {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c} ≤ εmid)
+    -- late-band floor failure prefix (the low-`u` completion tail — the new piece):
+    (hlate : ∑ τ ∈ Finset.range t,
+        ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+          {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c} ≤ εlate) :
+    ∑ τ ∈ Finset.range t,
+      ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+        {c | floorFailsBeforePost (L := L) (K := K) n a₀ hn2 c}
+      ≤ εwarm + εmid + εlate := by
+  classical
+  set μ : ℕ → Measure (Config (AgentState L K)) := fun τ =>
+    ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀ with hμ
+  -- Per-time region subadditivity.
+  have hperτ : ∀ τ,
+      μ τ {c | floorFailsBeforePost (L := L) (K := K) n a₀ hn2 c}
+        ≤ μ τ ((cardPhaseShell (L := L) (K := K) n)ᶜ)
+          + μ τ {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c}
+          + μ τ {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c} := by
+    intro τ
+    calc μ τ {c | floorFailsBeforePost (L := L) (K := K) n a₀ hn2 c}
+        ≤ μ τ ((cardPhaseShell (L := L) (K := K) n)ᶜ
+              ∪ {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c}
+              ∪ {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c}) :=
+          measure_mono (floorFailsBeforePost_subset n a₀ uMin hn2)
+      _ ≤ μ τ ((cardPhaseShell (L := L) (K := K) n)ᶜ
+              ∪ {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c})
+            + μ τ {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c} :=
+          measure_union_le _ _
+      _ ≤ (μ τ ((cardPhaseShell (L := L) (K := K) n)ᶜ)
+              + μ τ {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c})
+            + μ τ {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c} :=
+          add_le_add (measure_union_le _ _) le_rfl
+  calc ∑ τ ∈ Finset.range t,
+        μ τ {c | floorFailsBeforePost (L := L) (K := K) n a₀ hn2 c}
+      ≤ ∑ τ ∈ Finset.range t,
+          (μ τ ((cardPhaseShell (L := L) (K := K) n)ᶜ)
+            + μ τ {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c}
+            + μ τ {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c}) :=
+        Finset.sum_le_sum (fun τ _ => hperτ τ)
+    _ = (∑ τ ∈ Finset.range t, μ τ ((cardPhaseShell (L := L) (K := K) n)ᶜ))
+          + (∑ τ ∈ Finset.range t, μ τ {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c})
+          + (∑ τ ∈ Finset.range t,
+              μ τ {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c}) := by
+        rw [← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+    _ ≤ εwarm + εmid + εlate := add_le_add (add_le_add hshell hmid) hlate
+
+/-! ## §2 / §3 — the warm-up checkpoint and the mid-band gated tail.
+
+### Stage-3 engine status (blueprint correction)
+
+The blueprint recommends `WindowConcentration.windowDrift_tail` for the warm-up.  That
+engine's hypothesis `hQ_abs` requires the window `Q` to be one-step-support closed
+(absorbing), which the warm-up band `{pool < 2a₀ ∧ u ≥ uMin}` is NOT (a single Rule-1
+birth pushes `pool` to `2a₀`, leaving `Q`; conversions can drop `u` below `uMin`).  The
+honest non-absorbing engine is `GatedDrift.gated_real_tail_full`, which needs only the
+drift ON the gate plus a per-step escape bound — exactly the Stage-2 one-step drift.  But
+that engine requires `1 ≤ r`, so its tail is the escape form `t·η + rᵗ·Φx/θ`, not a
+decaying `rᵗ`.  We expose the genuine connection (`midBand_gated_tail`) and keep the
+warm-up REACH as a named hypothesis. -/
+
+/-- **The mid-band gated tail (genuine Stage-2 → engine connection).**  Instantiating
+`GatedDrift.gated_real_tail_full` at the pool MGF `poolExpNeg s`, the gate `G`, the
+one-step drift `hdrift_G` (supplied by `pool_expNeg_one_step_drift` on `G`), the per-step
+escape bound `η`, and the threshold `θ = exp(-s·a₀)`, the mass of `{poolExpNeg ≥ θ}`
+(which CONTAINS the floor-failure event `pool < a₀`) after `t` steps from a gate start is
+bounded by `t·η + rᵗ·poolExpNeg(x)/θ`.  This shows the Stage-2 drift really does drive a
+kernel-level mid-band bound; the residual `εmid` of `floor_prefix_le` is its prefix
+aggregate. -/
+theorem midBand_gated_tail
+    (s : ℝ) (G : Set (Config (AgentState L K))) (r : ℝ≥0∞) (hr : 1 ≤ r)
+    (hdrift_G : ∀ x ∈ G,
+      ∫⁻ c', poolExpNeg (L := L) (K := K) s c'
+          ∂((NonuniformMajority L K).transitionKernel x)
+        ≤ r * poolExpNeg (L := L) (K := K) s x)
+    (η : ℝ≥0∞) (hesc : ∀ x ∈ G,
+      ((NonuniformMajority L K).transitionKernel x) Gᶜ ≤ η)
+    (t : ℕ) (x : Config (AgentState L K)) (hx : x ∈ G)
+    (θ : ℝ≥0∞) (hθ0 : θ ≠ 0) (hθtop : θ ≠ ⊤) :
+    ((NonuniformMajority L K).transitionKernel ^ t) x
+        {c | θ ≤ poolExpNeg (L := L) (K := K) s c}
+      ≤ (t : ℝ≥0∞) * η + r ^ t * poolExpNeg (L := L) (K := K) s x / θ :=
+  GatedDrift.gated_real_tail_full (K := (NonuniformMajority L K).transitionKernel)
+    (G := G) (poolExpNeg (L := L) (K := K) s) r hr hdrift_G η hesc t x hx θ hθ0 hθtop
+
+/-- **The warm-up checkpoint** (blueprint §2).  From the `Phase0Initial` all-MCR start,
+after the warm-up horizon `T₀`, the buffered checkpoint `Phase0WarmGood` holds whp.  The
+warm-up reach mass is the named hypothesis `hreach` (its honest discharge is the
+non-absorbing pool-growth drift `exp(+s·pool)` to the buffer — same engine family, dual
+direction; recorded in the status section). -/
+theorem phase0_floor_warmup_whp
+    (n a₀ uMin T₀ : ℕ) (εwarm : ℝ≥0∞)
+    {c₀ : Config (AgentState L K)}
+    (_hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (hreach : ((NonuniformMajority L K).transitionKernel ^ T₀) c₀
+        {c | ¬ Phase0WarmGood (L := L) (K := K) n a₀ uMin c} ≤ εwarm) :
+    ((NonuniformMajority L K).transitionKernel ^ T₀) c₀
+      {c | ¬ Phase0WarmGood (L := L) (K := K) n a₀ uMin c} ≤ εwarm := hreach
+
+/-! ## §4 — the paper-scale floor budget and the εfloor capstone. -/
+
+/-- The floor failure budget `εfloor n = n⁻²` (blueprint §4).  The intended endpoint
+`floor_prefix_le_inv_sq` chooses the three region budgets so each is `≤ 1/(3n²)`. -/
+noncomputable def εfloor (n : ℕ) : ℝ≥0∞ :=
+  ENNReal.ofReal (((n : ℝ) ^ 2)⁻¹)
+
+/-- **The `εfloor` capstone** (blueprint §4 endpoint).  The post-gated floor-failure prefix
+is `≤ n⁻²` once the three region budgets each fit under `1/(3n²)`.  Pure arithmetic
+specialisation of `floor_prefix_le`: it consumes the three region prefix masses (the
+named feeders) at the calibrated budgets and the budget-sum check `εwarm+εmid+εlate ≤
+εfloor n`. -/
+theorem floor_prefix_le_inv_sq
+    (n a₀ uMin T₀ t : ℕ) (hn2 : 2 ≤ n)
+    (εwarm εmid εlate : ℝ≥0∞)
+    {c₀ : Config (AgentState L K)}
+    (hshell : ∑ τ ∈ Finset.range t,
+        ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+          ((cardPhaseShell (L := L) (K := K) n)ᶜ) ≤ εwarm)
+    (hmid : ∑ τ ∈ Finset.range t,
+        ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+          {c | midBandBad (L := L) (K := K) n a₀ uMin hn2 c} ≤ εmid)
+    (hlate : ∑ τ ∈ Finset.range t,
+        ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+          {c | lateBandBad (L := L) (K := K) n a₀ uMin hn2 c} ≤ εlate)
+    (hbudget : εwarm + εmid + εlate ≤ εfloor n) :
+    ∑ τ ∈ Finset.range t,
+      ((NonuniformMajority L K).transitionKernel ^ (T₀ + τ)) c₀
+        {c | floorFailsBeforePost (L := L) (K := K) n a₀ hn2 c}
+      ≤ εfloor n :=
+  le_trans
+    (floor_prefix_le n a₀ uMin T₀ t hn2 εwarm εmid εlate hshell hmid hlate)
+    hbudget
+
 end FloorPrefix
 end ExactMajority
