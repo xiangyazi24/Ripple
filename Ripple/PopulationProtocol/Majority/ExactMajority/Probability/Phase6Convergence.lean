@@ -1420,6 +1420,84 @@ theorem mainAt6_sum_eq_countP (σ : Sign) (l : ℕ) (hl : 1 ≤ l) (hlL : l ≤ 
     (fun a => a.role = Role.main ∧ a.bias = Bias.dyadic σ ⟨l - 1, by omega⟩) c]
   rfl
 
+/-- **The Phase-6 band-top rectangle drop probability.**  On a `Phase6Win` config,
+for a fixed sign `σ`, target level `l` (`1 ≤ l ≤ L`), and a sampling hour `h` with
+`l−1 < h` and `h ≠ L`, the probability that one step drops `highMass l` is at least
+`(#reserve@h)·(#main@(l−1))/(n(n−1))`.  The Reserve count `#reserve@h` is exactly
+Phase-5's `sampledReserveClassU h` (`reserveAtHour6_sum_eq_classU`). -/
+theorem highMass_drop_prob_rect6 (σ : Sign) (l n : ℕ) (hn : 2 ≤ n)
+    (hl1 : 1 ≤ l) (hlL : l ≤ L) (c : Config (AgentState L K))
+    (hInv : Phase6Win (L := L) (K := K) n c)
+    (h : Fin (L + 1)) (hhgt : l - 1 < h.val) (hhne : h.val ≠ L) :
+    ENNReal.ofReal
+        (((reserveAtHour6 (L := L) (K := K) h).sum c.count *
+          (mainAt6 (L := L) (K := K) σ l hl1 hlL).sum c.count : ℕ) /
+          ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | highMass (L := L) (K := K) l c' + 1 ≤ highMass (L := L) (K := K) l c} := by
+  have hcardn : c.card = n := hInv.1
+  refine drop_prob_of_rect6 (fun c => highMass (L := L) (K := K) l c) n hn c hcardn
+    ((reserveAtHour6 (L := L) (K := K) h) ×ˢ (mainAt6 (L := L) (K := K) σ l hl1 hlL))
+    _ ?_ (le_of_eq ?_)
+  · rintro ⟨r, m⟩ hp hcr hcm _
+    rw [Finset.mem_product] at hp
+    obtain ⟨hrmem, hmmem⟩ := hp
+    simp only [reserveAtHour6, Finset.mem_filter] at hrmem
+    simp only [mainAt6, Finset.mem_filter] at hmmem
+    obtain ⟨_, hrR, hrh⟩ := hrmem
+    obtain ⟨_, hmM, hmb⟩ := hmmem
+    have happ : Protocol.Applicable c r m := by
+      have hrm : r ∈ c := Multiset.one_le_count_iff_mem.mp hcr
+      have hmm : m ∈ c := Multiset.one_le_count_iff_mem.mp hcm
+      have hne : r ≠ m :=
+        reserveAtHour6_mainAt6_disjoint σ l hl1 hlL h r
+          (by simp only [reserveAtHour6, Finset.mem_filter]
+              exact ⟨Finset.mem_univ _, hrR, hrh⟩) m
+          (by simp only [mainAt6, Finset.mem_filter]; exact ⟨Finset.mem_univ _, hmM, hmb⟩)
+      exact applicable_of_mem_distinct6 hrm hmm hne
+    -- the guard r.hour > l-1 (= h > l-1) and r.hour ≠ L (= h ≠ L).
+    have hgt : r.hour.val > l - 1 := by rw [hrh]; exact hhgt
+    have hne : r.hour.val ≠ L := by rw [hrh]; exact hhne
+    exact highMass_stepOrSelf_drop (L := L) (K := K) l n c hInv r m happ hl1 hlL hrR hmM hmb hne hgt
+  · rw [sum_interactionCount_cross_disjoint6 c _ _
+      (reserveAtHour6_mainAt6_disjoint σ l hl1 hlL h)]
+
+/-- **The engine `hdrop` from a drop-probability floor (Phase 6).**  Mirror of
+`Phase7Convergence.minorityU_hdrop_of_floor7`: the kernel's failure mass on
+`(potBelow (highMass l) m)ᶜ` is `1 − drop-success ≤ 1 − p`. -/
+theorem highMass_hdrop_of_floor6 (l : ℕ) (m : ℕ)
+    (p : ℝ≥0∞) (b : Config (AgentState L K)) (hbm : highMass (L := L) (K := K) l b = m)
+    (hfloor : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        {c' | highMass (L := L) (K := K) l c' + 1 ≤ highMass (L := L) (K := K) l b}) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (fun c => highMass (L := L) (K := K) l c) m)ᶜ ≤ 1 - p := by
+  classical
+  have hKb : (NonuniformMajority L K).transitionKernel b
+      = ((NonuniformMajority L K).stepDistOrSelf b).toMeasure := rfl
+  have hsucc_eq : {c' : Config (AgentState L K) |
+        highMass (L := L) (K := K) l c' + 1 ≤ highMass (L := L) (K := K) l b}
+      = OneSidedCancel.potBelow (fun c => highMass (L := L) (K := K) l c) m := by
+    ext c'; simp only [OneSidedCancel.potBelow, Set.mem_setOf_eq, hbm]; omega
+  have hmeas : MeasurableSet (OneSidedCancel.potBelow (fun c => highMass (L := L) (K := K) l c) m) :=
+    OneSidedCancel.potBelow_measurable (fun c => highMass (L := L) (K := K) l c) m
+  haveI hprob : IsProbabilityMeasure
+      (((NonuniformMajority L K).stepDistOrSelf b).toMeasure) := by
+    rw [← hKb]
+    exact (inferInstance :
+      IsMarkovKernel (NonuniformMajority L K).transitionKernel).isProbabilityMeasure b
+  have htot : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure Set.univ = 1 :=
+    hprob.measure_univ
+  have hcompl : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        (OneSidedCancel.potBelow (fun c => highMass (L := L) (K := K) l c) m)ᶜ
+      = 1 - ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+          (OneSidedCancel.potBelow (fun c => highMass (L := L) (K := K) l c) m) := by
+    rw [measure_compl hmeas (measure_ne_top _ _), htot]
+  rw [hKb, hcompl]
+  have hp_le : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+      (OneSidedCancel.potBelow (fun c => highMass (L := L) (K := K) l c) m) := by
+    rw [← hsucc_eq]; exact hfloor
+  exact tsub_le_tsub_left hp_le 1
+
 /-! ## Part F — the genuinely-closed window `AllZeroGE6` and the `PhaseConvergenceW`.
 
 `AllZeroGE6 n c`: size `n`, every agent at phase `≥ 6` and unbiased.  This window
@@ -1573,6 +1651,106 @@ noncomputable def phase6Convergence (l n : ℕ) :
       exact absurd hpos' (by omega))
     (0 : ℕ) (1 : ℕ) (0 : ℝ≥0)
     (by simp)
+
+/-! ## Part G — the REAL Lemma-7.2 `PhaseConvergenceW` on the working window.
+
+This is the honest Phase-6 convergence the campaign needs, replacing the vacuous
+`phase6Convergence`.  Engine: `OneSidedCancel.levels_PhaseConvergenceW` with the
+genuinely-monotone potential `Φ = highMass l` (Part E2, `potNonincrOn_highMass`) over
+the working window `Inv = Phase6Win n` (all phase 6).  The level-`m` drop `hdrop` is
+the band-top drain rectangle of Part E3/Part-rect (`highMass_drop_prob_rect6` +
+`highMass_hdrop_of_floor6`): a Reserve sampled at a hour `> l−1, ≠ L` splits a
+band-top biased Main, dropping `highMass l` by `≥ 1`; the Reserve floor that makes
+`q m < 1` is Phase-5's carried `sampledReserveClassU` (`ReserveSampleGood`).
+
+`hClosed` (the `InvClosed Phase6Win` — the working window is NOT closed at phase 6
+because the clock subroutine advances agents to phase 7; the honest closure is the
+phase-≥6 lift carried separately) and the per-level drop `q`/`hdrop` are exposed as
+the carried inputs, exactly as Phase 7's `phase7Convergence`.
+
+**`Post` reading.**  `Post c = Phase6Win n c ∧ highMass l c = 0`, and by
+`highMass_eq_zero_iff` the second conjunct says *no biased Main has index `< l`* —
+i.e. every biased Main has index `≥ l`, paper exponent `≤ −l`.  This is exactly
+Doty §7 Lemma 7.2's conclusion (all biased agents pushed to exponent `≤ −l`). -/
+noncomputable def phase6Convergence' (l n : ℕ)
+    (hClosed : OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Phase6Win (L := L) (K := K) n c))
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m, ∀ b : Config (AgentState L K), Phase6Win (L := L) (K := K) n b →
+      highMass (L := L) (K := K) l b = m →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (fun c => highMass (L := L) (K := K) l c) m)ᶜ ≤ q m)
+    (tWin : ℕ → ℕ) (M₀ : ℕ) (ε : ℝ≥0)
+    (hε : (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.levels_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Phase6Win (L := L) (K := K) n c)
+    hClosed
+    (fun c => highMass (L := L) (K := K) l c)
+    (potNonincrOn_highMass (L := L) (K := K) l n)
+    q hdrop tWin M₀ ε hε
+
+/-- **`Post` characterization of `phase6Convergence'`** (the Lemma-7.2 conclusion in
+state terms): `highMass l c = 0` iff every biased Main has index `≥ l` (paper
+exponent `≤ −l`).  In particular the `Post` of `phase6Convergence'` says all biased
+agents have been pushed to exponent `≤ −l`. -/
+theorem phase6Post_iff (l : ℕ) (c : Config (AgentState L K)) :
+    highMass (L := L) (K := K) l c = 0 ↔
+      ∀ a ∈ c, a.role = Role.main → ∀ (σ : Sign) (i : Fin (L + 1)),
+        a.bias = Bias.dyadic σ i → l ≤ i.val := by
+  rw [highMass_eq_zero_iff]
+  constructor
+  · intro h a ha hmain σ i hb
+    by_contra hlt
+    exact h a ha (highSt_of (L := L) (K := K) l a σ i hmain hb (by omega))
+  · intro h a ha hhigh
+    obtain ⟨hr, σ, i, hb, hi⟩ := hhigh
+    exact absurd (h a ha hr σ i hb) (by omega)
+
+/-! ## Part H — the Lemma-7.3 honest count behaviour (`mainCount` grows per split).
+
+Doty §7 Lemma 7.3 reads the Reserve-split phase as a Main-population growth: each
+applied `doSplit` converts the Reserve fuel into a Main (`Reserve → Main`), so the
+count of Mains grows by exactly 1 per split (the partner Main keeps its role).  We
+state this honestly on the per-pair level under the corrected rule.
+
+NOTE on the paper's `0.87|M|` reading: the paper bounds the number of splits (and
+hence the Main growth) before the high band empties.  In our index encoding a single
+`doSplit` at index `j` lands at `j+1`; band exit needs the top split.  The count
+behaviour below is the exact per-step Main-growth; the `0.87|M|` aggregate is the
+horizon `T = ∑ tWin m` of `phase6Convergence'`, not a per-step fact, so it is read
+off the engine's level windows rather than re-stated here. -/
+
+/-- The Main-count of a config. -/
+def mainCount (c : Config (AgentState L K)) : ℕ :=
+  Multiset.countP (fun a => a.role = Role.main) c
+
+/-- A non-Main is not counted; a Main is. -/
+theorem countP_main_pair (x y : AgentState L K) :
+    Multiset.countP (fun a => a.role = Role.main) ({x, y} : Multiset (AgentState L K))
+      = (if x.role = Role.main then 1 else 0) + (if y.role = Role.main then 1 else 0) := by
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl]
+  rw [Multiset.countP_cons, Multiset.countP_cons, Multiset.countP_zero]; ring
+
+/-- **Lemma 7.3 (per-pair, corrected rule): an applied `doSplit` from a Reserve onto
+a Main grows the Main count by exactly 1.**  Before: one Main (`m`), the Reserve `r`
+is not a Main.  After: two Mains (the converted Reserve `→ Main`, and `m` which keeps
+its Main role).  So `mainCount` over the produced pair (`= 2`) is one more than over
+the consumed pair (`= 1`). -/
+theorem doSplit_mainCount_pair_grow (r m : AgentState L K) {σ : Sign} {j : Fin (L + 1)}
+    (hrR : r.role = Role.reserve) (hmM : m.role = Role.main)
+    (hb : m.bias = Bias.dyadic σ j) (hne : r.hour.val ≠ L) (hgt : r.hour.val > j.val)
+    (hlt : j.val < L) :
+    Multiset.countP (fun a => a.role = Role.main)
+        ({(doSplit L K r m).1, (doSplit L K r m).2} : Multiset (AgentState L K))
+      = Multiset.countP (fun a => a.role = Role.main)
+        ({r, m} : Multiset (AgentState L K)) + 1 := by
+  rw [doSplit_apply (L := L) (K := K) r m hb hne hgt hlt]
+  rw [countP_main_pair, countP_main_pair]
+  -- after: first output role = Main (set by doSplit), second keeps m.role = Main.
+  -- before: r is Reserve (not Main), m is Main.
+  rw [if_pos rfl, if_pos hmM, if_neg (by rw [hrR]; decide)]
 
 end Phase6Convergence
 end ExactMajority

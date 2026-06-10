@@ -1850,3 +1850,66 @@ unassigned `Sf` (paper-faithful), which restores pool-monotonicity and reduces (
 deterministic post-warm-up count bound — collapsing the residual without an unfavorable-region
 MGF.**  Absent that, (ii) requires the two-segment MGF with the `U≥n/2` favorable drift above
 plus an honest segment-2 argument that has no clean form in the current encoding.
+
+### Phase C-1 (relay 9) — POST PROTOCOL-FIX: file repaired, pool ledger exact, floor finding REFINED
+
+Commits: C-1J `4969c22e` (repair) · C-1K `aa08fb7c` (R1 +2) · C-1L `3cc8e4b1` (R2/R3 0) ·
+C-1M `caf2e120` (`_final` + doctrine) · C-1N `cd08c4a1` (R4 ledger).  All in
+`RoleSplitConcentration.lean`, single-file EXIT_0, every new theorem `#print axioms ⊆
+[propext, Classical.choice, Quot.sound]`, 0-sorry, 0 native_decide.
+
+**The protocol fix LANDED but the file did NOT compile** — the repair agent's
+`assignable_rule3_conserved` (replacing `_s_assigned`) had a broken `hassigned` step
+(`simp` confluence: short simp-arg list took a wrong branch, reduced `⊢ True` to `⊢ False`).
+**C-1J fixes it** by mirroring the compiling sibling `Phase0Transition_first_no_mcr_of_mcr_cr`'s
+explicit `simp only` arg list (the full role-equality `False` facts + `not_*_eq_*` pair + `hs_un`).
+The ground truth IS `assigned = false` (verified by trace: `s2 = s`, `s3 = {s2 with role:=.main}`).
+
+**THE PER-RULE POOL LEDGER IS NOW EXACT IN LEAN** (`assignableCount` = the paper's `sf+mf`):
+- R1 `+2`: `assignable_rule1_both_fresh` (two unassigned phase-0 MCR → unassigned Main + CR,
+  both `IsAssignable`) = paper `U,U→Sf,Mf`.
+- R2/R3 `0`: `assignableCount_pair_mono_of_mcr_assignable` (input pair carries one assignable
+  `t`; output `s`-side is again assignable by `assignable_rule2_s_stays`/`_rule3_conserved`) =
+  paper `Sf,U→St,Mf` / `Mf,U→Mt,Sf` pool conservation.  Per-pair `≥`.
+- R4 `−2`: `assignableCount_pair_rule4_drop` (two assignable RoleCR → Clock+Reserve, both
+  non-assignable; input 2, output 0) + `Phase0Transition_rule4_clock_reserve` (the deterministic
+  1:1 Clock/Reserve producer for the `|Clock|=|Reserve|` balance).
+Helpers: `assignableCount_singleton'`/`_pair'` (countP), `isAssignableBool_iff`,
+`not_isAssignable_of_mcr`.
+
+**THE FLOOR FINDING — REFINED, NOT what relay 8 predicted.**  Relay 8 predicted the fix would
+make the floor DETERMINISTIC.  IT DOES NOT, and the honest reason is **concurrency, not Rule 3**:
+- The paper's `sf+mf` monotonicity holds because Lemma 5.1 analyses ONLY R1/R2/R3; the
+  second-level split R4 is analysed SEPARATELY/LATER (temporal separation, "we begin the analysis
+  at that point").
+- `Phase0Transition` fires R1–R4 **concurrently**; R4 fires on ANY two `RoleCR` (no `assigned`
+  guard), so it drains the unassigned-CR half of the pool by `−2` even while `mcrCount>0`.
+- Deterministic identity: `assignableCount = 2·#R1 − 2·#(R4 on unassigned CR)`.  An adversarial
+  scheduler fires R4 on R1's fresh CRs ⟹ no deterministic invariant maintains `assignableCount ≥
+  Θ(n)` while `u>0`.
+- The `Θ(log n)` Janson potential NEEDS the floor-driven `Θ(M/n)` rate (which needs the floor);
+  the R1-diagonal-only `Θ(M²/n²)` rate needs no floor but gives only `Θ(1)` potential
+  (`phase0MilestonePhase_pMin_le_two_div`).  So the floor `εfloor = ∑_τ P(assignableCount<a₀)`
+  stays the irreducible Lemma-5.1 Chernoff residual (early phase `u≥2n/3` ⟹ R1 fires w.p. ≥½ ⟹
+  pool grows to `Θ(n)` whp), an in-house MGF, NOT assemblable from count atoms.
+- NET: the fix HALVED the drain (R3's `−1` gone, first-level pool now exactly monotone), but R4's
+  `−2` is the surviving obstruction.  The relay-8 deterministic-collapse hope is structurally
+  blocked by the kernel's concurrency.
+
+**`phase0_stage1_whp_final`** (C-1M): the Stage-1 headline at `S := floorGate n a₀`, so the
+side-set complement is exactly `floorGateᶜ` and (via `floorGate_escape_mass_le` +
+`card_eq_of_support`) the escape prefix `∑_{τ<t}(K^τ)c₀ floorGateᶜ` reduces to the pure floor
+event `∑_τ P(assignableCount<a₀)` + the deterministically-null `cardPhaseShell` shell.  The Janson
+tail carries `pMin·meanTime = Θ(log n)` (`roleSplitKernelMilestone_pMin_meanTime`).  This is the
+final STRUCTURAL form: the ONLY undischarged quantity is `εfloor`.
+
+**Remaining for full Lemma 5.2 (unchanged in nature, now sharply isolated):**
+(a) `εfloor`: the in-house MGF/Chernoff `∑_τ P(assignableCount<a₀) ≤ n^{-2}`-shape on the early
+    split (genuine probabilistic content; the `card`-shell half of `floorGateᶜ` is null by
+    `card_eq_of_support`, the MCR-phase-invariant half is a per-rule phase analysis).
+(b) Stage-2 crCount milestone (R4 at `Θ(l²/n²)`) — reuse `roleSplitKernelMilestone`'s diagonal
+    template; `Phase0Transition_rule4_clock_reserve` is the producer atom.
+(c) full `post_sound : Post ⟹ RoleSplitGood` — needs Stage-2's Clock/Reserve counts +
+    the deterministic 1:1 balance (`Phase0Transition_rule4_clock_reserve` ⟹ `|Clock|=|Reserve|`)
+    + Main = #R1 (the `n/2±εn` window).  The `RoleSplitGood`-consumer floors
+    (`clockCount_linear_of_RoleSplitGood` etc.) already exist.
