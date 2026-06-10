@@ -442,6 +442,118 @@ theorem phase1_hstep_of_struct_one {L K : ℕ} (n : ℕ) (hn : 2 ≤ n)
   rw [hdone_eq]
   exact phase1_hdrop_of_struct n 1 hn b hInv hb1 P hext hpull
 
+/-! ## Part E — Phase 5 (`unsampledReserveU`, `Phase5AllWin`, α = 23/75).
+
+The carried structural floor (Theorem 6.2 biased structure `biasedMainLtL ≥ 0.92·mainCount
+≥ 23n/75`) supplies the useful-Main margin `(usefulMains).sum count ≥ P` together with `≥ 1`
+unsampled Reserve.  Threaded through the existing `unsampledReserveU_drop_prob_rect5`
+(rect `unsampledReserves ×ˢ usefulMains`), this yields the drop floor `ofReal(P/(n(n−1)))`,
+and the in-file generic packager gives the engine `hdrop` / `hstep`.  Phase 5's sampling
+concentration `εConc`/`hConc` is a SEPARATE carried atom (not a drain budget) and is
+untouched here. -/
+
+open Phase5Convergence in
+/-- **Phase 5 — the levels-engine `hdrop` from a drop-probability floor.**  Mirror of
+`minorityU_hdrop_of_floor`, for `Φ = unsampledReserveU`. -/
+theorem unsampledReserveU_hdrop_of_floor {L K : ℕ} (n m : ℕ) (p : ℝ≥0∞)
+    (b : Config (AgentState L K))
+    (hbm : ReserveSampling.unsampledReserveU (L := L) (K := K) b = m)
+    (hfloor : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        {c' | ReserveSampling.unsampledReserveU (L := L) (K := K) c' + 1
+          ≤ ReserveSampling.unsampledReserveU (L := L) (K := K) b}) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow
+          (ReserveSampling.unsampledReserveU (L := L) (K := K)) m)ᶜ ≤ 1 - p := by
+  classical
+  have hKb : (NonuniformMajority L K).transitionKernel b
+      = ((NonuniformMajority L K).stepDistOrSelf b).toMeasure := rfl
+  have hsucc_eq : {c' : Config (AgentState L K) |
+        ReserveSampling.unsampledReserveU (L := L) (K := K) c' + 1
+          ≤ ReserveSampling.unsampledReserveU (L := L) (K := K) b}
+      = OneSidedCancel.potBelow (ReserveSampling.unsampledReserveU (L := L) (K := K)) m := by
+    ext c'; simp only [OneSidedCancel.potBelow, Set.mem_setOf_eq, hbm]; omega
+  have hmeas : MeasurableSet
+      (OneSidedCancel.potBelow (ReserveSampling.unsampledReserveU (L := L) (K := K)) m) :=
+    OneSidedCancel.potBelow_measurable
+      (ReserveSampling.unsampledReserveU (L := L) (K := K)) m
+  haveI hprob : IsProbabilityMeasure
+      (((NonuniformMajority L K).stepDistOrSelf b).toMeasure) := by
+    rw [← hKb]
+    exact (inferInstance :
+      IsMarkovKernel (NonuniformMajority L K).transitionKernel).isProbabilityMeasure b
+  have htot : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure Set.univ = 1 :=
+    hprob.measure_univ
+  have hcompl : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        (OneSidedCancel.potBelow (ReserveSampling.unsampledReserveU (L := L) (K := K)) m)ᶜ
+      = 1 - ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+          (OneSidedCancel.potBelow (ReserveSampling.unsampledReserveU (L := L) (K := K)) m) := by
+    rw [measure_compl hmeas (measure_ne_top _ _), htot]
+  rw [hKb, hcompl]
+  have hp_le : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+      (OneSidedCancel.potBelow (ReserveSampling.unsampledReserveU (L := L) (K := K)) m) := by
+    rw [← hsucc_eq]; exact hfloor
+  exact tsub_le_tsub_left hp_le 1
+
+/-- **Phase 5 — structural floor ⟹ concrete drop-probability floor.**  With `≥ 1` unsampled
+Reserve and a useful-Main margin `≥ P`, the one-step `unsampledReserveU` drop probability is
+`≥ ofReal(P/(n(n−1)))`. -/
+theorem phase5_drop_floor_of_struct {L K : ℕ} (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : ReserveSampling.Phase5AllWin n c) (P : ℕ)
+    (hres : 1 ≤ (Phase5Convergence.unsampledReserves (L := L) (K := K)).sum c.count)
+    (hmain : P ≤ (Phase5Convergence.usefulMains (L := L) (K := K)).sum c.count) :
+    ENNReal.ofReal ((P : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | ReserveSampling.unsampledReserveU (L := L) (K := K) c' + 1
+          ≤ ReserveSampling.unsampledReserveU (L := L) (K := K) c} := by
+  refine le_trans ?_ (Phase5Convergence.unsampledReserveU_drop_prob_rect5 n hn c hInv)
+  have hprod : (P : ℕ) ≤
+      (Phase5Convergence.unsampledReserves (L := L) (K := K)).sum c.count *
+        (Phase5Convergence.usefulMains (L := L) (K := K)).sum c.count := by
+    calc (P : ℕ) ≤ 1 * P := by omega
+      _ ≤ (Phase5Convergence.unsampledReserves (L := L) (K := K)).sum c.count * P :=
+          Nat.mul_le_mul_right _ hres
+      _ ≤ (Phase5Convergence.unsampledReserves (L := L) (K := K)).sum c.count *
+            (Phase5Convergence.usefulMains (L := L) (K := K)).sum c.count :=
+          Nat.mul_le_mul_left _ hmain
+  have hnR : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  apply DrainThreading.ofReal_div_le_of_num_le _ (by positivity) (by nlinarith)
+  exact_mod_cast hprod
+
+/-- **Phase 5 — the levels-engine `hdrop` from the structural floor.** -/
+theorem phase5_hdrop_of_struct {L K : ℕ} (n m : ℕ) (hn : 2 ≤ n)
+    (b : Config (AgentState L K)) (hInv : ReserveSampling.Phase5AllWin n b)
+    (hbm : ReserveSampling.unsampledReserveU (L := L) (K := K) b = m) (P : ℕ)
+    (hres : 1 ≤ (Phase5Convergence.unsampledReserves (L := L) (K := K)).sum b.count)
+    (hmain : P ≤ (Phase5Convergence.usefulMains (L := L) (K := K)).sum b.count) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow
+          (ReserveSampling.unsampledReserveU (L := L) (K := K)) m)ᶜ
+      ≤ 1 - ENNReal.ofReal ((P : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) :=
+  unsampledReserveU_hdrop_of_floor n m
+    (ENNReal.ofReal ((P : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))) b hbm
+    (phase5_drop_floor_of_struct n hn b hInv P hres hmain)
+
+/-- **Phase 5 — the crude-engine `hstep` from the structural floor, at `m = 1`.** -/
+theorem phase5_hstep_of_struct_one {L K : ℕ} (n : ℕ) (hn : 2 ≤ n)
+    (b : Config (AgentState L K)) (hInv : ReserveSampling.Phase5AllWin n b)
+    (hb1 : ReserveSampling.unsampledReserveU (L := L) (K := K) b = 1) (P : ℕ)
+    (hres : 1 ≤ (Phase5Convergence.unsampledReserves (L := L) (K := K)).sum b.count)
+    (hmain : P ≤ (Phase5Convergence.usefulMains (L := L) (K := K)).sum b.count) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone
+          (fun c => ReserveSampling.unsampledReserveU (L := L) (K := K) c))ᶜ
+      ≤ 1 - ENNReal.ofReal ((P : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) := by
+  have hdone_eq :
+      (OneSidedCancel.potDone (fun c : Config (AgentState L K) =>
+          ReserveSampling.unsampledReserveU (L := L) (K := K) c))ᶜ
+      = (OneSidedCancel.potBelow
+          (ReserveSampling.unsampledReserveU (L := L) (K := K)) 1)ᶜ := by
+    ext y
+    simp only [OneSidedCancel.potDone, OneSidedCancel.potBelow,
+      Set.mem_compl_iff, Set.mem_setOf_eq]; omega
+  rw [hdone_eq]
+  exact phase5_hdrop_of_struct n 1 hn b hInv hb1 P hres hmain
+
 end DrainThreading
 
 end ExactMajority
