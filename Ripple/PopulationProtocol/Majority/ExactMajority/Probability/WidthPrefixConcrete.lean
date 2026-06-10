@@ -301,6 +301,72 @@ theorem widthFail_at_concrete (n : ℕ) (hn : DotyParams.N₀ ≤ n)
   obtain ⟨⟨hcardc, hP3c, hnegc⟩, hgfw⟩ := hc
   exact ⟨⟨hcardc, hP3c, hnegc⟩, hgfw⟩
 
+/-! ## Part 6 — the per-τ assembled `Sgood(T)ᶜ` budget with `εW` discharged concretely.
+
+`ClockBudgets.sidePrefix_le_assembled` (B-12) assembles the per-`τ` `Sgood(T)ᶜ` mass from NINE
+named feeders.  Here we discharge the §6 width feeder `εW` concretely (via `widthFail_at_concrete`,
+Part 5: `εW := εWAt …`, `P := WidthSideP n`, `W := frontWidthBound n + W₂`) at a prefix horizon
+`τ = w·j + r ≤ w·KK`, leaving the other EIGHT feeders NAMED (`εQ εfloor εP εB εge3 εno3 εcpos
+εsucc` — the Qmix / floor / side-event / bulk-arrival / four phase-gate masses, each a distinct
+§-engine residual carried into B-12 and still genuinely open).  The start is the all-clean Doty
+start `c₀ = eraseConfig mc₀`. -/
+
+open ClockFrontProfile in
+/-- **`sidePrefix_concrete_width`** — the per-τ `Sgood(T)ᶜ` budget with the §6 width feeder
+discharged concretely.  At a prefix horizon `τ = w·j + r ≤ w·KK`, the per-`τ` side mass is
+`≤ sideEps εQ εfloor (εWAt …) εP εB εge3 εno3 εcpos εsucc`, with `εW` SUBSTITUTED by the explicit
+concrete family `εWAt` (Part 5) and the remaining eight feeders carried as named uniform whp
+bounds. -/
+theorem sidePrefix_concrete_width (n mC T : ℕ) (hn : DotyParams.N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hcard : mc₀.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (W₂ : ℕ) (hW₂ : 2 ≤ W₂) (B' : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (j r : ℕ) (hr : r < DotyParams.w n) (hjKK : j ≤ DotyParams.KK L K - 1)
+    (εQ εfloor εP εB εge3 εno3 εcpos εsucc : ℝ≥0∞)
+    (hQ : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockUnconditional.QmixFail (L := L) (K := K) n mC T) ≤ εQ)
+    (hfloor : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockUnconditional.FloorFail (L := L) (K := K) mC T) ≤ εfloor)
+    (hP : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | ¬ ClockBudgets.WidthSideP (L := L) (K := K) n c} ≤ εP)
+    (hbulk : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | ¬ (10 * rBeyond (L := L) (K := K)
+            (ClockFrontShape.capMinute (L := L) (K := K)
+              - (FrontTail.frontWidthBound n + W₂)) c < c.card)} ≤ εB)
+    (hge3F : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.GE3Fail (L := L) (K := K)) ≤ εge3)
+    (hno3 : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.NoAbove3Fail (L := L) (K := K)) ≤ εno3)
+    (hcpos : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.CposFail (L := L) (K := K)) ≤ εcpos)
+    (hsucc : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.SuccNoAbove3Fail (L := L) (K := K)) ≤ εsucc) :
+    (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockUnconditional.Sgood (L := L) (K := K) n mC T)ᶜ
+      ≤ ClockBudgets.sideEps εQ εfloor
+          (εWAt (L := L) (K := K) n mc₀ Tcap W₂ B' s j r) εP εB εge3 εno3 εcpos εsucc :=
+  ClockBudgets.sidePrefix_le_assembled (L := L) (K := K) n mC T (DotyParams.w n * j + r)
+    (FrontTail.frontWidthBound n + W₂) (eraseConfig (L := L) (K := K) mc₀)
+    (ClockBudgets.WidthSideP (L := L) (K := K) n)
+    εQ εfloor (εWAt (L := L) (K := K) n mc₀ Tcap W₂ B' s j r) εP εB εge3 εno3 εcpos εsucc
+    hQ hfloor
+    (widthFail_at_concrete (L := L) (K := K) n hn mc₀ hcard hge3 hnotP3 hclean Tcap hcap
+      W₂ hW₂ B' s hs j r hr hjKK)
+    hP hbulk hge3F hno3 hcpos hsucc
+
 end EarlyDripMarked
 
 end ExactMajority

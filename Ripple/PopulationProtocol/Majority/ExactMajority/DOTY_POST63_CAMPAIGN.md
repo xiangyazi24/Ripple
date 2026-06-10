@@ -1189,6 +1189,66 @@ C-7h 85eb8280 (phase7Convergence) · C-8a 4ed79373 (reduction) · C-8b 70b3ffb1
 (absorbConsume pair) · C-8c 09544472 (full non-increase chain) · C-8d 1ded5789
 (FULL InvClosed) · C-8e 1a930fe5 (phase8Convergence).
 
+### Phase C-7i…C-8j (relay 4) — the DRAIN RECTANGLE LAYER (the `hstep`/`hdrop` floor)
+
+Built the full drain chain for both phases, end-to-end down to the carried eliminator
+floor.  Both files compile single-file EXIT_0, every new theorem axiom-clean (⊆
+[propext, Classical.choice, Quot.sound]).
+
+**Phase 8 (`absorbConsume`, unconditional):**
+- **C-8f** SHA 20e4369b `absorbConsume_minorityU_pair_drop`: per-pair strict drain —
+  `s`=σ-minority@i, `t`=opposite-sign Main@j with `j>i`, `¬t.full` ⇒ second consume
+  branch zeroes `s` ⇒ pair σ-count drops by 1 (`+1 ≤`).
+- **C-8g** SHA 72662b7e `minorityU_stepOrSelf_drop`: lift to config — an applicable
+  (minority@i, elim@>i,¬full) pair drops global `minorityU σ` by 1.
+- **C-8h** SHA 44431bda `drop_prob_of_rect`: the Φ-AGNOSTIC drop-rectangle bound — the
+  DUAL of `Phase4Convergence.advanced_advance_prob_of_rect`, targeting the DECREASE
+  event `{c' | Φ c'+1 ≤ Φ c}`.  Rect `R` of per-cell-drop pairs ⇒ drop-prob ≥
+  N/(n(n−1)), N ≤ ∑_R interactionCount.  (Later relocated to Phase 7, see C-7j.)
+- **C-8i** SHA e9f07b11 `minorityU_drop_prob_rect`: per-level rect `minorityAt(i) ×ˢ
+  elimAbove(i)` (cross pairs distinct via index i vs >i) ⇒ drop-prob ≥
+  #min(i)·#elim(>i)/(n(n−1)).
+- **C-8j** SHA 6b265ccc `minorityU_hdrop_of_floor`: the engine `hdrop` from a
+  drop-probability floor `p`.  Drop-success event `{Φ c'+1 ≤ m} = potBelow Φ m`;
+  `transitionKernel` is Markov (total mass 1) ⇒ failure `K b (potBelow Φ m)ᶜ = 1 −
+  success ≤ 1 − p`.  This is the level-decomposed-engine (form a) `hdrop` shape.
+
+**Phase 7 (`cancelSplit` gap-1, drop direction needs only gap-1 geometry):**
+- **C-7i** SHA 9ff3831f `cancelSplit_minorityU_pair_drop` + `minorityU_stepOrSelf_drop`:
+  gap-1 cell — `s`=σ.flip-elim@i, `t`=σ-minority@j=i+1 ⇒ gap-1 branch zeroes the
+  larger-index agent `t` (minority) ⇒ drops by 1; lifted to config.
+- **C-7j** SHA 582a5011: shared generic `drop_prob_of_rect` +
+  `sum_interactionCount_cross_disjoint7` now live in Phase 7 (imported by Phase 8);
+  `minorityU_drop_prob_rect7` (rect `elimGap1(i) ×ˢ minorityAt7(j)`, i+1=j) +
+  `minorityU_hdrop_of_floor7` (the Phase-7 hdrop bridge).
+
+**What remains (the genuine documented boundary — the carried floor `p`):**
+The engine `hdrop`/`hstep` is now `1 − p`-shaped where `p = #min·#elim/(n(n−1))` is the
+rectangle floor.  Supplying a CONCRETE non-trivial `p` (the level-m drain rate) requires
+the carried eliminator floor `#elim ≥ margin` and `#min ≥ 1` — Doty Lemma 7.4/7.6's
+`≥0.8|M|` majority vs `≤0.2|M|` minority — which is a CARRIED INVARIANT, not derivable
+from the transition rule.  The mathematical layer from rule → per-cell drop → rectangle
+→ drop-probability → engine `hdrop` is now FULLY PROVED; only the floor's numeric value
+is the carried Doty input.
+
+### Phase C-7 (relay 4) — FINDING: `MinorityHiIdx` is NOT closed under `cancelSplit`
+
+The Phase-7 `hClosed` atom (the `MinorityHiIdx σ` closure carried as a hypothesis of
+`phase7Convergence`) is **NOT provable as stated** — `MinorityHiIdx` is genuinely not
+one-step closed.  Counterexample mechanism: `MinorityHiIdx` permits a σ-Main and a
+σ.flip-Main coexisting at the SAME index (they form a gap-0 pair satisfying `i ≤ i`).
+A gap-1 fire on a DIFFERENT σ.flip-Main@i with a σ-Main@i+1 RAISES that majority agent's
+index to i+1, which then exceeds the coexisting σ-Main still at index i ⇒ ordering
+violated.  Strict separation and fixed-threshold variants fail identically (cancelSplit
+RAISES the surviving majority's index toward the minority levels — the survivor lands on
+the consumed minority's vacated level, where another minority may sit).  This matches the
+campaign's own §6 note (line 199): the cancel stage uses a CONSERVED SIGNED SUM, not an
+index ordering, for |B| monotonicity.  **Conclusion:** Phase-7 `minorityU` non-increase
+genuinely needs the ordering per-pair (gap-2 sign-copy), but the ordering invariant is
+fragile; the correct closed Phase-7 invariant is the signed-sum potential, a different
+construction.  The drain rectangle (C-7i/j) is INDEPENDENT of `hClosed` — it needs only
+the gap-1 cell geometry, so it stands regardless.
+
 ### Phase C-1 (relay 4) — GAP (A) CLOSED + GAP (B) PINNED DETERMINISTICALLY
 
 **Gap (A) — the invariant-relative milestone engine — COMPLETE (0-sorry, axiom-clean).**
