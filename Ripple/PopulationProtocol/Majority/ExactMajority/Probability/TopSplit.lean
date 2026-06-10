@@ -382,5 +382,88 @@ theorem topSplitWindow_whp
     (NonuniformMajority L K).transitionKernel topSplitX topSplitX_measurable c₀
     (topSplit_X_init_zero hinit) hjump hdrift tTop hTop hδn
 
+/-! ## Stage E — the assembly (`roleSplitWindows_whp`).
+
+The union bound producing the genuinely-probabilistic concentration windows
+`RoleSplitWindows η` (at `η = 1/25`, internal `δ = 1/100 = η/4`) on the real
+kernel.  Consumes:
+
+  * Stage C `topSplitWindow_whp` (at `δ = 1/100`): the `{¬ TopSplitWindow}` mass;
+  * the Stage-2 drain / balance event giving `{¬ CRDrainWindow}`,
+    `{¬ ClockReserveBalanced}`, `{¬ roleMCRCount = 0}` (supplied as the named
+    whp input `hrest` — the existing `phase0_roleSplit_whp_two_stage` lands at
+    `RoleSplitStage2Good` which packages `roleMCRCount = 0 ∧ crCount ≤ 1`, and the
+    deterministic `Phase0Transition_clock_reserve_balance_pair` gives the balance;
+    the drain `crCount ≤ δ·topCRMass` whp from the Stage-2 Corollary-4.4 floor);
+  * the deterministic conversion B (`RoleSplitWindows_of_topSplit_crDrain`).
+
+The decomposition: by B, on `{card = n}` (kernel-conserved),
+`{¬ RoleSplitWindows η} ⊆ {¬ TopSplitWindow δ} ∪ {¬ CRDrainWindow δ ∨
+¬ ClockReserveBalanced ∨ roleMCRCount ≠ 0}`.  The two masses are bounded by Stage
+C and `hrest`, giving the union budget `εtop + εrest`.
+
+Named-hypothesis inputs (acceptable in Stage E per the campaign rule), each with a
+precise doc-comment:
+  * `hjump`, `hdrift` : the Stage-C protocol residuals (see Stage-C doc);
+  * `hrest` : the Stage-2 drain/balance/mcr0 failure mass `εrest`, INCLUDING the
+    `card ≠ n` slice (kernel-`card`-conservation makes that slice `0` from a
+    `card = n` start, so `εrest` is the genuine Stage-2 budget). -/
+
+/-- The "rest-of-ledger bad" event: the CR-drain window fails, OR the
+Clock/Reserve balance fails, OR some `RoleMCR` remains.  Its complement, together
+with `TopSplitWindow` and `card = n`, drives `RoleSplitWindows` via the
+deterministic conversion B. -/
+def RestLedgerBad (δ : ℝ) (c : Config (AgentState L K)) : Prop :=
+  ¬ CRDrainWindow (L := L) (K := K) δ c ∨
+  ¬ ClockReserveBalanced (L := L) (K := K) c ∨
+  roleMCRCount (L := L) (K := K) c ≠ 0
+
+/-- **Stage E — `roleSplitWindows_whp` (union-bound assembly).**  From the
+Phase-0 start, the kernel-`card`-conservation `hcardAll`, the Stage-C residuals
+`hjump`/`hdrift`, and the named Stage-2 rest-ledger budget `hrest`, the
+probability that the concentration windows `RoleSplitWindows (1/25) n` *fail*
+after `tRole` steps is at most `εtop + εrest`, where `εtop =
+exp(−((n/100))²/(2·tRole))` is the Stage-C top-split tail at `δ = 1/100`.
+
+With the paper's horizon `tRole = Θ(n log n)` and `εrest = O(1/n²)` (the Stage-2
+concentration), this gives the `O(1/n²)` budget of Lemma 5.2's windows. -/
+theorem roleSplitWindows_whp
+    {n : ℕ} (hn : 2 ≤ n) {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (hjump : ∀ c, ∀ᵐ c' ∂((NonuniformMajority L K).transitionKernel c),
+      |topSplitX (L := L) (K := K) c' - topSplitX (L := L) (K := K) c| ≤ 1)
+    (hdrift : ∀ c, ∫ c', |topSplitX (L := L) (K := K) c'|
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ |topSplitX (L := L) (K := K) c|)
+    (tRole : ℕ) (hTrole : 1 ≤ tRole)
+    (εrest : ENNReal)
+    (hrest : ((NonuniformMajority L K).transitionKernel ^ tRole) c₀
+        ({c | RestLedgerBad (L := L) (K := K) (1 / 100) c}
+          ∪ {c | Multiset.card c ≠ n}) ≤ εrest) :
+    ((NonuniformMajority L K).transitionKernel ^ tRole) c₀
+        {c | ¬ RoleSplitWindows (L := L) (K := K) (1 / 25 : ℝ) n c}
+      ≤ ENNReal.ofReal (Real.exp (-(((1 / 100 : ℝ) * n) ^ 2) / (2 * tRole))) + εrest := by
+  -- δ = 1/100 = η/4 with η = 1/25.
+  have hδn : 0 < (1 / 100 : ℝ) * n := by
+    have : (0 : ℝ) < n := by exact_mod_cast Nat.lt_of_lt_of_le Nat.zero_lt_two hn
+    positivity
+  -- The deterministic inclusion (contrapositive of B), with `card = n` carried in the rest set.
+  have hinc : {c | ¬ RoleSplitWindows (L := L) (K := K) (1 / 25 : ℝ) n c}
+      ⊆ {c | ¬ TopSplitWindow (L := L) (K := K) (1 / 100 : ℝ) n c}
+        ∪ ({c | RestLedgerBad (L := L) (K := K) (1 / 100) c}
+            ∪ {c | Multiset.card c ≠ n}) := by
+    intro c hc
+    simp only [Set.mem_setOf_eq, Set.mem_union] at hc ⊢
+    by_contra hcon
+    -- ¬(¬top ∨ (restBad ∨ card≠n)) ⟹ top ∧ ¬restBad ∧ card=n.
+    rw [not_or, not_or, not_not, RestLedgerBad, not_or, not_or] at hcon
+    obtain ⟨htop, ⟨hdrain, hbal, hmcr0⟩, hcardne⟩ := hcon
+    -- All good ⟹ RoleSplitWindows by B, contradicting hc.
+    exact hc (RoleSplitWindows_of_topSplit_crDrain (by norm_num) (by norm_num) (by norm_num)
+      (not_not.mp hcardne) (not_not.mp hmcr0) (not_not.mp hbal) htop (not_not.mp hdrain))
+  refine le_trans (MeasureTheory.measure_mono hinc) ?_
+  refine le_trans (MeasureTheory.measure_union_le _ _) ?_
+  exact add_le_add (topSplitWindow_whp hinit hjump hdrift tRole hTrole hδn) hrest
+
 end RoleSplitConcentration
 end ExactMajority
