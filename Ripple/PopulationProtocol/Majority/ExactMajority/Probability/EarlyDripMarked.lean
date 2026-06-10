@@ -5780,6 +5780,56 @@ theorem climbBound_whp (n θn W₂ : ℕ) (hn : 0 < n) (hW₂ : 2 ≤ W₂) (θ 
   intro k _
   exact ClimbTail.climb_real_tail (L := L) (K := K) n k B' θn W₂ hW₂ s hs t c₀
 
+/-! ## Part 43 — the `hB` discharge bricks (item 1): the geometric ladder + the floor/slice
+exponent dischargers at the locked constants.
+
+`per_window_delta` already abstracts the probabilistic content into the real inequalities `hfloor`
+(floor exponent) and `hslice` (per-rung clean exponent); these are discharged from the proven helpers
+`floor_exp_le`/`slice_exp_le` and the `window_constants_*` `norm_num` gates.  The two binding margins
+(growth `δg > 0`, slice `A − B < 0`) are the locked-constant facts.  The remaining `n`-dependent
+input is the window-length margin (`w = ⌊3n/200⌋`), carried as the scale hypotheses `hδg`/`hslc`.
+
+Constants: `wp = 3/200`, `cc = 9/10`, `ε = 1/200`, `g = 5123/5000`, `G = 201/200`, `sg = 1/10`. -/
+
+/-- **The locked growth `δg`**: a positive growth-floor slope at the locked constants `sg = 1/10`,
+`g = 5123/5000`.  `δg = 171/1000·wp − sg(g−1)` with `wp = 3/200` (using `1−e^{−sg} ≥ sg − sg²/2`
+for the `9.5e-2` factor); equals `≈ 1.05e-4 > 0` (`window_constants_growth`). -/
+noncomputable def δgLocked : ℝ := (171/1000) * (3/200) - (1/10) * (5123/5000 - 1)
+
+theorem δgLocked_pos : 0 < δgLocked := by
+  unfold δgLocked; norm_num
+
+/-- **The floor discharger**: at the locked growth constants, the floor exponent of
+`per_window_delta` is `≤ −δgLocked·X₀ + sg`, provided the window-length scale margin
+`δgLocked ≤ w·cg − sg(g−1)` holds (`cg = 1.8(1−e^{−sg})/n`; discharged from `w = ⌊3n/200⌋` at the
+plug-in).  This supplies `per_window_delta`'s `hfloor` with `δg := δgLocked`. -/
+theorem floor_discharge (n : ℕ) (w : ℕ) (X₀ : ℕ) (a0 : ℕ)
+    (ha0 : (a0 : ℝ) ≤ (5123/5000) * (X₀ : ℝ) + 1)
+    (hwmargin : δgLocked
+      ≤ (w : ℝ) * (1.8 * (1 - Real.exp (-(1/10 : ℝ))) / (n : ℝ)) - (1/10) * (5123/5000 - 1)) :
+    -(((1/10 : ℝ) + (w : ℝ) * (1.8 * (1 - Real.exp (-(1/10 : ℝ))) / (n : ℝ))) * (X₀ : ℝ))
+        + (1/10 : ℝ) * (a0 : ℝ)
+      ≤ -(δgLocked * (X₀ : ℝ)) + (1/10 : ℝ) :=
+  floor_exp_le n (1/10) (5123/5000) δgLocked (by norm_num) w X₀ a0 ha0 hwmargin
+
+/-- **The slice discharger**: at the locked constants, the rung-`m` clean exponent of
+`per_window_delta` is `≤ σ·Q·(A − Gm·B)` with `A = cc·RWb`, `B = g²(cc − G²(1+ε)RWb·wp) > 0`, given
+the per-rung structural inputs (`Y₀ ≤ cc·Q`, `RW ≤ RWb`, the drip cap, the threshold lower bound).
+Combined with `window_constants_slice` (`A < B`) this yields the negative slice bracket. -/
+theorem slice_discharge (Q σ RW RWb Gm Y₀ drip Yt : ℝ)
+    (hσ : 0 ≤ σ) (hQ : 0 ≤ Q) (hRW0 : 0 ≤ RW)
+    (hY : Y₀ ≤ (9/10 : ℝ) * Q) (hRW : RW ≤ RWb) (hRWb0 : 0 ≤ RWb)
+    (hdrip : drip * (1 + (1/200 : ℝ)) * RW
+      ≤ Gm * (201/200 : ℝ) ^ 2 * (5123/5000 : ℝ) ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3/200) * Q)
+    (hdrip0 : 0 ≤ drip)
+    (hYt : (9/10 : ℝ) * Gm * (5123/5000 : ℝ) ^ 2 * Q ≤ Yt) :
+    σ * RW * Y₀ + drip * (1 + (1/200 : ℝ)) * σ * RW - σ * Yt
+      ≤ σ * (Q * ((9/10 : ℝ) * RWb - Gm
+          * ((5123/5000 : ℝ) ^ 2 * ((9/10 : ℝ) - (201/200 : ℝ) ^ 2 * (1 + (1/200 : ℝ)) * RWb
+              * (3/200))))) :=
+  slice_exp_le Q σ (1/200) RW RWb (9/10) (5123/5000) (201/200) (3/200) Y₀ drip Gm Yt
+    hσ hQ hRW0 (by norm_num) (by norm_num) hY hRW hRWb0 hdrip hdrip0 hYt
+
 end EarlyDripMarked
 
 end ExactMajority
