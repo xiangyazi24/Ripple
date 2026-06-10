@@ -1652,6 +1652,14 @@ theorem sum_interactionProb_applicablePosPairs (p : ℕ) (c : Config (AgentState
         (Multiset.count_pos.mp (by omega : 0 < c.count q.2)) hqq) hnotapp
   unfold Config.interactionProb; rw [hzero]; simp
 
+/-- `clockPairRate` is monotone in the clock count (more positive clocks ⇒ larger rate),
+for `mC ≤ d ≤ n`.  Used to lower-bound the drop rate by the carried floor `mC ≤ posClockCount`. -/
+theorem clockPairRate_mono_left (mC d n : ℕ) (hmCd : mC ≤ d) :
+    clockPairRate mC n ≤ clockPairRate d n := by
+  unfold clockPairRate
+  apply ENNReal.div_le_div_right
+  exact_mod_cast Nat.mul_le_mul hmCd (by omega)
+
 /-- **Brick 2 — the clock-clock rectangle drop mass.**  From an `AllClockGEp p` config
 with `≥ 2` agents at level `clockCounterSumAt p c = m`, the one-step kernel mass on
 `{clockCounterSumAt p drops below m}` is `≥ clockPairRate posClockCount n`, where

@@ -3184,11 +3184,14 @@ theorem roleSplitKernelMilestone_pMin_meanTime (n a₀ : ℕ) (hn2 : 2 ≤ n)
   have hnum2 : (((2 * a₀ : ℕ)) : ℝ) = 2 * (a₀ : ℝ) := by push_cast; ring
   have hnumM : (((n - i.val) * a₀ : ℕ) : ℝ) = ((n : ℝ) - (i.val : ℝ)) * (a₀ : ℝ) := by
     rw [Nat.cast_mul, hMreal]
-  unfold floorRate
-  rw [hnum2, hnumM]
-  rw [eq_div_iff (ne_of_gt hMrpos), mul_comm, ← mul_assoc]
-  rw [inv_mul_eq_div, div_mul_eq_mul_div, eq_div_iff (by positivity)]
-  field_simp
+  have hfr2 : floorRate n a₀ 2 = (2 * (a₀ : ℝ)) / ((n : ℝ) * ((n : ℝ) - 1)) := by
+    unfold floorRate; rw [hnum2]
+  have hfrM : floorRate n a₀ (n - i.val) =
+      (((n : ℝ) - (i.val : ℝ)) * (a₀ : ℝ)) / ((n : ℝ) * ((n : ℝ) - 1)) := by
+    unfold floorRate; rw [hnumM]
+  have hMa_pos : (0 : ℝ) < ((n : ℝ) - (i.val : ℝ)) * (a₀ : ℝ) := mul_pos hMrpos ha0pos
+  rw [hfr2, hfrM, inv_div, div_mul_div_comm]
+  rw [div_eq_div_iff (by positivity) (ne_of_gt hMrpos)]
   ring
 
 /-! ## Phase C-1 (relay 7) — Stage-1 assembly: `phase0_stage1_whp`.

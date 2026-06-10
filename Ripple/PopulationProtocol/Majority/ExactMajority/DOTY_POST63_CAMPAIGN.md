@@ -1631,3 +1631,65 @@ split — define the lifted mcrCount-threshold milestones on `Option (Config …
 alive⟹gated⟹floor) — together with the Chernoff numbers for `q` and the prefix `Sᶜ`-mass.
 This is genuinely probabilistic (the paper's Lemma 5.1 content) but now plugs into a fully
 wired interface; no more engine work.  Stage 2 (crCount) reuses `KernelMilestone` verbatim.
+
+### Phase C-7r…C-7s (relay 7) — MASS-DRAIN RECTANGLE + hstep DISCHARGE + three-window chaining + Phase-8 verification
+
+Commits: C-7r `f68ff392` (mass-drain rectangle layer) · C-7s `36403aca`
+(`phase7_three_window`).  All in `Phase7Convergence.lean`, single-file EXIT_0, Phase8
+importer EXIT_0; every new theorem `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.
+
+**C-7r — the σ-class-MASS drain rectangle (the carried `hstep` re-derived for `classMassN`).**
+The relay-6 gap: the count rectangle (`minorityU_drop_prob_rect7`) proved a *count* drop per
+gap-1 cell; the cleaned engine `phase7Convergence''` needs a *mass* drop.  Re-instantiated
+the IDENTICAL rectangle geometry with the cell potential swapped count→mass:
+- `classMass_stepOrSelf_drop` — config-level σ-class-MASS strict drop (`+1 ≤`) under a gap-1
+  eliminator×minority step.  Mirror of `minorityU_stepOrSelf_drop`; lifts the per-pair
+  `cancelSplit_classMass_pair_drop` (C-7q) through the `c−{s,t}+{out}` decomposition.
+- `classMassN_stepOrSelf_drop` — the ℕ form (`classMass σ ≥ 0` ⇒ the ℤ drop transfers to
+  `toNat`).  The per-cell `Φ`-drop `drop_prob_of_rect` consumes.
+- `classMassN_drop_prob_rect7` — the rectangle drop-prob floor for `Φ = classMassN σ`:
+  `#elim@i·#min@j/(n(n−1)) ≤ K {classMassN drops}`, gap-1 pair `i+1=j`, SAME rect
+  `elimGap1(i) ×ˢ minorityAt7(j)` as the count version.
+- `classMassN_hdrop_of_floor7` — the `potBelow`-floor level-engine `hdrop` (mirror of
+  `minorityU_hdrop_of_floor7`): `K (potBelow (classMassN σ) m)ᶜ ≤ 1 − p` (Markov complement).
+  Feeds `OneSidedCancel.level_occ_geometric_on` for the level-`m` geometric decay.
+- `classMassN_hstep_of_floor7` — the CRUDE-engine `hstep` at `m = 1`: since
+  `(potDone Φ)ᶜ = (potBelow Φ 1)ᶜ`, at `classMassN σ b = 1` the drop event reaches `potDone`,
+  so `K (potDone (classMassN σ))ᶜ ≤ 1 − p`.  THIS is exactly the carried `hstep` of
+  `phase7Convergence''`.  (At `classMassN σ b ≥ 2` the crude single-step `hstep` is genuinely
+  vacuous — one cancel drops mass by `≥ 1` but not to `0`; the honest multi-level drain is the
+  level chain via `classMassN_hdrop_of_floor7` + `level_occ_geometric_on`.)
+
+**C-7s — three-window chaining (Lemma 7.5) + the honest COLLAPSE finding.**
+`phase7_three_window` chains THREE `phase7Convergence''` instances via `composeW_two_phases`
+(twice): from `Pre₁ = Inv7Sum n ∧ classMassN σ ≤ M₀₁`, after `t₁+t₂+t₃` steps the residual
+`¬(Inv7Sum n ∧ classMassN σ = 0)` mass is `≤ ε₁+ε₂+ε₃`.  The chain links trivially
+(`Post₁ classMassN = 0 ⟹ Pre₂ classMassN ≤ M₀₂`).
+
+**HONEST STRUCTURAL FINDING (not a blocker — a simplification).**  Doty Lemma 7.5 eliminates
+minority at the three top levels `−l, −(l+1), −(l+2)` SUCCESSIVELY, which with a per-level
+COUNT `minorityAt7 i` would need three DIFFERENT chained potentials.  But relay-6 replaced the
+count with the GLOBAL σ-class MASS `classMassN σ`, which bounds ALL levels at once
+(`classMassN σ = 0 ⟹ minorityU σ = 0`, every σ-Main contributes mass `≥ 1`).  So the FIRST
+window already drains the global mass to `0`, eliminating minority at every level
+SIMULTANEOUSLY — the three Lemma-7.5 windows COLLAPSE into one.  `phase7_three_window` is a
+faithful but redundant rendering; a single `phase7Convergence''` suffices.  This is the mass
+argument's strength: it does the work of all three count windows in one geometric decay.
+
+**Phase-8 verification (the count-vs-mass issue is PHASE-7-SPECIFIC; Phase 8 is fine as-is).**
+Verified against `Transition.lean:1313 absorbConsume`: EVERY non-identity branch writes
+`bias := .zero` for one agent and `full := true` for the other — it NEVER writes
+`bias := .dyadic <sign> <idx>`, so it never CREATES/copies/flips a signed bias.  Contrast
+Phase 7's `cancelSplit`, whose gap-2 branch writes `bias := .dyadic ss ⟨i+1⟩` (the sign-copy
+that RAISES `minorityU`).  Because `absorbConsume` only REMOVES signed biases (monotone down),
+the σ-Main COUNT `minorityU σ` is UNCONDITIONALLY non-increasing
+(`absorbConsume_minorityU_pair_le`, axiom-clean), so `phase8Convergence` rides the COUNT
+potential `minorityU σ` with `hmono = potNonincrOn_minorityU` (axiom-clean) — NO mass detour
+needed.  Phase 8 does NOT have Phase 7's count-vs-mass obstruction.  CONFIRMED fine as-is.
+
+**Net status (relay 7).**  Phase 7: `hClosed`, `hmono`, AND the mass-drain `hstep` (at `m=1`
+via the rectangle) all delivered axiom-clean; three-window chaining assembled (and shown
+redundant under the global mass).  The single remaining carried Doty input is the floor `p`
+itself (`p = #elim·#min/(n(n−1))`, the Lemma 7.4 `≥0.8|M|` majority vs `≤0.2|M|` minority) —
+a CARRIED INVARIANT, not derivable from the transition rule.  Phase 8: verified count-based,
+no mass needed.
