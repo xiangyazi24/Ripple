@@ -214,6 +214,47 @@ theorem ledgerW_Phase0_pair_conserved (r₁ r₂ : AgentState L K)
           or_true, or_false, false_or, true_or, not_true_eq_false, not_false_eq_true,
           Bool.not_true, Bool.not_false, Bool.true_eq_false, Bool.false_eq_true] <;> norm_num)
 
+set_option maxHeartbeats 1600000 in
+/-- **No Phase-0 rule produces an assigned `mcr`.**  For inputs that are not
+assigned `mcr`, both `Phase0Transition` outputs are not assigned `mcr` either
+(rules only consume `mcr`; the only `mcr`-keeping path inherits a non-assigned
+flag).  Finite case check (R5 clock–clock split off — clocks are never `mcr`). -/
+theorem Phase0Transition_outputs_notAssignedMcr (r₁ r₂ : AgentState L K)
+    (h₁ : NotAssignedMcr (L := L) (K := K) r₁)
+    (h₂ : NotAssignedMcr (L := L) (K := K) r₂) :
+    NotAssignedMcr (L := L) (K := K) (Phase0Transition L K r₁ r₂).1 ∧
+    NotAssignedMcr (L := L) (K := K) (Phase0Transition L K r₁ r₂).2 := by
+  unfold NotAssignedMcr
+  by_cases hcc : r₁.role = .clock ∧ r₂.role = .clock
+  · obtain ⟨hr₁, hr₂⟩ := hcc
+    have hpt : Phase0Transition L K r₁ r₂
+        = (stdCounterSubroutine L K r₁, stdCounterSubroutine L K r₂) := by
+      unfold Phase0Transition
+      simp only [hr₁, hr₂, reduceCtorEq, and_self, and_true, true_and, and_false,
+        false_and, if_true, if_false, ite_true, ite_false]
+    rw [hpt]
+    constructor <;>
+      (rintro ⟨hm, _⟩;
+       first
+       | (rw [stdCounterSubroutine_clock_role_eq' r₁ hr₁] at hm; exact absurd hm (by decide))
+       | (rw [stdCounterSubroutine_clock_role_eq' r₂ hr₂] at hm; exact absurd hm (by decide)))
+  · unfold NotAssignedMcr at h₁ h₂
+    rcases r₁ with
+      ⟨in₁, out₁, ph₁, role₁, asg₁, bias₁, sb₁, hr₁, mn₁, fl₁, op₁, ctr₁⟩
+    rcases r₂ with
+      ⟨in₂, out₂, ph₂, role₂, asg₂, bias₂, sb₂, hr₂, mn₂, fl₂, op₂, ctr₂⟩
+    cases role₁ <;> cases role₂ <;> cases asg₁ <;> cases asg₂ <;>
+      first
+      | (exfalso; exact hcc ⟨rfl, rfl⟩)
+      | (exact absurd ⟨rfl, rfl⟩ h₁)
+      | (exact absurd ⟨rfl, rfl⟩ h₂)
+      | (refine ⟨?_, ?_⟩ <;>
+          (simp only [Phase0Transition, reduceCtorEq, ne_eq, and_true, and_false,
+            true_and, false_and, and_self, if_true, if_false, ite_true, ite_false,
+            or_true, or_false, false_or, true_or, not_true_eq_false, not_false_eq_true,
+            Bool.not_true, Bool.not_false, Bool.true_eq_false, Bool.false_eq_true,
+            not_and] <;> decide))
+
 /-! ## Stage 1b — the global ledger invariant `freeDiff = 2·X` (preserved + initial). -/
 
 /-- `freeDiff` agrees with the role/assigned counts: it is `Mf − Sf`. -/
@@ -337,6 +378,218 @@ theorem LedgerInv_stepOrSelf
     rw [hcomb] at this
     linarith [this]
   · rw [Protocol.stepOrSelf, if_neg happ]; exact hled
+
+/-- **`LedgerInv` holds at the balanced start.**  At `Phase0Initial` every agent
+is an unassigned `mcr`, so `freeDiff = 0` (no main / cr-side agent) and
+`topSplitXZ = 0`, hence `freeDiff = 0 = 2·0`. -/
+theorem LedgerInv_init {n : ℕ} {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀) :
+    LedgerInv (L := L) (K := K) c₀ := by
+  have hall := hinit.2
+  have hfree : freeDiff (L := L) (K := K) c₀ = 0 := by
+    unfold freeDiff Config.sumOf
+    rw [Multiset.sum_eq_zero]
+    intro x hx
+    rw [Multiset.mem_map] at hx
+    obtain ⟨a, ha, rfl⟩ := hx
+    unfold freeW; rw [(hall a ha).2]; simp
+  have hX : topSplitXZ (L := L) (K := K) c₀ = 0 := by
+    have : topSplitX (L := L) (K := K) c₀ = 0 :=
+      topSplit_X_init_zero hinit
+    rwa [topSplitX_eq_cast, Int.cast_eq_zero] at this
+  unfold LedgerInv; rw [hfree, hX]; ring
+
+/-! ## Stage 2 — the free-pool sign comparison from `X`'s sign. -/
+
+/-- **Stage 2 (sign comparison).**  Under the ledger invariant `LedgerInv c`
+(`Mf − Sf = 2·X`): `X > 0 ⟹ freeDiff c > 0` (`Sf < Mf`), `X < 0 ⟹ freeDiff c < 0`
+(`Mf < Sf`), and the integer identity `freeDiff c = 2·X`.  This is the Lean-faithful
+Lemma-5.1 free-pool imbalance: more produced Main than RoleCR-mass forces strictly
+more free Mains than free CR-side agents. -/
+theorem freeDiff_sign_of_topSplit (c : Config (AgentState L K))
+    (hled : LedgerInv (L := L) (K := K) c) :
+    freeDiff (L := L) (K := K) c = 2 * topSplitXZ (L := L) (K := K) c := hled
+
+/-! ## Stage 3 — the inward residual via the `sinh = Δ·sinh s` reduction. -/
+
+/-- The integer per-pair jump `Δ_pair = topSplitXZ(step) − topSplitXZ c`. -/
+noncomputable def topSplitStepDeltaZ (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K) : ℤ :=
+  topSplitXZ (L := L) (K := K) (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+    - topSplitXZ (L := L) (K := K) c
+
+/-- The real per-pair delta is the cast of the integer delta. -/
+theorem topSplitStepDelta_eq_cast (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K) :
+    topSplitStepDelta (L := L) (K := K) c r₁ r₂
+      = ((topSplitStepDeltaZ (L := L) (K := K) c r₁ r₂ : ℤ) : ℝ) := by
+  unfold topSplitStepDelta topSplitStepDeltaZ; push_cast; ring
+
+/-- `|Δ_pair| ≤ 1` as an integer, on the Phase-0 region. -/
+theorem topSplitStepDeltaZ_abs_le_one (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c) :
+    |topSplitStepDeltaZ (L := L) (K := K) c r₁ r₂| ≤ 1 := by
+  have h := topSplitXZ_step_delta_abs_le_one (L := L) (K := K) c r₁ r₂ hall
+  -- h : |(topSplitXZ(step):ℝ) − (topSplitXZ c:ℝ)| ≤ 1; rewrite the inside as a cast of Z.
+  have hcast : (topSplitXZ (L := L) (K := K)
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) : ℝ)
+        - (topSplitXZ (L := L) (K := K) c : ℝ)
+      = ((topSplitStepDeltaZ (L := L) (K := K) c r₁ r₂ : ℤ) : ℝ) := by
+    unfold topSplitStepDeltaZ; push_cast; ring
+  rw [hcast, ← Int.cast_abs] at h
+  exact_mod_cast h
+
+/-- **Key `sinh` collapse.**  For an integer `d` with `|d| ≤ 1` (so `d ∈
+{−1,0,1}`), `sinh(s·d) = d · sinh s` (`sinh` is odd; the three values are
+`−sinh s`, `0`, `sinh s`). -/
+private lemma sinh_int_mul_of_abs_le_one (s : ℝ) (d : ℤ) (hd : |d| ≤ 1) :
+    Real.sinh (s * (d : ℝ)) = (d : ℝ) * Real.sinh s := by
+  rw [abs_le] at hd
+  obtain ⟨hd1, hd2⟩ := hd
+  interval_cases d
+  · -- d = −1: sinh(s·(−1)) = sinh(−s) = −sinh s = (−1)·sinh s.
+    have : ((-1 : ℤ) : ℝ) = (-1 : ℝ) := by norm_num
+    rw [this, mul_neg_one, Real.sinh_neg, neg_one_mul]
+  · simp
+  · simp
+
+/-- **`sinh` of `s·X` shares the sign of `X`** (the supermartingale sign helper):
+`x ≤ 0 ⟹ sinh(s·x) ≤ 0` and `0 ≤ x ⟹ 0 ≤ sinh(s·x)` for `s ≥ 0` — packaged as
+`sinh(s·x)·d ≤ 0` whenever `x·d ≤ 0`. -/
+private lemma sinh_sign_mul (s : ℝ) (hs : 0 ≤ s) (x d : ℝ) (hxd : x * d ≤ 0) :
+    Real.sinh (s * x) * d ≤ 0 := by
+  rcases le_total 0 x with hx | hx
+  · -- x ≥ 0 ⟹ sinh(s·x) ≥ 0; and x·d ≤ 0 with x ≥ 0 ⟹ either x = 0 or d ≤ 0.
+    have hsh : 0 ≤ Real.sinh (s * x) := by
+      rw [Real.sinh_eq]
+      have : Real.exp (-(s * x)) ≤ Real.exp (s * x) :=
+        Real.exp_le_exp.mpr (by nlinarith)
+      linarith
+    rcases le_total d 0 with hd | hd
+    · exact mul_nonpos_of_nonneg_of_nonpos hsh hd
+    · -- d ≥ 0 and x ≥ 0 with x·d ≤ 0 ⟹ x·d = 0; if x > 0 then d = 0.
+      rcases eq_or_lt_of_le hx with hx0 | hx0
+      · rw [← hx0]; simp
+      · have : d ≤ 0 := by nlinarith
+        have hd0 : d = 0 := le_antisymm this hd
+        rw [hd0]; simp
+  · -- x ≤ 0 ⟹ sinh(s·x) ≤ 0.
+    have hsh : Real.sinh (s * x) ≤ 0 := by
+      rw [Real.sinh_eq]
+      have : Real.exp (s * x) ≤ Real.exp (-(s * x)) :=
+        Real.exp_le_exp.mpr (by nlinarith)
+      linarith
+    rcases le_total 0 d with hd | hd
+    · exact mul_nonpos_of_nonpos_of_nonneg hsh hd
+    · rcases eq_or_lt_of_le hx with hx0 | hx0
+      · rw [hx0]; simp
+      · have : 0 ≤ d := by nlinarith
+        have hd0 : d = 0 := le_antisymm hd this
+        rw [hd0]; simp
+
+/-- The expected signed one-step jump `E[ΔX] = ∑_pair interactionProb·Δ_pair`. -/
+noncomputable def expectedDeltaX (c : Config (AgentState L K)) : ℝ :=
+  ∑ pair : AgentState L K × AgentState L K,
+    (Config.interactionProb c pair.1 pair.2).toReal
+      * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2
+
+/-- **Stage 3 reduction (the boundary-free `sinh` collapse).**  On the Phase-0
+region with `s ≥ 0`, the inward residual `InwardResidual s c` is IMPLIED by the
+single signed-drift sign condition `(X c) · E[ΔX] ≤ 0`.
+
+Proof: `Δ_pair ∈ {−1,0,1}` (Stage 3a), so `sinh(s·Δ_pair) = Δ_pair·sinh s`,
+whence `E[sinh(s·Δ)] = sinh s · E[ΔX]` and `InwardResidual = sinh(s·X)·sinh s·E[ΔX]`.
+With `sinh s ≥ 0` (s ≥ 0) and the sign helper `sinh_sign_mul`, `X·E[ΔX] ≤ 0`
+delivers `sinh(s·X)·E[ΔX] ≤ 0` (boundary-free: `X = 0 ⟹ sinh 0 = 0`). -/
+theorem inwardResidual_of_expectedDeltaX_sign (s : ℝ) (hs : 0 ≤ s)
+    (c : Config (AgentState L K))
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hsign : (topSplitXZ (L := L) (K := K) c : ℝ) * expectedDeltaX (L := L) (K := K) c ≤ 0) :
+    InwardResidual (L := L) (K := K) s c := by
+  classical
+  unfold InwardResidual
+  -- collapse sinh(s·Δ_pair) = Δ_pair·sinh s pairwise.
+  have hcollapse : ∀ pair : AgentState L K × AgentState L K,
+      (Config.interactionProb c pair.1 pair.2).toReal
+          * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)
+        = ((Config.interactionProb c pair.1 pair.2).toReal
+            * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2) * Real.sinh s := by
+    intro pair
+    rw [topSplitStepDelta_eq_cast]
+    rw [sinh_int_mul_of_abs_le_one s _
+        (topSplitStepDeltaZ_abs_le_one (L := L) (K := K) c pair.1 pair.2 hall)]
+    rw [← topSplitStepDelta_eq_cast]; ring
+  rw [Finset.sum_congr rfl (fun pair _ => hcollapse pair)]
+  rw [← Finset.sum_mul]
+  -- now: sinh(s·X) · (E[ΔX] · sinh s) ≤ 0.
+  rw [show (∑ pair : AgentState L K × AgentState L K,
+        (Config.interactionProb c pair.1 pair.2).toReal
+          * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)
+      = expectedDeltaX (L := L) (K := K) c from rfl]
+  have hsinhs : 0 ≤ Real.sinh s := by
+    rw [Real.sinh_eq]
+    have : Real.exp (-s) ≤ Real.exp s := Real.exp_le_exp.mpr (by linarith)
+    linarith
+  -- sinh(s·X)·(E·sinh s) = (sinh(s·X)·E)·sinh s; bound by sign helper × nonneg.
+  rw [← mul_assoc]
+  have hkey : Real.sinh (s * (topSplitXZ (L := L) (K := K) c : ℝ))
+      * expectedDeltaX (L := L) (K := K) c ≤ 0 :=
+    sinh_sign_mul s hs _ _ hsign
+  exact mul_nonpos_of_nonpos_of_nonneg hkey hsinhs
+
+/- **Honest spec note (`NoAssignedMcrConfig` at the start).**  `Phase0Initial`
+(`RoleSplitConcentration.Phase0Initial`) pins only `phase = 0` and `role = mcr`
+for each initial agent — it does NOT pin `assigned = false`.  So
+`NoAssignedMcrConfig c₀` does not follow from `Phase0Initial` alone, even though
+it is TRUE of the real all-default initial configuration (every agent constructed
+with `assigned = false`).  Rather than strengthen the FROZEN `Phase0Initial`, we
+carry `NoAssignedMcrConfig c₀` as an explicit honest side-hypothesis in the
+wire-up below (it is the genuine, true-of-the-real-start ledger precondition).
+`NoAssignedMcrConfig` IS preserved by every Phase-0 step (`NoAssignedMcrConfig_stepOrSelf`),
+so it threads through the absorbing region. -/
+
+/-- **`NoAssignedMcrConfig` is preserved by `stepOrSelf` on the Phase-0 region.**
+No Phase-0 rule ever produces an `mcr` (rules only CONSUME `mcr`), and the only
+agents whose role becomes/stays `mcr` keep their `assigned` flag from an input
+that was already a non-assigned `mcr`; so no assigned `mcr` is ever created. -/
+theorem NoAssignedMcrConfig_stepOrSelf
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hnomcr : NoAssignedMcrConfig (L := L) (K := K) c) :
+    NoAssignedMcrConfig (L := L) (K := K)
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  classical
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c := happ
+    have hr₁mem : r₁ ∈ c := Multiset.mem_of_le hle (by simp)
+    have hr₂mem : r₂ ∈ c := Multiset.mem_of_le hle (by simp)
+    have h₁ : r₁.phase.val = 0 := by have := hall r₁ hr₁mem; simp [this]
+    have h₂ : r₂.phase.val = 0 := by have := hall r₂ hr₂mem; simp [this]
+    have hn₁ : NotAssignedMcr (L := L) (K := K) r₁ := hnomcr r₁ hr₁mem
+    have hn₂ : NotAssignedMcr (L := L) (K := K) r₂ := hnomcr r₂ hr₂mem
+    have hstep : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    -- The two Transition outputs are `NotAssignedMcr` (no rule produces an assigned mcr).
+    have hrole := Transition_roles_eq_phase0_of_both_phase0 (L := L) (K := K) r₁ r₂ h₁ h₂
+    have hasg := Transition_assigned_eq_phase0_of_both_phase0 (L := L) (K := K) r₁ r₂ h₁ h₂
+    have hout : NotAssignedMcr (L := L) (K := K) (Transition L K r₁ r₂).1 ∧
+        NotAssignedMcr (L := L) (K := K) (Transition L K r₁ r₂).2 := by
+      have hp := Phase0Transition_outputs_notAssignedMcr r₁ r₂ hn₁ hn₂
+      constructor
+      · unfold NotAssignedMcr at hp ⊢; rw [hrole.1, hasg.1]; exact hp.1
+      · unfold NotAssignedMcr at hp ⊢; rw [hrole.2, hasg.2]; exact hp.2
+    intro a ha
+    rw [hstep] at ha
+    rcases Multiset.mem_add.mp ha with hin | hin
+    · exact hnomcr a (Multiset.mem_of_le (Multiset.sub_le_self _ _) hin)
+    · -- a is one of the two outputs.
+      have : a = (Transition L K r₁ r₂).1 ∨ a = (Transition L K r₁ r₂).2 := by
+        rcases Multiset.mem_cons.mp hin with h | h
+        · exact Or.inl h
+        · exact Or.inr (Multiset.mem_singleton.mp h)
+      rcases this with rfl | rfl
+      · exact hout.1
+      · exact hout.2
+  · rw [Protocol.stepOrSelf, if_neg happ]; exact hnomcr
 
 end RoleSplitConcentration
 end ExactMajority

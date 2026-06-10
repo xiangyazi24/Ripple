@@ -165,6 +165,117 @@ theorem Phase8Transition_left_clock (c t : AgentState L K) (hc : c.role = .clock
   unfold Phase8Transition
   simp only [hc, reduceCtorEq, false_and, ↓reduceIte]
 
+/-- **Decrement bound for `stdCounterSubroutine` on a clock at the destination
+phase.**  If `c` is a clock at phase `p+1`, then
+`seamClockSummand p s (stdCounterSubroutine c) ≤ eˢ · seamClockSummand p s c`
+(for `s ≥ 0`): a positive-counter clock decrements (`exp(-s(k-1)) = eˢ·exp(-sk)`),
+a zero-counter clock advances out of phase `p+1` (output summand `0`). -/
+theorem seamClockSummand_stdCounterSubroutine_le (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (c : AgentState L K) (hrole : c.role = .clock) (hphase : c.phase.val = p + 1) :
+    seamClockSummand (L := L) (K := K) p s (stdCounterSubroutine L K c)
+      ≤ ENNReal.ofReal (Real.exp s) * seamClockSummand (L := L) (K := K) p s c := by
+  have he1 : (1 : ℝ≥0∞) ≤ ENNReal.ofReal (Real.exp s) := by
+    rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal (Real.one_le_exp hs)
+  have hsrc : seamClockSummand (L := L) (K := K) p s c
+      = ENNReal.ofReal (Real.exp (-(s * (c.counter.val : ℝ)))) := by
+    unfold seamClockSummand; rw [if_pos ⟨hrole, hphase⟩]
+  -- any seam summand is ≤ 1 (exp(-s·counter) ≤ exp(0) = 1 for s ≥ 0).
+  have hle_one : ∀ a : AgentState L K,
+      seamClockSummand (L := L) (K := K) p s a ≤ 1 := by
+    intro a
+    unfold seamClockSummand
+    by_cases hcond : a.role = .clock ∧ a.phase.val = p + 1
+    · rw [if_pos hcond, ← ENNReal.ofReal_one]
+      apply ENNReal.ofReal_le_ofReal
+      rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
+      apply Real.exp_le_exp.mpr
+      have : (0 : ℝ) ≤ s * (a.counter.val : ℝ) := by positivity
+      linarith
+    · rw [if_neg hcond]; exact zero_le'
+  unfold stdCounterSubroutine
+  by_cases hctr : c.counter.val = 0
+  · -- advance: source summand = 1 (counter 0), so eˢ·source = eˢ ≥ 1 ≥ output summand.
+    rw [dif_pos hctr]
+    have hsrc1 : seamClockSummand (L := L) (K := K) p s c = 1 := by
+      rw [hsrc, hctr]; simp
+    rw [hsrc1, mul_one]
+    exact le_trans (hle_one _) he1
+  · -- decrement
+    rw [dif_neg hctr]
+    have hout_role : ({ c with counter := ⟨c.counter.val - 1, by omega⟩ } : AgentState L K).role = .clock := hrole
+    have hout_phase : ({ c with counter := ⟨c.counter.val - 1, by omega⟩ } : AgentState L K).phase.val = p + 1 := hphase
+    have hout : seamClockSummand (L := L) (K := K) p s
+        { c with counter := ⟨c.counter.val - 1, by omega⟩ }
+        = ENNReal.ofReal (Real.exp (-(s * ((c.counter.val - 1 : ℕ) : ℝ)))) := by
+      unfold seamClockSummand; rw [if_pos ⟨hout_role, hout_phase⟩]
+    rw [hout, hsrc]
+    rw [← ENNReal.ofReal_mul (Real.exp_nonneg _), ← Real.exp_add]
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have h1 : (1 : ℕ) ≤ c.counter.val := Nat.one_le_iff_ne_zero.mpr hctr
+    have hcast : ((c.counter.val - 1 : ℕ) : ℝ) = (c.counter.val : ℝ) - 1 := by
+      rw [Nat.cast_sub h1]; simp
+    rw [hcast]; nlinarith [hs]
+
+/-- `clockCounterStep` on a clock at the destination phase satisfies the same
+decrement bound (it IS `stdCounterSubroutine` on a clock). -/
+theorem seamClockSummand_clockCounterStep_le (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (c : AgentState L K) (hrole : c.role = .clock) (hphase : c.phase.val = p + 1) :
+    seamClockSummand (L := L) (K := K) p s (clockCounterStep L K c)
+      ≤ ENNReal.ofReal (Real.exp s) * seamClockSummand (L := L) (K := K) p s c := by
+  unfold clockCounterStep
+  rw [if_pos hrole]
+  exact seamClockSummand_stdCounterSubroutine_le p s hs c hrole hphase
+
+/-! ### Immigration: a clock dragged up into a reset-destination phase has full counter.
+
+The epidemic's `runInitsBetween oldP q` ends by applying `phaseInit q` (q is the
+maximum of `(oldP, q] ∩ [0,10]`).  For `q ∈ {1,5,6,7,8}`, `phaseInit q` resets a
+clock's counter to full `50(L+1)`.  We prove that the filter list ends in `q`, then
+that the fold's last step is `phaseInit q`, then the reset. -/
+
+/-- The `(oldP, q] ∩ range 11` filter list ends in `q` when `oldP < q ≤ 10`: the
+underlying `range 11` is `Sorted (· < ·)`, filter preserves order, and `q` is the
+unique maximal satisfier. -/
+theorem runInitsBetween_clock_counter_reset (oldP : ℕ) (q : ℕ)
+    (a : AgentState L K) (ha : a.role = .clock) (hlt : oldP < q)
+    (hq : CounterTimedPhase q) :
+    (runInitsBetween L K oldP q a).counter.val = 50 * (L + 1) := by
+  -- `q ∈ {1,5,6,7,8}`, `oldP < q`; the filter list ends in `q`, the fold applies
+  -- `phaseInit q` last (clock role preserved through the prefix), resetting to full.
+  have key : ∀ (lst : List ℕ), lst = (List.range 11).filter (fun k => oldP < k ∧ k ≤ q) →
+      ∃ pre : List ℕ, lst = pre ++ [q] ∧ ∀ x ∈ pre, x < q := by
+    intro lst hlst
+    refine ⟨(List.range 11).filter (fun k => oldP < k ∧ k ≤ q - 1), ?_, ?_⟩
+    · rw [hlst]
+      rcases hq with h | h | h | h | h <;> subst h <;>
+        (interval_cases oldP <;> decide)
+    · intro x hx
+      rw [List.mem_filter] at hx
+      simp only [decide_eq_true_eq] at hx
+      omega
+  obtain ⟨pre, hpre, hprelt⟩ := key _ rfl
+  unfold runInitsBetween
+  rw [hpre, List.foldl_append]
+  simp only [List.foldl_cons, List.foldl_nil]
+  have hq11 : q < 11 := by rcases hq with h | h | h | h | h <;> omega
+  rw [dif_pos hq11]
+  -- the prefix fold preserves the clock role (folding `phaseInit` keeps clocks clocks)
+  have hrole : ∀ (l : List ℕ) (c : AgentState L K), c.role = .clock →
+      (List.foldl (fun acc k => if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc)
+        c l).role = .clock := by
+    intro l
+    induction l with
+    | nil => intro c hc; simpa using hc
+    | cons k ks IH =>
+      intro c hc
+      simp only [List.foldl_cons]
+      apply IH
+      by_cases hk : k < 11
+      · rw [dif_pos hk]; exact phaseInit_clock_role_eq L K ⟨k, hk⟩ c hc
+      · rw [dif_neg hk]; exact hc
+  apply phaseInit_clock_counter_reset ⟨q, hq11⟩ _ (hrole pre a ha) hq
+
 end SeamNoOvershoot
 
 end ExactMajority
