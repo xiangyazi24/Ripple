@@ -2111,6 +2111,123 @@ theorem roleSplitTail_le_inv_sq_on
   rw [hrw]
   exact jansonExp_le_inv_sq hn hpot_nonneg hpot five_sub_one_sub_log_five_ge_two
 
+/-! ## A Kernel-generic milestone tail (for the killed kernel).
+
+The `MilestonePhaseOn` engine above is bound to a `Protocol` (it uses
+`P.stepDistOrSelf.support`).  The killed kernel `killK_now K G` is a bare
+`Kernel (Option α) (Option α)` with no such PMF wrapper.  We therefore re-derive the
+milestone MGF tail over an ABSTRACT Markov kernel `Q : Kernel β β`, using kernel
+positive-mass support (`0 < Q c {c'}`) in place of PMF support.  Instantiated on
+`killK_now K G` (with the cemetery `none` carrying `milestone := True`, hence absorbing
+and counted as `Post`), this bounds the killed alive-`¬good` mass by a Janson tail — with
+NO `Inv`/`inv_closed` obligation (the contraction holds at every state, the cemetery
+included, because `milestone_monotone` is global).  This is the engine the killed-kernel
+route needs; `inv_closed` is dissolved into the kernel construction itself. -/
+
+open MeasureTheory ProbabilityTheory in
+/-- A milestone phase over an ABSTRACT Markov kernel `Q : Kernel β β` (discrete state
+space).  Same data as `MilestonePhase`/`MilestonePhaseOn` but with kernel positive-mass
+support replacing PMF support; no `Inv` field (global `milestone_monotone` makes the
+contraction unconditional). -/
+structure KernelMilestone {β : Type*} [MeasurableSpace β] [DiscreteMeasurableSpace β]
+    (Q : Kernel β β) where
+  /-- Number of milestones. -/
+  k : ℕ
+  /-- The milestone predicates. -/
+  milestone : Fin k → β → Prop
+  /-- Per-step success probabilities. -/
+  p : Fin k → ℝ
+  /-- Positivity of the rates. -/
+  hp_pos : ∀ i, 0 < p i
+  /-- The rates are probabilities. -/
+  hp_le_one : ∀ i, p i ≤ 1
+  /-- Each milestone, once reached, stays reached along positive-mass successors. -/
+  milestone_monotone : ∀ i c c', milestone i c → 0 < Q c {c'} → milestone i c'
+  /-- **Progress.** At every config with milestones `< i` reached and `i` not, the
+  next-step mass on `{milestone i}` is `≥ p i`. -/
+  progress : ∀ i c, (∀ j < i, milestone j c) → ¬ milestone i c →
+    Q c {c' | milestone i c'} ≥ ENNReal.ofReal (p i)
+
+namespace KernelMilestone
+
+open MeasureTheory ProbabilityTheory
+open scoped ENNReal NNReal Real
+
+variable {β : Type*} [MeasurableSpace β] [DiscreteMeasurableSpace β] {Q : Kernel β β}
+
+/-- The postcondition: all milestones reached. -/
+def Post (mp : KernelMilestone Q) (c : β) : Prop := ∀ i, mp.milestone i c
+
+/-- Mean waiting time `Σ 1/p_i`. -/
+noncomputable def meanTime (mp : KernelMilestone Q) : ℝ := ∑ i : Fin mp.k, (mp.p i)⁻¹
+
+/-- Minimum rate `⨅ p_i`. -/
+noncomputable def pMin (mp : KernelMilestone Q) : ℝ := ⨅ i : Fin mp.k, mp.p i
+
+/-- A throwaway plain `MilestonePhase` borrowing the pure real-analysis MGF optimisation
+(reads only `(k, p, hp_pos, hp_le_one)`).  Requires a host `Protocol`, supplied by the
+caller; only `pMin`/`meanTime`/`geometricProductMGF` are used, all `(k,p)`-determined. -/
+noncomputable def toDummyMP {Λ : Type*} [Fintype Λ] [DecidableEq Λ]
+    (mp : KernelMilestone Q) (P : Protocol Λ) : MilestonePhase P where
+  k := mp.k
+  milestone := fun _ _ => True
+  p := mp.p
+  hp_pos := mp.hp_pos
+  hp_le_one := mp.hp_le_one
+  milestone_monotone := fun _ _ _ _ _ => trivial
+  progress := fun _ _ _ hnot => absurd trivial hnot
+
+/-- The single MGF factor `(p·e^s)/(1−(1−p)·e^s)`. -/
+noncomputable def mgfFactor (mp : KernelMilestone Q) (s : ℝ) (i : Fin mp.k) : ℝ :=
+  (mp.p i * Real.exp s) / (1 - (1 - mp.p i) * Real.exp s)
+
+theorem mgfFactor_pos (mp : KernelMilestone Q) {s : ℝ}
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (i : Fin mp.k) :
+    0 < mp.mgfFactor s i :=
+  div_pos (mul_pos (mp.hp_pos i) (Real.exp_pos s)) (by linarith [hs_valid i])
+
+theorem mgfFactor_ge_one (mp : KernelMilestone Q) {s : ℝ} (hs_pos : 0 < s)
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (i : Fin mp.k) :
+    1 ≤ mp.mgfFactor s i := by
+  rw [mgfFactor, le_div_iff₀ (by linarith [hs_valid i]), one_mul]
+  have : mp.p i * Real.exp s + (1 - mp.p i) * Real.exp s = Real.exp s := by ring
+  linarith [Real.add_one_le_exp s]
+
+/-- Milestones not yet reached at `c`. -/
+noncomputable def unreached (mp : KernelMilestone Q) (c : β) : Finset (Fin mp.k) :=
+  Finset.filter (fun i => ¬ mp.milestone i c) Finset.univ
+
+/-- The partial MGF: product of factors over unreached milestones. -/
+noncomputable def partialMGF (mp : KernelMilestone Q) (s : ℝ) (c : β) : ℝ :=
+  ∏ i ∈ mp.unreached c, mp.mgfFactor s i
+
+theorem partialMGF_pos (mp : KernelMilestone Q) {s : ℝ}
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c : β) : 0 < mp.partialMGF s c :=
+  Finset.prod_pos fun i _ => mp.mgfFactor_pos hs_valid i
+
+theorem partialMGF_ge_one_of_not_post (mp : KernelMilestone Q) {s : ℝ} (hs_pos : 0 < s)
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c : β) (hc : ¬ mp.Post c) :
+    1 ≤ mp.partialMGF s c :=
+  Finset.one_le_prod fun i _ => mp.mgfFactor_ge_one hs_pos hs_valid i
+
+theorem partialMGF_eq_full_of_none_reached (mp : KernelMilestone Q) (s : ℝ) (c₀ : β)
+    (hPre : ∀ i, ¬ mp.milestone i c₀) :
+    mp.partialMGF s c₀ = ∏ i : Fin mp.k, mp.mgfFactor s i := by
+  have h_eq : mp.unreached c₀ = Finset.univ := by
+    ext i
+    simp only [unreached, Finset.mem_filter, Finset.mem_univ, true_and, iff_true]
+    exact hPre i
+  rw [partialMGF, h_eq]
+
+/-- The truncated potential: `0` on `Post`, else `ofReal (partialMGF)`. -/
+noncomputable def truncMGF (mp : KernelMilestone Q) (s : ℝ) : β → ℝ≥0∞ :=
+  fun c => if mp.Post c then 0 else ENNReal.ofReal (mp.partialMGF s c)
+
+theorem truncMGF_measurable (mp : KernelMilestone Q) (s : ℝ) : Measurable (mp.truncMGF s) :=
+  fun _ _ => DiscreteMeasurableSpace.forall_measurableSet _
+
+end KernelMilestone
+
 /-! ## Gap (B), killed-kernel route: the floor as a UNION term, by construction.
 
 Relay 5 proved the deterministic `MilestonePhaseOn.inv_closed` cannot host the whp
@@ -2150,6 +2267,63 @@ theorem real_bad_le_escape_add_killedAliveBad
     · exact Or.inl rfl
     · exact Or.inr h
   exact (measure_mono hsub).trans (measure_union_le _ _)
+
+open ExactMajority GatedDrift in
+/-- **The escape (`εfloor`) bound, packaged.**  Re-exports
+`kill_now_escape_le_prefix_union`: when from every gated state in the side-set `S` the
+one-step gate-exit probability is `≤ q`, the cemetery mass after `M` steps — the killed
+chain's `εfloor` — is at most `M·q + ∑_{τ<M} (K^τ) x₀ Sᶜ`.  In the role-split application
+`S` is the favourable-drift regime (`mcrCount` large), `q` is the Chernoff per-step
+floor-breach rate, and the prefix `Sᶜ`-mass is the (separately bounded) probability of
+having left the favourable regime — together `εfloor ≤ n^{-2}`-shape, unioned with the
+`1/n²` Janson budget of the alive-bad term. -/
+theorem killedEscape_le_prefix
+    {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α] [Inhabited α]
+    (K : Kernel α α) [IsMarkovKernel K] (G S : Set α) (q : ℝ≥0∞)
+    (hstep : ∀ x ∈ G, x ∈ S → K x Gᶜ ≤ q)
+    (M : ℕ) (x₀ : α) (hx₀ : x₀ ∈ G) :
+    (killK_now K G ^ M) (some x₀) {(none : Option α)} ≤
+      (M : ℝ≥0∞) * q + ∑ τ ∈ Finset.range M, (K ^ τ) x₀ Sᶜ :=
+  kill_now_escape_le_prefix_union (K := K) (G := G) S q hstep M x₀ hx₀
+
+open ExactMajority GatedDrift in
+/-- **Real bad-tail ≤ killed-alive-bad + escape-prefix (assembled union).**  Combining the
+structural decomposition with the packaged escape bound: the real `t`-step bad mass is at
+most the killed alive-and-bad mass (where the milestone Janson engine runs with a FREE
+`inv_closed`, since alive ⟹ gated) PLUS the `εfloor` union term `t·q + ∑_{τ<t} (K^τ) x₀ Sᶜ`.
+This is relay-5's "route (a)" realised: the whp Chernoff floor enters NOT through the
+(structurally impossible) deterministic `inv_closed` but as an additive escape budget. -/
+theorem real_bad_le_killedAliveBad_add_escape
+    {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α] [Inhabited α]
+    (K : Kernel α α) [IsMarkovKernel K] (G S : Set α) (bad : α → Prop) (q : ℝ≥0∞)
+    (hstep : ∀ x ∈ G, x ∈ S → K x Gᶜ ≤ q)
+    (t : ℕ) (x₀ : α) (hx₀ : x₀ ∈ G) :
+    (K ^ t) x₀ {y | bad y} ≤
+      (killK_now K G ^ t) (some x₀) {o | ∃ y, o = some y ∧ bad y} +
+      ((t : ℝ≥0∞) * q + ∑ τ ∈ Finset.range t, (K ^ τ) x₀ Sᶜ) := by
+  refine (real_bad_le_escape_add_killedAliveBad K G bad t x₀).trans ?_
+  rw [add_comm ((killK_now K G ^ t) (some x₀) {(none : Option α)})]
+  gcongr
+  exact killedEscape_le_prefix K G S q hstep t x₀ hx₀
+
+open ExactMajority GatedDrift in
+/-- **Killed alive-bad ⊆ killed alive-(¬good) reduction.**  If the milestone postcondition
+`good` excludes `bad` (`good y → ¬ bad y`), then the killed alive-and-bad mass is dominated
+by the killed alive-and-`¬good` mass.  This is the killed-kernel analogue of
+`roleSplitTail_le_milestoneTail_on`'s monotone inclusion `{¬good} ⊆ {¬Post}`: failing the
+good split forces an unreached milestone, here lifted to the cemetery-extended state space
+where the alive (`some`) trajectories are exactly the gated ones.  Composing this with a
+Kernel-generic milestone tail on `killK_now` (where `inv_closed = alive` is FREE by
+`alive_support_gate`) closes the alive-bad term. -/
+theorem killedAliveBad_le_killedAliveNotGood
+    {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α] [Inhabited α]
+    (K : Kernel α α) [IsMarkovKernel K] (G : Set α) (bad good : α → Prop)
+    (himpl : ∀ y, good y → ¬ bad y) (t : ℕ) (x₀ : α) :
+    (killK_now K G ^ t) (some x₀) {o | ∃ y, o = some y ∧ bad y} ≤
+      (killK_now K G ^ t) (some x₀) {o | ∃ y, o = some y ∧ ¬ good y} := by
+  apply measure_mono
+  rintro o ⟨y, rfl, hy⟩
+  exact ⟨y, rfl, fun hg => himpl y hg hy⟩
 
 end RoleSplitConcentration
 end ExactMajority

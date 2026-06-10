@@ -906,6 +906,279 @@ noncomputable def phase7Convergence (σ : Sign) (n : ℕ)
     (potNonincrOn_minorityU σ n)
     q hstep M₀ t ε hε
 
+/-! ## Part H — the CONSERVED SIGNED-SUM invariant (Doty §6's actual `|B|` mechanism).
+
+The carried `MinorityHiIdx σ` ordering of Part D is **genuinely not closed** under
+`cancelSplit` (relay-5 finding, see `DOTY_POST63_CAMPAIGN.md`): a gap-1 fire RAISES a
+majority agent's exponent index, which can then exceed a coexisting same-sign-as-σ
+agent's index, breaking the ordering.  Doty's §6 mechanism for `|B|` control is NOT an
+index ordering but the **conserved signed dyadic mass**
+
+  `M(c) := ∑_{a∈c}  sgn(a.bias) · 2^{L − idx(a.bias)}`   (the `2^L`-scaled signed sum).
+
+Every `cancelSplit` branch conserves `M` EXACTLY:
+* gap 0 (`i=j`):  `+2^{L-i} − 2^{L-i} = 0 = 0 + 0`;
+* gap 1 (`i+1=j`):  `2^{L-i} − 2^{L-(i+1)} = 2^{L-(i+1)} = 2^{L-(i+1)} + 0`;
+* gap 2 (`i+2=j`):  `2^{L-i} − 2^{L-(i+2)} = 3·2^{L-(i+2)} = 2^{L-(i+1)} + 2^{L-(i+2)}`.
+
+`M` is integer-valued (indices `i ≤ L`), conserved per pair, hence conserved by the
+whole kernel on a phase-7 window; `0 < M` (majority `pos`, wlog) is therefore one-step
+closed.  This rebuilds the Phase-7 invariant layer on the genuinely-closed potential.
+
+HONEST SCOPE NOTE (the residual gap, stated precisely below at
+`gap2_minorityU_rise_compatible_with_pos_sum`): conservation + `0 < M` does NOT by
+itself give per-pair `minorityU` non-increase — a single σ-minority agent may carry
+larger magnitude than a single majority agent while the GLOBAL sum stays positive, and
+that is exactly the gap-2 configuration that raises the pair `minorityU`.  So the
+signed sum is the correct *closed* invariant, but `minorityU` per-pair monotonicity is
+a strictly stronger statement than `0 < M`.  What Part H delivers cleanly: the
+conserved-sum invariant and its closure; the drain rectangle (Parts E–F) is independent
+of any ordering and stands. -/
+
+/-- The `2^L`-scaled integer signed mass of one bias: `±2^{L-i}` for `dyadic ± i`,
+`0` for `zero`.  Integer because `i ≤ L` (so `L - i` is a genuine ℕ exponent). -/
+def biasSignedMass (L : ℕ) : Bias L → ℤ
+  | .zero => 0
+  | .dyadic .pos i => (2 : ℤ) ^ (L - i.val)
+  | .dyadic .neg i => -((2 : ℤ) ^ (L - i.val))
+
+/-- The signed mass of an agent (reads only its bias). -/
+def agentSignedMass (a : AgentState L K) : ℤ := biasSignedMass L a.bias
+
+/-- The conserved Phase-7 signed sum `M(c) = ∑ agentSignedMass`. -/
+def phase7SignedSum (c : Config (AgentState L K)) : ℤ :=
+  (c.map (fun a => agentSignedMass a)).sum
+
+/-- **Per-pair signed-mass conservation under `cancelSplit`.**  Every branch of
+`cancelSplit` keeps the sum of the two agents' `agentSignedMass` fixed (the exact
+dyadic-mass cancellation identity).  This is Doty §6's conserved `|B|` mechanism. -/
+theorem cancelSplit_agentSignedMass_pair_eq (s t : AgentState L K) :
+    agentSignedMass (cancelSplit L K s t).1
+        + agentSignedMass (cancelSplit L K s t).2
+      = agentSignedMass s + agentSignedMass t := by
+  classical
+  unfold agentSignedMass
+  cases hsb : s.bias with
+  | zero =>
+      have hcs : cancelSplit L K s t = (s, t) := by unfold cancelSplit; rw [hsb]
+      rw [hcs, hsb]
+  | dyadic ss i =>
+    cases htb : t.bias with
+    | zero =>
+        have hcs : cancelSplit L K s t = (s, t) := by unfold cancelSplit; rw [hsb, htb]
+        rw [hcs, hsb, htb]
+    | dyadic st j =>
+      by_cases hne : ss = st
+      · have hcs : cancelSplit L K s t = (s, t) := by
+          unfold cancelSplit
+          simp only [hsb, htb, if_neg (show ¬ ss ≠ st from by simpa using hne)]
+        rw [hcs, hsb, htb]
+      · have hnee : ss ≠ st := hne
+        by_cases h0 : i.val = j.val
+        · -- gap 0: both biases zero out; signs opposite ⇒ +x + (−x) = 0.
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .zero}, {t with bias := .zero}) := by
+            unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_pos h0]
+          rw [hcs]; simp only []
+          -- opposite signs at equal index: masses cancel.
+          cases ss <;> cases st <;> simp_all [biasSignedMass, h0]
+        by_cases h1 : i.val + 1 = j.val
+        · have hjL : j.val < L + 1 := j.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic ss ⟨i.val + 1, by omega⟩}, {t with bias := .zero}) := by
+            unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_pos h1]
+          rw [hcs]
+          have hexp : L - i.val = (L - j.val) + 1 := by omega
+          have hexp2 : L - (i.val + 1) = L - j.val := by omega
+          cases ss <;> cases st <;> simp_all [biasSignedMass] <;>
+            simp only [pow_succ] <;> ring
+        by_cases h1' : j.val + 1 = i.val
+        · have hiL : i.val < L + 1 := i.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .zero}, {t with bias := .dyadic st ⟨j.val + 1, by omega⟩}) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_pos h1']
+          rw [hcs]
+          have hexp : L - j.val = (L - i.val) + 1 := by omega
+          have hexp2 : L - (j.val + 1) = L - i.val := by omega
+          cases ss <;> cases st <;> simp_all [biasSignedMass] <;>
+            simp only [pow_succ] <;> ring
+        by_cases h2 : i.val + 2 = j.val
+        · have hjL : j.val < L + 1 := j.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic ss ⟨i.val + 1, by omega⟩},
+                 {t with bias := .dyadic ss ⟨i.val + 2, by omega⟩}) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_pos h2]
+          rw [hcs]
+          have hei : L - i.val = (L - j.val) + 2 := by omega
+          have hei1 : L - (i.val + 1) = (L - j.val) + 1 := by omega
+          have hei2 : L - (i.val + 2) = L - j.val := by omega
+          cases ss <;> cases st <;> simp_all [biasSignedMass] <;>
+            simp only [pow_succ] <;> ring
+        by_cases h2' : j.val + 2 = i.val
+        · have hiL : i.val < L + 1 := i.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic st ⟨j.val + 2, by omega⟩},
+                 {t with bias := .dyadic st ⟨j.val + 1, by omega⟩}) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,
+              dif_pos h2']
+          rw [hcs]
+          have hej : L - j.val = (L - i.val) + 2 := by omega
+          have hej1 : L - (j.val + 1) = (L - i.val) + 1 := by omega
+          have hej2 : L - (j.val + 2) = L - i.val := by omega
+          cases ss <;> cases st <;> simp_all [biasSignedMass] <;>
+            simp only [pow_succ] <;> ring
+        · have hcs : cancelSplit L K s t = (s, t) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,
+              dif_neg h2']
+          rw [hcs, hsb, htb]
+
+/-- **Config-level signed-sum conservation under a chosen-pair step** (Phase-7 window).
+On an all-Main phase-7 window, every applicable pair is both-Main so `Transition =
+cancelSplit`, and the per-pair conservation lifts through the
+`c − {r₁,r₂} + {out₁,out₂}` step decomposition.  The not-applicable (self) case is the
+identity. -/
+theorem phase7SignedSum_stepOrSelf_eq (n : ℕ) (c : Config (AgentState L K))
+    (hw : Phase7AllMain n c) (r₁ r₂ : AgentState L K) :
+    phase7SignedSum (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      = phase7SignedSum c := by
+  classical
+  obtain ⟨_, hph⟩ := hw
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left7 happ
+    have hm2 := mem_of_app_right7 happ
+    obtain ⟨h17, h1M⟩ := hph r₁ hm1
+    obtain ⟨h27, h2M⟩ := hph r₂ hm2
+    have hcs := Transition_eq_cancelSplit_of_phase7_main r₁ r₂ h17 h27 h1M h2M
+    have hpair : agentSignedMass (Transition L K r₁ r₂).1
+          + agentSignedMass (Transition L K r₁ r₂).2
+        = agentSignedMass r₁ + agentSignedMass r₂ := by
+      rw [hcs]; exact cancelSplit_agentSignedMass_pair_eq r₁ r₂
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    have happ_le : (r₁ ::ₘ {r₂} : Multiset (AgentState L K)) ≤ c := happ
+    have hrestore : c - r₁ ::ₘ {r₂} + r₁ ::ₘ {r₂} = c :=
+      Multiset.sub_add_cancel happ_le
+    have hsum_c : phase7SignedSum c
+        = phase7SignedSum (c - r₁ ::ₘ {r₂})
+            + (agentSignedMass r₁ + agentSignedMass r₂) := by
+      rw [← hrestore]; simp [phase7SignedSum, add_left_comm]
+    have hsum_c' : phase7SignedSum
+          (c - r₁ ::ₘ {r₂} +
+            (Transition L K r₁ r₂).1 ::ₘ {(Transition L K r₁ r₂).2})
+        = phase7SignedSum (c - r₁ ::ₘ {r₂})
+            + (agentSignedMass (Transition L K r₁ r₂).1
+              + agentSignedMass (Transition L K r₁ r₂).2) := by
+      simp [phase7SignedSum, add_left_comm]
+    rw [hc']
+    show phase7SignedSum
+        (c - r₁ ::ₘ {r₂} +
+          (Transition L K r₁ r₂).1 ::ₘ {(Transition L K r₁ r₂).2})
+      = phase7SignedSum c
+    rw [hsum_c', hsum_c, hpair]
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+
+/-- **Support-level signed-sum conservation** (Phase-7 window): every successor in the
+kernel's step support carries the same `phase7SignedSum`. -/
+theorem phase7SignedSum_support_eq (n : ℕ) (c c' : Config (AgentState L K))
+    (hw : Phase7AllMain n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    phase7SignedSum c' = phase7SignedSum c := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact phase7SignedSum_stepOrSelf_eq n c hw r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; rfl
+
+/-- **The genuinely-closed Phase-7 invariant.**  Replaces the broken
+`MinorityHiIdx`-carrying `Inv7Main` (whose index ordering is not one-step closed) with
+the conserved signed-sum potential: the all-Main phase-7 window PLUS strict positivity
+of the signed mass (majority sign `pos`, wlog — the symmetric `< 0` form handles
+majority `neg`).  Doty §6's actual `|B|`-control invariant. -/
+def Inv7Sum (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  Phase7AllMain n c ∧ 0 < phase7SignedSum c
+
+/-- **`Inv7Sum` is one-step closed under the real kernel** (`OneSidedCancel.InvClosed`).
+Both conjuncts are support-stable: `Phase7AllMain` via `Phase7AllMain_support_closed`,
+`0 < phase7SignedSum` via `phase7SignedSum_support_eq` (exact conservation).  This is
+the `hClosed` that the broken `MinorityHiIdx` version could never supply. -/
+theorem invClosed_Inv7Sum (n : ℕ) :
+    OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Inv7Sum (L := L) (K := K) n c) := by
+  intro c hInv
+  obtain ⟨hw, hpos⟩ := hInv
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | ¬ Inv7Sum (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  refine hx ⟨Phase7AllMain_support_closed n c x hw hsupp, ?_⟩
+  rw [phase7SignedSum_support_eq n c x hw hsupp]; exact hpos
+
+/-! ### The residual gap, stated as a HARD per-pair fact.
+
+`Inv7Sum` (= signed sum conserved + positive) is genuinely closed, but it is **not**
+strong enough to give per-pair `minorityU` non-increase: the gap-2 branch of
+`cancelSplit` copies the SMALLER-index agent's sign onto BOTH outputs, so when the
+σ-minority sits at the smaller index (larger magnitude), the pair `minorityU` RISES by
+exactly 1.  And this very pair CONSERVES the signed sum (proved generally by
+`cancelSplit_agentSignedMass_pair_eq`), so global signed-sum positivity cannot forbid
+it.  Conclusion: the per-pair `minorityU` monotonicity Doty's §6 relies on is strictly
+stronger than `Inv7Sum`; it is supplied by the additional configurational fact that the
+minority always sits at the SMALLER magnitude (= larger index), i.e. exactly the
+content the (non-closed) `MinorityHiIdx` tried to encode.  So Phase-7's `hmono` for the
+crude engine remains a CARRIED hypothesis; only `hClosed` is now discharged on the
+genuinely-closed `Inv7Sum`. -/
+
+/-- **Gap-2 minority RISE compatible with signed-sum conservation** (the residual gap).
+If `s` is a σ-minority Main at the smaller index `i` and `t` is the σ.flip Main at
+`j = i + 2`, then `cancelSplit` makes BOTH outputs σ-minority: the pair `minorityU`
+RISES by exactly 1, while the signed mass is conserved
+(`cancelSplit_agentSignedMass_pair_eq`).  Hence `0 < phase7SignedSum` cannot rule out a
+per-pair `minorityU` increase — the honest boundary of the signed-sum invariant. -/
+theorem gap2_minorityU_rise_compatible_with_pos_sum (σ st : Sign) (s t : AgentState L K)
+    (hsM : s.role = Role.main) (htM : t.role = Role.main)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic σ i)
+    (htb : t.bias = Bias.dyadic st j) (hss : σ ≠ st) (hg2 : i.val + 2 = j.val) :
+    Multiset.countP (fun a => minoritySt σ a)
+          ({s, t} : Multiset (AgentState L K)) + 1
+      ≤ Multiset.countP (fun a => minoritySt σ a)
+          ({(cancelSplit L K s t).1, (cancelSplit L K s t).2} : Multiset (AgentState L K))
+    ∧ agentSignedMass (cancelSplit L K s t).1
+        + agentSignedMass (cancelSplit L K s t).2
+      = agentSignedMass s + agentSignedMass t := by
+  classical
+  refine ⟨?_, cancelSplit_agentSignedMass_pair_eq s t⟩
+  have hsmin : minoritySt σ s := ⟨hsM, i, hsb⟩
+  have htmin_not : ¬ minoritySt σ t := by
+    rw [minoritySt_iff]; rintro ⟨_, hb⟩
+    rw [htb] at hb; simp only [biasIsSigned] at hb; exact hss hb.symm
+  have hineq0 : ¬ i.val = j.val := by omega
+  have hineq1 : ¬ i.val + 1 = j.val := by omega
+  have hineq1' : ¬ j.val + 1 = i.val := by omega
+  have hjL : j.val < L + 1 := j.2
+  have hcs : cancelSplit L K s t
+      = ({s with bias := .dyadic σ ⟨i.val + 1, by omega⟩},
+         {t with bias := .dyadic σ ⟨i.val + 2, by omega⟩}) := by
+    unfold cancelSplit
+    rw [hsb, htb]
+    simp only [if_pos (show σ ≠ st from hss), dif_neg hineq0, dif_neg hineq1,
+      dif_neg hineq1', dif_pos hg2]
+  rw [countP_minoritySt_pair, countP_minoritySt_pair, hcs]
+  have ho1 : minoritySt σ ({s with bias := (Bias.dyadic σ
+      ⟨i.val + 1, by omega⟩ : Bias L)}) := ⟨by rw [hsM.symm], _, rfl⟩
+  have ho2 : minoritySt σ ({t with bias := (Bias.dyadic σ
+      ⟨i.val + 2, by omega⟩ : Bias L)}) := ⟨by rw [htM.symm], _, rfl⟩
+  rw [if_pos ho1, if_pos ho2, if_pos hsmin, if_neg htmin_not]
+
 end Phase7Convergence
 
 end ExactMajority

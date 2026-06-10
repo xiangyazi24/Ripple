@@ -948,25 +948,66 @@ advances.  E4 consumes the bound on the expected time to reach an arbitrary
 phase-advance set `Done`; we provide the bridge from `{Φ = 0}` to any such `Done`
 described by `Done = {x | Φ x = 0}`, so the three headline bounds transport directly.
 
-The remaining protocol-instantiation obligations for a concrete timed phase (phases
-0, 1, 5, 6, 7, 8) are, with `Φ :=` the clock-counter *sum* and `mC :=` the fixed
-post-Phase-0 clock count:
-  * `hmono : Engine.PotNonincr K Φ` — the clock-counter sum never rises.  Per-pair:
-    a clock-clock meeting decrements the active counter (`PhaseProgress`'s
-    `stdCounterSubroutine_counter_strict_descent`), and no interaction raises any
-    clock counter, so the sum is non-increasing.  Lift to the kernel via the
-    `countP`-additive support template (E2's `countP_scheduledStep_le` /
-    `potNonincrOn_of_countP_step`).
-  * `hdrop` — at any level `m ≥ 1` (some clock counter positive), a clock-clock
-    meeting fires with probability `≥ clockPairRate mC n = mC(mC−1)/(n(n−1))`, the
-    clock-clock rectangle (`mC(mC−1)` ordered clock pairs / `n(n−1)` ordered pairs),
-    and that meeting strictly drops the sum, so `K b (potBelow Φ m)ᶜ ≤ 1 −
-    clockPairRate mC n`.  Route: the clock-clock analogue of E2's
-    `sum_interactionProb_presentActiveAB` (aggregate `interactionPMF` mass over the
-    clock × clock `Finset`) composed with the deterministic strict descent.
-  * `counterMax` — the protocol's clock-counter cap (the per-phase counter bound; the
-    sum cap is then `counterMax · mC`).  Supplied by `Φ c ≤ counterMax · mC`.
-These are the *only* protocol facts; everything probabilistic is closed above. -/
+### Honest protocol-instantiation obligations (corrected scoping)
+
+**The unconditional `PotNonincr K Φ` for the clock-counter *sum* is FALSE on the
+real kernel.**  When a clock's counter hits `0` and the pair fires
+`stdCounterSubroutine`, the agent runs `advancePhaseWithInit`, whose `phaseInit`
+**resets** the counter to `counterMax = 50·(L+1)` (`Protocol/Transition.lean`
+lines 138/166–173, 296–300; `AgentState.counter : Fin (50·(L+1)+1)`).  So the
+sum RISES at every phase-advance event.  Likewise `phaseEpidemicUpdate` drags both
+interactants to `max` phase via `runInitsBetween`, which re-inits (resets) the
+counter of any clock pulled UP to a new phase.  The honest engine is therefore the
+**invariant-relative** one (`Engine.PotNonincrOn`/`InvClosed`, lifted above, and the
+`timed_phase_*_on` headlines), with:
+
+  * `Φ := Φ_p :=` the **phase-`p`-restricted** clock-counter sum
+    `Multiset.map (fun a => if a.role = .clock ∧ a.phase.val = p then a.counter.val
+    else 0) c |>.sum` (only phase-`p` clocks contribute).  `Φ_p = 0 ⇔` every
+    phase-`p` clock has counter `0` = the phase-advance trigger.  A clock that
+    advances OUT of phase `p` (or is epidemic-dragged up) leaves the count — it can
+    only LOWER `Φ_p`, never raise it.
+  * `Inv := AllClockGEp p c := ∀ a ∈ c, a.role = .clock → p ≤ a.phase.val`
+    (all CLOCK-role agents at phase `≥ p`; non-clocks unconstrained).  This is
+    one-step support-closed (`InvClosed`) because phases never decrease and no
+    interaction at phase `≥ 1` turns a non-clock into a clock (the only
+    `role := .clock` writes are in `Phase0Transition`, `Protocol/Transition.lean`
+    line 392) — the exact structure of `ClockRealKernel.AllClockGE3_absorbing`.
+  * `hmono : PotNonincrOn Inv K Φ_p` — the phase-`p` clock-counter sum never rises
+    from an `Inv`-state.  Per-pair (`countP`/`Multiset.map`-additive support
+    template, mirroring `ClockRealKernel.rBeyondGE3_stepOrSelf_ge`): for an
+    applicable pair `(r₁,r₂)`, `Φ_p` decomposes as
+    `Φ_p(c−{r₁,r₂}) + Φ_p{δ₁,δ₂}` (`Multiset.sum_map` additivity over `+`/`-`), so
+    it reduces to the **per-pair fact**
+    `Φ_p{δ₁,δ₂} ≤ Φ_p{r₁,r₂}` for the FULL `Transition`.  The per-phase ingredient
+    is in hand — `PhaseProgress.{Phase5,6,7,8}Transition_clock_counter_descent`
+    (clock-clock counter sum non-increasing) plus role permanence
+    (`Transition_clock_pair`); the remaining work is composing them through the
+    `phaseEpidemicUpdate` (identity on a single phase via
+    `phaseEpidemicUpdate_eq_self_of_phase`; otherwise the dragged-up clock leaves
+    phase `p`, lowering `Φ_p`) and `finishPhase10Entry` wrappers, and handling the
+    mixed clock/non-clock pairs (non-clock interactant cannot create or feed a
+    phase-`p` clock — `ClockMonoDischarge.lean` is the verbatim template for this
+    countP-monotone-through-full-`Transition` discharge, but for `minute`).
+  * `hdrop : K b (potBelow Φ_p m)ᶜ ≤ 1 − clockPairRate mC n` — a clock-clock meeting
+    of two POSITIVE-counter phase-`p` clocks strictly drops `Φ_p` (the descent
+    lemma needs BOTH counters positive: `stdCounterSubroutine_counter_strict_descent`
+    has hypotheses `hs_pos ht_pos`).  Honest rate: with `mC` phase-`p` clocks all
+    positive at level `m ≥ 1`, the rectangle is `mC(mC−1)` ordered pairs out of
+    `n(n−1)`, i.e. exactly `clockPairRate mC n`.  Route: `stepDistOrSelf_toMeasure_ge`
+    (`Phase0Convergence`) reducing kernel mass to `interactionPMF` mass over the
+    clock×clock `Finset`, the clock-clock analogue of E2's
+    `sum_interactionProb_presentActiveAB` (sum of `interactionProb`, here over the
+    phase-`p` positive-clock rectangle), composed with the strict descent — the
+    `ClockRealKernel.clock_real_drip_advance_prob` template (single same-state pair
+    mass `m(m−1)/(n(n−1))`) generalized to the full rectangle.
+  * `counterMax = 50·(L+1)` (the `AgentState.counter` cap); the sum cap is then
+    `counterMax · mC`, supplied by `Φ_p c ≤ counterMax · mC`.
+
+The probabilistic / coupon content is fully closed (the lifted unconditional AND
+invariant-relative engines, both axiom-clean); the residue is the two per-pair
+deterministic discharges above (`ClockRealKernel`/`ClockMonoDischarge` are the
+in-tree templates). -/
 
 /-- **Phase-advance wrapper (tiny-clock, E4 shape).**  Transports
 `timed_phase_progress_tinyClock` onto an arbitrary phase-advance set
@@ -1006,6 +1047,103 @@ theorem phase_advance_expectedHitting_bigClock [DiscreteMeasurableSpace α]
     rw [hDone]; ext x; simp only [Engine.potBelow, Set.mem_setOf_eq]; omega
   rw [hbridge]
   exact timed_phase_progress_bigClock K Φ hmono mC n counterMax hfloor hmCn hn hdrop c hc
+
+/-! ## Part 5 — Real-kernel protocol instantiation
+
+The protocol-level potential and invariant for the real kernel
+`(NonuniformMajority L K).transitionKernel`, with the honest scoping forced by the
+phase-advance / epidemic counter resets (Part 4): the **phase-`p`-restricted
+clock-counter sum** `clockCounterSumAt p` and the **support-closed invariant**
+`AllClockGEp p` = "every clock-role agent is at phase `≥ p`".  The `InvClosed`
+discharge is complete and axiom-clean (mirroring
+`ClockRealKernel.AllClockGE3_absorbing`); the per-pair `PotNonincrOn` and `hdrop`
+discharges are documented in Part 4 (the `ClockRealKernel`/`ClockMonoDischarge`
+templates). -/
+
+variable {L K : ℕ}
+
+/-- The **phase-`p`-restricted clock-counter sum**: the total counter value over the
+clock-role agents currently at phase exactly `p`.  This is the honest potential `Φ`
+for the timed phase `p` — a clock that advances out of phase `p` (its counter hit
+`0`) or is epidemic-dragged to a higher phase simply leaves the sum, so the sum can
+only descend along the kernel from an `AllClockGEp p`-state.  `clockCounterSumAt p
+c = 0 ⇔` every phase-`p` clock has counter `0` = the phase-advance trigger.
+
+(Definition only; the `PotNonincrOn`/`hdrop` discharges over this potential are the
+documented Part-4 obligations, via the `ClockRealKernel`/`ClockMonoDischarge`
+per-pair templates.) -/
+def clockCounterSumAt (p : ℕ) (c : Config (AgentState L K)) : ℕ :=
+  (c.map (fun a => if a.role = .clock ∧ a.phase.val = p then a.counter.val else 0)).sum
+
+/-- The all-clock timed-phase invariant used for the closed `InvClosed` discharge:
+every agent is a clock at phase `≥ p` (the clock-subpopulation view, where the
+timed-phase dynamics of Doty §6 live and `mC = card`).  Specializes
+`ClockRealKernel.AllClockGE3` to a general floor `p`. -/
+def AllClockGEp (p : ℕ) (c : Config (AgentState L K)) : Prop :=
+  ∀ a ∈ c, a.role = .clock ∧ p ≤ a.phase.val
+
+/-- `Transition` keeps both outputs clocks at phase `≥ p` for a clock-clock pair at
+phase `≥ p`, for a floor `3 ≤ p` (the timed phases of interest are `p ∈ {5,6,7,8}`).
+Role permanence comes from the public clock-clock specialization
+`ClockRealKernel.Transition_clock_pair` (phase `≥ 3`); the phase `≥ p` floor from the
+public `Transition_phase_monotone`. -/
+theorem Transition_clock_pair_phase_GEp (p : ℕ) (hp : 3 ≤ p) (s t : AgentState L K)
+    (hs_clock : s.role = .clock) (ht_clock : t.role = .clock)
+    (hs_phase : p ≤ s.phase.val) (ht_phase : p ≤ t.phase.val) :
+    ((Transition L K s t).1.role = .clock ∧ p ≤ (Transition L K s t).1.phase.val) ∧
+      ((Transition L K s t).2.role = .clock ∧ p ≤ (Transition L K s t).2.phase.val) := by
+  have hepGe := phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) s t
+  have hepGeR := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) s t
+  have hepLe := phaseEpidemicUpdate_phase_le_Transition_phase (L := L) (K := K) s t
+  have hmL : max s.phase.val t.phase.val ≤ (Transition L K s t).1.phase.val :=
+    le_trans hepGe hepLe.1
+  have hmR : max s.phase.val t.phase.val ≤ (Transition L K s t).2.phase.val :=
+    le_trans hepGeR hepLe.2
+  have hs3 : 3 ≤ s.phase.val := le_trans hp hs_phase
+  have ht3 : 3 ≤ t.phase.val := le_trans hp ht_phase
+  have hpair := ClockRealKernel.Transition_clock_pair s t hs_clock ht_clock hs3 ht3
+  refine ⟨⟨hpair.1, ?_⟩, ⟨hpair.2.1, ?_⟩⟩
+  · exact le_trans hs_phase (le_trans (le_max_left _ _) hmL)
+  · exact le_trans ht_phase (le_trans (le_max_right _ _) hmR)
+
+/-- `AllClockGEp p` is preserved on the one-step kernel support (one-step support
+closed).  A clock at phase `≥ p` interacting with another keeps role + phase `≥ p`
+(`Transition_clock_pair_phase_GEp`); every agent in the post-config is either an
+untouched clock from `c` or such an output.  Generalizes
+`ClockRealKernel.AllClockGE3_absorbing`. -/
+theorem AllClockGEp_absorbing (p : ℕ) (hp : 3 ≤ p) (c c' : Config (AgentState L K))
+    (hw : AllClockGEp p c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    AllClockGEp p c' := by
+  classical
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    subst hr
+    by_cases happ : Protocol.Applicable c r₁ r₂
+    · obtain ⟨h1c, h1p⟩ := hw r₁ (ClockRealKernel.mem_of_applicable_left happ)
+      obtain ⟨h2c, h2p⟩ := hw r₂ (ClockRealKernel.mem_of_applicable_right happ)
+      have hsub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := happ
+      have htp := Transition_clock_pair_phase_GEp p hp r₁ r₂ h1c h2c h1p h2p
+      have hsc : Protocol.scheduledStep (NonuniformMajority L K) c (r₁, r₂)
+          = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+        unfold Protocol.scheduledStep Protocol.stepOrSelf
+        rw [if_pos happ]; rfl
+      intro a ha
+      rw [hsc, Multiset.mem_add] at ha
+      rcases ha with ha | ha
+      · exact hw a (Multiset.mem_of_le (Multiset.sub_le_self _ _) ha)
+      · rw [Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton] at ha
+        rcases ha with rfl | rfl
+        · exact htp.1
+        · exact htp.2
+    · rw [Protocol.scheduledStep, Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+      exact hw
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'
+    subst hc'; exact hw
 
 end ConditionalPhaseProgress
 
