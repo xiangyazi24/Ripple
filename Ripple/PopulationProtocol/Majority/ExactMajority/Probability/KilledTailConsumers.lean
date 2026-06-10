@@ -576,10 +576,8 @@ theorem midBand_floorFail_prefix_floorMasses
       hb0 hd0 hb1 hbd1 hfresh Sblk hSstep hblock hAn x hx
   apply Finset.sum_le_sum
   intro τ _
-  have hstep := midBand_floorFail_step_contractive (L := L) (K := K) (1 / 10)
+  exact midBand_floorFail_step_contractive (L := L) (K := K) (1 / 10)
     (by norm_num) a₀ (PoolDriftRegion (L := L) (K := K) n uMin Ahi) rVal 0 hdrift_G τ c₀
-  convert hstep using 4
-  norm_num
 
 end FloorPrefix
 

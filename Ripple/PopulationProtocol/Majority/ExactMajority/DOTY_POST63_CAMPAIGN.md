@@ -3204,3 +3204,22 @@ scalar climb transport on AllClockP3 (DRIP-only +1/step), CrossEmptyClimbGood wi
 crossEmptyClimb_whp finite union, widthFail_between_checkpoints_concrete CK assembly.
 Cut before its own doc commit; axiom sweep deferred to Phase F. Resumed agents:
 SeamPairAdapter stages 2–4 + KilledTailConsumers deliverables 2–3 re-dispatched.
+
+### SeamPairAdapter completion record (2026-06-10, resumed agent — Stages 2–4)
+Probability/SeamPairAdapter.lean COMPLETE (Stages 1–4; append-only, no edit to SeamNoOvershoot.lean
+or SeamPairBound.lean). Single-file `lake env lean … SeamPairAdapter.lean` EXIT 0; all headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry / 0 native_decide / 0 axiom.
+
+- Stage 2 (d3c1cc22): HONEST two-sided pair bound `seamClockSummand_Transition_pair_le` —
+  `summand₁'+summand₂' ≤ eˢ·(summand₁+summand₂) + 2·(eˢ·freshVal)` over `{1,6,7,8}` (finding 1 fixed,
+  the consumer's `2·freshVal` is FALSE for s>0). Universal per-side bounds + `SeamRegimeDispatch` predicate.
+- Stage 3 (ab0fab2f): HONEST config-level drift `seamClockPotential_drift_affine_honest` with
+  `b = 2·(eˢ·freshVal)`, via generic-immigration clones reusing the public lintegral pair-sum engine.
+- Stage 4 (1d347fad): HONEST numerics `seam_noOvershoot_numerics_honest` (immigration `2·e·e^{−50(L+1)}`)
+  STILL closes to `e^{−40(L+1)}` (predecessor optimism VERIFIED, no weakening); end-to-end
+  `seam_atRiskClockZero_tail_honest` / `seam_noOvershoot_tail_honest` / `hNoOvershoot_one_seam_honest`
+  plug into the SAME `seamEpidemicExactW` integration point.
+
+Honest two-sided constant: `2·eˢ·freshVal`. Numerics landed: `e^{−40(L+1)}`. Excluded destinations
+`{2,4,9}` (untimed) and `{3,5}` (no counter reset on entry) handled by named per-phase guards
+(CounterResetDest excludes them; width/work-phase machinery owns their no-overshoot), not faked.

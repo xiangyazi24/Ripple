@@ -643,3 +643,42 @@ immigration reset, and the per-phase dispatch left-clock reductions for `{1,5,6,
 `Phase0Transition` left-clock reduction packaged (Phase{5,6,7} are done; the advance-reset lemma
 `seamClockSummand_stdCounterSubroutine_advance` is proven). The full exact-`hpair` adapter is NOT
 deliverable as stated (findings 1+2); the honest adapter targets `2·eˢ·freshVal` over `{1,6,7,8}`.
+
+## STATUS UPDATE 2026-06-10 — `SeamPairAdapter.lean` COMPLETE (Stages 1–4, 0-sorry, axiom-clean)
+
+The honest adapter is fully built in `Probability/SeamPairAdapter.lean` (append-only; NO edit to
+`SeamNoOvershoot.lean` or `SeamPairBound.lean`). Single-file `lake env lean … SeamPairAdapter.lean`
+EXIT 0; all headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; no
+`native_decide`/`sorry`/`admit`/`axiom`. Both findings above are now DISCHARGED honestly.
+
+- **Stage 1** (commit a4c7e477): ADVANCE-regime dispatch reductions for `{1,6,7,8}`
+  (`Phase0Transition_{left,right}_clock_eq`, `Phase{5,6,7,8}Transition_right_clock`, the per-side
+  advance bounds `seamClockSummand_Transition_{left,right}_le_of_ep_advance`, the RIGHT no-advance
+  bound `…_right_le_of_ep_at_dest`, RIGHT epidemic immigration).
+- **Stage 2** (commit d3c1cc22): the HONEST two-sided pair bound
+  `seamClockSummand_Transition_pair_le`:
+  `summand₁' + summand₂' ≤ eˢ·(summand₁+summand₂) + 2·(eˢ·freshVal)` — finding 1 corrected.
+  Universal per-side bounds (`…_{left,right}_le_univ`) cover no-advance/advance/zero;
+  `SeamRegimeDispatch p` packages the per-pair regime facts (the structural input).
+- **Stage 3** (commit ab0fab2f): the HONEST config-level drift
+  `seamClockPotential_drift_affine_honest`:
+  `∫ Φ dK(c) ≤ ofReal(1+2(eˢ−1)/n)·Φ + 2·(eˢ·freshVal)`. Generic-immigration clones
+  (`…_stepOrSelf_le_gen`, `…_drift_affine_gen`) reuse the public base-split +
+  `lintegral_transitionKernel_eq_sum` infrastructure verbatim; instantiated at the Stage-2 constant.
+- **Stage 4** (commit 1d347fad): the HONEST numerics `seam_noOvershoot_numerics_honest` (immigration
+  `2·e·e^{−50(L+1)}`) STILL closes to **`e^{−40(L+1)}`** (predecessor optimism VERIFIED — the extra
+  `e` factor moves term-2 from `−43(L+1)` to `−42(L+1)`, absorbed by the `−50→target` slack; the
+  `2 ≤ e^{2(L+1)}` combine is unchanged). End-to-end: `seam_atRiskClockZero_tail_honest` (≤ e^{−40(L+1)}),
+  `seam_noOvershoot_tail_honest`, `hNoOvershoot_one_seam_honest` — plugs into the SAME
+  `seamEpidemicExactW` integration point with the corrected constant and the SAME bound.
+
+**Finding 2 discharge:** `CounterResetDest q := q ∈ {1,6,7,8}` (the `def` in the adapter) is the honest
+counter-reset set; `CounterTimedPhase_of_CounterResetDest` proves `{1,6,7,8} ⊆ {1,5,6,7,8}`. Excluded:
+`{2,4,9}` untimed (opinion-union/big-bias), `{3,5}` counter-timed-but-no-reset (phase-3 init sets `minute`;
+phase-5 predecessor `Phase4Transition` uses `advancePhase`). Their no-overshoot comes from the work-phase /
+big-bias / minute-hour-width guards, NOT this clock-counter tail — documented in named doc sections, not faked.
+
+**Honest two-sided constant proved:** `2·eˢ·freshVal` (per pair). **Numerics landed:** `e^{−40(L+1)}`
+(no weakening needed). **Final hypothesis surface** (`hNoOvershoot_one_seam_honest`): seam `Pre` (threaded
+to `NoOvershoot`-start + `card = n`) + `tseam ≤ n(L+1)` + `log n ≤ L+1` + initial-potential bound +
+`CounterResetDest (p+1)` / `SeamRegimeDispatch p` / `DetSeamOvershootBridge p` structural guards + arithmetic.
