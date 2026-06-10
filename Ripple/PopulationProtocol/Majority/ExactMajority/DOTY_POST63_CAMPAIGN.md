@@ -1913,3 +1913,58 @@ final STRUCTURAL form: the ONLY undischarged quantity is `εfloor`.
     the deterministic 1:1 balance (`Phase0Transition_rule4_clock_reserve` ⟹ `|Clock|=|Reserve|`)
     + Main = #R1 (the `n/2±εn` window).  The `RoleSplitGood`-consumer floors
     (`clockCount_linear_of_RoleSplitGood` etc.) already exist.
+
+### Phase C-1 (relay 10) — Stage-2 crCount atoms + deterministic post_sound ledger + assembly
+
+Built gaps (b) and (c) above as the DETERMINISTIC skeleton, with the genuinely-probabilistic
+windows isolated as named inputs (NOT faked).  Did NOT touch gap (a) `εfloor` (another line).
+Commits: C-1O `3df34cc8`, C-1P `72c8d9c1`, C-1Q `38b5a415`, C-1R `483d9934`, C-1S `8a496b1b`.
+All single-file EXIT_0, each per-theorem `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.
+
+**The deterministic / probabilistic split (the honest finding).**  Lemma 5.2's postcondition
+factors cleanly:
+- DETERMINISTIC (probability 1, fully proved this relay):
+  * `roleCount_conservation` (C-1O): the five role counts partition the population —
+    `mainCount + reserveCount + clockCount + roleMCRCount + crCount = card`.  Multiset induction,
+    protocol-independent.
+  * `Phase0Transition_clock_reserve_balance_pair` (C-1P): EVERY `Phase0Transition` step preserves
+    the clock-minus-reserve balance (`#Clock(out)+#Reserve(in) = #Reserve(out)+#Clock(in)`).
+    100-case role/assigned tree, `simp [Phase0Transition, addSmallBias]` (clock-preservation under
+    the opaque counter machinery falls out).  This is the per-pair atom behind `|Clock|=|Reserve|`.
+  * `balanced_conservation` (C-1Q): substituting the balance into conservation gives
+    `mainCount + 2·clockCount + crCount + roleMCRCount = n` — the exact identity the windows refine.
+- PROBABILISTIC (NOT derivable from the count atoms — the paper's Chernoff on the RANDOM
+  R1-vs-(R2/R3) mix): the `±η` Main window and the `≥(1−η)n/4` Clock/Reserve floor.  Exposed as
+  the named input `RoleSplitWindows η n c` with its precise shape (C-1Q).  Plus `roleMCRCount = 0`:
+  the diagonal milestone family stops at `mcrCount ≤ 1` (`roleMCRCount_le_one_of_roleSplitGoodMile`,
+  C-1Q), one short of the paper's `= 0`; the residual single-MCR absorption is a named input.
+
+**Stage-2 composition design (gap b).**  The concurrent kernel blocks a naive `crCount`-milestone
+monotonicity (R1/R2 create fresh CR while MCR remain).  The honest composition is the
+**Chapman–Kolmogorov checkpoint after Stage-1**: run Stage-2 only in the no-MCR regime.  The
+licensing structural fact is deterministic and now proved:
+  * `Phase0Transition_crCount_noMCR_le_pair` (C-1R): with NEITHER input agent `RoleMCR`, no rule
+    produces a CR (R1 needs both-MCR, R2 needs one-MCR — both blocked; R3 emits Main; R4 drains;
+    R5 runs on clocks), so `crCount{out} ≤ crCount{in}`.  This is the Stage-2 milestone monotonicity.
+  * `crCount_pair_rule4_drop` (C-1R) / `crCount_config_decrease_of_phase0_cr_pair` (C-1S): two
+    phase-0 CRs interacting drop `crCount` by 2 (pair) resp. strictly (config) — the Stage-2 progress
+    atom (analogue of `mcrCount_config_decrease_of_phase0_cr_pair`).  Rate is the no-floor
+    `Θ(l²/n²)` diagonal (R4 fires on ANY two CRs — no `assignableCount ≥ a₀` floor needed, UNLIKE
+    Stage-1), so a Stage-2 `KernelMilestone` instance would use the plain diagonal-rate engine, not
+    the floorGate one.
+
+**Assembly (`phase0_roleSplit_whp_assembled`, C-1Q).**  Given (carried invariants `card=n`,
+all-MCR-at-phase-0) + `roleSplitGoodMile c` (Stage-1 Post) + `ClockReserveBalanced c` +
+`roleMCRCount = 0` (named) + `RoleSplitWindows η n c` (named), concludes
+`RoleSplitGood η n c ∧ clockCount = reserveCount ∧ (balanced conservation)`.  The ONLY undischarged
+quantities, now sharply pinned:
+  (a) `εfloor` MGF (another line);
+  (b) the Stage-2 `KernelMilestone` INSTANCE (the atoms above are built; instantiating the engine
+      needs a `crCount`-diagonal clone of `roleSplitKernelMilestone` + its monotone/progress fields
+      from `Phase0Transition_crCount_noMCR_le_pair` + `crCount_config_decrease_of_phase0_cr_pair`,
+      and the Chapman–Kolmogorov compose with Stage-1 at the `mcrCount=0` checkpoint — ~engine-scale,
+      not done this relay);
+  (c) `roleMCRCount = 0` (residual single-MCR absorption past the `≤1` milestone frontier) and
+      `RoleSplitWindows` (the genuinely-random R1-vs-onesided split fraction).
+The deterministic skeleton is complete and 0-sorry axiom-clean; (b)/(c) are the precise remaining
+work, honestly named.

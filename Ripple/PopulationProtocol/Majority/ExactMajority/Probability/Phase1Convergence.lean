@@ -393,3 +393,67 @@ theorem invClosed_phase1AllMain (n : ℕ) :
   rw [Set.disjoint_left]
   intro x hsupp hx
   exact hx (Phase1AllMain_support_closed n c x hInv hsupp)
+
+/-! ## Part E — the Phase-1 `PhaseConvergenceW` from the engine.
+
+With both `hmono` (`potNonincrOn_extremeU`) and the FULL `hClosed`
+(`invClosed_phase1AllMain`) discharged, the only remaining input is the engine's
+**per-step averaging-drain bound** `hstep` — from any `Phase1AllMain`-config with at
+least one saturated-extreme Main, one interaction fails to pull a saturated value
+inward with probability `≤ q`.  This is the quantitative content imported from
+reference [45] (Mocquard et al., the discrete-averaging convergence, Corollary 1)
+in the paper's proof of Lemma 5.3: the per-interaction probability that an
+extreme-holding Main meets a partner with which it averages strictly inward is
+`≥ extreme·other/(n(n−1))`-shape, so the failure is `≤ q`.  We expose it as a
+hypothesis (its derivation is the averaging-drain rectangle — the extreme × interior
+interaction count bound, the Phase-8 `minorityU_drop_prob_rect` analogue — the
+remaining quantitative atom, documented at the file foot).
+
+`potDone (extremeU) = {c | extremeU c = 0} = NoExtreme`: no Main is pinned at the
+saturated boundary `±3`.  This is a genuine Lemma-5.3-shape sub-event: the bias
+spread has contracted strictly off the saturated ends toward the interior window. -/
+
+/-- `NoExtreme c`: no phase-1 Main is pinned at a saturated bias end (`±3`) — the
+honest, fully-closable Phase-1 post, equal to the engine's `potDone (extremeU)`.
+The *full* Lemma-5.3 collapse to `{−1,0,+1}` is the inner-level refinement imported
+from [45]. -/
+def NoExtreme (c : Config (AgentState L K)) : Prop := extremeU c = 0
+
+theorem potDone_extremeU_eq :
+    OneSidedCancel.potDone (fun c : Config (AgentState L K) => extremeU c)
+      = {c | NoExtreme c} := rfl
+
+/-- **The Phase-1 averaging `PhaseConvergenceW` on the REAL kernel** (engine form b).
+`Pre c = Phase1AllMain n c ∧ extremeU c ≤ M₀` (the all-Main phase-1 window with a
+saturated-extreme budget — the carried role floor); `Post c = Phase1AllMain n c ∧
+extremeU c = 0` (still in-window, no saturated extreme left).  Horizon `t`, failure
+`ε ≥ q^t` — the `⌈C₁·n·log n⌉` / `O(1/n²)` shape of Lemma 5.3.
+
+`hmono` and full `hClosed` are the proved `potNonincrOn_extremeU` /
+`invClosed_phase1AllMain`; `hstep` is the carried averaging-drain bound (the
+[45]/Lemma-4.6 quantitative input, the remaining rectangle atom). -/
+noncomputable def phase1Convergence (n : ℕ) (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Phase1AllMain n b → 1 ≤ extremeU b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => extremeU c))ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.crude_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Phase1AllMain (L := L) (K := K) n c)
+    (invClosed_phase1AllMain n)
+    (fun c => extremeU c)
+    (potNonincrOn_extremeU n)
+    q hstep M₀ t ε hε
+
+/-- The Phase-1 instance's `Post` is exactly the structural window together with
+`NoExtreme` (no Main pinned at `±3`) — the honest Lemma-5.3-shape endpoint that the
+spread has contracted off the saturated boundary. -/
+theorem phase1Convergence_Post (n : ℕ) (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Phase1AllMain n b → 1 ≤ extremeU b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => extremeU c))ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞))
+    (c : Config (AgentState L K)) :
+    (phase1Convergence n q hstep M₀ t ε hε).Post c
+      ↔ (Phase1AllMain n c ∧ NoExtreme c) := Iff.rfl
