@@ -274,8 +274,10 @@ theorem clock_real_faithful_all_minutes_sideGood (n mC L₀ : ℕ) (hn : 2 ≤ n
 /-- **`clock_real_faithful_O_log_n_unconditional` — the CAPSTONE.**
 
 The `habs_mix`-free, `q = 0` O(log n) faithful clock.  Instantiates the assembly variant at
-`L₀ = K·(L+1)` (the protocol's full minute count `= k·⌈log₂ n⌉`).  Total interactions
-`K·(L+1)·(tseed+tbulk) = O(n·log n)` (parallel `/n = O(log n)`).
+`L₀ = K·(L+1) − 1` bulk minutes `T = 1 … K·(L+1)−1` (the §6 `crossedT` deterministic closure
+needs `1 ≤ T`, so minute `0` is the phase-3-entry start — handled by the start conditions, not a
+bulk leg — and the cap minute `K·(L+1)` is where the clocks arrive together under FrontSync).
+Total interactions `(K·(L+1)−1)·(tseed+tbulk) = O(n·log n)` (parallel `/n = O(log n)`).
 
 ### Honest verdict (the FINAL Phase B state).
 
@@ -316,7 +318,116 @@ theorem clock_real_faithful_O_log_n_unconditional (n mC : ℕ) (hn : 2 ≤ n) (h
   clock_real_faithful_all_minutes_sideGood (L := L) (K := K) n mC (K * (L + 1) - 1) hn hmC
     (by omega) tseed tbulk htbulk εbulk hεb c₀
 
-/-! ## Status (Parts 1–3 complete). -/
+/-! ## Part 4 — the side-prefix discharge (the per-`τ` `Sgoodᶜ` decomposition).
+
+The capstone leaves per-minute side prefixes `∑_τ (realκ^τ) c₀ Sgood(T)ᶜ` un-bounded.  Here we
+decompose `Sgoodᶜ` into the §6 named failure events and bound the per-`τ` mass by their sum, so
+each piece routes to its discharger.
+
+`Sgood T = QbulkSet T ∩ {HabsGood}` (Part 2), with
+`QbulkSet T = {Q_mix n mC T ∧ mC/10 ≤ rBeyond (T+1)}` and `HabsGood = allPhaseGE3 ∧ noPhaseAbove3
+∧ allClocksCounterPos ∧ FrontSync ∧ (successor noPhaseAbove3)`.  So `Sgood(T)ᶜ` is the union of
+the per-conjunct failures:
+
+* `¬Q_mix T` (the window — `card`/`clockPhase3`/`clockSize`/`crossedT`) and `¬(mC/10 floor)`:
+  these failures are covered by the §6 width / FrontSync machinery — `Q_mix`'s structural
+  conjuncts hold deterministically from the start facts (`card`, `clockSize`), and `clockPhase3`
+  / `crossedT` / the floor are re-established via the drip + width invariant.  Discharged by
+  `WidthPrefix.goodFrontWidth_whp_at` + the `ClockFrontSyncFromWidth` bridges + `DotyParams`.
+* `¬FrontSync`: the front-shape synchronization, discharged by
+  `FrontSyncConc.frontSync_concentration_remaining_proven` / `frontSync_whp_of_goodFrontWidth`
+  (`= εW + εP + εB`, the width + side + bulk-arrival split).
+* `¬allPhaseGE3` / `¬noPhaseAbove3` / `¬allClocksCounterPos` / the successor `noPhaseAbove3` gate:
+  the structural phase gates.  `allPhaseGE3` and `noPhaseAbove3` are deterministic from the
+  start (`allPhaseGE3` is one-step-closed — `HabsDischarge.allPhaseGE3_closed`; `noPhaseAbove3`
+  is the residual deterministic gate, named); `allClocksCounterPos` is the genuinely-probabilistic
+  one (the at-cap `counter = 1` witness), discharged ON the FrontSync-good event by
+  `ClockFrontShape.counterPos_closed_of_frontSync`.
+
+We deliver the GENERIC set-inclusion + union bound: `sidePrefix_le` takes the per-`τ` measure of
+each failure event as a NAMED INPUT (`εQ`, `εfloor`, `εsync`, `εphase`), supplied by the above
+dischargers, and concludes the per-`τ` `Sgood(T)ᶜ` mass `≤ εQ + εfloor + εsync + εphase`.  This
+is the honest "assemble εside(τ) from the available pieces + named inputs" deliverable: the
+inclusion is fully proven here; which feeder supplies each `εᵢ` is documented above. -/
+
+/-- The four named per-`τ` failure events whose union covers `Sgood(T)ᶜ`.  Each is bounded by its
+§6 discharger (see the part-4 docstring). -/
+def QmixFail (n mC T : ℕ) : Set (Config (AgentState L K)) :=
+  {c | ¬ Q_mix (L := L) (K := K) n mC T c}
+
+def FloorFail (mC T : ℕ) : Set (Config (AgentState L K)) :=
+  {c | ¬ (mC / 10 ≤ rBeyond (L := L) (K := K) (T + 1) c)}
+
+def SyncFail : Set (Config (AgentState L K)) :=
+  {c | ¬ FrontSync (L := L) (K := K) c}
+
+/-- The structural phase-gate failures + the successor `noPhaseAbove3` gate failure. -/
+def PhaseGateFail (c : Config (AgentState L K)) : Prop :=
+  ¬ allPhaseGE3 (L := L) (K := K) c ∨
+    ¬ noPhaseAbove3 (L := L) (K := K) c ∨
+    ¬ allClocksCounterPos (L := L) (K := K) c ∨
+    ¬ (∀ c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support,
+        noPhaseAbove3 (L := L) (K := K) c')
+
+/-- **The set inclusion `Sgood(T)ᶜ ⊆ QmixFail ∪ FloorFail ∪ SyncFail ∪ {PhaseGateFail}`.**
+Every config off the side set fails at least one of the four named events. -/
+theorem Sgood_compl_subset (n mC T : ℕ) :
+    (Sgood (L := L) (K := K) n mC T)ᶜ ⊆
+      ((QmixFail (L := L) (K := K) n mC T ∪ FloorFail (L := L) (K := K) mC T)
+        ∪ (SyncFail (L := L) (K := K) ∪ {c | PhaseGateFail (L := L) (K := K) c})) := by
+  classical
+  intro c hc
+  simp only [Sgood, Set.mem_compl_iff, Set.mem_inter_iff, Set.mem_setOf_eq, not_and] at hc
+  -- hc : c ∈ QbulkSet → ¬ HabsGood c  (de Morgan on the intersection)
+  by_cases hQbulk : c ∈ QbulkSet (L := L) (K := K) n mC T
+  · -- in the gate: HabsGood must fail.
+    have hH : ¬ HabsGood (L := L) (K := K) c := hc hQbulk
+    -- HabsGood = allPhaseGE3 ∧ noPhaseAbove3 ∧ allClocksCounterPos ∧ FrontSync ∧ (succ gate);
+    -- its failure is one of {sync} ∪ {phase gates}.
+    right
+    unfold HabsGood at hH
+    by_cases hsync : FrontSync (L := L) (K := K) c
+    · -- FrontSync holds, so a phase gate fails.
+      right
+      simp only [Set.mem_setOf_eq, PhaseGateFail]
+      by_contra hng
+      push Not at hng
+      obtain ⟨hge, hno, hpos, hsucc⟩ := hng
+      exact hH ⟨hge, hno, hpos, hsync, hsucc⟩
+    · exact Or.inl hsync
+  · -- off the gate: ¬QbulkWin = ¬(Q_mix ∧ floor), so QmixFail or FloorFail.
+    left
+    have hQbw : ¬ QbulkWin (L := L) (K := K) n mC T c := hQbulk
+    unfold QbulkWin at hQbw
+    by_cases hQm : Q_mix (L := L) (K := K) n mC T c
+    · exact Or.inr (show ¬ (mC / 10 ≤ rBeyond (L := L) (K := K) (T + 1) c) from
+        fun hfl => hQbw ⟨hQm, hfl⟩)
+    · exact Or.inl hQm
+
+/-- **`sidePrefix_le` — the per-`τ` `Sgood(T)ᶜ` budget from the four named feeders.**  Given the
+per-`τ` measure of each failure event (supplied by `goodFrontWidth_whp_at` + bridges /
+`frontSync_concentration` / the phase-gate closures), the per-`τ` side-prefix mass is
+`≤ εQ + εfloor + εsync + εphase`. -/
+theorem sidePrefix_le (n mC T τ : ℕ) (c₀ : Config (AgentState L K))
+    (εQ εfloor εsync εphase : ℝ≥0∞)
+    (hQ : (realκ L K ^ τ) c₀ (QmixFail (L := L) (K := K) n mC T) ≤ εQ)
+    (hfloor : (realκ L K ^ τ) c₀ (FloorFail (L := L) (K := K) mC T) ≤ εfloor)
+    (hsync : (realκ L K ^ τ) c₀ (SyncFail (L := L) (K := K)) ≤ εsync)
+    (hphase : (realκ L K ^ τ) c₀ {c | PhaseGateFail (L := L) (K := K) c} ≤ εphase) :
+    (realκ L K ^ τ) c₀ (Sgood (L := L) (K := K) n mC T)ᶜ
+      ≤ εQ + εfloor + εsync + εphase := by
+  have hbound : (realκ L K ^ τ) c₀ (Sgood (L := L) (K := K) n mC T)ᶜ
+      ≤ (εQ + εfloor) + (εsync + εphase) := by
+    refine le_trans (measure_mono (Sgood_compl_subset (L := L) (K := K) n mC T)) ?_
+    refine le_trans (measure_union_le _ _) ?_
+    exact add_le_add (le_trans (measure_union_le _ _) (add_le_add hQ hfloor))
+      (le_trans (measure_union_le _ _) (add_le_add hsync hphase))
+  -- ENNReal addition is associative: (εQ+εfloor)+(εsync+εphase) = εQ+εfloor+εsync+εphase.
+  calc (realκ L K ^ τ) c₀ (Sgood (L := L) (K := K) n mC T)ᶜ
+      ≤ (εQ + εfloor) + (εsync + εphase) := hbound
+    _ = εQ + εfloor + εsync + εphase := by ring
+
+/-! ## Status (Parts 1–4 complete). -/
 theorem clock_unconditional_status : True := trivial
 
 end ClockUnconditional

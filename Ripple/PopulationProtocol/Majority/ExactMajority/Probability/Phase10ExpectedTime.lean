@@ -2892,6 +2892,49 @@ theorem phase10_expected_stabilization' (n : ℕ) (hn : 2 ≤ n)
       simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
     exact stage23_expectedHitting_le' n hn z ⟨hzS1, hzB⟩
 
+/-- Per-stage term bound: `n(n−1)·(1 + log(n(n−1))) ≤ n²·(1 + 2·log n)`.  Uses
+`n(n−1) ≤ n²` and `log(n(n−1)) ≤ log(n²) = 2 log n` (`n ≥ 1`). -/
+theorem stage_term_le_nsq_log (n : ℕ) (hn : 2 ≤ n) :
+    ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ))
+      ≤ ((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n) := by
+  have hPle : ((n * (n - 1) : ℕ) : ℝ≥0∞) ≤ ((n ^ 2 : ℕ) : ℝ≥0∞) := by
+    apply Nat.cast_le.mpr; rw [pow_two]; exact Nat.mul_le_mul_left n (by omega)
+  have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (by omega : 0 < n)
+  have hPpos : (0 : ℝ) < ((n * (n - 1) : ℕ) : ℝ) := by
+    have : 0 < n * (n - 1) :=
+      Nat.pos_of_ne_zero (Nat.mul_ne_zero (by omega) (by omega))
+    exact_mod_cast this
+  have hlogle : Real.log ((n * (n - 1) : ℕ) : ℝ) ≤ 2 * Real.log n := by
+    have hmono : Real.log ((n * (n - 1) : ℕ) : ℝ) ≤ Real.log ((n ^ 2 : ℕ) : ℝ) := by
+      refine Real.log_le_log hPpos ?_
+      apply Nat.cast_le.mpr; rw [pow_two]; exact Nat.mul_le_mul_left n (by omega)
+    refine le_trans hmono ?_
+    rw [show ((n ^ 2 : ℕ) : ℝ) = (n : ℝ) ^ 2 by push_cast; ring,
+      Real.log_pow]
+    push_cast; rw [mul_comm]
+  refine mul_le_mul' hPle ?_
+  apply ENNReal.ofReal_le_ofReal
+  linarith [hlogle]
+
+/-- **Collapsed `O(n² log n)` majority headline.** The refined bound, written as a
+single clean `≤ 3·n²·(1 + 2·log n)` interaction count.  Dividing by `n` (the
+file's parallel-time convention, see the header) gives `3·n·(1 + 2·log n) =
+O(n·log n)` parallel time — the paper's Lemma 7.7 rate.  `C = 3`, shape
+`n²·(1 + log n)`. -/
+theorem phase10_expected_stabilization_O_nsq_log (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S1 (L := L) (K := K) n c) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongACount c) 1) ≤
+      3 * (((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n)) := by
+  refine le_trans (phase10_expected_stabilization' n hn c hc) ?_
+  have hterm := stage_term_le_nsq_log n hn
+  set A : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞)
+    * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ)) with hA
+  set B : ℝ≥0∞ := ((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n) with hB
+  calc A + (A + A) ≤ B + (B + B) :=
+        add_le_add hterm (add_le_add hterm hterm)
+    _ = 3 * B := by ring
+
 end Capstone
 
 /-! ## Tie case (`backupSignal = 0`, i.e. `phase10ActiveSignedSum = 0`)
@@ -3517,6 +3560,22 @@ theorem phase10_expected_stabilization_tie' (n : ℕ) (hn : 2 ≤ n)
           _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))
     exact tie_stage2_expectedHitting_le' n hn z ⟨⟨⟨hzphase, hzcard, hzsum⟩, hzB⟩, hzact⟩
       (n * (n - 1)) hWle hP1 le_rfl
+
+/-- **Collapsed `O(n² log n)` tie headline.** `≤ 2·n²·(1 + 2·log n)` interactions;
+divided by `n` (parallel convention), `2·n·(1 + 2·log n) = O(n·log n)` parallel.
+`C = 2`, shape `n²·(1 + log n)`. -/
+theorem phase10_expected_stabilization_tie_O_nsq_log (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : Tie1plus (L := L) (K := K) n c) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongTCount c) 1) ≤
+      2 * (((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n)) := by
+  refine le_trans (phase10_expected_stabilization_tie' n hn c hc) ?_
+  have hterm := stage_term_le_nsq_log n hn
+  set A : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞)
+    * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ)) with hA
+  set B : ℝ≥0∞ := ((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n) with hB
+  calc A + A ≤ B + B := add_le_add hterm hterm
+    _ = 2 * B := by ring
 
 end TieStages
 

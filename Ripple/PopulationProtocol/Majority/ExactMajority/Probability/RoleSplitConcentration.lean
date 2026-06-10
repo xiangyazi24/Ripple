@@ -1334,5 +1334,198 @@ theorem phase0_mcrCount_decrease_prob_combined
                 assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
             (n * (n - 1) : ℝ)) := by rw [h_card]
 
+/-! ## Gap (A): the invariant-relative milestone engine `MilestonePhaseOn`.
+
+`JansonHitting.MilestonePhase.progress` (JansonHitting.lean L48–51) demands the
+per-step rate `≥ p i` **unconditionally** at every config with milestones `<i`
+reached and `i` unreached.  For the role split that is false at *adversarial*
+configs (`mcrCount = 2, assignableCount = 0` ⟹ combined rate `Θ(1/n²)`), so the
+plain engine cannot carry the Chernoff floor `assignableCount ≥ n/5`.
+
+The fix is an **invariant-relative** variant: carry a side predicate `Inv` that
+is *one-step closed* from `Inv`-configs (`InvClosed`), require `progress` only at
+`Inv`-configs, and start at an `Inv`-config.  Because the chain started at an
+`Inv`-config never visits `¬Inv`-configs (mass `0` by `InvClosed`), the MGF
+contraction `∫ Φ̃ ≤ exp(−s)·Φ̃` need only hold at `Inv`-configs — exactly where
+`progress` is available.  Threading `Inv` through an `_on` geometric-decay closes
+the tail.  This mirrors the E2 `PotNonincrOn`/`InvClosed` `_on`-ladder
+(`OneSidedCancel.lean`), here lifted to the *Janson milestone* MGF engine.
+
+The MGF *real-analysis* optimisation (`janson_exponential_tail_from_mgf`,
+`geometricProductMGF`) depends only on `(k, p)`, so it is reused verbatim through
+a throwaway plain `MilestonePhase` with the same `(k, p)` (`toDummyMP`). Only the
+kernel-side contraction is re-proved `Inv`-relativised. -/
+
+open ExactMajority in
+/-- An **invariant-relative** milestone phase over a protocol `P`: same milestone
+data as `MilestonePhase`, but `progress` is required only at `Inv`-configs, with
+`Inv` one-step closed (`inv_closed`).  The downstream tail bound is taken from an
+`Inv`-start, so `progress` off `Inv` is never needed. -/
+structure MilestonePhaseOn (P : Protocol (AgentState L K)) where
+  /-- Number of milestones. -/
+  k : ℕ
+  /-- The milestone predicates. -/
+  milestone : Fin k → Config (AgentState L K) → Prop
+  /-- Per-step success probabilities. -/
+  p : Fin k → ℝ
+  /-- Positivity of the rates. -/
+  hp_pos : ∀ i, 0 < p i
+  /-- The rates are probabilities. -/
+  hp_le_one : ∀ i, p i ≤ 1
+  /-- Each milestone, once reached, stays reached. -/
+  milestone_monotone : ∀ i c c',
+    milestone i c → c' ∈ (P.stepDistOrSelf c).support → milestone i c'
+  /-- The carried side invariant. -/
+  Inv : Config (AgentState L K) → Prop
+  /-- `Inv` is one-step closed: from an `Inv`-config the next-step mass on
+  `¬ Inv` is `0`. -/
+  inv_closed : ∀ c, Inv c → (P.transitionKernel c) {c' | ¬ Inv c'} = 0
+  /-- **Invariant-relative progress.** At every `Inv`-config with milestones
+  `< i` reached and `i` not, the next-step mass on `{milestone i}` is `≥ p i`. -/
+  progress_on : ∀ i c, Inv c →
+    (∀ j < i, milestone j c) → ¬ milestone i c →
+    (P.stepDistOrSelf c).toMeasure {c' | milestone i c'} ≥ ENNReal.ofReal (p i)
+
+namespace MilestonePhaseOn
+
+variable {P : Protocol (AgentState L K)}
+
+/-- The postcondition: all milestones reached. -/
+def Post (mp : MilestonePhaseOn (L := L) (K := K) P) (c : Config (AgentState L K)) : Prop :=
+  ∀ i, mp.milestone i c
+
+/-- Mean waiting time `Σ 1/p_i` (identical to the plain engine's). -/
+noncomputable def meanTime (mp : MilestonePhaseOn (L := L) (K := K) P) : ℝ :=
+  ∑ i : Fin mp.k, (mp.p i)⁻¹
+
+/-- Minimum rate `⨅ p_i` (identical to the plain engine's). -/
+noncomputable def pMin (mp : MilestonePhaseOn (L := L) (K := K) P) : ℝ :=
+  ⨅ i : Fin mp.k, mp.p i
+
+/-- A throwaway plain `MilestonePhase` with the **same** `(k, p)` but the
+*trivial* milestone `fun _ _ => True` (so `progress`'s antecedent `¬ milestone`
+is `¬True = False` — vacuously dischargeable).  Used only to borrow the *pure
+real-analysis* MGF optimisation (`pMin`, `meanTime`, `geometricProductMGF`,
+`janson_exponential_tail_from_mgf`), which reads only `(k, p, hp_pos,
+hp_le_one)` — so `toDummyMP.pMin = mp.pMin` and `.meanTime = mp.meanTime` by
+definition.  The kernel-side contraction is proved separately `Inv`-relativised. -/
+noncomputable def toDummyMP (mp : MilestonePhaseOn (L := L) (K := K) P) :
+    MilestonePhase P where
+  k := mp.k
+  milestone := fun _ _ => True
+  p := mp.p
+  hp_pos := mp.hp_pos
+  hp_le_one := mp.hp_le_one
+  milestone_monotone := fun _ _ _ _ _ => trivial
+  progress := fun _ _ _ hnot => absurd trivial hnot
+
+/-- `toDummyMP` preserves `pMin` (both equal `⨅ p_i`). -/
+theorem toDummyMP_pMin (mp : MilestonePhaseOn (L := L) (K := K) P) :
+    (mp.toDummyMP).pMin = mp.pMin := rfl
+
+/-- `toDummyMP` preserves `meanTime` (both equal `Σ 1/p_i`). -/
+theorem toDummyMP_meanTime (mp : MilestonePhaseOn (L := L) (K := K) P) :
+    (mp.toDummyMP).meanTime = mp.meanTime := rfl
+
+/-! ### MGF potential for the `_on` engine (mirrors JansonHitting's `private`
+machinery, re-derived here since those are not exported). -/
+
+/-- The single MGF factor `(p·e^s)/(1−(1−p)·e^s)`. -/
+noncomputable def mgfFactor (mp : MilestonePhaseOn (L := L) (K := K) P) (s : ℝ)
+    (i : Fin mp.k) : ℝ :=
+  (mp.p i * Real.exp s) / (1 - (1 - mp.p i) * Real.exp s)
+
+theorem mgfFactor_pos (mp : MilestonePhaseOn (L := L) (K := K) P) {s : ℝ}
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (i : Fin mp.k) :
+    0 < mp.mgfFactor s i :=
+  div_pos (mul_pos (mp.hp_pos i) (Real.exp_pos s)) (by linarith [hs_valid i])
+
+theorem mgfFactor_ge_one (mp : MilestonePhaseOn (L := L) (K := K) P) {s : ℝ}
+    (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (i : Fin mp.k) :
+    1 ≤ mp.mgfFactor s i := by
+  rw [mgfFactor, le_div_iff₀ (by linarith [hs_valid i]), one_mul]
+  have : mp.p i * Real.exp s + (1 - mp.p i) * Real.exp s = Real.exp s := by ring
+  linarith [Real.add_one_le_exp s]
+
+/-- Milestones not yet reached at `c`. -/
+noncomputable def unreached (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c : Config (AgentState L K)) : Finset (Fin mp.k) :=
+  Finset.filter (fun i => ¬ mp.milestone i c) Finset.univ
+
+/-- The partial MGF: product of factors over unreached milestones. -/
+noncomputable def partialMGF (mp : MilestonePhaseOn (L := L) (K := K) P) (s : ℝ)
+    (c : Config (AgentState L K)) : ℝ :=
+  ∏ i ∈ mp.unreached c, mp.mgfFactor s i
+
+theorem partialMGF_pos (mp : MilestonePhaseOn (L := L) (K := K) P) {s : ℝ}
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c : Config (AgentState L K)) :
+    0 < mp.partialMGF s c :=
+  Finset.prod_pos fun i _ => mp.mgfFactor_pos hs_valid i
+
+theorem partialMGF_ge_one_of_not_post (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1)
+    (c : Config (AgentState L K)) (hc : ¬ mp.Post c) :
+    1 ≤ mp.partialMGF s c := by
+  refine Finset.one_le_prod fun i _ => mp.mgfFactor_ge_one hs_pos hs_valid i
+
+theorem partialMGF_eq_full_of_none_reached (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (s : ℝ) (c₀ : Config (AgentState L K)) (hPre : ∀ i, ¬ mp.milestone i c₀) :
+    mp.partialMGF s c₀ = ∏ i : Fin mp.k, mp.mgfFactor s i := by
+  have h_eq : mp.unreached c₀ = Finset.univ := by
+    ext i
+    simp only [unreached, Finset.mem_filter, Finset.mem_univ, true_and, iff_true]
+    exact hPre i
+  rw [partialMGF, h_eq]
+
+/-- The truncated potential: `0` on `Post`, else `ofReal (partialMGF)`. -/
+noncomputable def truncMGF (mp : MilestonePhaseOn (L := L) (K := K) P) (s : ℝ) :
+    Config (AgentState L K) → ℝ≥0∞ :=
+  fun c => if mp.Post c then 0 else ENNReal.ofReal (mp.partialMGF s c)
+
+theorem truncMGF_measurable (mp : MilestonePhaseOn (L := L) (K := K) P) (s : ℝ) :
+    Measurable (mp.truncMGF s) :=
+  fun _ _ => DiscreteMeasurableSpace.forall_measurableSet _
+
+/-- Monotonicity along the kernel support: `partialMGF` does not increase. -/
+theorem partialMGF_mono_of_support (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1)
+    (c c' : Config (AgentState L K))
+    (hsupp : c' ∈ (P.stepDistOrSelf c).support) :
+    mp.partialMGF s c' ≤ mp.partialMGF s c := by
+  refine Finset.prod_le_prod_of_subset_of_one_le ?_ ?_ ?_
+  · intro i hi
+    simp only [unreached, Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
+    exact fun h => hi (mp.milestone_monotone i c c' h hsupp)
+  · exact fun i _ => (mp.mgfFactor_pos hs_valid i).le
+  · exact fun i _ _ => mp.mgfFactor_ge_one hs_pos hs_valid i
+
+/-- When milestone `j` is reached at `c'`, `partialMGF` drops the `j`-th factor. -/
+theorem partialMGF_drop_reached (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1)
+    (c c' : Config (AgentState L K)) (j : Fin mp.k)
+    (hj_unreached : j ∈ mp.unreached c) (hj_reached : mp.milestone j c')
+    (hsupp : c' ∈ (P.stepDistOrSelf c).support) :
+    mp.partialMGF s c' ≤ mp.partialMGF s c / mp.mgfFactor s j := by
+  rw [le_div_iff₀ (mp.mgfFactor_pos hs_valid j)]
+  have h_sub : mp.unreached c' ⊆ (mp.unreached c).erase j := by
+    intro i hi
+    simp only [unreached, Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
+    rw [Finset.mem_erase]
+    refine ⟨fun h_eq => by rw [h_eq] at hi; exact hi hj_reached, ?_⟩
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    exact fun h => hi (mp.milestone_monotone i c c' h hsupp)
+  have h_prod_sub : mp.partialMGF s c' ≤ ∏ i ∈ (mp.unreached c).erase j, mp.mgfFactor s i :=
+    Finset.prod_le_prod_of_subset_of_one_le h_sub
+      (fun i _ => (mp.mgfFactor_pos hs_valid i).le)
+      (fun i _ _ => mp.mgfFactor_ge_one hs_pos hs_valid i)
+  calc mp.partialMGF s c' * mp.mgfFactor s j
+      ≤ (∏ i ∈ (mp.unreached c).erase j, mp.mgfFactor s i) * mp.mgfFactor s j := by
+        gcongr; exact (mp.mgfFactor_pos hs_valid j).le
+    _ = ∏ i ∈ insert j ((mp.unreached c).erase j), mp.mgfFactor s i := by
+        rw [Finset.prod_insert (by simp [Finset.mem_erase])]; ring
+    _ = mp.partialMGF s c := by rw [partialMGF]; congr 1; exact Finset.insert_erase hj_unreached
+
+end MilestonePhaseOn
+
 end RoleSplitConcentration
 end ExactMajority
