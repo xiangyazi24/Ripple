@@ -400,6 +400,44 @@ theorem phase0CRShellEscape_le (P : Protocol (AgentState L K))
   intro c hc
   exact hcontain c hc
 
+/-! ## Precise remaining gaps to the campaign (for downstream relays).
+
+Everything above is 0-sorry / axiom-clean.  Two inputs remain to fully close the
+`allPhase0` → `PhaseConvergence` timing half; both are deliberately taken as
+hypotheses above (mirroring how `WindowConcentration.windowDrift_tail` itself
+takes its one-step drift as input), so they are stated here with exact goals.
+
+**Gap 1 — the quantitative one-step drift `hdrift` (the scheduler core).**
+The window engine consumes
+  `∫ Φ_1 dK(c) ≤ ofReal(1 + 2(e−1)/n) · Φ_1(c)`  on an absorbing window `Q`.
+Goal: over the uniform-pair scheduler (`Config.interactionProb`), each clock
+ticks (its `counter` drops by 1, multiplying its summand by `e^1`) only in a
+clock–clock meeting, w.p. `≤ 2(clockCount−1)/(n(n−1)) ≤ 2/n` per step.  The
+affected-summand bound gives the affine rate `1 + 2(e−1)/n`.  This is the
+in-house affine-counter pattern (cf. `EarlyDripMarked`'s tainted-counter drift);
+it is the campaign's separate quantitative deliverable.  `Q` should be a
+clock-count window absorbing under `stepDistOrSelf` (e.g. via `RoleSplitGood` /
+`clockCount ≤ n`).
+
+**Gap 2 — the deterministic phase-0-exit bridge (for the `Esc`/`allPhase0`
+containment `hcontain`).**  From `Protocol.Transition` (frozen), an agent's
+PHASE changes out of `0` ONLY via `Transition.stdCounterSubroutine` (Rule 5 of
+`Phase0Transition`: `stdCounterSubroutine` fires only when BOTH partners are
+clocks; for two phase-0 agents `phaseEpidemicUpdate_eq_self_of_both_phase0`
+collapses the epidemic wrapper, so `Transition` reduces to `Phase0Transition`).
+`stdCounterSubroutine a` advances phase ONLY when `a.counter.val = 0`; Rule 4
+sets a freshly-created clock's counter to `50(L+1) ≠ 0`, and Rules 1–3 never
+touch `counter` nor create clocks.  Hence a single-step phase-0 exit forces a
+SOURCE-config clock at `counter = 0`:
+
+  `allPhase0 c → ¬ allPhase0 (stepOrSelf P c r₁ r₂) → ¬ noClockAtZero c`.
+
+Lifting this single-step fact to `{¬ allPhase0 at t} ⊆ ⋃_{τ≤t} {¬ noClockAtZero
+at τ}` is the prefix-union/first-exit structure (a hitting-time helper not yet
+in the tree); combined with the per-`τ` `phase0_window_whp` bound and a
+horizon-`t` union it yields the `allPhase0`-window corollary and (with an
+absorbing Post) the Phase-0 `PhaseConvergence` upgrade. -/
+
 end Phase0Window
 
 end ExactMajority
