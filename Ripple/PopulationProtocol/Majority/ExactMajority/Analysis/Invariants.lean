@@ -1228,14 +1228,14 @@ private lemma Phase0Transition_preserves_sum (s t : AgentState L K)
           dsimp [t2]; rw [if_neg h, if_neg h']
         simp [hs2, ht2, AgentState.smallBiasInt]
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-              { s2 with role := .main, assigned := true }
+              { s2 with role := .main }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
               { s2 with assigned := true }
             else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
               { t2 with assigned := true }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-              { t2 with role := .main, assigned := true }
+              { t2 with role := .main }
             else t2
   have h3 :
       AgentState.smallBiasInt s2 + AgentState.smallBiasInt t2 =
@@ -1399,14 +1399,14 @@ private lemma Phase0Transition_preserves_sum_of_quota (s t : AgentState L K)
           dsimp [t2]; rw [if_neg h, if_neg h']
         simp [hs2, ht2, AgentState.smallBiasInt]
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-              { s2 with role := .main, assigned := true }
+              { s2 with role := .main }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
               { s2 with assigned := true }
             else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
               { t2 with assigned := true }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-              { t2 with role := .main, assigned := true }
+              { t2 with role := .main }
             else t2
   have h3 : AgentState.smallBiasInt s2 + AgentState.smallBiasInt t2 =
       AgentState.smallBiasInt s3 + AgentState.smallBiasInt t3 := by
@@ -1562,21 +1562,67 @@ private theorem Phase0Transition_preserves_well_formed_agent_quota (s t : AgentS
           dsimp [t2]; rw [if_neg h, if_neg h']
         simpa [ht2eq] using ht1
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-              { s2 with role := .main, assigned := true }
+              { s2 with role := .main }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
               { s2 with assigned := true }
             else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
               { t2 with assigned := true }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-              { t2 with role := .main, assigned := true }
+              { t2 with role := .main }
             else t2
+  -- With the paper-faithful Rule 3, the fresh Main keeps `assigned = s2.assigned`
+  -- (no longer forced to `true`).  In the fresh-Main branch `s2.role = .mcr`, so the
+  -- MCR-quota half of `hs2` gives `|smallBiasInt| ≤ 1 ≤ 2`, discharging the new
+  -- `main ∧ ¬assigned → ≤ 2` obligation.  (Bias is unchanged by the role flip.)
   have hs3 : smallBiasQuotaFields s3 := by
-    dsimp [s3]
-    split_ifs <;> simp_all [smallBiasQuotaFields]
+    by_cases h : s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned
+    · rcases h with ⟨hs2_role, _, _, _⟩
+      have hbound : (AgentState.smallBiasInt s2).natAbs ≤ 1 := hs2.1 hs2_role
+      have hs3eq : s3 = { s2 with role := .main } := by
+        dsimp [s3]; rw [if_pos ⟨hs2_role, by tauto⟩]
+      refine ⟨?_, ?_⟩
+      · intro hrole; rw [hs3eq] at hrole; simp at hrole
+      · intro _ _
+        have : AgentState.smallBiasInt ({ s2 with role := .main } : AgentState L K)
+            = AgentState.smallBiasInt s2 := by simp [AgentState.smallBiasInt]
+        rw [hs3eq, this]; omega
+    · by_cases h' : t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned
+      · have hs3eq : s3 = { s2 with assigned := true } := by
+          dsimp [s3]; rw [if_neg h, if_pos h']
+        rw [hs3eq]
+        refine ⟨?_, ?_⟩
+        · intro hrole
+          have : AgentState.smallBiasInt ({ s2 with assigned := true } : AgentState L K)
+              = AgentState.smallBiasInt s2 := by simp [AgentState.smallBiasInt]
+          rw [this]; exact hs2.1 (by simpa using hrole)
+        · intro hmain hassigned; simp at hassigned
+      · have hs3eq : s3 = s2 := by dsimp [s3]; rw [if_neg h, if_neg h']
+        rw [hs3eq]; exact hs2
   have ht3 : smallBiasQuotaFields t3 := by
-    dsimp [t3]
-    split_ifs <;> simp_all [smallBiasQuotaFields]
+    by_cases h : s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned
+    · have ht3eq : t3 = { t2 with assigned := true } := by
+        dsimp [t3]; rw [if_pos h]
+      rw [ht3eq]
+      refine ⟨?_, ?_⟩
+      · intro hrole
+        have : AgentState.smallBiasInt ({ t2 with assigned := true } : AgentState L K)
+            = AgentState.smallBiasInt t2 := by simp [AgentState.smallBiasInt]
+        rw [this]; exact ht2.1 (by simpa using hrole)
+      · intro hmain hassigned; simp at hassigned
+    · by_cases h' : t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned
+      · rcases h' with ⟨ht2_role, _, _, _⟩
+        have hbound : (AgentState.smallBiasInt t2).natAbs ≤ 1 := ht2.1 ht2_role
+        have ht3eq : t3 = { t2 with role := .main } := by
+          dsimp [t3]; rw [if_neg h, if_pos ⟨ht2_role, by tauto⟩]
+        refine ⟨?_, ?_⟩
+        · intro hrole; rw [ht3eq] at hrole; simp at hrole
+        · intro _ _
+          have : AgentState.smallBiasInt ({ t2 with role := .main } : AgentState L K)
+              = AgentState.smallBiasInt t2 := by simp [AgentState.smallBiasInt]
+          rw [ht3eq, this]; omega
+      · have ht3eq : t3 = t2 := by dsimp [t3]; rw [if_neg h, if_neg h']
+        rw [ht3eq]; exact ht2
   let s3' := s3
   let t3' := t3
   have hs3' : smallBiasQuotaFields s3' := hs3
@@ -2410,13 +2456,13 @@ private lemma Phase0Transition_preserves_nonMainCarrierSmallBiasZero
     { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
     else t1
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-    { s2 with role := .main, assigned := true }
+    { s2 with role := .main }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
     { s2 with assigned := true } else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
     { t2 with assigned := true }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-    { t2 with role := .main, assigned := true }
+    { t2 with role := .main }
     else t2
   let s3' := s3
   let t3' := t3
@@ -2755,7 +2801,7 @@ private lemma doSplit_preserves_nonMainCarrierSmallBiasZero
       exact ⟨hr, hm⟩
   | .dyadic _ j =>
       by_cases hguard : (¬ r.hour.val = L ∧ j < r.hour)
-      · by_cases hj : j.val > 0
+      · by_cases hj : j.val < L
         · constructor
           · exact nonMainCarrierSmallBiasZeroAgent_of_role_main (by simp [hguard, hj])
           · simpa [hguard, hj, nonMainCarrierSmallBiasZeroAgent] using hm
@@ -3752,14 +3798,14 @@ theorem Phase0Transition_preserves_well_formed_agent (s t : AgentState L K) :
     · exact ht1
   -- Rule 3
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-              { s2 with role := .main, assigned := true }
+              { s2 with role := .main }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
               { s2 with assigned := true }
             else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
               { t2 with assigned := true }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-              { t2 with role := .main, assigned := true }
+              { t2 with role := .main }
             else t2
   have hs3 : well_formed_agent s3 := by
     dsimp [s3]; split_ifs with h1 h2
@@ -4289,7 +4335,7 @@ theorem doSplit_preserves_role_phase_invariant (r m : AgentState L K) :
       simp [hr, hm]
   | .dyadic sgn j =>
       by_cases hguard : ¬r.hour.val = L ∧ j < r.hour
-      · by_cases hpos : j.val > 0
+      · by_cases hpos : j.val < L
         · simp [hguard, hpos]
           exact ⟨role_phase_invariant_agent_of_not_transient _ (by simp) (by simp),
             role_phase_invariant_agent_of_eq_role_phase hm (by simp) (by simp)⟩
@@ -5929,6 +5975,11 @@ private lemma Phase3Transition_agentExpPhi'_pair_noninc
 
 /-! ### Phase 6 high-tail potential -/
 
+-- Phase-3/6 "above-band" potential used by `theorem_6_2_phase_three_distribution`:
+-- an agent whose index exceeds the target band (`i.val > ell`, paper exponent
+-- `< -ell`) carries weight `4^(i.val - ell - 1)`; `Phi = 0` iff every Main agent
+-- sits at index `≤ ell`.  (This is the orientation `theorem_6_2` reads: its goal is
+-- `i.val ≤ 2` with `ell = 2`.)
 private noncomputable def phase6HighTailWeight (ell : ℕ) (i : Fin (L + 1)) : ℕ :=
   if ell < i.val then 4 ^ (i.val - ell - 1) else 0
 
@@ -5942,99 +5993,20 @@ private noncomputable def phase6HighTailAgent (ell : ℕ) (a : AgentState L K) :
 private noncomputable def phase6HighTailPhi (ell : ℕ) (c : Config (AgentState L K)) : ℕ :=
   (c.map (phase6HighTailAgent ell)).sum
 
-private lemma phase6HighTailWeight_pred_twice_le
-    (ell : ℕ) (j : Fin (L + 1)) (hj : j.val > 0) :
-    phase6HighTailWeight (L := L) ell ⟨j.val - 1, by omega⟩ +
-      phase6HighTailWeight (L := L) ell ⟨j.val - 1, by omega⟩
-        ≤ phase6HighTailWeight ell j := by
-  unfold phase6HighTailWeight
-  simp only []
-  by_cases hnext : ell < j.val - 1
-  · have hell : ell < j.val := by omega
-    simp only [hnext, hell, ↓reduceIte]
-    set m := j.val - 1 - ell - 1
-    have h_exp : j.val - ell - 1 = m + 1 := by omega
-    rw [h_exp]
-    calc
-      4 ^ m + 4 ^ m = 2 * 4 ^ m := by ring
-      _ ≤ 4 * 4 ^ m := Nat.mul_le_mul_right _ (by decide : 2 ≤ 4)
-      _ = 4 ^ (m + 1) := by rw [pow_succ]; ring
-  · simp only [hnext, ↓reduceIte, add_zero]
-    exact Nat.zero_le _
-
-private lemma doSplit_phase6HighTailAgent_pair_noninc
-    (ell : ℕ) (r m : AgentState L K) (hr : r.role ≠ .main) (hm : m.role = .main) :
-    phase6HighTailAgent ell (doSplit L K r m).1 +
-      phase6HighTailAgent ell (doSplit L K r m).2
-        ≤ phase6HighTailAgent ell r + phase6HighTailAgent ell m := by
-  have hr0 : phase6HighTailAgent ell r = 0 := by
-    unfold phase6HighTailAgent; simp [hr]
-  rw [hr0, zero_add]
-  cases hb : m.bias with
-  | zero =>
-      have hds : doSplit L K r m = (r, m) := by unfold doSplit; simp [hb]
-      simp [hds, phase6HighTailAgent, hr, hm]
-  | dyadic sgn j =>
-      by_cases h1 : r.hour.val ≠ L ∧ r.hour.val > j.val
-      · by_cases h2 : j.val > 0
-        · have hds : doSplit L K r m =
-              ({ r with role := .main, bias := .dyadic sgn ⟨j.val - 1, by omega⟩ },
-               { m with bias := .dyadic sgn ⟨j.val - 1, by omega⟩ }) := by
-            unfold doSplit; simp only [hb, if_pos h1, dif_pos h2]
-          rw [hds]
-          simp only [phase6HighTailAgent, hm, hb, ↓reduceIte]
-          exact phase6HighTailWeight_pred_twice_le ell j h2
-        · have hds : doSplit L K r m = (r, m) := by
-            unfold doSplit; simp only [hb, if_pos h1, dif_neg h2]
-          simp [hds, phase6HighTailAgent, hr, hm]
-      · have hds : doSplit L K r m = (r, m) := by
-          unfold doSplit; simp only [hb, if_neg h1]
-        simp [hds, phase6HighTailAgent, hr, hm]
-
-private lemma Phase6Transition_phase6HighTailAgent_pair_noninc
-    (ell : ℕ) (s t : AgentState L K) :
-    phase6HighTailAgent ell (Phase6Transition L K s t).1 +
-      phase6HighTailAgent ell (Phase6Transition L K s t).2
-        ≤ phase6HighTailAgent ell s + phase6HighTailAgent ell t := by
-  let s1 := if s.role = .reserve ∧ t.role = .main ∧ (t.bias ≠ .zero) then (doSplit L K s t).1
-            else if t.role = .reserve ∧ s.role = .main ∧ (s.bias ≠ .zero) then (doSplit L K t s).2
-            else s
-  let t1 := if s.role = .reserve ∧ t.role = .main ∧ (t.bias ≠ .zero) then (doSplit L K s t).2
-            else if t.role = .reserve ∧ s.role = .main ∧ (s.bias ≠ .zero) then (doSplit L K t s).1
-            else t
-  suffices h_split : phase6HighTailAgent ell s1 + phase6HighTailAgent ell t1 ≤
-      phase6HighTailAgent ell s + phase6HighTailAgent ell t by
-    have hs1_le : phase6HighTailAgent ell (Phase6Transition L K s t).1 ≤
-        phase6HighTailAgent ell s1 := by
-      unfold Phase6Transition
-      change phase6HighTailAgent ell
-        (if s1.role = .clock then stdCounterSubroutine L K s1 else s1) ≤ _
-      split_ifs with hclk
-      · have h1 : s1.role ≠ .main := by rw [hclk]; decide
-        have h2 : (stdCounterSubroutine L K s1).role ≠ .main := by
-          rw [stdCounterSubroutine_clock_role_eq L K s1 hclk]; decide
-        simp [phase6HighTailAgent, h1, h2]
-      · exact le_refl _
-    have ht1_le : phase6HighTailAgent ell (Phase6Transition L K s t).2 ≤
-        phase6HighTailAgent ell t1 := by
-      unfold Phase6Transition
-      change phase6HighTailAgent ell
-        (if t1.role = .clock then stdCounterSubroutine L K t1 else t1) ≤ _
-      split_ifs with hclk
-      · have h1 : t1.role ≠ .main := by rw [hclk]; decide
-        have h2 : (stdCounterSubroutine L K t1).role ≠ .main := by
-          rw [stdCounterSubroutine_clock_role_eq L K t1 hclk]; decide
-        simp [phase6HighTailAgent, h1, h2]
-      · exact le_refl _
-    linarith
-  dsimp only [s1, t1]
-  split_ifs with h_case1 h_case2
-  · exact doSplit_phase6HighTailAgent_pair_noninc ell s t
-      (by obtain ⟨hr, -, -⟩ := h_case1; rw [hr]; decide) h_case1.2.1
-  · have := doSplit_phase6HighTailAgent_pair_noninc ell t s
-      (by obtain ⟨hr, -, -⟩ := h_case2; rw [hr]; decide) h_case2.2.1
-    linarith
-  · exact le_refl _
+-- NOTE (protocol fix 2026-06-10): the previous per-pair non-increase scaffold for
+-- `phase6HighTailPhi` (`phase6HighTailWeight_pred_twice_le →
+-- doSplit_phase6HighTailAgent_pair_noninc → Phase6Transition_phase6HighTailAgent_pair_noninc`)
+-- was specific to the OLD inverted split rule `j → j-1`, under which a Reserve-fuelled
+-- split moved a Main DOWN the above-band weight and the pair quantity did not increase.
+-- Under the paper-faithful rule `j → j+1` (Doty §7 line 4, mass halved), a split of an
+-- above-band Main (index `j > ell`) produces two index-`(j+1)` Mains, so this particular
+-- above-band per-pair quantity strictly INCREASES; the per-pair monotone discharge of
+-- `hnoninc` does not transfer to the corrected rule.  The Phase-6 progress is the paper's
+-- global/probabilistic argument (Lemma 7.2), not a per-pair monotone potential here.
+-- `theorem_6_2_phase_three_distribution` takes `hnoninc`/`hprogress` as hypotheses, so it
+-- is unaffected.  The dead scaffold (no downstream consumer) is removed rather than left
+-- asserting a claim that is false under the corrected protocol.  Discharging `hnoninc`
+-- under the corrected rule is deferred to the Lemma-7.2 follow-up.
 
 /-! ### Drift assembly for Theorem 6.1 -/
 

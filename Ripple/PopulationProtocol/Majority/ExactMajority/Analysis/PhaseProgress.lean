@@ -909,7 +909,7 @@ theorem Phase6Transition_can_change_reserve_role
     (hr : r.role = .reserve) (hm : m.role = .main)
     (hbias : m.bias = .dyadic sgn j)
     (hguard : r.hour.val ≠ L ∧ r.hour.val > j.val)
-    (hj : j.val > 0) :
+    (hj : j.val < L) :
     (Phase6Transition L K r m).1.role = .main := by
   unfold Phase6Transition doSplit
   simp [hr, hm, hbias, hguard, hj]

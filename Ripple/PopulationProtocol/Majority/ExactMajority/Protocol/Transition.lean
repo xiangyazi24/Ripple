@@ -373,16 +373,18 @@ def Phase0Transition (s t : AgentState L K) : AgentState L K × AgentState L K :
               { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
             else t1
   -- Rule 3: MCR + non-Main/MCR unassigned agent → assign partner, MCR becomes Main.
-  -- (Paper lines 7-9: both effects share the j.assigned = False guard.)
+  -- (Paper lines 7-9: line 8 sets the PARTNER `j.assigned ← True`; line 9 sets only
+  --  `i.role ← Main` for the fresh Main, which KEEPS `assigned = False` so it can later
+  --  absorb an MCR via Rule 2.  Both branches share the `j.assigned = False` guard.)
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-              { s2 with role := .main, assigned := true }
+              { s2 with role := .main }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
               { s2 with assigned := true }
             else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
               { t2 with assigned := true }
             else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-              { t2 with role := .main, assigned := true }
+              { t2 with role := .main }
             else t2
   -- Rule 3' is now folded into Rule 3 above (preserving binding names for downstream).
   let s3' := s3
@@ -1135,14 +1137,26 @@ theorem Phase5Transition_clock_zero_advances
   unfold Phase5Transition stdCounterSubroutine advancePhaseWithInit advancePhase phaseInit
   simp [hs_clock, ht_clock, hs_counter, ht_counter, hs_phase, ht_phase]
 
-/-- Phase 6 `doSplit`: Reserve splits with a biased Main, both decrementing their bias
-exponent. Returns `(updatedReserve, updatedMain)`. -/
+/-- Phase 6 `doSplit`: Reserve splits with a biased Main (paper §7 "Phase 6
+Reserve Splits", pseudocode lines 1-4).
+
+Paper guard (line 2): `r.sample ≠ ⊥ and r.sample < m.exponent`.  In the Lean
+encoding, `bias = ±2^{−j}` so the dyadic index `j = −exponent` and the Reserve's
+sampled index `r.hour = −sample`; the unset sentinel `⊥` is `hour = L`.  Hence
+`r.sample ≠ ⊥` ↦ `r.hour.val ≠ L` and `r.sample < m.exponent` ↦ `r.hour.val > j.val`.
+
+Paper action (line 4): `r.exponent, m.exponent ← m.exponent − 1`.  Decrementing the
+(negative) exponent by 1 means *increasing* the dyadic index by 1 (mass halves):
+`j ↦ j+1` for BOTH agents.  This requires `j+1 ≤ L`, i.e. the index bound `j.val < L`
+(a Main already at the minimal exponent −L cannot split further).  The Reserve `r`
+becomes Main with `m.opinion` (paper line 3; `sgn` carried through).
+Returns `(updatedReserve, updatedMain)`. -/
 def doSplit (L K : ℕ) (r m : AgentState L K) : AgentState L K × AgentState L K :=
   match m.bias with
   | .dyadic sgn j =>
       if r.hour.val ≠ L ∧ r.hour.val > j.val then
-        if h : j.val > 0 then
-          let newExp : Fin (L + 1) := ⟨j.val - 1, by omega⟩
+        if h : j.val < L then
+          let newExp : Fin (L + 1) := ⟨j.val + 1, by omega⟩
           ({ r with role := .main, bias := .dyadic sgn newExp },
            { m with bias := .dyadic sgn newExp })
         else (r, m)
@@ -1187,10 +1201,11 @@ lemma doSplit_phase_nondec (L K : ℕ) (r m : AgentState L K) :
 
 /-- Phase 6 transition: Reserve-fueled splits for high-bias agents.
 
-Reserve + Main (biased) pair where the Reserve's sampled exponent is *higher*
-than the Main's exponent (i.e., Reserve has more negative paper exponent):
-the Reserve becomes Main with the same opinion, and both agents' exponents are
-decremented by 1. Clock agents run the counter subroutine. -/
+Reserve + Main (biased) pair where the Reserve's sampled exponent is *below*
+the Main's exponent (paper guard `r.sample < m.exponent`, i.e. Lean index
+`r.hour > j`): the Reserve becomes Main with the same opinion, and both agents'
+exponents are decremented by 1 (Lean dyadic index `j ↦ j+1`, mass halved).
+Clock agents run the counter subroutine. -/
 def Phase6Transition (s t : AgentState L K) : AgentState L K × AgentState L K :=
   let s1 := if s.role = .reserve ∧ t.role = .main ∧ (t.bias ≠ .zero) then
     (doSplit L K s t).1
@@ -3029,13 +3044,13 @@ theorem Phase0Transition_input_preserved (s t : AgentState L K) :
     { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
     else t1
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-    { s2 with role := .main, assigned := true }
+    { s2 with role := .main }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
     { s2 with assigned := true } else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
     { t2 with assigned := true }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-    { t2 with role := .main, assigned := true }
+    { t2 with role := .main }
     else t2
   let s3' := s3
   let t3' := t3
@@ -3085,13 +3100,13 @@ theorem Phase0Transition_phase_nondec (s t : AgentState L K) :
     { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
     else t1
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-    { s2 with role := .main, assigned := true }
+    { s2 with role := .main }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
     { s2 with assigned := true } else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
     { t2 with assigned := true }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-    { t2 with role := .main, assigned := true }
+    { t2 with role := .main }
     else t2
   let s3' := s3
   let t3' := t3
@@ -5475,13 +5490,13 @@ theorem Transition_left_phase_le_two_of_epidemic_phase_lt_two
       { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
       else t1
     let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-      { s2 with role := .main, assigned := true }
+      { s2 with role := .main }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
       { s2 with assigned := true } else s2
     let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
       { t2 with assigned := true }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-      { t2 with role := .main, assigned := true }
+      { t2 with role := .main }
       else t2
     let s3' := s3
     let t3' := t3
@@ -5577,13 +5592,13 @@ theorem Transition_right_phase_le_two_of_epidemic_phase_lt_two
       { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
       else t1
     let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-      { s2 with role := .main, assigned := true }
+      { s2 with role := .main }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
       { s2 with assigned := true } else s2
     let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
       { t2 with assigned := true }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-      { t2 with role := .main, assigned := true }
+      { t2 with role := .main }
       else t2
     let s3' := s3
     let t3' := t3
@@ -5678,13 +5693,13 @@ theorem Transition_left_phase_le_two_of_epidemic_phase_lt_two_of_ne_ten
       { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
       else t1
     let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-      { s2 with role := .main, assigned := true }
+      { s2 with role := .main }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
       { s2 with assigned := true } else s2
     let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
       { t2 with assigned := true }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-      { t2 with role := .main, assigned := true }
+      { t2 with role := .main }
       else t2
     let s3' := s3
     let t3' := t3
@@ -5792,13 +5807,13 @@ theorem Transition_right_phase_le_two_of_epidemic_phase_lt_two_of_ne_ten
       { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
       else t1
     let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-      { s2 with role := .main, assigned := true }
+      { s2 with role := .main }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
       { s2 with assigned := true } else s2
     let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
       { t2 with assigned := true }
       else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-      { t2 with role := .main, assigned := true }
+      { t2 with role := .main }
       else t2
     let s3' := s3
     let t3' := t3
@@ -5957,13 +5972,13 @@ theorem Phase0Transition_left_phase_ne_two_of_phase_zero
     { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
     else t1
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-    { s2 with role := .main, assigned := true }
+    { s2 with role := .main }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
     { s2 with assigned := true } else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
     { t2 with assigned := true }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-    { t2 with role := .main, assigned := true }
+    { t2 with role := .main }
     else t2
   let s3' := s3
   let t3' := t3
@@ -6004,13 +6019,13 @@ theorem Phase0Transition_right_phase_ne_two_of_phase_zero
     { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
     else t1
   let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-    { s2 with role := .main, assigned := true }
+    { s2 with role := .main }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
     { s2 with assigned := true } else s2
   let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
     { t2 with assigned := true }
     else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-    { t2 with role := .main, assigned := true }
+    { t2 with role := .main }
     else t2
   let s3' := s3
   let t3' := t3

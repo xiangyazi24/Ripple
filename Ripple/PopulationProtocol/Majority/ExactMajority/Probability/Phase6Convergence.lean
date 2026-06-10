@@ -13,9 +13,9 @@ def doSplit (L K) (r m) :=
   match m.bias with
   | .dyadic sgn j =>
       if r.hour.val ≠ L ∧ r.hour.val > j.val then
-        if h : j.val > 0 then
-          ( { r with role := .main, bias := .dyadic sgn ⟨j-1, _⟩ },     -- Reserve → Main
-            { m with bias := .dyadic sgn ⟨j-1, _⟩ } )                    -- Main keeps sign
+        if h : j.val < L then
+          ( { r with role := .main, bias := .dyadic sgn ⟨j+1, _⟩ },     -- Reserve → Main
+            { m with bias := .dyadic sgn ⟨j+1, _⟩ } )                    -- Main keeps sign
         else (r, m)
       else (r, m)
   | .zero => (r, m)
@@ -29,33 +29,36 @@ def doSplit (L K) (r m) :=
 * paper "exponent `≤ -l`"            ⟺  index `i ≥ l`   (the GOAL: small bias);
 * paper "exponent `> -l`" (high)     ⟺  index `i < l`   (the agents to eliminate).
 
-## The honest per-pair effect of the FROZEN `doSplit` rule
+## The per-pair effect of the PAPER-FAITHFUL `doSplit` rule (fixed 2026-06-10)
 
-This file reads the **actual** Lean rule (Transition.lean is frozen pending a
-decision; we do not touch it).  Under that rule, an applicable `doSplit r m` with
-`m.bias = .dyadic σ j` (`r.hour.val ≠ L`, `r.hour.val > j.val`, `j.val > 0`)
-produces **two** Main agents, both at `.dyadic σ ⟨j-1, _⟩`.  Index decreases
-`j → j-1` (magnitude *doubles*); the Reserve becomes a Main.
+`doSplit` now matches Doty §7 "Phase 6 Reserve Splits" line 4 (`r.exponent,
+m.exponent ← m.exponent − 1`).  An applicable `doSplit r m` with `m.bias =
+.dyadic σ j` (`r.hour.val ≠ L`, `r.hour.val > j.val`, `j.val < L`) produces **two**
+Main agents, both at `.dyadic σ ⟨j+1, _⟩`.  Index INCREASES `j → j+1` (magnitude
+*halves*); the Reserve becomes a Main.  This is the paper direction (`Ri, ±2^{-j}
+→ ±2^{-(j+1)}` *lowers* magnitude).
 
 The proofs below establish exactly this effect (`doSplit_apply`,
-`doSplit_role_fst`, `doSplit_bias_fst/snd`), the honest high-count predicate
+`doSplit_role_fst`, `doSplit_bias_fst/snd`), the high-count predicate
 `highSt`/`highU`, and the resulting per-pair change in `highU`.
 
-## Campaign finding (recorded honestly; see `phase6_doSplit_raises_high` below)
+## Campaign finding (recorded honestly; see `doSplit_highU_pair_drop` below)
 
-Under the frozen rule the index moves the WRONG way for the Lemma 7.2 potential:
-a split of a high agent at index `j < l` yields two agents at index `j-1 < l`
-(and may even create a brand-new high agent out of the Reserve), so the
-high-count potential `highU` **strictly increases**.  This is the inverse of the
-paper (Doty's `Ri, ±2^{-j} → ±2^{-(j+1)}` *lowers* magnitude, index `j → j+1`).
-Consequently the `OneSidedCancel` engine's `PotNonincrOn` hypothesis is *false*
-for `highU` on the natural Phase-6 window, and the Lemma-7.2 instance cannot be
-assembled against the frozen `doSplit`.  The largest genuinely-closed subset we
-can deliver is the **vacuous (already-done) window** `Phase6Done`
-(no high agents AND no useful Reserve fuel), on which the kernel keeps `highU = 0`
-and `Phase6Done` is invariant — yielding a real `PhaseConvergenceW` with `ε = 0`.
+With the fixed rule the index now moves the RIGHT way for the Lemma 7.2 potential:
+a split of a high agent at the TOP of the high band (index `j = l−1`) yields two
+agents at index `j+1 = l`, which are NO LONGER high — so the per-pair high-count
+DROPS `1 → 0` (`doSplit_highU_pair_drop`).  (For a high agent strictly inside the
+band, `j+1 < l`, both products are still high, count `1 → 2`; the net progress is
+the band-exit at the top, the mechanism Lemma 7.2 exploits.)  This UNLOCKS the
+`PotNonincrOn`-style argument for the Phase-6 window — the obstruction recorded
+against the old (inverted) rule is gone.  NOTE: the full Lemma-7.2 progress
+instance is a follow-up; this session only flips the per-rule fact + repairs the
+already-closed `AllZeroGE6` window (on which `doSplit` is the identity, so the
+window result is unaffected by the direction).
 
-NEW file; no existing file is edited; no sorry/admit/axiom/native_decide.
+This file edits only the per-rule facts forced by the protocol fix; the headline
+`allZeroGE6_InvClosed` (closed all-unbiased phase-≥6 window) is direction-agnostic.
+No sorry/admit/axiom/native_decide.
 -/
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.OneSidedCancel
@@ -85,23 +88,25 @@ statement is read off the *actual* rule. -/
 
 /-- `doSplit` is **applicable** to `(r, m)` (it does something nontrivial) iff
 `m` is a biased Main-side dyadic `.dyadic σ j` whose index satisfies the guard
-`r.hour.val ≠ L ∧ r.hour.val > j.val ∧ 0 < j.val`. -/
+`r.hour.val ≠ L ∧ r.hour.val > j.val ∧ j.val < L` (paper-faithful: the Main is
+not yet at the minimal exponent `−L`, so it can still split down). -/
 def DoSplitApplicable (r m : AgentState L K) : Prop :=
   ∃ (σ : Sign) (j : Fin (L + 1)),
-    m.bias = Bias.dyadic σ j ∧ r.hour.val ≠ L ∧ r.hour.val > j.val ∧ 0 < j.val
+    m.bias = Bias.dyadic σ j ∧ r.hour.val ≠ L ∧ r.hour.val > j.val ∧ j.val < L
 
-/-- **Effect of an applicable `doSplit`.**  Both outputs are `.dyadic σ ⟨j-1,_⟩`;
+/-- **Effect of an applicable `doSplit`.**  Both outputs are `.dyadic σ ⟨j+1,_⟩`
+(index up, magnitude halved — paper direction);
 the first (the Reserve) becomes a `Main`. -/
 theorem doSplit_apply (r m : AgentState L K) {σ : Sign} {j : Fin (L + 1)}
     (hb : m.bias = Bias.dyadic σ j) (hne : r.hour.val ≠ L) (hgt : r.hour.val > j.val)
-    (hpos : 0 < j.val) :
+    (hlt : j.val < L) :
     doSplit L K r m
-      = ({ r with role := Role.main, bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ },
-         { m with bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ }) := by
+      = ({ r with role := Role.main, bias := Bias.dyadic σ ⟨j.val + 1, by omega⟩ },
+         { m with bias := Bias.dyadic σ ⟨j.val + 1, by omega⟩ }) := by
   unfold doSplit
   rw [hb]
   simp only
-  rw [if_pos ⟨hne, hgt⟩, dif_pos hpos]
+  rw [if_pos ⟨hne, hgt⟩, dif_pos hlt]
 
 /-- When the guard fails, `doSplit` is the identity. -/
 theorem doSplit_eq_self_of_not_applicable (r m : AgentState L K)
@@ -113,9 +118,9 @@ theorem doSplit_eq_self_of_not_applicable (r m : AgentState L K)
       unfold doSplit; rw [hb]; simp only
       by_cases hg : r.hour.val ≠ L ∧ r.hour.val > j.val
       · rw [if_pos hg]
-        by_cases hpos : 0 < j.val
-        · exact absurd ⟨σ, j, hb, hg.1, hg.2, hpos⟩ h
-        · rw [dif_neg hpos]
+        by_cases hlt : j.val < L
+        · exact absurd ⟨σ, j, hb, hg.1, hg.2, hlt⟩ h
+        · rw [dif_neg hlt]
       · rw [if_neg hg]
 
 /-! ## Part B — the honest high-count predicate and the per-pair `highU` change.
@@ -175,42 +180,47 @@ theorem highSt_of (l : ℕ) (a : AgentState L K) (σ : Sign) (i : Fin (L + 1))
     (hr : a.role = Role.main) (hb : a.bias = Bias.dyadic σ i) (hi : i.val < l) :
     highSt (L := L) (K := K) l a := ⟨hr, σ, i, hb, hi⟩
 
-/-! ### The FROZEN-rule finding: an applicable `doSplit` strictly RAISES `highU`.
+/-! ### The fixed-rule finding: a top-of-band `doSplit` DROPS `highU`.
 
-When `m` is a high Main at index `j ≤ l` (so `j - 1 < l`), and `r` is the Reserve
-fuel, the applicable `doSplit` produces two index-`(j-1)` Mains, both high.  So the
-pair's high-count goes from `1` (just `m`; the Reserve `r` is not a Main) to `2`.
-This is recorded as the precise obstruction to a `PotNonincrOn` for `highU`. -/
+When `m` is a high Main at the TOP of the high band (index `j = l−1`, so the split
+target `j + 1 = l` is NOT `< l`), and `r` is the Reserve fuel, the applicable
+`doSplit` produces two index-`(j+1)` Mains, both at index `≥ l` — NO LONGER high.
+So the pair's high-count goes from `1` (just `m`; the Reserve `r` is not a Main) to
+`0`.  This is the band-exit that makes the Lemma-7.2 potential decrease under the
+paper-faithful rule. -/
 
-/-- **The frozen rule raises the per-pair high count.**  If `r` is a Reserve
-(hence not high) and `m` is a high Main at index `j < l` with the `doSplit` guard
-satisfied, then after the split BOTH agents are high (index `j-1 < l`), so the
-high-count over the produced pair (`= 2`) exceeds that over the consumed pair
-(`= 1`).  This is the honest reason the Lemma-7.2 potential is non-monotone under
-the frozen `doSplit`. -/
-theorem doSplit_highU_pair_rise (l : ℕ) (r m : AgentState L K) {σ : Sign} {j : Fin (L + 1)}
+/-- **The fixed rule drops the per-pair high count at the band top.**  If `r` is a
+Reserve (hence not high) and `m` is a high Main at index `j` with the `doSplit`
+guard satisfied (`j.val < L`), and `j` is at the top of the high band
+(`j.val + 1 = l`), then after the split BOTH agents are at index `j+1 = l` (NOT
+`< l`, hence not high), so the high-count over the produced pair (`= 0`) is below
+that over the consumed pair (`= 1`).  This is the per-pair progress the Lemma-7.2
+potential exploits. -/
+theorem doSplit_highU_pair_drop (l : ℕ) (r m : AgentState L K) {σ : Sign} {j : Fin (L + 1)}
     (hrR : r.role = Role.reserve) (hmM : m.role = Role.main)
-    (hb : m.bias = Bias.dyadic σ j) (hjl : j.val < l)
-    (hne : r.hour.val ≠ L) (hgt : r.hour.val > j.val) (hpos : 0 < j.val) :
+    (hb : m.bias = Bias.dyadic σ j) (hjl : j.val < l) (htop : j.val + 1 = l)
+    (hne : r.hour.val ≠ L) (hgt : r.hour.val > j.val) (hlt : j.val < L) :
     Multiset.countP (fun a => highSt (L := L) (K := K) l a)
-        ({(doSplit L K r m).1, (doSplit L K r m).2} : Multiset (AgentState L K)) = 2
+        ({(doSplit L K r m).1, (doSplit L K r m).2} : Multiset (AgentState L K)) = 0
     ∧ Multiset.countP (fun a => highSt (L := L) (K := K) l a)
         ({r, m} : Multiset (AgentState L K)) = 1 := by
-  have happ := doSplit_apply (L := L) (K := K) r m hb hne hgt hpos
+  have happ := doSplit_apply (L := L) (K := K) r m hb hne hgt hlt
   refine ⟨?_, ?_⟩
-  · -- both outputs are high index-(j-1) Mains.
+  · -- both outputs are index-(j+1)=l Mains, NOT high.
     rw [happ]
     rw [countP_highSt_pair]
-    have hidx : (⟨j.val - 1, by omega⟩ : Fin (L + 1)).val < l := by
-      show j.val - 1 < l
+    have hidx : ¬ (⟨j.val + 1, by omega⟩ : Fin (L + 1)).val < l := by
+      show ¬ j.val + 1 < l
       omega
-    have h1 : highSt (L := L) (K := K) l
-        ({ r with role := Role.main, bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ }) :=
-      highSt_of (L := L) (K := K) l _ σ ⟨j.val - 1, by omega⟩ rfl rfl hidx
-    have h2 : highSt (L := L) (K := K) l
-        ({ m with bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ }) :=
-      highSt_of (L := L) (K := K) l _ σ ⟨j.val - 1, by omega⟩ hmM rfl hidx
-    rw [if_pos h1, if_pos h2]
+    have h1 : ¬ highSt (L := L) (K := K) l
+        ({ r with role := Role.main, bias := Bias.dyadic σ ⟨j.val + 1, by omega⟩ }) := by
+      rw [highSt_iff]; rintro ⟨_, hbh⟩
+      simp only [biasHigh] at hbh; exact hidx hbh
+    have h2 : ¬ highSt (L := L) (K := K) l
+        ({ m with bias := Bias.dyadic σ ⟨j.val + 1, by omega⟩ }) := by
+      rw [highSt_iff]; rintro ⟨_, hbh⟩
+      simp only [biasHigh] at hbh; exact hidx hbh
+    rw [if_neg h1, if_neg h2]
   · -- before: r is Reserve (not high), m is high.
     rw [countP_highSt_pair]
     have hr_not : ¬ highSt (L := L) (K := K) l r :=

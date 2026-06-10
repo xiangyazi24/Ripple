@@ -237,7 +237,7 @@ private def p0r2s (s1 t1 : AgentState L K) : AgentState L K :=
 
 private def p0r3s (s2 t2 : AgentState L K) : AgentState L K :=
   if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
-    { s2 with role := .main, assigned := true }
+    { s2 with role := .main }
   else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
     { s2 with assigned := true }
   else s2
@@ -267,7 +267,7 @@ private lemma phase0_first_decompose (s t : AgentState L K) :
       let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
                   { t2 with assigned := true }
                 else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-                  { t2 with role := .main, assigned := true }
+                  { t2 with role := .main }
                 else t2
       let s3' := p0r3ps s3 t3
       let t3' := t3
@@ -325,7 +325,7 @@ private def p0r3t (s2 t2 : AgentState L K) : AgentState L K :=
   if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
     { t2 with assigned := true }
   else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
-    { t2 with role := .main, assigned := true }
+    { t2 with role := .main }
   else t2
 
 private def p0r3pt (_s3 t3 : AgentState L K) : AgentState L K := t3

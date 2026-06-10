@@ -652,17 +652,18 @@ the floor route (deterministic regime-split vs Chernoff).  In this encoding:
   * **Rule 2** (`s = MCR`, `t = unassigned Main`): `s`→`CR` with `assigned`
     *untouched*, so the `s`-output is a **fresh unassigned CR** — assignable.  `t`
     becomes assigned.  Net Δassignable `= 0`  (`assignable_rule2_s_stays`).
-  * **Rule 3** (`s = MCR`, `t = unassigned RoleCR`): `s`→`Main` with
-    `assigned := true` — **NOT** assignable; `t` becomes assigned.  Net Δ `= −1`
-    (`assignable_rule3_s_assigned`).
+  * **Rule 3** (`s = MCR`, `t = unassigned RoleCR`): `s`→`Main` keeping
+    `assigned = false` (paper line 9 sets only `i.role ← Main`) — a **fresh
+    assignable** Main; `t` becomes assigned.  Net Δ `= 0` (`assignable_rule3_conserved`).
   * **Rule 1** (`MCR,MCR`): both outputs `assigned`-untouched, roles `Main`/`CR`
     — `+2` if the MCRs were unassigned.
 
-So `assignableCount` is **not** monotone in this encoding: Rule 3 (and Rule 4) drop
-it.  This differs from the paper's reaction 3 `Mf,U → Mt,Sf`, which produces a
-*fresh* unassigned `Sf` and keeps the pool conserved.  Consequently the clean
-deterministic floor does NOT transfer; Gap (B) genuinely needs the probabilistic
-Chernoff floor (documented in the campaign note). -/
+With the paper-faithful protocol fix (2026-06-10), Rule 3 now CONSERVES the
+assignable pool (Δ = 0), exactly matching the paper's reaction `Mf,U → Mt,Sf`.
+This UNLOCKS the monotone f-pool / deterministic floor argument (the encoding no
+longer drops the pool at Rule 3).  NOTE: the new floor argument is not built in
+this session — only the per-rule accounting fact is corrected here; the
+deterministic-floor construction (relay-4/5/8) is a follow-up. -/
 
 /-- **Rule 2 keeps the `s`-output assignable.** `s = MCR` meeting an unassigned
 `Main` `t` becomes a `CR` with `assigned` unchanged; if `s` was unassigned and at
@@ -687,17 +688,32 @@ theorem assignable_rule2_s_stays
     rw [this]; exact hs_ph
   exact ⟨hphase, by rw [hassigned]; simp, Or.inr hrole⟩
 
-/-- **Rule 3 marks the `s`-output assigned.** `s = MCR` meeting an unassigned
-non-Main/non-MCR (i.e. `RoleCR`) `t` becomes a `Main` with `assigned := true`,
-hence **not** assignable.  This is the consuming half of Rule 3 (the reason
-`assignableCount` is not monotone here). -/
-theorem assignable_rule3_s_assigned
+/-- **Rule 3 conserves the assignable pool (paper-faithful).** `s = MCR` meeting an
+unassigned non-Main/non-MCR (i.e. `RoleCR`) `t` becomes a *fresh* `Main` that KEEPS
+`assigned = false` (paper §3.4 Phase-0 line 9 sets only `i.role ← Main`).  So the
+`s`-output is still assignable: the partner `t` becomes assigned (`−1`) but the fresh
+Main is a new assignable (`+1`), net Δassignable `= 0`.  This is why the pool is now
+*conserved* (matching the paper's reaction `Mf,U → Mt,Sf`).  Statement changed from
+the old `(Phase0Transition L K s t).1.assigned = true` (now FALSE under the fixed
+protocol). -/
+theorem assignable_rule3_conserved
     (s t : AgentState L K) (hs : s.role = .mcr)
-    (ht_nm : t.role ≠ .main) (ht_nmcr : t.role ≠ .mcr) (ht_un : t.assigned = false) :
-    (Phase0Transition L K s t).1.assigned = true := by
+    (ht_nm : t.role ≠ .main) (ht_nmcr : t.role ≠ .mcr) (ht_un : t.assigned = false)
+    (hs_un : s.assigned = false) (hs_ph : s.phase.val = 0) :
+    IsAssignable (Phase0Transition L K s t).1 := by
   have hmcr_main : (Role.mcr = Role.main) = False := by simp
-  unfold Phase0Transition
-  simp [hs, hmcr_main, ht_nm, ht_nmcr, ht_un]
+  have hrole : (Phase0Transition L K s t).1.role = .main := by
+    unfold Phase0Transition
+    simp [hs, hmcr_main, ht_nm, ht_nmcr, ht_un]
+  have hassigned : (Phase0Transition L K s t).1.assigned = false := by
+    unfold Phase0Transition
+    simp [hs, hmcr_main, ht_nm, ht_nmcr, ht_un, hs_un]
+  have hphase : (Phase0Transition L K s t).1.phase.val = 0 := by
+    have : (Phase0Transition L K s t).1.phase = s.phase := by
+      unfold Phase0Transition
+      simp [hs, hmcr_main, ht_nm, ht_nmcr, ht_un]
+    rw [this]; exact hs_ph
+  exact ⟨hphase, by rw [hassigned]; simp, Or.inl hrole⟩
 
 /-- `mcrCount` of a singleton (re-derived locally; the upstream lemma is private). -/
 private lemma mcrCount_singleton' (a : AgentState L K) :
