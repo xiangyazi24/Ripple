@@ -579,6 +579,63 @@ theorem σw_hsmall (n : ℕ) (hn : N₀ ≤ n) :
         apply mul_le_mul_of_nonneg_left hRWle; unfold σw; norm_num
     _ ≤ (1/200 : ℝ) / (1 + (1/200 : ℝ)) := by unfold σw; norm_num
 
+/-- **`w/n` lower bound**: `(w n : ℝ) ≥ (3·n − 199)/200` (the ℕ-floor loss in `w = ⌊3n/200⌋`). -/
+theorem w_lb (n : ℕ) : (3 * (n : ℝ) - 199) / 200 ≤ (w n : ℝ) := by
+  have h : 3 * n ≤ 200 * (w n) + 199 := by
+    unfold w; omega
+  have hℝ : 3 * (n : ℝ) ≤ 200 * (w n : ℝ) + 199 := by exact_mod_cast h
+  rw [div_le_iff₀ (by norm_num : (0:ℝ) < 200)]
+  linarith
+
+/-- **The floor-margin fact** (`floor_discharge`'s `hwmargin` at the concrete `w`): for `n ≥ N₀`,
+`δgLocked ≤ w·(1.8(1−e^{−1/10})/n) − (1/10)(g−1)`.  Uses the tight `1−e^{−1/10} ≥ 1903/20000`
+(`47/500` is too weak) and `w/n ≥ 0.015 − 0.995/n`; the slack `≈ 4.05e-6` clears the floor loss
+`0.171/n` for `n ≥ N₀ = 10^40`. -/
+theorem floor_margin_params (n : ℕ) (hn : N₀ ≤ n) :
+    δgLocked ≤ (w n : ℝ) * (1.8 * (1 - Real.exp (-(1/10 : ℝ))) / (n : ℝ))
+      - (1/10) * (5123/5000 - 1) := by
+  have hnpos : 0 < n := N₀_pos n hn
+  have hnℝ : (0:ℝ) < (n : ℝ) := by exact_mod_cast hnpos
+  have hN₀ : (10:ℝ) ^ (40:ℕ) ≤ (n : ℝ) := by
+    have : (N₀ : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+    rwa [N₀_cast] at this
+  have hs : (1903/20000 : ℝ) ≤ 1 - Real.exp (-(1/10 : ℝ)) := one_sub_exp_neg_tenth_tight
+  -- lower-bound the (1−e^{−1/10}) factor (multiplied by positive 1.8·w/n).
+  have hw0 : (0:ℝ) ≤ (w n : ℝ) := by positivity
+  have hfac : (w n : ℝ) * (1.8 * (1903/20000) / (n : ℝ))
+      ≤ (w n : ℝ) * (1.8 * (1 - Real.exp (-(1/10 : ℝ))) / (n : ℝ)) := by
+    apply mul_le_mul_of_nonneg_left _ hw0
+    gcongr
+    nlinarith [hs]
+  -- w/n lower bound and the final numeric inequality.
+  have hwlb := w_lb n
+  have hwnlb : (3 * (n : ℝ) - 199) / 200 * (1.8 * (1903/20000) / (n : ℝ))
+      ≤ (w n : ℝ) * (1.8 * (1903/20000) / (n : ℝ)) := by
+    apply mul_le_mul_of_nonneg_right hwlb
+    positivity
+  -- (3n−199)/200 · 1.8·(1903/20000)/n = (1903·1.8/(200·20000))·(3 − 199/n)
+  --   = 0.0008563...·(3 − 199/n).  Compare to δgLocked + 0.1·(g−1) = 0.002565.
+  have hexp : (3 * (n : ℝ) - 199) / 200 * (1.8 * (1903/20000) / (n : ℝ))
+      = (1903 * 1.8 / (200 * 20000)) * (3 - 199 / (n : ℝ)) := by
+    field_simp; ring_nf
+  have hkey : δgLocked ≤ (1903 * 1.8 / (200 * 20000)) * (3 - 199 / (n : ℝ))
+      - (1/10) * (5123/5000 - 1) := by
+    unfold δgLocked
+    have h199 : 199 / (n : ℝ) ≤ 199 / (10:ℝ) ^ (40:ℕ) := by
+      apply div_le_div_of_nonneg_left (by norm_num) (by positivity) hN₀
+    have h199val : 199 / (10:ℝ) ^ (40:ℕ) ≤ (1:ℝ) / 1000000 := by
+      have hval : (10:ℝ) ^ (40:ℕ) = 10000000000000000000000000000000000000000 := by norm_num
+      rw [hval]; norm_num
+    nlinarith [h199, h199val]
+  calc δgLocked ≤ (1903 * 1.8 / (200 * 20000)) * (3 - 199 / (n : ℝ))
+          - (1/10) * (5123/5000 - 1) := hkey
+    _ = (3 * (n : ℝ) - 199) / 200 * (1.8 * (1903/20000) / (n : ℝ))
+          - (1/10) * (5123/5000 - 1) := by rw [hexp]
+    _ ≤ (w n : ℝ) * (1.8 * (1903/20000) / (n : ℝ)) - (1/10) * (5123/5000 - 1) := by
+        linarith [hwnlb]
+    _ ≤ (w n : ℝ) * (1.8 * (1 - Real.exp (-(1/10 : ℝ))) / (n : ℝ))
+          - (1/10) * (5123/5000 - 1) := by linarith [hfac]
+
 /-! ### Part 13a — the geometric-ladder reach `(201/200)^M·θn ≥ aM n`.
 
 The ladder rung `a m = ⌈G^m·⌈g·X₀⌉⌉` (`G = 201/200`) must reach the cap `aM n = n/10+1` at the

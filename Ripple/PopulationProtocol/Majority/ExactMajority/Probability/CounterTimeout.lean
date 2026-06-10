@@ -178,6 +178,75 @@ theorem counterTimeout_tail_perStep (K : Kernel Ω Ω) [IsMarkovKernel K]
   have h := counterTimeout_tail K hDone hAbs 1 q₁ hblock c₀ t
   simpa using h
 
+/-! ## Part 4 — Per-step packaging and the chaining corollary
+
+The form a timed phase consumes:
+
+* it supplies a per-step finish-failure bound `q₁` (from the carried clock floor +
+  the per-pair decrement event + the counter cap), an absorbing `Post`, and a
+  horizon `t` (the `C·n·log n` interaction count);
+* it gets a `PhaseConvergenceW K` with failure `ε ≥ q₁ ^ t`;
+* `counterTimeout_chain` then composes that timed phase with the next phase via
+  `composeW_two_phases`, giving the prefix bound `K^(t₁+t₂) c Doneᶜ ≤ ε₁ + ε₂`. -/
+
+section Weak2
+
+variable {Ω : Type*} [MeasurableSpace Ω] [DiscreteMeasurableSpace Ω]
+
+/-- **Per-step counter-timeout convergence.**  From a per-step finish-failure bound
+`q₁` over the not-yet-`Post` class and an absorbing `Post`, build a
+`PhaseConvergenceW K` with horizon `t` and failure `ε ≥ q₁ ^ t`.
+
+This is the entry point for the timed phases 0/1/5/6/7/8: `q₁` is the per-
+interaction probability that the phase does *not* advance (one minus the clock-
+clock decrement probability `≥ (cFrac·n)²-shape / n²`), `t = Θ(n log n)` is the
+interaction horizon, and `ε = q₁ ^ t = n^{-Θ(1)}` is the whp failure. -/
+noncomputable def counterTimeout_PhaseConvergenceW_perStep (K : Kernel Ω Ω)
+    [IsMarkovKernel K]
+    (Pre Post : Ω → Prop)
+    (hAbs : ∀ x, Post x → K x {y | ¬ Post y} = 0)
+    (q₁ : ℝ≥0∞)
+    (hstep : ∀ b, ¬ Post b → K b {y | ¬ Post y} ≤ q₁)
+    (t : ℕ) (ε : ℝ≥0)
+    (hε : (q₁ ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW K where
+  Pre := Pre
+  Post := Post
+  t := t
+  ε := ε
+  convergence := by
+    intro x₀ _hPre₀
+    have hDone : MeasurableSet {y : Ω | Post y} :=
+      DiscreteMeasurableSpace.forall_measurableSet _
+    have hcompl : ({y : Ω | Post y}ᶜ) = {y : Ω | ¬ Post y} := by
+      ext y; simp
+    have hAbs' : ∀ x ∈ {y : Ω | Post y}, K x ({y : Ω | Post y}ᶜ) = 0 := by
+      intro x hx; rw [hcompl]; exact hAbs x hx
+    have hstep' : ∀ b ∈ ({y : Ω | Post y}ᶜ : Set Ω), K b ({y : Ω | Post y}ᶜ) ≤ q₁ := by
+      intro b hb; rw [hcompl] at hb ⊢; exact hstep b hb
+    calc (K ^ t) x₀ {y | ¬ Post y}
+        = (K ^ t) x₀ ({y : Ω | Post y}ᶜ) := by rw [hcompl]
+      _ ≤ q₁ ^ t :=
+          counterTimeout_tail_perStep K hDone hAbs' q₁ hstep' x₀ t
+      _ ≤ (ε : ℝ≥0∞) := hε
+
+/-- **Chaining corollary.**  A timed phase (a `PhaseConvergenceW`) composes with the
+next phase via the weak two-phase composition: if the timed phase's `Post` entails
+the next phase's `Pre`, then from the timed phase's `Pre` the combined horizon
+`timed.t + next.t` lands in `next.Post` with failure at most `timed.ε + next.ε`.
+
+This is exactly `composeW_two_phases` specialized to a timed leading phase; it is
+the shape the per-phase files (0→1, 1→2, 5→6, …) feed their convergence instances
+into. -/
+theorem counterTimeout_chain (K : Kernel Ω Ω) [IsMarkovKernel K]
+    (timed next : PhaseConvergenceW K)
+    (h_chain : ∀ x, timed.Post x → next.Pre x)
+    (x₀ : Ω) (hx₀ : timed.Pre x₀) :
+    (K ^ (timed.t + next.t)) x₀ {y | ¬ next.Post y} ≤ (timed.ε + next.ε : ℝ≥0∞) :=
+  composeW_two_phases timed next h_chain x₀ hx₀
+
+end Weak2
+
 end CounterTimeout
 
 end ExactMajority
