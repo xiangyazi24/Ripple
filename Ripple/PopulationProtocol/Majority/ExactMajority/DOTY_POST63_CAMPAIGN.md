@@ -2877,3 +2877,31 @@ Two genuine protocol residuals remain, BOTH boundary-free, both honest Lemma-5.1
 (the symmetric pair-count comparison #R2-pairs ≥ #R3-pairs on {X>0} + mirror, from the free-pool
 ledger). The X=0 boundary — the mathematical crux — is SOLVED by cosh (no exception at 0).
 Commits f475aedd / 87271ca4 / 7760b01 / 7e9e3a6d.
+
+## SEAM NO-OVERSHOOT — DELIVERED 2026-06-10 (opus)
+
+New file `Probability/SeamNoOvershoot.lean` (append-only; no existing file edited).
+Discharges the per-seam `hNoOvershoot` event `SeamEpidemics` budgeted but never consumed,
+and FIXES the integration bug (`seamEpidemicW`'s `εovershoot` was added by `le_self_add`
+and never used).  5 stages, one commit each (951472b / 7895564 / b0d472b / a37968e /
+637a0a9), single-file EXIT_0 on uisai2 /dev/shm (v4.30.0); every headline
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry / 0 native / 0 axiom.
+
+- Stage 1: seam predicates + at-risk clock potential `Φ_s = ∑_{clock,phase=p+1} e^{−s·counter}`
+  + threshold lemma (clone of Phase0Window, predicate = clock ∧ phase = p+1).
+- Stage 2: `CounterTimedPhase = {1,5,6,7,8}` (HONEST — phase 3 excluded, no counter reset
+  on entry) + `DetSeamOvershootBridge` named structural fact (error-to-10 finding:
+  bridge needs well-formedness; blueprint's {1,3,5,6,7,8} corrected).
+- Stage 3: affine drift `∫ Φ dK ≤ ofReal(1+2(eˢ−1)/n)·Φ + 2·M` (clone of
+  `clockCounterPotential_drift_affine`; per-pair output bound `hpair` is the input).
+- Stage 4: numerics → e^{−40(L+1)} (with the 2M immigration sum) + tail via
+  `phase0_window_tail_affine`.
+- Stage 5: prefix-union terminal tail + `hNoOvershoot_one_seam` budget +
+  **`seamEpidemicExactW`** (integration fix: Post strengthened with NoOvershoot,
+  εovershoot consumed by union bound) + `seamExact_into_exact_work` (deterministic).
+
+Two named carried facts after a real attack (per discipline): `hpair` (per-pair output
+bound, seam analogue of `clockSummand_pair_le` on `{1,5,6,7,8}`) and
+`DetSeamOvershootBridge` (deterministic bridge; needs the Analysis-layer well-formedness
+because `phaseInit 1` can error an `mcr` to phase 10 without a counter-0 clock).  See
+`HANDOFF_SEAM_NOOVERSHOOT.md` STATUS section for the full verdict + blueprint corrections.

@@ -283,5 +283,160 @@ theorem sum_interactionCount_freshMcr (c : Config (AgentState L K)) :
     sum_interactionCount_freshMcrF_right c s₁ (Finset.mem_filter.mp hs₁).2
   rw [Finset.sum_congr rfl hstep, ← Finset.sum_mul, sum_count_freshMcrF]
 
+/-- Positive `interactionCount` implies `Applicable` (re-derived locally). -/
+private lemma applicable_of_pos_iCount (c : Config (AgentState L K))
+    (s₁ s₂ : AgentState L K) (h : 0 < c.interactionCount s₁ s₂) :
+    Protocol.Applicable c s₁ s₂ := by
+  show {s₁, s₂} ≤ c; rw [Multiset.le_iff_count]; intro a
+  simp only [Config.interactionCount, Config.count] at h
+  simp only [Multiset.insert_eq_cons, Multiset.count_cons, Multiset.count_singleton]
+  by_cases heq : s₁ = s₂
+  · subst heq; simp only [ite_true] at h
+    have : 2 ≤ Multiset.count s₁ c := by
+      by_contra h_lt
+      have hle : Multiset.count s₁ c ≤ 1 := by omega
+      have : Multiset.count s₁ c * (Multiset.count s₁ c - 1) = 0 := by
+        rcases Nat.eq_zero_or_pos (Multiset.count s₁ c) with h0 | h0
+        · simp [h0]
+        · have : Multiset.count s₁ c = 1 := by omega
+          simp [this]
+      omega
+    by_cases ha : a = s₁ <;> simp_all
+  · simp only [heq, ite_false] at h
+    have hc1 : 0 < Multiset.count s₁ c := pos_of_mul_pos_left h (Nat.zero_le _)
+    have hc2 : 0 < Multiset.count s₂ c := pos_of_mul_pos_right h (Nat.zero_le _)
+    by_cases ha1 : a = s₁ <;> by_cases ha2 : a = s₂ <;> simp_all <;> omega
+
+/-- **The fresh-MCR rectangle interactionPMF mass.**  The PMF mass of the good set
+"`p.1`, `p.2` are both fresh MCR and `(p.1,p.2)` is applicable" is at least
+`freshMcrCount·(freshMcrCount−1)/(card(card−1))` — the Rule-1 birth rate. -/
+theorem interactionPMF_toMeasure_freshMcr_ge
+    (c : Config (AgentState L K)) (hc : 2 ≤ c.card) :
+    (c.interactionPMF hc).toMeasure
+      {p : AgentState L K × AgentState L K |
+        isFreshMcr (L := L) (K := K) p.1 = true ∧
+        isFreshMcr (L := L) (K := K) p.2 = true ∧
+        Protocol.Applicable c p.1 p.2} ≥
+    ENNReal.ofReal
+      (((freshMcrCount (L := L) (K := K) c *
+          (freshMcrCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+        (c.card * (c.card - 1) : ℝ)) := by
+  set target := {p : AgentState L K × AgentState L K |
+    isFreshMcr (L := L) (K := K) p.1 = true ∧
+    isFreshMcr (L := L) (K := K) p.2 = true ∧
+    Protocol.Applicable c p.1 p.2}
+  set F := freshMcrF (L := L) (K := K) with hFdef
+  have h_sub : (↑(F ×ˢ F) : Set _) ∩ (c.interactionPMF hc).support ⊆ target := by
+    intro ⟨s₁, s₂⟩ ⟨h_mem, h_supp⟩
+    have hs₁ : isFreshMcr (L := L) (K := K) s₁ = true :=
+      (Finset.mem_filter.mp (Finset.mem_product.mp h_mem).1).2
+    have hs₂ : isFreshMcr (L := L) (K := K) s₂ = true :=
+      (Finset.mem_filter.mp (Finset.mem_product.mp h_mem).2).2
+    rw [PMF.mem_support_iff] at h_supp
+    have h_app : Protocol.Applicable c s₁ s₂ := by
+      apply applicable_of_pos_iCount
+      by_contra h0; exact h_supp (show c.interactionProb s₁ s₂ = 0 by
+        simp [Config.interactionProb, show c.interactionCount s₁ s₂ = 0 by omega])
+    exact ⟨hs₁, hs₂, h_app⟩
+  have h_le := (c.interactionPMF hc).toMeasure_mono
+    (DiscreteMeasurableSpace.forall_measurableSet _) h_sub
+  suffices h_val : (c.interactionPMF hc).toMeasure (↑(F ×ˢ F)) ≥
+      ENNReal.ofReal
+        (((freshMcrCount (L := L) (K := K) c *
+            (freshMcrCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+          (c.card * (c.card - 1) : ℝ)) from le_trans h_val h_le
+  rw [PMF.toMeasure_apply_finset]
+  simp_rw [show ∀ p : AgentState L K × AgentState L K,
+    (c.interactionPMF hc) p = (c.interactionCount p.1 p.2 : ENNReal) / c.totalPairs
+    from fun _ => rfl, div_eq_mul_inv, ← Finset.sum_mul]
+  conv_lhs => arg 1; rw [Finset.sum_product' F F
+    (fun s₁ s₂ => (c.interactionCount s₁ s₂ : ENNReal))]
+  have h_comb := sum_interactionCount_freshMcr (L := L) (K := K) c
+  set MM := freshMcrCount (L := L) (K := K) c *
+    (freshMcrCount (L := L) (K := K) c - 1) with hMM
+  rw [show (∑ s₁ ∈ F, ∑ s₂ ∈ F, (c.interactionCount s₁ s₂ : ENNReal)) =
+      ((MM : ℕ) : ENNReal) from by exact_mod_cast h_comb, ← div_eq_mul_inv]
+  have h1 : 1 ≤ c.card := by omega
+  have hprod_pos : (0 : ℝ) < ↑c.card * (↑c.card - 1) := by
+    apply mul_pos
+    · exact Nat.cast_pos.mpr (by omega)
+    · exact sub_pos.mpr (by exact_mod_cast (show 1 < c.card by omega))
+  show ↑MM / ↑c.totalPairs ≥
+    ENNReal.ofReal (((MM : ℕ) : ℝ) / (↑c.card * (↑c.card - 1)))
+  have hcard_cast : ↑c.card * (↑c.card - 1 : ℝ) = ((c.card * (c.card - 1) : ℕ) : ℝ) := by
+    push_cast [Nat.cast_sub h1]; ring
+  rw [ENNReal.ofReal_div_of_pos hprod_pos, hcard_cast,
+    ENNReal.ofReal_natCast, ENNReal.ofReal_natCast,
+    show (c.card * (c.card - 1) : ℕ) = c.totalPairs from rfl]
+
+/-- **`birthR1Mass` lower bound (honest, fresh-MCR count).**  On a config with `card = n`,
+the birth band `{c' | pool c + 2 ≤ pool c'}` carries mass at least
+`freshMcrCount·(freshMcrCount−1)/(n(n−1))` — the Rule-1 `MCR,MCR → Main,CR` birth rate over
+unassigned phase-0 MCR pairs.  Route: `stepDistOrSelf_toMeasure_ge` over the fresh-MCR
+rectangle (`birthR1_config_eq` lands every such pair in the band, raising the pool by `+2`). -/
+theorem birthR1Mass_ge_freshMcr
+    (c : Config (AgentState L K)) (n : ℕ) (h_card : c.card = n) (hn2 : 2 ≤ n) :
+    birthR1Mass (L := L) (K := K) c ≥
+      ENNReal.ofReal
+        (((freshMcrCount (L := L) (K := K) c *
+            (freshMcrCount (L := L) (K := K) c - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) := by
+  have hc2 : 2 ≤ c.card := by omega
+  set good : Set (AgentState L K × AgentState L K) :=
+    {p | isFreshMcr (L := L) (K := K) p.1 = true ∧
+         isFreshMcr (L := L) (K := K) p.2 = true ∧
+         Protocol.Applicable c p.1 p.2} with hgooddef
+  have hgood : ∀ pair ∈ good, (NonuniformMajority L K).scheduledStep c pair ∈
+      {c' | assignableCount (L := L) (K := K) c + 2 ≤ assignableCount (L := L) (K := K) c'} := by
+    intro ⟨s, t⟩ ⟨hs_fresh, ht_fresh, happ⟩
+    simp only [Set.mem_setOf_eq]
+    obtain ⟨hs_role, hs_un, hs_ph⟩ := (isFreshMcr_iff s).mp hs_fresh
+    obtain ⟨ht_role, ht_un, ht_ph⟩ := (isFreshMcr_iff t).mp ht_fresh
+    unfold Protocol.scheduledStep Protocol.stepOrSelf
+    rw [if_pos happ]
+    have hδ : (NonuniformMajority L K).δ s t = Transition L K s t := rfl
+    rw [show ((NonuniformMajority L K).δ s t).1 = (Transition L K s t).1 from by rw [hδ],
+        show ((NonuniformMajority L K).δ s t).2 = (Transition L K s t).2 from by rw [hδ]]
+    rw [birthR1_config_eq c s t happ hs_role ht_role hs_un ht_un hs_ph ht_ph]
+  calc birthR1Mass (L := L) (K := K) c
+      = ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+          {c' | assignableCount (L := L) (K := K) c + 2
+            ≤ assignableCount (L := L) (K := K) c'} := rfl
+    _ ≥ (c.interactionPMF hc2).toMeasure good :=
+        stepDistOrSelf_toMeasure_ge c hc2 _ good hgood
+    _ ≥ ENNReal.ofReal
+          (((freshMcrCount (L := L) (K := K) c *
+              (freshMcrCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+            (c.card * (c.card - 1) : ℝ)) :=
+        interactionPMF_toMeasure_freshMcr_ge c hc2
+    _ = ENNReal.ofReal
+          (((freshMcrCount (L := L) (K := K) c *
+              (freshMcrCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+            (n * (n - 1) : ℝ)) := by rw [h_card]
+
+/-- **`hbirth` (FloorPrefix shape).**  The exact hypothesis `pool_expNeg_one_step_drift`
+needs: on the drift region (where `uMin ≤ mcrCount`), provided the MCR agents are *fresh*
+(`uMin ≤ freshMcrCount`, the honest count carried by R1 — see the wrap-up note), the
+`birthR1Mass` is at least `uMin(uMin−1)/(n(n−1))`.  Monotone in the fresh-MCR count. -/
+theorem hbirth_of_freshMcr_floor
+    (n uMin Ahi : ℕ) (hn2 : 2 ≤ n)
+    (c : Config (AgentState L K))
+    (hregion : PoolDriftRegion (L := L) (K := K) n uMin Ahi c)
+    (hfresh : uMin ≤ freshMcrCount (L := L) (K := K) c) :
+    ENNReal.ofReal (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+      ≤ birthR1Mass (L := L) (K := K) c := by
+  obtain ⟨hshell, _, _⟩ := hregion
+  have h_card : c.card = n := hshell.1
+  refine le_trans ?_ (birthR1Mass_ge_freshMcr c n h_card hn2)
+  apply ENNReal.ofReal_le_ofReal
+  have hn1 : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by
+    have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn2
+    nlinarith
+  -- Same denominator, monotone numerator: uMin(uMin−1) ≤ freshMcrCount(freshMcrCount−1).
+  apply div_le_div_of_nonneg_right ?_ hn1
+  have hmono : uMin * (uMin - 1) ≤
+      freshMcrCount (L := L) (K := K) c * (freshMcrCount (L := L) (K := K) c - 1) :=
+    Nat.mul_le_mul hfresh (Nat.sub_le_sub_right hfresh 1)
+  exact_mod_cast hmono
+
 end FloorMasses
 end ExactMajority

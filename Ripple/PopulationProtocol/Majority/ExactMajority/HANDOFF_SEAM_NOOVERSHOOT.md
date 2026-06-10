@@ -537,3 +537,75 @@ det_seam_overshoot_of_atRiskClockZero, cloned conceptually from det_phase0_exit,
 seam_noOvershoot_numerics_real, cloned from phase0_numerics_real.
 
 seamEpidemicExactW, so the probabilistic hNoOvershoot is actually consumed by the seam convergence, rather than appearing only as an unused εovershoot plus a pointwise bridge assumption.
+
+---
+
+## STATUS — DELIVERED 2026-06-10 (opus, single-line)
+
+`Probability/SeamNoOvershoot.lean` built (uisai2 /dev/shm, lean v4.30.0, single-file
+EXIT_0); every headline `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`;
+0 sorry / 0 admit / 0 native_decide / 0 added axiom.  Five stages, one commit each
+(951472b, 7895564, b0d472b, a37968e, 637a0a9 on `main`; mirrored to opus-wip).
+
+DELIVERED (all 0-sorry, axiom-clean):
+- **Stage 1**: `NoOvershoot`, `AtRiskClockZero`, `seamClockSummand`,
+  `seamClockPotential`, `seamClockPotential_ge_one_of_atRiskClockZero` (threshold,
+  predicate = clock ∧ phase = p+1).
+- **Stage 2**: `CounterTimedPhase` (HONEST set, see correction below),
+  `DetSeamOvershootBridge` (deterministic overshoot→at-risk bridge, carried as a named
+  structural fact + kernel-form `transitionKernel_not_noOvershoot_eq_zero`).
+- **Stage 3**: `seamClockPotential_{eq_base_add_pair, stepOrSelf_eq_base_add_pair,
+  stepOrSelf_le}`, `seamClockPotential_drift_affine` (affine drift, clone of
+  `clockCounterPotential_drift_affine` via `lintegral_transitionKernel_eq_sum` +
+  `sum_fst/snd_interactionProb`; per-pair output bound carried as `hpair`).
+- **Stage 4**: `seam_noOvershoot_numerics_real` (e^{−40(L+1)} with the 2M immigration
+  sum), `cardWindow_absorbing`, `seam_atRiskClockZero_tail` (wires
+  `phase0_window_tail_affine`: Φ = seamClockPotential p 1, Post = ¬AtRiskClockZero,
+  θ = 1, card-n absorbing window).
+- **Stage 5**: `noOvershoot_window_le_prefix_sum` (via `prefix_union_first_exit`),
+  `seam_noOvershoot_tail` (t·e^{−40(L+1)}), `hNoOvershoot_one_seam` (budget wrapper),
+  **`seamEpidemicExactW`** (THE INTEGRATION FIX: Post = allPhaseGe (p+1) ∧ NoOvershoot,
+  ε = εepidemic + εovershoot consumed by union bound), `seamExact_into_exact_work`
+  (deterministic, no per-seam side input).
+
+### Blueprint claims wrong vs repo (verified against FROZEN `Transition.lean`)
+
+1. **`CounterTimedPhase` is `{1,5,6,7,8}`, NOT `{1,3,5,6,7,8}`.**  Phase 3 IS
+   counter-timed, but `phaseInit 3` does NOT reset the clock counter on entry (it sets
+   `minute`), so a fresh phase-3 clock can enter with counter 0 (summand up to 1, not
+   M = e^{−s·50(L+1)}), breaking the affine immigration tail.  `phaseInit` resets the
+   counter to full exactly for `{1,5,6,7,8}`.  Phase 3's no-overshoot must come from the
+   minute/hour width machinery, not this generic clock-counter lemma.
+2. **The deterministic bridge is FALSE without a well-formedness side condition
+   (error-to-10 path).**  `phaseInit 1` sends an `mcr` agent to phase 10
+   (`enterPhase10`); an `mcr` epidemic-dragged into phase 1 overshoots to phase 10 ≥ p+2
+   with NO counter-0 clock involved.  The honest bridge needs the seam Pre's
+   well-formedness (no remaining `mcr`, in-range biases) so `phaseInit` does not error —
+   exactly the `validInitial`/quota invariants from the Analysis layer.  `DetSeamOvershootBridge`
+   is carried as a named hypothesis to be discharged per-seam from those invariants
+   (full per-phase upper-bound case analysis through epidemic + 11-phase dispatcher +
+   finishPhase10Entry is the same magnitude as the existing `Transition_*_phase_le_two_*`
+   lemmas and is out of scope for this seam file).
+
+### How phases 2/3/4/9/10 seams are left
+
+- **Phases 2, 4, 9** (untimed: opinion-union / big-bias advance): EXCLUDED from
+  `CounterTimedPhase`; their seam no-overshoot is handled by their own work-phase
+  guards, not this lemma.
+- **Phase 3** (counter-timed but no counter reset on entry): EXCLUDED; needs the
+  minute/hour width machinery (`ClockOLogN`/`ClockReal*`).
+- **Phase 10** (backup, no phase advance): not a seam destination in this scheme.
+
+### Two named carried facts (after a real attack, per discipline)
+
+- `hpair` (per-pair output bound, seam analogue of `clockSummand_pair_le`): the
+  protocol-structural per-pair fact for a counter-RESET destination phase; supplied to
+  the drift/tail.  Discharging it = the seam analogue of Phase0Window's
+  `clockSummand_pair_le` case analysis restricted to `{1,5,6,7,8}`.
+- `DetSeamOvershootBridge p` (deterministic overshoot bridge): carried for the reason
+  in claim 2 above (needs well-formedness; full dispatcher case analysis out of scope).
+
+Everything else (the affine drift engine, the numerics, the prefix-union tail
+assembly, the union-bound integration fix, the deterministic exact-work bridge) is
+fully proven and consumable.  The integration bug (`seamEpidemicW`'s unused
+`εovershoot`) is FIXED by `seamEpidemicExactW`.
