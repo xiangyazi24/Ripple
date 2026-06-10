@@ -229,7 +229,7 @@ chain (the clean decomposition) and identify the target precisely. -/
 
 namespace Phase0Window
 
-open GatedDrift
+open GatedDrift RoleSplitConcentration
 
 variable {L K : ℕ}
 
@@ -274,7 +274,7 @@ theorem gap2_real_clock_zero_le_killed_clean_add_escape
   -- the killed-clean + escape decomposition at θ = 1.
   have h := real_le_killed_affine_tail_add_escape (K := Kk) (G := G) Φ a b hdrift_G τ c₀ 1
     (by norm_num) (by norm_num)
-  rwa [ENNReal.div_one] at h
+  rwa [div_one] at h
 
 /-- **The Gap-2 reachability TARGET (statement only — NOT proven; see the section doc).**
 
@@ -356,15 +356,15 @@ theorem clockCounterPotential_eq_zero_of_allMcr (s : ℝ)
     (hmcr : ∀ a ∈ c, a.role = .mcr) :
     clockCounterPotential (L := L) (K := K) s c = 0 := by
   unfold clockCounterPotential Config.sumOf
-  rw [Multiset.sum_eq_zero]
-  intro x hx
-  rw [Multiset.mem_map] at hx
-  obtain ⟨a, ha, rfl⟩ := hx
-  unfold clockSummand
-  rw [if_neg]
-  intro hclock
-  rw [hmcr a ha] at hclock
-  exact absurd hclock (by decide)
+  have hcongr : c.map (clockSummand (L := L) (K := K) s) = c.map (fun _ => (0 : ℝ≥0∞)) := by
+    apply Multiset.map_congr rfl
+    intro a ha
+    unfold clockSummand
+    rw [if_neg]
+    intro hclock
+    rw [hmcr a ha] at hclock
+    exact absurd hclock (by decide)
+  rw [hcongr, Multiset.sum_map_zero]
 
 /-- **The balanced Phase-0 start lies in the killed gate.**  `Phase0Initial n c₀` gives
 `card c₀ = n` and `∀ a ∈ c₀, a.phase = 0 ∧ a.role = .mcr`; the `phase = 0` conjunct is
@@ -452,6 +452,20 @@ open GatedDrift RoleSplitConcentration
 open scoped Real
 
 variable {L K : ℕ}
+
+/-- The FloorMasses favorability rate at `s = 1/10` (the proven-`< 1` mid-band contraction
+multiplier), packaged as an `ℝ≥0∞` so the εmid headline conclusion stays readable. -/
+noncomputable def floorMassesRate (n uMin Ahi : ℕ) : ℝ≥0∞ :=
+  ENNReal.ofReal
+    (1
+      - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+          (1 - Real.exp (-2 * (1 / 10)))
+      + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+          (Real.exp (2 * (1 / 10)) - 1))
+
+/-- The mid-band favorability gate as a `Set` (the `setOf` of `PoolDriftRegion`). -/
+def poolDriftRegionSet (n uMin Ahi : ℕ) : Set (Config (AgentState L K)) :=
+  {c | PoolDriftRegion (L := L) (K := K) n uMin Ahi c}
 
 /-- **The floor-failure threshold link.**  At a positive scale `s`, the pool-deficit event
 `{assignableCount < a₀}` is contained in the MGF threshold event `{θ ≤ poolExpNeg s}` at the
@@ -541,35 +555,17 @@ theorem midBand_floorFail_prefix_floorMasses
         (((NonuniformMajority L K).transitionKernel) ^ τ) c₀
           {c | assignableCount (L := L) (K := K) c < a₀}
       ≤ ∑ τ ∈ Finset.range t,
-          ((ENNReal.ofReal
-              (1
-                - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
-                    (1 - Real.exp (-2 * (1 / 10)))
-                + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
-                    (Real.exp (2 * (1 / 10)) - 1))) ^ τ
-              * poolExpNeg (L := L) (K := K) (1 / 10) c₀
-              + (0 : ℝ≥0∞) * ∑ i ∈ Finset.range τ,
-                  (ENNReal.ofReal
-                    (1
-                      - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
-                          (1 - Real.exp (-2 * (1 / 10)))
-                      + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
-                          (Real.exp (2 * (1 / 10)) - 1))) ^ i)
+          ((floorMassesRate n uMin Ahi ^ τ * poolExpNeg (L := L) (K := K) (1 / 10) c₀
+              + (0 : ℝ≥0∞) * ∑ i ∈ Finset.range τ, floorMassesRate n uMin Ahi ^ i)
             / ENNReal.ofReal (Real.exp (-(1 / 10) * (a₀ : ℝ)))
           + (killK_now (NonuniformMajority L K).transitionKernel
                 (PoolDriftRegion (L := L) (K := K) n uMin Ahi) ^ τ) (some c₀)
               {(none : Option (Config (AgentState L K)))}) := by
-  set rVal : ℝ≥0∞ := ENNReal.ofReal
-      (1
-        - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
-            (1 - Real.exp (-2 * (1 / 10)))
-        + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
-            (Real.exp (2 * (1 / 10)) - 1)) with hrVal
   -- the discharged one-step drift on the region G (immigration b = 0).
   have hdrift_G : ∀ x ∈ (PoolDriftRegion (L := L) (K := K) n uMin Ahi),
       ∫⁻ c', poolExpNeg (L := L) (K := K) (1 / 10) c'
           ∂((NonuniformMajority L K).transitionKernel x)
-        ≤ rVal * poolExpNeg (L := L) (K := K) (1 / 10) x + 0 := by
+        ≤ floorMassesRate n uMin Ahi * poolExpNeg (L := L) (K := K) (1 / 10) x + 0 := by
     intro x hx
     rw [add_zero]
     exact FloorMasses.pool_expNeg_one_step_drift_floorMasses n uMin Ahi hn2
@@ -577,7 +573,8 @@ theorem midBand_floorFail_prefix_floorMasses
   apply Finset.sum_le_sum
   intro τ _
   exact midBand_floorFail_step_contractive (L := L) (K := K) (1 / 10)
-    (by norm_num) a₀ (PoolDriftRegion (L := L) (K := K) n uMin Ahi) rVal 0 hdrift_G τ c₀
+    (by norm_num) a₀ (PoolDriftRegion (L := L) (K := K) n uMin Ahi)
+    (floorMassesRate n uMin Ahi) 0 hdrift_G τ c₀
 
 end FloorPrefix
 
