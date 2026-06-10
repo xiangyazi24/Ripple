@@ -814,6 +814,58 @@ theorem ladderA_sq_cap (X₀ : ℕ) (m : ℕ) (hX₀ : (10:ℝ) ^ (23:ℕ) ≤ (
     rw [hpow, Geff_sq]; ring
   rw [← hrw]; exact hcap
 
+/-- The regime-1 threshold `ladderYt n X₀ m := ⌈cc·G^{2m}·g²·(X₀²/n)⌉₊` (`cc = 9/10`).  Chosen so the
+slice threshold lower bound is FREE (`Nat.le_ceil`) AND the `per_window_delta` cap
+`Yt ≤ cc·(a m)²/n + 1` follows from `G^{2m}·g²·X₀² ≤ (a m)²` (`ladderA_ge`) + `⌈⌉ ≤ ·+1`. -/
+noncomputable def ladderYt (n X₀ : ℕ) (m : ℕ) : ℕ :=
+  ⌈(9/10 : ℝ) * (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * ((X₀ : ℝ) ^ 2 / (n : ℝ))⌉₊
+
+/-- **Threshold lower bound** (slice `hYt`): `cc·G^{2m}·g²·(X₀²/n) ≤ ladderYt n X₀ m` (free, by
+`Nat.le_ceil`). -/
+theorem ladderYt_ge (n X₀ : ℕ) (m : ℕ) :
+    (9/10 : ℝ) * (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * ((X₀ : ℝ) ^ 2 / (n : ℝ))
+      ≤ (ladderYt n X₀ m : ℝ) := by
+  unfold ladderYt; exact Nat.le_ceil _
+
+/-- **Threshold cap** (`per_window_delta` `hYt`): `ladderYt n X₀ m ≤ cc·(ladderA X₀ m)²/n + 1` for
+`0 < n` (via `⌈y⌉₊ < y+1` and `G^{2m}·g²·X₀² ≤ (ladderA X₀ m)²`). -/
+theorem ladderYt_le (n X₀ : ℕ) (m : ℕ) (hn : 0 < n) :
+    (ladderYt n X₀ m : ℝ) ≤ (9/10 : ℝ) * (ladderA X₀ m : ℝ) ^ 2 / (n : ℝ) + 1 := by
+  have hnℝ : (0:ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have hceil : (ladderYt n X₀ m : ℝ)
+      < (9/10 : ℝ) * (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * ((X₀ : ℝ) ^ 2 / (n : ℝ)) + 1 := by
+    unfold ladderYt
+    apply Nat.ceil_lt_add_one
+    have := one_le_gC; positivity
+  have hge := ladderA_ge X₀ m
+  have hge0 : (0:ℝ) ≤ (201/200 : ℝ) ^ m * (gC * (X₀ : ℝ)) := by
+    have := one_le_gC; positivity
+  have hladder0 : (0:ℝ) ≤ (ladderA X₀ m : ℝ) := by positivity
+  have hsq : ((201/200 : ℝ) ^ m * (gC * (X₀ : ℝ))) ^ 2 ≤ (ladderA X₀ m : ℝ) ^ 2 := by
+    nlinarith [hge, hge0, hladder0]
+  have hsq' : (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * (X₀ : ℝ) ^ 2 ≤ (ladderA X₀ m : ℝ) ^ 2 := by
+    have hpm : (201/200 : ℝ) ^ (2 * m) = ((201/200 : ℝ) ^ m) ^ 2 := by
+      rw [mul_comm 2 m, pow_mul]
+    have hrw : ((201/200 : ℝ) ^ m * (gC * (X₀ : ℝ))) ^ 2
+        = (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * (X₀ : ℝ) ^ 2 := by
+      rw [hpm, mul_pow, mul_pow]; ring
+    linarith [hsq, hrw.symm.le, hrw.le]
+  -- divide hsq' by n>0 and multiply by 9/10 ≥ 0.
+  have hd : (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * (X₀ : ℝ) ^ 2 / (n : ℝ)
+      ≤ (ladderA X₀ m : ℝ) ^ 2 / (n : ℝ) := by
+    gcongr
+  have hdiv : (9/10 : ℝ) * (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * ((X₀ : ℝ) ^ 2 / (n : ℝ))
+      ≤ (9/10 : ℝ) * (ladderA X₀ m : ℝ) ^ 2 / (n : ℝ) := by
+    have hL : (9/10 : ℝ) * (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * ((X₀ : ℝ) ^ 2 / (n : ℝ))
+        = (9/10 : ℝ) * ((201/200 : ℝ) ^ (2 * m) * gC ^ 2 * (X₀ : ℝ) ^ 2 / (n : ℝ)) := by
+      ring
+    have hR : (9/10 : ℝ) * (ladderA X₀ m : ℝ) ^ 2 / (n : ℝ)
+        = (9/10 : ℝ) * ((ladderA X₀ m : ℝ) ^ 2 / (n : ℝ)) := by ring
+    rw [hL, hR]
+    apply mul_le_mul_of_nonneg_left ?_ (by norm_num : (0:ℝ) ≤ 9/10)
+    exact hd
+  linarith [hceil, hdiv]
+
 /-! ### Part 13b — the INFLATED slice discharger (the fix for the ceiling-ladder drip↔threshold gap).
 
 `EarlyDripMarked.slice_exp_le`/`slice_discharge` couple the drip cap and the threshold through the
@@ -864,6 +916,84 @@ theorem window_constants_slice_inflated :
     cc * RWb < g^2 * (cc - κ * G^2 * (1 + ε) * RWb * wp) ∧
       (0 : ℝ) < g^2 * (cc - κ * G^2 * (1 + ε) * RWb * wp) := by
   norm_num
+
+/-! ### Part 13d — the per-mc₀ ladder slice bound (`hslice` discharge via the inflated slice).
+
+Assembles the per-rung facts into `per_window_delta`'s `hslice` shape at `G := Geff` (so the bracket
+is the inflated `B'`): `slice_exp_le_inflated` consumes the recInv clean-tail `hY`, `RW ≤ RWb`
+(`RW_le_RWb`), the inflated drip cap (`ladderA_sq_cap` → `rung_drip_cap`), and the threshold lower
+bound (`ladderYt_ge`). -/
+
+/-- The per-mc₀ ladder `hslice` for `per_window_delta` (regime 1), one rung `m`.  `X₀ = rBeyond`,
+`Y₀ = cleanAbove`.  Produces the exact `per_window_delta` hslice RHS with `G := Geff` (bracket = B'). -/
+theorem ladder_hslice (n : ℕ) (hn : N₀ ≤ n) (mc₀ : Config (MarkedAgent L K)) (T : ℕ)
+    (X₀ : ℕ) (hX₀def : X₀ = rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀))
+    (hX₀lo : (10:ℝ) ^ (23:ℕ) ≤ (X₀ : ℝ))
+    (hYlo : (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+        ≤ (9/10 : ℝ) * ((X₀ : ℝ) ^ 2 / (n : ℝ)))
+    (m : ℕ) :
+    σw * (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n)
+          * (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+        + ((ladderA X₀ (m + 1) : ℝ) / (n : ℝ)) ^ 2 * (1 + (1/200 : ℝ)) * σw
+            * (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n) * (w n : ℝ)
+        - σw * (ladderYt n X₀ m : ℝ)
+      ≤ σw * (((X₀ : ℝ) ^ 2 / (n : ℝ))
+          * ((9/10 : ℝ) * RWb - (201/200 : ℝ) ^ (2 * m)
+            * (gC ^ 2 * ((9/10 : ℝ) - Geff ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200))))) := by
+  have hnpos : 0 < n := N₀_pos n hn
+  have hnℝ : (0:ℝ) < (n : ℝ) := by exact_mod_cast hnpos
+  set RW : ℝ := (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n) with hRWdef
+  set Q : ℝ := (X₀ : ℝ) ^ 2 / (n : ℝ) with hQdef
+  have hRW0 : (0:ℝ) ≤ RW := by rw [hRWdef]; have := baseW_pos n hn; positivity
+  have hRWb : RW ≤ RWb := by rw [hRWdef]; exact RW_le_RWb n hn
+  have hσw0 : (0:ℝ) ≤ σw := σw_pos.le
+  have hQ0 : (0:ℝ) ≤ Q := by rw [hQdef]; positivity
+  -- the drip cap: (ladderA (m+1)/n)²·w·(1+ε)·RW ≤ Gm·κ·G²·g²(1+ε)RWb·wp·Q.
+  have hcap := ladderA_sq_cap X₀ m hX₀lo
+  have hGmGeff : (201/200 : ℝ) ^ (2 * m) * Geff ^ 2 = (201/200 : ℝ) ^ (2 * m) * (1 + 1/10000) * (201/200 : ℝ) ^ 2 := by
+    rw [Geff_sq]; ring
+  have hw : (w n : ℝ) ≤ (3/200 : ℝ) * (n : ℝ) := by
+    unfold w; push_cast
+    have := Nat.div_mul_le_self (3 * n) 200
+    have hle : (3 * n / 200 : ℕ) * 200 ≤ 3 * n := by omega
+    have : ((3 * n / 200 : ℕ) : ℝ) * 200 ≤ 3 * (n : ℝ) := by exact_mod_cast (by omega : (3 * n / 200) * 200 ≤ 3 * n)
+    linarith
+  have hw0 : (0:ℝ) ≤ (w n : ℝ) := by positivity
+  have hcapGeff : (ladderA X₀ (m + 1) : ℝ) ^ 2
+      ≤ (201/200 : ℝ) ^ (2 * m) * Geff ^ 2 * gC ^ 2 * (X₀ : ℝ) ^ 2 := hcap
+  have hdrip := rung_drip_cap (ladderA X₀ (m + 1) : ℝ) ((201/200 : ℝ) ^ (2 * m)) (Geff ^ 2)
+    gC (X₀ : ℝ) (1/200 : ℝ) RW RWb (3/200 : ℝ) Q (n : ℝ) (w n : ℝ)
+    hnℝ (by norm_num) (by norm_num) hRW0 hRWb hw0 hw hQdef
+    (by positivity) (by positivity) (by have := one_le_gC; positivity) (by positivity)
+    hcapGeff
+  -- rewrite Geff² in hdrip's RHS to κ·G² form for slice_exp_le_inflated.
+  have hdrip' : ((ladderA X₀ (m + 1) : ℝ) / (n : ℝ)) ^ 2 * (w n : ℝ) * (1 + (1/200 : ℝ)) * RW
+      ≤ (201/200 : ℝ) ^ (2 * m) * (1 + 1/10000) * (201/200 : ℝ) ^ 2 * gC ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3/200) * Q := by
+    refine le_trans hdrip ?_
+    rw [Geff_sq]; apply le_of_eq; ring
+  -- threshold lower bound.
+  have hYt := ladderYt_ge n X₀ m
+  have hYt' : (9/10 : ℝ) * (201/200 : ℝ) ^ (2 * m) * gC ^ 2 * Q ≤ (ladderYt n X₀ m : ℝ) := by
+    rw [hQdef]; exact hYt
+  -- apply slice_exp_le_inflated.
+  have hcore := slice_exp_le_inflated Q σw (1/200 : ℝ) RW RWb (9/10 : ℝ) gC (201/200 : ℝ)
+    (3/200 : ℝ) (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+    (((ladderA X₀ (m + 1) : ℝ) / (n : ℝ)) ^ 2 * (w n : ℝ))
+    ((201/200 : ℝ) ^ (2 * m)) (1 + 1/10000 : ℝ) (ladderYt n X₀ m : ℝ)
+    hσw0 hQ0 hRW0 (by norm_num) hYlo hRWb
+    (by
+      -- match drip shape: drip·(1+ε)·RW with drip = (ladderA/n)²·w.
+      have := hdrip'
+      nlinarith [this, hRW0])
+    (by
+      -- threshold: cc·Gm·g²·Q ≤ Yt.
+      have := hYt'
+      nlinarith [this])
+  -- reassemble to the target ordering, and Geff² ↦ κ·G² in the bracket.
+  have hbrk : Geff ^ 2 = (1 + 1/10000 : ℝ) * (201/200 : ℝ) ^ 2 := Geff_sq
+  rw [hbrk]
+  refine le_trans (le_of_eq ?_) hcore
+  ring
 
 end DotyParams
 

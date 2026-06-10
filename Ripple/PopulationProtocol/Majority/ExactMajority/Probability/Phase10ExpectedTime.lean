@@ -1151,21 +1151,24 @@ theorem sum_interactionProb_presentActiveAB (c : Config (AgentState L K)) :
   have hpresent : (∑ p ∈ presentActiveABPairs (L := L) (K := K) c,
         c.interactionProb p.1 p.2)
       = ∑ p ∈ activeABPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
-    rw [presentActiveABPairs]
-    apply Finset.sum_subset (Finset.filter_subset _ _)
-    intro p _ hpnot
-    simp only [Finset.mem_filter, not_and, not_le, Nat.lt_one_iff] at hpnot
+    apply Finset.sum_subset (s₁ := presentActiveABPairs (L := L) (K := K) c)
+      (Finset.filter_subset _ _)
+    intro p hp_in hpnot
+    -- p ∈ activeABPairs but not in present-filter ⇒ some count is 0
+    rw [presentActiveABPairs, Finset.mem_filter, not_and, not_and_or, not_le, not_le,
+      Nat.lt_one_iff, Nat.lt_one_iff] at hpnot
+    have hcounts : c.count p.1 = 0 ∨ c.count p.2 = 0 := hpnot hp_in
     have hzero : c.interactionCount p.1 p.2 = 0 := by
       unfold Config.interactionCount
       by_cases hpp : p.1 = p.2
       · rw [if_pos hpp]
-        rcases Nat.eq_zero_or_pos (c.count p.1) with h1 | h1
+        rcases hcounts with h1 | h2
         · rw [h1, Nat.zero_mul]
-        · have := hpnot h1; omega
+        · rw [hpp, h2, Nat.zero_mul]
       · rw [if_neg hpp]
-        rcases Nat.eq_zero_or_pos (c.count p.1) with h1 | h1
+        rcases hcounts with h1 | h2
         · rw [h1, Nat.zero_mul]
-        · rw [hpnot h1, Nat.mul_zero]
+        · rw [h2, Nat.mul_zero]
     unfold Config.interactionProb; rw [hzero]; simp
   rw [hpresent]
   -- full-rectangle interactionProb sum = (∑ interactionCount) / totalPairs
@@ -1202,7 +1205,7 @@ theorem activeBCount_drop_prob (c : Config (AgentState L K))
     have := scheduledStep_activeA_activeB_in_drop c hphase ha_mem hb_mem hA1 hB2
     simpa using this
   -- kernel mass ≥ interactionPMF mass of the good Finset
-  have hge := Phase0Convergence.stepDistOrSelf_toMeasure_ge c hc
+  have hge := stepDistOrSelf_toMeasure_ge c hc
     (dropTarget (activeBCount (L := L) (K := K)) c)
     (↑(presentActiveABPairs (L := L) (K := K) c) :
       Set (AgentState L K × AgentState L K))
@@ -1223,6 +1226,237 @@ theorem activeBCount_drop_prob (c : Config (AgentState L K))
   have : activeBCount c ≤ activeACount c * activeBCount c := by
     calc activeBCount c = 1 * activeBCount c := (Nat.one_mul _).symm
       _ ≤ activeACount c * activeBCount c := Nat.mul_le_mul_right _ hA
+  exact_mod_cast this
+
+/-! ### Coupon stage (`wrongACount`, after `activeBCount = 0`)
+
+The same machinery applies to the absorb-T / convert-passive coupon stages with
+`Φ = wrongACount` (agents whose output is not `A`).  An active-A meeting any
+non-active-B agent whose output is not `A` converts it to `A`, dropping
+`wrongACount`.  In the post-cancel regime (`activeBCount = 0`) every wrong agent is
+automatically non-active-B, so the useful class is active-A × {output ≠ A}. -/
+
+/-- `wrongACount` of the post-conversion configuration is strictly below the base,
+for an active-A agent meeting a non-active-B agent whose output is not `A`. -/
+theorem wrongACount_post_convert_lt
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveA a) (hb_wrong : b.output ≠ .A) (hb_not_activeB : ¬ IsActiveB b) :
+    wrongACount
+        (c - ({a, b} : Multiset (AgentState L K)) +
+          ({(Transition L K a b).1, (Transition L K a b).2} :
+            Multiset (AgentState L K))) <
+      wrongACount c := by
+  have hne : a ≠ b := by
+    intro h; subst h; exact hb_wrong ha.2
+  have happ : ({a, b} : Multiset (AgentState L K)) ≤ c :=
+    applicable_of_mem_ne ha_mem hb_mem hne
+  have htransition : Transition L K a b = Phase10Transition L K a b :=
+    Transition_eq_Phase10Transition_of_phase10
+      (L := L) (K := K) a b (hphase a ha_mem) (hphase b hb_mem)
+  have hpair_before :
+      Multiset.countP (fun x : AgentState L K => x.output ≠ .A)
+        ({a, b} : Multiset (AgentState L K)) = 1 := by
+    change Multiset.countP (fun x : AgentState L K => x.output ≠ .A)
+      (a ::ₘ ({b} : Multiset (AgentState L K))) = 1
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP (fun x : AgentState L K => x.output ≠ .A)
+        (b ::ₘ (0 : Multiset (AgentState L K))) = 1
+      rw [Multiset.countP_cons_of_pos]
+      · simp
+      · exact hb_wrong
+    · intro hbad; exact hbad ha.2
+  have hlocal :=
+    Phase10Transition_activeA_nonActiveB_outputs_A
+      (L := L) (K := K) a b ha.1 ha.2 hb_not_activeB
+  have hpair_after :
+      Multiset.countP (fun x : AgentState L K => x.output ≠ .A)
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K)) = 0 := by
+    rw [htransition]
+    rcases hlocal with ⟨h1out, h2out⟩
+    change Multiset.countP (fun x : AgentState L K => x.output ≠ .A)
+      ((Phase10Transition L K a b).1 ::ₘ
+        ({(Phase10Transition L K a b).2} : Multiset (AgentState L K))) = 0
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP (fun x : AgentState L K => x.output ≠ .A)
+        ((Phase10Transition L K a b).2 ::ₘ (0 : Multiset (AgentState L K))) = 0
+      rw [Multiset.countP_cons_of_neg]
+      · simp
+      · intro hbad; exact hbad h2out
+    · intro hbad; exact hbad h1out
+  have hres :
+      Multiset.countP (fun x : AgentState L K => x.output ≠ .A)
+          (c - ({a, b} : Multiset (AgentState L K))) =
+        Multiset.countP (fun x : AgentState L K => x.output ≠ .A) c - 1 := by
+    have hsub := Multiset.countP_sub
+      (s := c) (t := ({a, b} : Multiset (AgentState L K))) happ
+      (fun x : AgentState L K => x.output ≠ .A)
+    rw [hsub, hpair_before]
+  have hpos_old :
+      0 < Multiset.countP (fun x : AgentState L K => x.output ≠ .A) c :=
+    Multiset.countP_pos_of_mem (s := c) hb_mem hb_wrong
+  unfold wrongACount
+  rw [Multiset.countP_add, hpair_after, hres]
+  omega
+
+/-- An active-A / non-active-B-wrong ordered pair lands in the `wrongACount`-drop
+target. -/
+theorem scheduledStep_activeA_wrongB_in_drop
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveA a) (hb_wrong : b.output ≠ .A) (hb_not_activeB : ¬ IsActiveB b) :
+    (NonuniformMajority L K).scheduledStep c (a, b) ∈
+      dropTarget (wrongACount (L := L) (K := K)) c := by
+  have hne : a ≠ b := by intro h; subst h; exact hb_wrong ha.2
+  have happ : Protocol.Applicable c a b := applicable_of_mem_ne ha_mem hb_mem hne
+  simp only [dropTarget, Set.mem_setOf_eq, Protocol.scheduledStep]
+  have hstep : Protocol.stepOrSelf (NonuniformMajority L K) c a b =
+      c - {a, b} + {(Transition L K a b).1, (Transition L K a b).2} := by
+    unfold Protocol.stepOrSelf NonuniformMajority
+    simp only [if_pos happ]
+  rw [hstep]
+  exact wrongACount_post_convert_lt c hphase ha_mem hb_mem ha hb_wrong hb_not_activeB
+
+/-- The "wrong, not active-B" responder class (output ≠ A and not an active-B). -/
+def WrongNotActiveB (a : AgentState L K) : Prop :=
+  a.output ≠ .A ∧ ¬ IsActiveB a
+
+instance : DecidablePred (@WrongNotActiveB L K) := fun a => by
+  unfold WrongNotActiveB; infer_instance
+
+/-- The active-A × wrong-not-activeB rectangle of ordered pairs. -/
+def activeAWrongPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (Finset.univ.filter (fun a : AgentState L K => IsActiveA a)) ×ˢ
+    (Finset.univ.filter (fun a : AgentState L K => WrongNotActiveB a))
+
+/-- Count of wrong-not-activeB agents. -/
+def wrongNotBCount (c : Config (AgentState L K)) : ℕ :=
+  c.countP WrongNotActiveB
+
+/-- The total `interactionCount` over the active-A × wrong-not-activeB rectangle
+equals `activeACount c · wrongNotBCount c`. -/
+theorem sum_interactionCount_activeAWrong (c : Config (AgentState L K)) :
+    (∑ p ∈ activeAWrongPairs (L := L) (K := K) c, c.interactionCount p.1 p.2)
+      = activeACount c * wrongNotBCount c := by
+  classical
+  have hdisj : ∀ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveA a),
+      ∀ b ∈ Finset.univ.filter (fun a : AgentState L K => WrongNotActiveB a), a ≠ b := by
+    intro a ha b hb hab
+    rw [Finset.mem_filter] at ha hb
+    subst hab
+    exact hb.2.1 ha.2.2
+  rw [activeAWrongPairs,
+    ClockRealMixed.sum_interactionCount_cross_disjoint c _ _ hdisj]
+  rw [show (∑ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveA a), c.count a)
+      = Multiset.countP IsActiveA c from
+    (HourCouplingV2.countP_eq_sum_count IsActiveA c).symm]
+  rw [show (∑ b ∈ Finset.univ.filter (fun a : AgentState L K => WrongNotActiveB a), c.count b)
+      = Multiset.countP WrongNotActiveB c from
+    (HourCouplingV2.countP_eq_sum_count WrongNotActiveB c).symm]
+  rfl
+
+/-- When `activeBCount c = 0`, every wrong agent is non-active-B, so
+`wrongNotBCount c = wrongACount c`. -/
+theorem wrongNotBCount_eq_wrongACount_of_no_activeB
+    (c : Config (AgentState L K)) (hB : activeBCount c = 0) :
+    wrongNotBCount c = wrongACount c := by
+  classical
+  unfold wrongNotBCount wrongACount
+  apply Multiset.countP_congr rfl
+  intro a ha
+  have hnotB : ¬ IsActiveB a := by
+    have := Multiset.countP_eq_zero.1 (by simpa [activeBCount] using hB)
+    exact this a ha
+  simp only [WrongNotActiveB, hnotB, not_false_iff, and_true]
+
+/-- The present active-A × wrong-not-activeB pairs. -/
+def presentActiveAWrongPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (activeAWrongPairs (L := L) (K := K) c).filter
+    (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2)
+
+/-- The `interactionProb`-sum over the present active-A × wrong-not-activeB pairs
+equals `activeACount · wrongNotBCount / totalPairs`. -/
+theorem sum_interactionProb_presentActiveAWrong (c : Config (AgentState L K)) :
+    (∑ p ∈ presentActiveAWrongPairs (L := L) (K := K) c, c.interactionProb p.1 p.2)
+      = (↑(activeACount c * wrongNotBCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hpresent : (∑ p ∈ presentActiveAWrongPairs (L := L) (K := K) c,
+        c.interactionProb p.1 p.2)
+      = ∑ p ∈ activeAWrongPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    apply Finset.sum_subset (s₁ := presentActiveAWrongPairs (L := L) (K := K) c)
+      (Finset.filter_subset _ _)
+    intro p hp_in hpnot
+    rw [presentActiveAWrongPairs, Finset.mem_filter, not_and, not_and_or, not_le, not_le,
+      Nat.lt_one_iff, Nat.lt_one_iff] at hpnot
+    have hcounts : c.count p.1 = 0 ∨ c.count p.2 = 0 := hpnot hp_in
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases hpp : p.1 = p.2
+      · rw [if_pos hpp]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [hpp, h2, Nat.zero_mul]
+      · rw [if_neg hpp]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [h2, Nat.mul_zero]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hpresent]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum,
+    sum_interactionCount_activeAWrong, ← div_eq_mul_inv]
+
+/-- **Coupon-stage per-level drop probability.** On an all-phase-10 configuration
+with `activeBCount = 0` (post-cancel majority-A regime) and at least one active-A,
+the kernel maps into the `wrongACount`-drop set with probability `≥ wrongACount c /
+(n·(n−1))`. -/
+theorem wrongACount_drop_prob (c : Config (AgentState L K))
+    (hc : 2 ≤ c.card)
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    (hB : activeBCount c = 0)
+    (hA : 1 ≤ activeACount c) :
+    (NonuniformMajority L K).transitionKernel c
+        (dropTarget (wrongACount (L := L) (K := K)) c) ≥
+      (↑(wrongACount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hgood : ∀ pair ∈ presentActiveAWrongPairs (L := L) (K := K) c,
+      (NonuniformMajority L K).scheduledStep c pair ∈
+        dropTarget (wrongACount (L := L) (K := K)) c := by
+    intro pair hpair
+    rw [presentActiveAWrongPairs, activeAWrongPairs, Finset.mem_filter, Finset.mem_product,
+      Finset.mem_filter, Finset.mem_filter] at hpair
+    obtain ⟨⟨⟨_, hA1⟩, ⟨_, hW2⟩⟩, h1, h2⟩ := hpair
+    have ha_mem : pair.1 ∈ c := Multiset.count_pos.mp h1
+    have hb_mem : pair.2 ∈ c := Multiset.count_pos.mp h2
+    have := scheduledStep_activeA_wrongB_in_drop c hphase ha_mem hb_mem hA1 hW2.1 hW2.2
+    simpa using this
+  have hge := stepDistOrSelf_toMeasure_ge c hc
+    (dropTarget (wrongACount (L := L) (K := K)) c)
+    (↑(presentActiveAWrongPairs (L := L) (K := K) c) :
+      Set (AgentState L K × AgentState L K))
+    (fun pair hpair => hgood pair (by simpa using hpair))
+  have hSmeasure : (c.interactionPMF hc).toMeasure
+      (↑(presentActiveAWrongPairs (L := L) (K := K) c) :
+        Set (AgentState L K × AgentState L K))
+      = ∑ p ∈ presentActiveAWrongPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  rw [sum_interactionProb_presentActiveAWrong] at hSmeasure
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure _ ≥ _
+  rw [hSmeasure] at hge
+  refine le_trans ?_ hge
+  apply ENNReal.div_le_div_right
+  rw [wrongNotBCount_eq_wrongACount_of_no_activeB c hB]
+  have : wrongACount c ≤ activeACount c * wrongACount c := by
+    calc wrongACount c = 1 * wrongACount c := (Nat.one_mul _).symm
+      _ ≤ activeACount c * wrongACount c := Nat.mul_le_mul_right _ hA
   exact_mod_cast this
 
 end Phase10Drop

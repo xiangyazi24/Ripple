@@ -145,6 +145,59 @@ Lean bricks:
     scheduledStep interactionPMF as in ClockOLogN/ClockFaithful) + class-aggregation: SUM that
     mass over the Finset of active-A×active-B useful pairs to reach ≥m/(n(n-1)) (state-multiplicity).
     Brick 2 = largest. Stage chaining via expectedHitting_le_through_mid, majority/tie via backupSignal.
+  - **E2-10** SHA abb46a67: **B1 GENERIC invariant-relative engine DELIVERED** (design choice =
+    invariant-threading, NOT restricted-kernel — cheaper, reuses abstract InvClosed instead of
+    building a new kernel). New in Phase10ExpectedTime.lean (Coupon section): `InvClosed K Inv`
+    (∀b, Inv b → K b {¬Inv}=0), `PotNonincrOn Inv K Φ` (drop only at Inv-states), and the full `_on`
+    ladder: `pow_not_inv_eq_zero`, `pow_above_eq_zero_of_start_le_on`, `potBelow_absorbing_on`,
+    `level_occ_contract_on`, `level_occ_geometric_on`, `occLevel_le_of_start_le_on`,
+    `occLevelUpTo_le_on`, `occLevel_le_on`, `occLevel_eq_zero_of_high_on`, capstones
+    `coupon_expectedHitting_le_on` + `coupon_expectedHitting_le_uniform_on` (E[hit {Φ=0}] ≤ M·r
+    under InvClosed + PotNonincrOn + Inv-start at level ≤M + uniform ceiling r). Proofs mirror the
+    unconditional ones; differ only by intersecting null sets with {¬Inv} (null via pow_not_inv).
+    0-sorry axiom-clean [propext,Classical.choice,Quot.sound]. Inv intended = Phase10EpidemicPost
+    (closure proof already worked out at Invariants.lean:7378-7400, re-derivable in-file from public
+    Transition_left/right_phase_eq_10).
+  - **E2-11** SHA 592b63c4: B2 cancel-stage per-pair drop, in-file (no Analysis edit). `applicable_of_mem_ne`
+    (public re-derivation via Multiset.cons_le_of_notMem), `activeBCount_post_cancel_lt` (re-derives the
+    Analysis-private per-pair drop from public Phase10Transition_activeA_activeB_outputs_T + countP_sub/add),
+    `scheduledStep_activeA_activeB_in_drop` (an active-A/active-B pair lands in dropTarget activeBCount).
+    Imports Phase10Backup + Phase0Convergence. 0-sorry axiom-clean.
+  - **E2-12** SHA 84dbaa6a: B2 class-aggregation rectangle. `activeABPairs` (Finset = filter IsActiveA ×ˢ
+    filter IsActiveB), `sum_interactionCount_activeAB = activeACount·activeBCount` via public
+    `ClockRealMixed.sum_interactionCount_cross_disjoint` (disjoint A/B classes) + `HourCouplingV2.countP_eq_sum_count`.
+    THIS RESOLVES the "state-multiplicity subtlety" — aggregate over the whole rectangle, not a fixed pair.
+    0-sorry axiom-clean.
+  - **E2-13** SHA 44afcd9d: **B2 cancel-stage DROP PROBABILITY DELIVERED**. `presentActiveABPairs`,
+    `sum_interactionProb_presentActiveAB` (present-pair sum = full rectangle = activeACount·activeBCount/totalPairs,
+    absent pairs interactionCount 0), `activeBCount_drop_prob`: on all-phase-10 with activeACount≥1,
+    `transitionKernel c (dropTarget activeBCount c) ≥ activeBCount c / (n(n-1))`. Route = ClockOLogN preimage
+    pattern via public `stepDistOrSelf_toMeasure_ge` + `PMF.toMeasure_apply_finset`. 0-sorry axiom-clean.
+  - **CRITICAL SCOPING REFINEMENT (E2-13 discovery, supersedes the B1 caveat above).** The
+    `PotNonincrOn Phase10EpidemicPost K activeBCount` hypothesis the engine needs is **FALSE even on
+    all-phase-10 configs**: `Phase10Transition` Block 2 (active converts passive) makes a passive agent
+    ADOPT an active-B partner's output → a NEW active-B. So activeBCount can INCREASE under phase-10 when
+    both active-A AND active-B are present. The honest non-increase invariant is sharper:
+      * **cancel stage** (Φ=activeBCount): NOT non-increasing under any phase-10-only invariant. The
+        correct monotone is that the signed sum `activeACount−activeBCount` is CONSERVED
+        (`phase10Transition_preserves_signedContribution`, public). In majority-A (signed sum = g > 0
+        fixed), `activeBCount` is bounded by `activeACount = activeBCount + g` and DROPS to 0 by the cancel
+        reaction; the engine should run on `Φ = activeBCount` with `Inv = {AllPhase10 ∧ signed sum = g}` —
+        but non-increase still needs the no-spread argument. SIMPLEST FIX: the cancel stage is a single
+        descent to activeBCount=0; use the E1 supermartingale/hitting bound directly with the conserved
+        signed sum, OR add `activeBCount ≤ activeACount` to Inv and prove block-2 spread of B requires a
+        passive partner which when present means activeACount also can spread (net signed conserved).
+      * **coupon stages** (Φ=wrongACount, AFTER activeBCount=0): clean. `Inv = {AllPhase10 ∧ activeBCount=0}`
+        is support-closed (no B present + signed sum = activeACount ≥ 0 ⇒ no B reappears: block-2 only
+        spreads the present active outputs, all A/T) and under it `wrongACount` IS non-increasing (only A
+        spreads / absorbs). This is the engine's clean instantiation. The activeBCount_drop_prob route
+        (E2-13) transfers verbatim to wrongACount via the analogous public output lemmas
+        (Phase10Transition_activeA_nonActiveB_outputs_A) — same rectangle aggregation, active-A × not-A.
+    NET: B1 generic engine + B2 drop-probability machinery are DONE and axiom-clean. The remaining
+    instantiation = (i) choose Inv per stage (cancel: signed-sum-conserved; coupon: AllPhase10∧activeBCount=0),
+    (ii) prove `InvClosed` + `PotNonincrOn` for the COUPON stage (clean, no-B-spread), (iii) handle the
+    cancel stage via conserved signed sum (the activeBCount monotone is subtler than a plain PotNonincrOn).
+    All `_on` engine lemmas + the drop-probability lemma are reusable as-is.
 - **E3** Conditional progress: from any config with |C| ≥ 2 (post-Phase-0), each timed phase ends
   within expected O(n/|C| · log n)-shape time (counter always ticks); gives both the bad-event
   O(log n) (|C| ≥ 0.24n) and the tiny-clock poly(n) bound from ONE parameterized lemma.
