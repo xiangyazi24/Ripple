@@ -105,5 +105,103 @@ theorem pool_step_ge_ae (c : Config (AgentState L K)) :
   intro c' hc' hbad
   exact hbad (hsupp c' hc')
 
+/-! ## Stage 2 — `hbirth`: the Rule-1 birth rectangle.
+
+A single interaction between two **fresh** (unassigned, phase-0) MCR agents fires Rule 1
+(`MCR,MCR → Main,CR`) and produces two fresh assignables, raising the pool by exactly `+2`
+(`assignable_rule1_both_fresh`).  The good ordered pairs are the `freshMcrF ×ˢ freshMcrF`
+off-diagonal rectangle; its `interactionPMF` mass is `freshMcrCount·(freshMcrCount−1)/(n(n−1))`
+(`sum_interactionCount_freshMcr`), and `stepDistOrSelf_toMeasure_ge` lifts it onto the
+birth band `{c' | pool c + 2 ≤ pool c'}` whose mass is `birthR1Mass`.
+
+The honest count carried by R1 is the **unassigned** phase-0 MCR count `freshMcrCount`, *not*
+the bare `mcrCount`: an *assigned* MCR (allowed by `cardPhaseShell`, which only fixes
+`role = mcr → phase 0`) would not produce two fresh assignables.  See the Stage-2 wrap-up
+note for the `hbirth` adapter, which holds verbatim once `uMin ≤ freshMcrCount`. -/
+
+/-- The fresh-MCR predicate: an unassigned phase-0 MCR (a Rule-1 initiator/responder). -/
+def isFreshMcr (a : AgentState L K) : Bool :=
+  decide (a.role = .mcr) && (!a.assigned) && decide (a.phase.val = 0)
+
+theorem isFreshMcr_iff (a : AgentState L K) :
+    isFreshMcr (L := L) (K := K) a = true ↔
+      a.role = .mcr ∧ a.assigned = false ∧ a.phase.val = 0 := by
+  unfold isFreshMcr
+  simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_true_eq]
+  tauto
+
+/-- Count of fresh (unassigned phase-0) MCR agents — the honest R1-birth initiator pool. -/
+def freshMcrCount (c : Config (AgentState L K)) : ℕ :=
+  Multiset.countP (fun a => isFreshMcr (L := L) (K := K) a) c
+
+/-! ### The Transition→Phase0Transition full bridge for a fresh-MCR pair. -/
+
+/-- When both inputs are fresh (unassigned phase-0) MCR, the full `Transition` equals the
+phase-0 reaction `Phase0Transition`: `phaseEpidemicUpdate` is the identity (both at phase 0),
+and the post-step `finishPhase10Entry` is the identity since the Rule-1 outputs are at phase
+0 (≠ 10, both `IsAssignable`). -/
+theorem Transition_eq_phase0_of_fresh_mcr_pair
+    (s t : AgentState L K)
+    (hs_role : s.role = .mcr) (ht_role : t.role = .mcr)
+    (hs_un : s.assigned = false) (ht_un : t.assigned = false)
+    (hs_ph : s.phase.val = 0) (ht_ph : t.phase.val = 0) :
+    Transition L K s t = Phase0Transition L K s t := by
+  have hpe := phaseEpidemicUpdate_eq_self_of_both_phase0 (L := L) (K := K) s t hs_ph ht_ph
+  have hs0 : s.phase = (⟨0, by omega⟩ : Fin _) := Fin.ext hs_ph
+  -- The Phase0Transition outputs are both assignable, hence at phase 0 (≠ 10).
+  obtain ⟨hout1, hout2⟩ :=
+    assignable_rule1_both_fresh s t hs_role ht_role hs_un ht_un hs_ph ht_ph
+  have hout1_ph : (Phase0Transition L K s t).1.phase.val ≠ 10 := by
+    rw [hout1.1]; omega
+  have hout2_ph : (Phase0Transition L K s t).2.phase.val ≠ 10 := by
+    rw [hout2.1]; omega
+  unfold Transition
+  rw [hpe]
+  simp only
+  rw [hs0]
+  rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ hout1_ph,
+      finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ hout2_ph]
+
+/-- **Config-level Rule-1 birth `+2`.**  When the chosen pair `{s,t} ≤ c` are both fresh
+MCR, the successor config raises the pool by exactly `2`: the removed pair carries `0`
+assignables (MCR ⟹ not assignable) and the output carries `2` (`assignable_rule1_both_fresh`),
+so `assignableCount (c − {s,t} + outputs) = assignableCount c + 2`. -/
+theorem birthR1_config_eq
+    (c : Config (AgentState L K)) (s t : AgentState L K)
+    (h_sub : ({s, t} : Config (AgentState L K)) ≤ c)
+    (hs_role : s.role = .mcr) (ht_role : t.role = .mcr)
+    (hs_un : s.assigned = false) (ht_un : t.assigned = false)
+    (hs_ph : s.phase.val = 0) (ht_ph : t.phase.val = 0) :
+    assignableCount (L := L) (K := K)
+        (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2})
+      = assignableCount (L := L) (K := K) c + 2 := by
+  have h_restore : c - {s, t} + {s, t} = c := Multiset.sub_add_cancel h_sub
+  -- The output pair carries exactly 2 assignables; the input pair carries 0.
+  obtain ⟨hout1, hout2⟩ :=
+    assignable_rule1_both_fresh s t hs_role ht_role hs_un ht_un hs_ph ht_ph
+  have htr := Transition_eq_phase0_of_fresh_mcr_pair s t hs_role ht_role hs_un ht_un hs_ph ht_ph
+  have hpair_out : assignableCount (L := L) (K := K)
+      ({(Transition L K s t).1, (Transition L K s t).2} : Config (AgentState L K)) = 2 := by
+    rw [htr, assignableCount_pair',
+      (isAssignableBool_iff _).mpr hout1, (isAssignableBool_iff _).mpr hout2]
+  have hpair_in : assignableCount (L := L) (K := K)
+      ({s, t} : Config (AgentState L K)) = 0 := by
+    rw [assignableCount_pair',
+      not_isAssignable_of_mcr (L := L) (K := K) hs_role,
+      not_isAssignable_of_mcr (L := L) (K := K) ht_role]
+  calc assignableCount (L := L) (K := K)
+          (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2})
+      = assignableCount (L := L) (K := K) (c - {s, t}) + 2 := by
+        rw [assignableCount, assignableCount, Multiset.countP_add]
+        rw [show Multiset.countP (fun a => isAssignableBool (L := L) (K := K) a)
+            ({(Transition L K s t).1, (Transition L K s t).2} : Config (AgentState L K))
+          = assignableCount (L := L) (K := K) _ from rfl, hpair_out]
+    _ = assignableCount (L := L) (K := K) (c - {s, t})
+          + assignableCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) + 2 := by
+        rw [hpair_in]
+    _ = assignableCount (L := L) (K := K) (c - {s, t} + {s, t}) + 2 := by
+        rw [assignableCount, assignableCount, assignableCount, Multiset.countP_add]
+    _ = assignableCount (L := L) (K := K) c + 2 := by rw [h_restore]
+
 end FloorMasses
 end ExactMajority

@@ -574,6 +574,96 @@ theorem seam_noOvershoot_numerics_real (n L t : ℕ) (hn : 1 ≤ n)
                 apply Real.exp_le_exp.mpr; push_cast; nlinarith [hM]
         linarith [h45_43, h2]
 
+/-- The card-`n` window is one-step-support closed (card preserved by the kernel). -/
+theorem cardWindow_absorbing (n : ℕ) (c c' : Config (AgentState L K))
+    (hw : Multiset.card c = n)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    Multiset.card c' = n := by
+  rw [Protocol.stepDistOrSelf_support_card_eq (NonuniformMajority L K) c c' hc']; exact hw
+
+/-- **Early-overshoot precursor tail.**  Using `phase0_window_tail_affine` with
+`Φ := seamClockPotential p 1`, `Post := ¬ AtRiskClockZero p`, `θ = 1`, the affine
+drift `a = ofReal(1+2(e−1)/n)`, `b = 2·freshVal 1`, on the absorbing card-`n` window,
+the probability of seeing an at-risk zero clock within the seam is `≤ e^{−40(L+1)}`.
+The protocol-structural per-pair bound `hpair` (seam analogue of `clockSummand_pair_le`,
+specialized to scale `s = 1`) is the input; the arithmetic is discharged by
+`seam_noOvershoot_numerics_real`. -/
+theorem seam_atRiskClockZero_tail (p n tseam : ℕ)
+    (hn : 1 ≤ n) (hn2 : 2 ≤ n)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ))
+    (ht : tseam ≤ n * (L + 1))
+    (hpair : ∀ a b : AgentState L K,
+      seamClockSummand (L := L) (K := K) p 1 (Transition L K a b).1
+        + seamClockSummand (L := L) (K := K) p 1 (Transition L K a b).2
+        ≤ ENNReal.ofReal (Real.exp 1)
+            * (seamClockSummand (L := L) (K := K) p 1 a
+               + seamClockSummand (L := L) (K := K) p 1 b)
+          + 2 * freshVal (L := L) 1)
+    (c₀ : Config (AgentState L K)) (hcard₀ : Multiset.card c₀ = n)
+    (hinitΦ : seamClockPotential (L := L) (K := K) p 1 c₀
+        ≤ (n : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(50 * (L + 1) : ℕ)))) :
+    ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+      {c | AtRiskClockZero (L := L) (K := K) p c}
+      ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) := by
+  set a : ℝ≥0∞ := ENNReal.ofReal (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) with ha
+  set b : ℝ≥0∞ := 2 * freshVal (L := L) 1 with hb
+  -- the affine tail with Post = ¬ AtRiskClockZero, θ = 1
+  have htail := Phase0Window.phase0_window_tail_affine (NonuniformMajority L K)
+    (seamClockPotential (L := L) (K := K) p 1)
+    (measurable_seamClockPotential p 1)
+    (fun c => Multiset.card c = n)
+    (cardWindow_absorbing n)
+    a b
+    (fun c hc => by
+      have hc2 : 2 ≤ Multiset.card c := by rw [hc]; exact hn2
+      exact seamClockPotential_drift_affine p 1 (by norm_num) n c hc hc2 hpair)
+    (fun c => ¬ AtRiskClockZero (L := L) (K := K) p c)
+    (θ := 1) (by norm_num) (by norm_num)
+    (fun c hc => seamClockPotential_ge_one_of_not_noAtRisk p 1 c hc)
+    tseam c₀ hcard₀
+  -- {c | AtRiskClockZero} = {c | ¬ ¬ AtRiskClockZero} = {c | ¬ Post c}
+  have hseteq : {c : Config (AgentState L K) | AtRiskClockZero (L := L) (K := K) p c}
+      = {c | ¬ ¬ AtRiskClockZero (L := L) (K := K) p c} := by
+    ext c; simp
+  rw [hseteq]
+  refine htail.trans ?_
+  rw [div_one]
+  -- (a^t·Φ(c₀) + b·∑a^i) ≤ a^t·(n·M) + b·∑a^i ≤ ofReal(numerics)
+  have hbase_nonneg : (0 : ℝ) ≤ 1 + 2 * (Real.exp 1 - 1) / (n : ℝ) := by
+    have he1 : (0 : ℝ) ≤ Real.exp 1 - 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
+    have : (0 : ℝ) ≤ 2 * (Real.exp 1 - 1) / (n : ℝ) := by positivity
+    linarith
+  have hM50_nonneg : (0 : ℝ) ≤ Real.exp (-(50 * (L + 1) : ℕ)) := (Real.exp_pos _).le
+  -- bound Φ(c₀) by n·M
+  have hstep_init : a ^ tseam * seamClockPotential (L := L) (K := K) p 1 c₀
+      ≤ a ^ tseam * ((n : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(50 * (L + 1) : ℕ)))) := by
+    gcongr
+  refine (add_le_add hstep_init (le_refl (b * ∑ i ∈ Finset.range tseam, a ^ i))).trans ?_
+  -- now an all-ofReal computation
+  have hat : a ^ tseam = ENNReal.ofReal ((1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ tseam) := by
+    rw [ha, ← ENNReal.ofReal_pow hbase_nonneg]
+  have hncast : (n : ℝ≥0∞) = ENNReal.ofReal (n : ℝ) := by rw [ENNReal.ofReal_natCast]
+  have hbval : b = ENNReal.ofReal (2 * Real.exp (-(50 * (L + 1) : ℕ))) := by
+    rw [hb, freshVal]
+    rw [show (2 : ℝ≥0∞) = ENNReal.ofReal 2 from by rw [ENNReal.ofReal_ofNat],
+        ← ENNReal.ofReal_mul (by norm_num)]
+    congr 1
+    push_cast; ring_nf
+  -- ∑ a^i = ofReal(∑ real^i)
+  have hsumcast : (∑ i ∈ Finset.range tseam, a ^ i)
+      = ENNReal.ofReal (∑ i ∈ Finset.range tseam,
+          (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ i) := by
+    rw [ENNReal.ofReal_sum_of_nonneg (fun i _ => by positivity)]
+    apply Finset.sum_congr rfl
+    intro i _
+    rw [ha, ← ENNReal.ofReal_pow hbase_nonneg]
+  rw [hat, hncast, ← ENNReal.ofReal_mul (by positivity),
+      ← ENNReal.ofReal_mul (by positivity),
+      hbval, hsumcast, ← ENNReal.ofReal_mul (by positivity),
+      ← ENNReal.ofReal_add (by positivity) (by positivity)]
+  apply ENNReal.ofReal_le_ofReal
+  exact seam_noOvershoot_numerics_real n L tseam hn hlog ht
+
 end SeamNoOvershoot
 
 end ExactMajority
