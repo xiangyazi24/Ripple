@@ -194,6 +194,143 @@ theorem windowedFrontProfile_whp_checkpoint (θn n : ℕ) (hn : 2 ≤ n) (cc : �
   windowedFrontProfile_whp (L := L) (K := K) θn n hn cc w θ hθpos aM haM δ hB σ hσ j
     (hsmall_mono n σ hσ.le w j KK hjKK hsmall) tt Tcap hcap mc₀ h0 hmark
 
+/-! ## Deliverable 3 — the remainder version at `τ = w·j + r`, `r < w`.
+
+The §6 engine lands at whole-window horizons `w·KK`.  A mid-window minute boundary `τ = w·j + r`
+needs the recurrence-checkpoint failure at `w·j + r`, which `checkpoint_composition_prefix` supplies
+from the per-window failure (`window_failure_le` at power `w`, the existing engine) plus an
+`r`-horizon remainder window bound.  The engine genuinely fixes the window length `w`, so the
+`r`-horizon analog of `window_failure_le`'s `hB` lives at power `r` and is taken as an INPUT
+hypothesis `δRem` (exactly as the campaign file's horizon/start audit records).  The taint tail
+(`tainted_marked_tail_explicit`) and the MarkInv null (`markInv_ae_pow`) are already
+horizon-parametric (free `t`), so they instantiate at `t := w·j + r` directly. -/
+
+/-- **STEP 3 capstone at horizon `w·j + r`** — the marked-world per-level recurrence whp at a prefix
+horizon.  Mirrors `front_squares_whp` but bounds the `{¬recInv}` mass with
+`checkpoint_composition_prefix` (per-window `δ` via `window_failure_le`/`hB`, per-remainder `δRem` as
+input).  The taint tail and the MarkInv null are at the prefix horizon `w·j + r`. -/
+theorem front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r aM : ℕ)
+    (haM : n ≤ 10 * aM) (δ δRem : ℝ≥0∞)
+    (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ)
+    -- the `r`-horizon remainder window bound (INPUT, per the campaign audit):
+    (hRem : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      ((markedK (L := L) (K := K) T θn) ^ r) mc₀
+          {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ≤ δRem)
+    (σ : ℝ) (hσ : 0 < σ) (j : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) ≤ 1 / 2)
+    (tt : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : MarkInv (L := L) (K := K) T mc₀) :
+    ((markedK (L := L) (K := K) T θn) ^ (w * j + r)) mc₀
+        {mc | (mc.card = n ∧
+            AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+            10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n ∧
+            cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+                + (tt : ℝ)
+              ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+          ∧ ¬ ((rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ) * (n : ℝ)
+            ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2)}
+      ≤ ((j : ℝ≥0∞) * δ + δRem)
+        + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+            (taintedGate (L := L) (K := K) n) ^ (w * j + r)) (some mc₀) {none}
+          + ENNReal.ofReal
+            (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * j + r)
+                * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+              + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) * ((θn : ℝ) / (n : ℝ)) ^ 2
+                  * ((w * j + r : ℕ) : ℝ)
+              - σ * ((tt + 1 : ℕ) : ℝ)))) := by
+  classical
+  set bad : Set (Config (MarkedAgent L K)) :=
+    {mc | (mc.card = n ∧
+        AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+        10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n ∧
+        cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            + (tt : ℝ)
+          ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+      ∧ ¬ ((rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ) * (n : ℝ)
+        ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2)}
+    with hbad
+  have hsub : bad ⊆ {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ∪
+      ({mc | tt + 1 ≤ taintedCount (L := L) (K := K) mc} ∪
+        {mc | ¬ MarkInv (L := L) (K := K) T mc}) := by
+    intro mc hmc
+    rw [hbad, Set.mem_setOf_eq] at hmc
+    obtain ⟨hwin, hns⟩ := hmc
+    rcases front_bad_subset (L := L) (K := K) T θn n (by omega) cc tt mc hwin hns with h | h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr h)
+  refine le_trans (measure_mono hsub) ?_
+  refine le_trans (measure_union_le _ _) ?_
+  refine add_le_add ?_ ?_
+  · -- the recurrence-checkpoint-prefix failure ≤ j·δ + δRem.
+    exact checkpoint_composition_prefix (markedK (L := L) (K := K) T θn)
+      (recInv (L := L) (K := K) T θn n cc) w r δ δRem
+      (fun mc hmc => window_failure_le (L := L) (K := K) T θn n cc w aM haM δ mc hmc
+        (fun hP3 hX => hB mc hmc hP3 hX))
+      (fun mc hmc => hRem mc hmc)
+      j mc₀ h0
+  · refine le_trans (measure_union_le _ _) ?_
+    have hmarknull : ((markedK (L := L) (K := K) T θn) ^ (w * j + r)) mc₀
+        {mc | ¬ MarkInv (L := L) (K := K) T mc} = 0 := by
+      have h := markInv_ae_pow (L := L) (K := K) T θn (w * j + r) mc₀ hmark
+      rwa [MeasureTheory.ae_iff] at h
+    rw [hmarknull, add_zero]
+    exact tainted_marked_tail_explicit (L := L) (K := K) T θn n hn σ hσ (w * j + r)
+      hsmall mc₀ (tt + 1)
+
+/-- **STEP 4 — the real-kernel per-level transfer at horizon `w·j + r`.**  The `front_squares_whp_prefix`
+bound transfers to the real kernel verbatim (the bad event is erase-measurable, via
+`markedK_pow_erase`). -/
+theorem real_front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r aM : ℕ)
+    (haM : n ≤ 10 * aM) (δ δRem : ℝ≥0∞)
+    (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ)
+    (hRem : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      ((markedK (L := L) (K := K) T θn) ^ r) mc₀
+          {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ≤ δRem)
+    (σ : ℝ) (hσ : 0 < σ) (j : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) ≤ 1 / 2)
+    (tt : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : MarkInv (L := L) (K := K) T mc₀) :
+    ((NonuniformMajority L K).transitionKernel ^ (w * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (realFrontBad (L := L) (K := K) T n cc tt)
+      ≤ ((j : ℝ≥0∞) * δ + δRem)
+        + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+            (taintedGate (L := L) (K := K) n) ^ (w * j + r)) (some mc₀) {none}
+          + ENNReal.ofReal
+            (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * j + r)
+                * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+              + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) * ((θn : ℝ) / (n : ℝ)) ^ 2
+                  * ((w * j + r : ℕ) : ℝ)
+              - σ * ((tt + 1 : ℕ) : ℝ)))) := by
+  rw [← markedK_pow_erase (L := L) (K := K) T θn (w * j + r) mc₀
+    (realFrontBad (L := L) (K := K) T n cc tt),
+    ← markedFrontBad_eq_preimage (L := L) (K := K) T n cc tt]
+  exact front_squares_whp_prefix (L := L) (K := K) T θn n hn cc w r aM haM δ δRem hB hRem
+    σ hσ j hsmall tt mc₀ h0 hmark
+
 end EarlyDripMarked
 
 end ExactMajority

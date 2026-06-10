@@ -578,6 +578,57 @@ theorem G_pow_10000_ge : (10 : ℝ) ^ (15 : ℕ) ≤ (201/200 : ℝ) ^ (10000 : 
     _ ≤ ((201/200 : ℝ) ^ 200) ^ 50 := h2
     _ = (201/200 : ℝ) ^ (10000 : ℕ) := hchain
 
+/-! ### Part 13b — the INFLATED slice discharger (the fix for the ceiling-ladder drip↔threshold gap).
+
+`EarlyDripMarked.slice_exp_le`/`slice_discharge` couple the drip cap and the threshold through the
+rigid factor `G²` with ZERO rounding slack, so the geometric ceiling ladder `a_m = ⌈G^m·a0⌉` (where
+`a_{m+1}/a_m ⪈ G` by the ⌈⌉) opens an irreducible ≈1.1e-8 gap (drip needs `Gm ≳ 1`, threshold allows
+`Gm ≲ 1`, empty window for ~6988/7001 rungs; verified exact-fraction this session).
+
+The fix: a κ-INFLATED slice bound with κ in the DRIP slot only (threshold stays bare `Gm`), so the
+two decouple.  κ = 1+1/10000 covers the ⌈⌉ inflation `(1+1/(g·θn))² ≤ 1+2e-24` (θn ≥ 10^24) with vast
+margin, and the conclusion bracket `cc·RWb − Gm·g²(cc − κ·G²(1+ε)RWb·wp)` is STILL negative
+(`A − B' = −3.63e-4 < 0`, only 2e-6 worse than the un-inflated −3.65e-4). -/
+
+/-- **The inflated slice-exponent bound**: as `EarlyDripMarked.slice_exp_le` but with a κ factor in
+the drip cap (`drip·(1+ε)·RW ≤ Gm·κ·G²·g²·(1+ε)·RWb·wp·Q`) and the threshold kept bare
+(`cc·Gm·g²·Q ≤ Yt`).  The κ decouples the drip and threshold rungs, absorbing the ceiling ladder's
+`a_{m+1}/a_m ⪈ G` inflation; the conclusion bracket carries κ on the inner `G²` term only. -/
+theorem slice_exp_le_inflated (Q σ ε RW RWb cc g G wp Y₀ drip Gm κ Yt : ℝ)
+    (hσ : 0 ≤ σ) (hQ : 0 ≤ Q) (hRW0 : 0 ≤ RW) (hccnn : 0 ≤ cc)
+    (hY : Y₀ ≤ cc * Q) (hRW : RW ≤ RWb)
+    (hdrip : drip * (1 + ε) * RW ≤ Gm * κ * G ^ 2 * g ^ 2 * (1 + ε) * RWb * wp * Q)
+    (hYt : cc * Gm * g ^ 2 * Q ≤ Yt) :
+    σ * RW * Y₀ + drip * (1 + ε) * σ * RW - σ * Yt
+      ≤ σ * (Q * (cc * RWb - Gm * (g ^ 2 * (cc - κ * G ^ 2 * (1 + ε) * RWb * wp)))) := by
+  have hb1 : RW * Y₀ ≤ RWb * (cc * Q) := by
+    calc RW * Y₀ ≤ RW * (cc * Q) := mul_le_mul_of_nonneg_left hY hRW0
+      _ ≤ RWb * (cc * Q) := mul_le_mul_of_nonneg_right hRW (mul_nonneg hccnn hQ)
+  have hkey : RW * Y₀ + drip * (1 + ε) * RW - Yt
+      ≤ Q * (cc * RWb - Gm * (g ^ 2 * (cc - κ * G ^ 2 * (1 + ε) * RWb * wp))) := by
+    nlinarith [hb1, hdrip, hYt]
+  calc σ * RW * Y₀ + drip * (1 + ε) * σ * RW - σ * Yt
+      = σ * (RW * Y₀ + drip * (1 + ε) * RW - Yt) := by ring
+    _ ≤ σ * (Q * (cc * RWb - Gm * (g ^ 2 * (cc - κ * G ^ 2 * (1 + ε) * RWb * wp)))) :=
+        mul_le_mul_of_nonneg_left hkey hσ
+
+/-- **The inflated slice closing inequality** `A < B'` with `A = cc·RWb`,
+`B' = g²(cc − κ·G²(1+ε)·RWb·wp)`, `κ = 1+1/10000` — the κ-decoupled analogue of
+`EarlyDripMarked.window_constants_slice`.  Margin ≈ 3.63e-4 (only 2e-6 below the un-inflated gate),
+so every ladder slice bracket `A − G^{2m}·B' < 0` still follows (`G^{2m} ≥ 1`, `B' > 0`). -/
+theorem window_constants_slice_inflated :
+    let wp : ℝ := 3/200
+    let cc : ℝ := 9/10
+    let ε : ℝ := 1/200
+    let g : ℝ := 5123/5000
+    let G : ℝ := 201/200
+    let κ : ℝ := 1 + 1/10000
+    let u : ℝ := 2 * (1 + ε) * wp
+    let RWb : ℝ := 1 / (1 - u)
+    cc * RWb < g^2 * (cc - κ * G^2 * (1 + ε) * RWb * wp) ∧
+      (0 : ℝ) < g^2 * (cc - κ * G^2 * (1 + ε) * RWb * wp) := by
+  norm_num
+
 end DotyParams
 
 end ExactMajority
