@@ -154,6 +154,66 @@ theorem clockCounterPotential_ge_one_of_not_noClockAtZero (s : ℝ)
   obtain ⟨a, ha, hrole, hctr⟩ := hc
   exact clockCounterPotential_ge_one_of_clock_counter_zero s c a ha hrole hctr
 
+/-! ## Scheduler pair-sum expansion of the one-step lintegral (Gap-1 infrastructure).
+
+The drift `∫ Φ dK(c)` over the uniform-pair scheduler is, by construction, the
+expectation of `Φ(stepOrSelf c pair)` over the ordered-pair law
+`Config.interactionProb`.  Pushing the `PMF.map` through `toMeasure`
+(`PMF.toMeasure_map`), then `lintegral_map`, then `lintegral_fintype` over the
+finite ordered-pair space, turns the one-step lintegral into the explicit
+weighted **pair sum**
+
+  `∫ Φ dK(c) = ∑_{pair} Φ(stepOrSelf c pair) · interactionProb(pair)`,
+
+the per-pair ledger every quantitative drift bound (Gap 1, and the in-house
+affine-counter pattern) is built on.  Stated generically in the state set `Λ`. -/
+
+section SchedulerPairSum
+
+variable {Λ : Type*} [Fintype Λ] [DecidableEq Λ]
+
+attribute [local instance] Classical.propDecidable
+
+noncomputable local instance : MeasurableSpace (Λ × Λ) := ⊤
+local instance : DiscreteMeasurableSpace (Λ × Λ) := ⟨fun _ => trivial⟩
+local instance : MeasurableSingletonClass (Λ × Λ) := ⟨fun _ => trivial⟩
+
+/-- **One-step lintegral as a pair sum (`stepDist`).**  For a population of size
+`≥ 2`, the expectation of any `ℝ≥0∞`-observable `f` under one scheduler step is
+the `interactionProb`-weighted sum of `f` over the scheduled-pair updates. -/
+theorem lintegral_stepDist_eq_sum (P : Protocol Λ) (c : Config Λ) (hc : 2 ≤ c.card)
+    (f : Config Λ → ℝ≥0∞) :
+    ∫⁻ c', f c' ∂((P.stepDist c hc).toMeasure)
+      = ∑ pair : Λ × Λ,
+          f (Protocol.scheduledStep P c pair) * c.interactionProb pair.1 pair.2 := by
+  unfold Protocol.stepDist
+  rw [← PMF.toMeasure_map (Protocol.scheduledStep P c) (c.interactionPMF hc)
+        (Measurable.of_discrete)]
+  rw [lintegral_map (Measurable.of_discrete) (Measurable.of_discrete)]
+  rw [lintegral_fintype]
+  apply Finset.sum_congr rfl
+  intro pair _
+  congr 1
+  rw [PMF.toMeasure_apply_singleton _ _ (MeasurableSet.singleton _)]
+  rfl
+
+/-- **One-step lintegral as a pair sum (`transitionKernel`).**  At populations of
+size `≥ 2` the Markov kernel expectation is the explicit `interactionProb`-weighted
+sum over ordered pairs of the `stepOrSelf` updates:
+
+  `∫ f dK(c) = ∑_{pair} f(stepOrSelf c pair.1 pair.2) · interactionProb(pair)`. -/
+theorem lintegral_transitionKernel_eq_sum (P : Protocol Λ) (c : Config Λ)
+    (hc : 2 ≤ c.card) (f : Config Λ → ℝ≥0∞) :
+    ∫⁻ c', f c' ∂(P.transitionKernel c)
+      = ∑ pair : Λ × Λ, f (Protocol.stepOrSelf P c pair.1 pair.2)
+          * c.interactionProb pair.1 pair.2 := by
+  change ∫⁻ c', f c' ∂((P.stepDistOrSelf c).toMeasure) = _
+  unfold Protocol.stepDistOrSelf
+  rw [dif_pos hc, lintegral_stepDist_eq_sum P c hc f]
+  rfl
+
+end SchedulerPairSum
+
 /-! ## The kernel-level tail from a supplied one-step drift.
 
 This wraps `WindowConcentration.windowDrift_tail` at the Phase-0 instantiation:

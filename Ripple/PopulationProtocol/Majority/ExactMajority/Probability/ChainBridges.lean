@@ -54,13 +54,27 @@ the bridge through the `advancePhase` entry transition, NOT through this file.
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase1Convergence
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase2Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase6Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase7Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase8Convergence
 
 namespace ExactMajority
 namespace ChainBridges
 
-open Phase1Convergence Phase2Convergence
+open Phase1Convergence Phase2Convergence Phase6Convergence Phase7Convergence Phase8Convergence
 
 variable {L K : ℕ}
+
+/-- Shared helper: a window predicate that pins every agent to a fixed `phase.val` is
+incompatible with one pinning to a DIFFERENT `phase.val`, on any nonempty config. -/
+private theorem phase_clash
+    {n : ℕ} {x : Config (AgentState L K)} (hcard : x.card = n) (hn : 0 < n)
+    {p q : ℕ} (hpne : p ≠ q)
+    (hp : ∀ a ∈ x, a.phase.val = p) (hq : ∀ a ∈ x, a.phase.val = q) : False := by
+  have hne : x ≠ 0 := by
+    intro h0; rw [h0] at hcard; simp only [Multiset.card_zero] at hcard; omega
+  obtain ⟨a, ha⟩ := Multiset.exists_mem_of_ne_zero hne
+  exact hpne ((hp a ha).symm ▸ (hq a ha) ▸ rfl)
 
 /-- **The `1 → 2` pointwise bridge is FALSE on any populated config.**
 
@@ -106,7 +120,45 @@ theorem bridge_1_2_vacuous_on_empty
   refine ⟨hcard, ?_⟩
   intro a ha
   -- No agents in the empty config.
-  simp only [Multiset.not_mem_zero] at ha
+  exact absurd ha (by simp)
+
+/-- **The `6 → 7` pointwise bridge is FALSE on any populated config.**
+`Phase6Win n` pins `phase.val = 6`; `Phase7AllMain n` pins `phase.val = 7`. -/
+theorem bridge_6_7_pointwise_false_on_nonempty
+    (n : ℕ) (x : Config (AgentState L K))
+    (h6 : Phase6Win (L := L) (K := K) n x) (hn : 0 < n) :
+    ¬ Phase7AllMain (L := L) (K := K) n x := by
+  intro h7
+  obtain ⟨hcard, hph6⟩ := h6
+  obtain ⟨_, hph7⟩ := h7
+  exact phase_clash hcard hn (p := 6) (q := 7) (by omega)
+    hph6 (fun a ha => (hph7 a ha).1)
+
+/-- **The `7 → 8` pointwise bridge is FALSE on any populated config.**
+`Phase7AllMain n` pins `phase.val = 7`; `Phase8AllMain n` pins `phase.val = 8`. -/
+theorem bridge_7_8_pointwise_false_on_nonempty
+    (n : ℕ) (x : Config (AgentState L K))
+    (h7 : Phase7AllMain (L := L) (K := K) n x) (hn : 0 < n) :
+    ¬ Phase8AllMain (L := L) (K := K) n x := by
+  intro h8
+  obtain ⟨hcard, hph7⟩ := h7
+  obtain ⟨_, hph8⟩ := h8
+  exact phase_clash hcard hn (p := 7) (q := 8) (by omega)
+    (fun a ha => (hph7 a ha).1) (fun a ha => (hph8 a ha).1)
+
+/-- **The `8 → 9` pointwise bridge is FALSE on any populated config.**
+`Phase8AllMain n` pins `phase.val = 8`; phase 9's instance is the reused
+`Phase2Convergence.phase2Convergence` at the second opinion union, whose `Pre = Qwin U' v' n`
+carries the window `Q2 U' v' n` pinning `phase.val = 2`. -/
+theorem bridge_8_9_pointwise_false_on_nonempty
+    (U' v' : Fin 8) (n : ℕ) (x : Config (AgentState L K))
+    (h8 : Phase8AllMain (L := L) (K := K) n x) (hn : 0 < n) :
+    ¬ Q2 (L := L) (K := K) U' v' n x := by
+  intro h9
+  obtain ⟨hcard, hph8⟩ := h8
+  obtain ⟨_, hph9⟩ := h9
+  exact phase_clash hcard hn (p := 8) (q := 2) (by omega)
+    (fun a ha => (hph8 a ha).1) (fun a ha => (hph9 a ha).1)
 
 end ChainBridges
 end ExactMajority
