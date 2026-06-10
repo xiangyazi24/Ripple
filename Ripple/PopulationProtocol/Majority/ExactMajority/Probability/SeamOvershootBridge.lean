@@ -683,6 +683,62 @@ theorem phaseEpidemicUpdate_left_preserves_wf (a b : AgentState L K)
   simp only [herr_false, if_false]
   exact runInitsBetween_preserves_wf a.phase.val p.val _ hwfa'
 
+/-- The right epidemic output phase equals the source max under `Wf` (no error). -/
+theorem phaseEpidemicUpdate_right_phase_eq_max_of_wf (a b : AgentState L K)
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha9 : a.phase.val ≤ 9) (hb9 : b.phase.val ≤ 9) :
+    (phaseEpidemicUpdate L K a b).2.phase.val = max a.phase.val b.phase.val := by
+  unfold phaseEpidemicUpdate
+  set p := max a.phase b.phase with hp
+  have hpval : p.val = max a.phase.val b.phase.val := by rw [hp]; rfl
+  have hp9 : p.val ≤ 9 := by rw [hpval]; omega
+  have hwfa' : WfAgent (L := L) (K := K) ({ a with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfa; exact ⟨h1, h2, h3⟩
+  have hwfb' : WfAgent (L := L) (K := K) ({ b with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfb; exact ⟨h1, h2, h3⟩
+  have hs' : (runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val = p.val :=
+    runInitsBetween_phase_eq_of_wf a.phase.val p.val _ hwfa' hp9
+  have ht' : (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val = p.val :=
+    runInitsBetween_phase_eq_of_wf b.phase.val p.val _ hwfb' hp9
+  have herr_false :
+      ¬ ((a.phase.val < 10 ∨ b.phase.val < 10) ∧
+        ((runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val = 10 ∨
+          (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val = 10)) := by
+    rintro ⟨-, hor⟩
+    rcases hor with h | h
+    · rw [hs'] at h; omega
+    · rw [ht'] at h; omega
+  simp only [herr_false, if_false]
+  exact ht'
+
+/-- The right epidemic output is well-formed under `Wf` (no error). -/
+theorem phaseEpidemicUpdate_right_preserves_wf (a b : AgentState L K)
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha9 : a.phase.val ≤ 9) (hb9 : b.phase.val ≤ 9) :
+    WfAgent (L := L) (K := K) (phaseEpidemicUpdate L K a b).2 := by
+  unfold phaseEpidemicUpdate
+  set p := max a.phase b.phase with hp
+  have hpval : p.val = max a.phase.val b.phase.val := by rw [hp]; rfl
+  have hp9 : p.val ≤ 9 := by rw [hpval]; omega
+  have hwfa' : WfAgent (L := L) (K := K) ({ a with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfa; exact ⟨h1, h2, h3⟩
+  have hwfb' : WfAgent (L := L) (K := K) ({ b with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfb; exact ⟨h1, h2, h3⟩
+  have hs' : (runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val = p.val :=
+    runInitsBetween_phase_eq_of_wf a.phase.val p.val _ hwfa' hp9
+  have ht' : (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val = p.val :=
+    runInitsBetween_phase_eq_of_wf b.phase.val p.val _ hwfb' hp9
+  have herr_false :
+      ¬ ((a.phase.val < 10 ∨ b.phase.val < 10) ∧
+        ((runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val = 10 ∨
+          (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val = 10)) := by
+    rintro ⟨-, hor⟩
+    rcases hor with h | h
+    · rw [hs'] at h; omega
+    · rw [ht'] at h; omega
+  simp only [herr_false, if_false]
+  exact runInitsBetween_preserves_wf b.phase.val p.val _ hwfb'
+
 /-- **Dispatcher one-step `+1` bound (left).**  Under `Wf` on both inputs with both
 phases `≤ p+1` (`≤ 8`), the left `Transition` output phase is at most `max(a,b)+1`:
 `finishPhase10Entry` preserves the phase, so it equals the phase-`q` dispatch output on
@@ -1114,6 +1170,215 @@ theorem Phase8Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
       show (if _ then stdCounterSubroutine L K _ else _).phase.val = b.phase.val
       rw [if_neg hs1role, hs1phase]
     omega
+
+/-- Phase 0 RIGHT output advances by `≤ +1` when at phase `0`. -/
+theorem Phase0Transition_right_phase_le_succ_of_phase0 (a b : AgentState L K)
+    (h0 : b.phase.val = 0) :
+    (Phase0Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  let s1 := if a.role = .mcr ∧ b.role = .mcr then
+    { a with role := .main, smallBias := addSmallBias a.smallBias b.smallBias } else a
+  let t1 := if a.role = .mcr ∧ b.role = .mcr then
+    { b with role := .cr, smallBias := ⟨3, by decide⟩ } else b
+  let s2 := if s1.role = .mcr ∧ t1.role = .main ∧ ¬ t1.assigned then
+    { s1 with role := .cr, smallBias := ⟨3, by decide⟩ }
+    else if t1.role = .mcr ∧ s1.role = .main ∧ ¬ s1.assigned then
+    { s1 with assigned := true, smallBias := addSmallBias t1.smallBias s1.smallBias }
+    else s1
+  let t2 := if s1.role = .mcr ∧ t1.role = .main ∧ ¬ t1.assigned then
+    { t1 with assigned := true, smallBias := addSmallBias s1.smallBias t1.smallBias }
+    else if t1.role = .mcr ∧ s1.role = .main ∧ ¬ s1.assigned then
+    { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
+    else t1
+  let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
+    { s2 with role := .main }
+    else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
+    { s2 with assigned := true } else s2
+  let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
+    { t2 with assigned := true }
+    else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
+    { t2 with role := .main }
+    else t2
+  let s3' := s3
+  let t3' := t3
+  let s4 := if s3'.role = .cr ∧ t3'.role = .cr then
+    { s3' with role := .clock, counter := ⟨50 * (L + 1), by omega⟩ } else s3'
+  let t4 := if s3'.role = .cr ∧ t3'.role = .cr then
+    { t3' with role := .reserve } else t3'
+  let t5 := if s4.role = .clock ∧ t4.role = .clock then stdCounterSubroutine L K t4 else t4
+  have ht1 : b.phase.val = t1.phase.val := by dsimp [t1]; split_ifs <;> rfl
+  have ht2 : t1.phase.val = t2.phase.val := by dsimp [t2]; split_ifs <;> rfl
+  have ht3 : t2.phase.val = t3.phase.val := by dsimp [t3]; split_ifs <;> rfl
+  have ht3' : t3.phase.val = t3'.phase.val := by dsimp [t3']
+  have ht4 : t3'.phase.val = t4.phase.val := by dsimp [t4]; split_ifs <;> rfl
+  have ht4phase : t4.phase.val = 0 := by rw [← ht4, ← ht3', ← ht3, ← ht2, ← ht1, h0]
+  have ht5 : t5.phase.val ≤ t4.phase.val + 1 := by
+    dsimp [t5]; split_ifs with hcl
+    · exact stdCounterSubroutine_phase_le_succ_of_clock t4 hcl.2
+        (by rw [ht4phase]; decide) (by rw [ht4phase]; decide) (by rw [ht4phase]; decide)
+    · omega
+  show t5.phase.val ≤ b.phase.val + 1
+  omega
+
+/-- Phase 3 RIGHT output advances by `≤ +1` (Rule 1 `stdCounterSubroutine` on a clock
+responder; minute-drag preserves the phase). -/
+theorem Phase3Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) b) (hle : b.phase.val ≤ 8) :
+    (Phase3Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  set t1 : AgentState L K :=
+    (if a.role = .clock ∧ b.role = .clock then
+      if a.minute ≠ b.minute then { b with minute := max a.minute b.minute }
+      else if _h : a.minute.val < K * (L + 1) then b
+      else stdCounterSubroutine L K b
+    else b) with ht1def
+  have hphaseeq : (Phase3Transition L K a b).2.phase = t1.phase :=
+    (Phase3Transition_right_output_eq_rule1 (L := L) (K := K) a b t1 ht1def).2
+  have ht1 : t1.phase.val ≤ b.phase.val + 1 := by
+    rw [ht1def]
+    split_ifs with hcl hmin hlt
+    · exact le_trans (le_of_eq (show ({ b with minute := max a.minute b.minute }
+        : AgentState L K).phase.val = b.phase.val from rfl)) (Nat.le_succ _)
+    · exact Nat.le_succ _
+    · exact stdCounterSubroutine_phase_le_succ_of_wf b hwf hle
+    · exact Nat.le_succ _
+  have : (Phase3Transition L K a b).2.phase.val = t1.phase.val := by rw [hphaseeq]
+  omega
+
+/-- Phase 6 RIGHT keeps a non-clock responder's phase. -/
+theorem Phase6Transition_right_phase_eq_of_not_clock (a b : AgentState L K)
+    (hc : b.role ≠ .clock) :
+    (Phase6Transition L K a b).2.phase.val = b.phase.val := by
+  simp only [Phase6Transition]
+  have hs1role : (if a.role = .reserve ∧ b.role = .main ∧ (b.bias ≠ .zero) then
+        (doSplit L K a b).2
+      else if b.role = .reserve ∧ a.role = .main ∧ (a.bias ≠ .zero) then
+        (doSplit L K b a).1 else b).role ≠ .clock := by
+    split_ifs
+    · rw [doSplit_role_snd]; exact hc
+    · exact doSplit_role_fst_ne_clock b a hc
+    · exact hc
+  have hs1phase : (if a.role = .reserve ∧ b.role = .main ∧ (b.bias ≠ .zero) then
+        (doSplit L K a b).2
+      else if b.role = .reserve ∧ a.role = .main ∧ (a.bias ≠ .zero) then
+        (doSplit L K b a).1 else b).phase.val = b.phase.val := by
+    split_ifs
+    · exact doSplit_phase_snd a b
+    · exact doSplit_phase_fst b a
+    · rfl
+  show (if _ then stdCounterSubroutine L K _ else _).phase.val = b.phase.val
+  rw [if_neg hs1role, hs1phase]
+
+/-- Phase 7 RIGHT keeps a non-clock responder's phase. -/
+theorem Phase7Transition_right_phase_eq_of_not_clock (a b : AgentState L K)
+    (hc : b.role ≠ .clock) :
+    (Phase7Transition L K a b).2.phase.val = b.phase.val := by
+  simp only [Phase7Transition]
+  have hs1role : (if a.role = .main ∧ b.role = .main then
+        (cancelSplit L K a b).2 else b).role ≠ .clock := by
+    split_ifs
+    · rw [cancelSplit_role_snd]; exact hc
+    · exact hc
+  have hs1phase : (if a.role = .main ∧ b.role = .main then
+        (cancelSplit L K a b).2 else b).phase.val = b.phase.val := by
+    split_ifs
+    · exact cancelSplit_phase_snd a b
+    · rfl
+  show (if _ then stdCounterSubroutine L K _ else _).phase.val = b.phase.val
+  rw [if_neg hs1role, hs1phase]
+
+/-- Phase 8 RIGHT keeps a non-clock responder's phase. -/
+theorem Phase8Transition_right_phase_eq_of_not_clock (a b : AgentState L K)
+    (hc : b.role ≠ .clock) :
+    (Phase8Transition L K a b).2.phase.val = b.phase.val := by
+  simp only [Phase8Transition]
+  have hs1role : (if a.role = .main ∧ b.role = .main then
+        (absorbConsume L K a b).2 else b).role ≠ .clock := by
+    split_ifs
+    · rw [absorbConsume_role_snd]; exact hc
+    · exact hc
+  have hs1phase : (if a.role = .main ∧ b.role = .main then
+        (absorbConsume L K a b).2 else b).phase.val = b.phase.val := by
+    split_ifs
+    · exact absorbConsume_phase_snd a b
+    · rfl
+  show (if _ then stdCounterSubroutine L K _ else _).phase.val = b.phase.val
+  rw [if_neg hs1role, hs1phase]
+
+/-- Phase 1 RIGHT keeps a non-clock responder's phase. -/
+theorem Phase1Transition_right_phase_eq_of_not_clock' (a b : AgentState L K)
+    (hc : b.role ≠ .clock) :
+    (Phase1Transition L K a b).2.phase.val = b.phase.val :=
+  Phase1Transition_right_phase_eq_of_not_clock a b hc
+
+/-- **Right dispatch `+1` bound.**  Under `Wf` on both inputs with both phases `≤ 8`, the
+right `Transition` output phase is at most `ep.2.phase + 1` (the dispatch — branching on
+`ep.1.phase` — applies the phase-`q` rule to BOTH outputs; the right output advances `ep.2`
+by `≤ +1`). -/
+theorem Transition_right_phase_le_ep_succ_of_wf (a b : AgentState L K)
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha8 : a.phase.val ≤ 8) (hb8 : b.phase.val ≤ 8) :
+    (Transition L K a b).2.phase.val ≤ (phaseEpidemicUpdate L K a b).2.phase.val + 1 := by
+  have hepphase : (phaseEpidemicUpdate L K a b).1.phase.val = max a.phase.val b.phase.val :=
+    phaseEpidemicUpdate_left_phase_eq_max_of_wf a b hwfa hwfb (by omega) (by omega)
+  have hep1wf : WfAgent (L := L) (K := K) (phaseEpidemicUpdate L K a b).1 :=
+    phaseEpidemicUpdate_left_preserves_wf a b hwfa hwfb (by omega) (by omega)
+  have hep2wf : WfAgent (L := L) (K := K) (phaseEpidemicUpdate L K a b).2 :=
+    phaseEpidemicUpdate_right_preserves_wf a b hwfa hwfb (by omega) (by omega)
+  have hep18 : (phaseEpidemicUpdate L K a b).1.phase.val ≤ 8 := by rw [hepphase]; omega
+  have hep28 : (phaseEpidemicUpdate L K a b).2.phase.val ≤ 8 := by
+    rw [phaseEpidemicUpdate_right_phase_eq_max_of_wf a b hwfa hwfb (by omega) (by omega)]; omega
+  set s' := (phaseEpidemicUpdate L K a b).1 with hs'def
+  set t' := (phaseEpidemicUpdate L K a b).2 with ht'def
+  have hdisp : (Transition L K a b).2.phase.val ≤ t'.phase.val + 1 := by
+    rw [show (Transition L K a b).2 = finishPhase10Entry L K t'
+          (match s'.phase with
+            | ⟨0, _⟩ => Phase0Transition L K s' t'
+            | ⟨1, _⟩ => Phase1Transition L K s' t'
+            | ⟨2, _⟩ => Phase2Transition L K s' t'
+            | ⟨3, _⟩ => Phase3Transition L K s' t'
+            | ⟨4, _⟩ => Phase4Transition L K s' t'
+            | ⟨5, _⟩ => Phase5Transition L K s' t'
+            | ⟨6, _⟩ => Phase6Transition L K s' t'
+            | ⟨7, _⟩ => Phase7Transition L K s' t'
+            | ⟨8, _⟩ => Phase8Transition L K s' t'
+            | ⟨9, _⟩ => Phase9Transition L K s' t'
+            | ⟨10, _⟩ => Phase10Transition L K s' t'
+            | _ => (s', t')).2 from rfl]
+    rw [finishPhase10Entry_phase_val]
+    rcases hphase : s'.phase with ⟨n, hn⟩
+    have hn8 : n ≤ 8 := by rw [hphase] at hep18; exact hep18
+    have htwf : WfAgent (L := L) (K := K) t' := hep2wf
+    have hnt' : t'.phase.val ≤ 8 := hep28
+    match n, hn, hn8 with
+    | 0, _, _ => simp only [hphase]
+                 have := Phase0Transition_phase_nondec (L := L) (K := K) s' t'
+                 -- phase 0 dispatch ⟹ ep.1 at 0 ⟹ ep.2 ≤ ep.1 = 0; use phase0 right bound
+                 have hb0 : t'.phase.val = 0 := by
+                   have hge := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) a b
+                   have : t'.phase.val ≤ s'.phase.val := by
+                     have hle2 := phaseEpidemicUpdate_phase_le_Transition_phase -- placeholder
+                     sorry
+                   sorry
+                 have := Phase0Transition_right_phase_le_succ_of_phase0 s' t' hb0; omega
+    | 1, _, _ => simp only [hphase]
+                 have := Phase1Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
+    | 2, _, _ => simp only [hphase]
+                 have := Phase2Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
+    | 3, _, _ => simp only [hphase]
+                 have hb3 : t'.phase.val = 3 := by sorry
+                 have := Phase3Transition_right_phase_le_succ_of_phase3 s' t' hb3; omega
+    | 4, _, _ => simp only [hphase]
+                 have := Phase4Transition_right_phase_le_succ s' t'; omega
+    | 5, _, _ => simp only [hphase]
+                 have := Phase5Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
+    | 6, _, _ => simp only [hphase]
+                 have := Phase6Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
+    | 7, _, _ => simp only [hphase]
+                 have := Phase7Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
+    | 8, _, _ => simp only [hphase]
+                 have := Phase8Transition_right_phase_le_succ_of_wf s' t' htwf
+                   (le_of_eq (by omega)); omega
+    | n + 9, hn, hn8 => omega
+  exact hdisp
 
 end SeamNoOvershoot
 

@@ -226,4 +226,106 @@ theorem allClockGEpCard_pow_preserved {L K : ℕ} (p n : ℕ) (hp : 3 ≤ p)
     (NonuniformMajority L K) (AllClockGEpCard (L := L) (K := K) p n)
     (fun a b ha hb => allClockGEpCard_support_step_closed p n hp a b ha hb) c hc t
 
+/-! ## Stage 3 — the per-phase telescope (`StableDone` cap from per-link caps)
+
+The seqcomp tower composes a SINGLE intermediate set.  The phase chain has many: the
+run must drain phase `p`'s clock counters (reach `S p := potBelow (clockCounterSumAt p) 1`),
+then phase `p+1`'s, …, finally landing in `StableDone`.  We iterate the tower along a
+descending ladder `S : ℕ → Set α` with `S k = Done`:
+
+* per link `i < k`: from every `S i`-state the expected hitting time of the NEXT rung
+  `S (i+1)` is `≤ b i` (this is exactly an E3/E2 per-phase factor, applied at the rung
+  whose progress set is `S (i+1)`);
+
+then from any `S i`-state the expected hitting time of `Done` is `≤ ∑_{i ≤ j < k} b j`,
+and in particular from an `S 0`-start it is `≤ ∑ b`.
+
+This is the honest progress-set ⟹ `StableDone` transfer for the recovery branches: the
+`RecoveryClass` witness `expectedHitting … StableDone ≤ B` is *derived* by instantiating
+the ladder with the campaign's per-phase progress sets and E3/E2 bounds, with
+`Done = StableDone`, instead of being carried as constructor data.
+
+The proof is a downward induction on the rung index using `expectedHitting_seqcomp`. -/
+
+/-- **Expected hitting time from inside an absorbing set is `0`.**  If `Done` is
+absorbing then every `Done`-state has `expectedHitting K y Done = 0` (the not-Done
+tail is identically `0`). -/
+theorem expectedHitting_eq_zero_of_mem [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0) {y : α} (hy : y ∈ Done) :
+    expectedHitting K y Done = 0 := by
+  rw [expectedHitting_eq_tsum]
+  refine ENNReal.tsum_eq_zero.mpr (fun t => ?_)
+  exact pow_absorbing K hDone hAbs t hy
+
+/-- **Finite ladder telescope (`StableDone` cap from per-link caps).**
+
+For a descending ladder `S : ℕ → Set α` of measurable sets with top rung `S k = Done`
+(`Done` absorbing), and per-link uniform caps `∀ y ∈ S i, E[T to S (i+1)] ≤ b i`
+(`i < k`), every `S i`-state hits `Done` in expected time `≤ ∑_{i ≤ j < k} b j`.
+
+Each tower step `E[T to Done from y] ≤ E[T to S(i+1) from y] + sup_{S(i+1)} E[T to Done]`
+(`expectedHitting_seqcomp`) has its cross-term supplied by the inductive hypothesis at
+the next rung and its through-term by the per-link cap; the base `i = k` is
+`E[T to Done from a Done-state] = 0` (absorption).  This is the iterated seqcomp that
+turns the E3/E2 per-phase progress bounds into a single `StableDone` cap. -/
+theorem expectedHitting_ladder_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (S : ℕ → Set α) (hS : ∀ i, MeasurableSet (S i))
+    (k : ℕ) {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0) (hSk : S k = Done)
+    (b : ℕ → ℝ≥0∞)
+    (hlink : ∀ i, i < k → ∀ y ∈ S i, expectedHitting K y (S (i + 1)) ≤ b i)
+    (i : ℕ) (hik : i ≤ k) :
+    ∀ y ∈ S i, expectedHitting K y Done ≤ ∑ j ∈ Finset.Ico i k, b j := by
+  -- Downward induction on the distance `d = k - i`, keeping `k` fixed.
+  induction hd : k - i generalizing i with
+  | zero =>
+      intro y hy
+      have hik0 : i = k := by omega
+      rw [hik0, Finset.Ico_self, Finset.sum_empty]
+      -- y ∈ S k = Done; absorption gives expectedHitting = 0.
+      rw [hik0, hSk] at hy
+      rw [expectedHitting_eq_zero_of_mem K hDone hAbs hy]
+  | succ d ih =>
+      intro y hy
+      have hilt : i < k := by omega
+      -- IH at rung i+1: every S(i+1)-state hits Done in ≤ ∑_{i+1 ≤ j < k} b j.
+      have hih : ∀ z ∈ S (i + 1), expectedHitting K z Done
+          ≤ ∑ j ∈ Finset.Ico (i + 1) k, b j := by
+        intro z hz
+        exact ih (i + 1) (by omega) (by omega) z hz
+      -- Tower with Mid = S(i+1): E[T→Done] ≤ E[T→S(i+1)] + (∑_{i+1≤j<k} b j).
+      have htower := expectedHitting_seqcomp K (hS (i + 1)) hDone
+        (∑ j ∈ Finset.Ico (i + 1) k, b j) hih y
+      -- through-term: E[T→S(i+1) from y] ≤ b i.
+      have hthrough : expectedHitting K y (S (i + 1)) ≤ b i := hlink i hilt y hy
+      -- re-fold the sum: b i + ∑_{i+1≤j<k} = ∑_{i≤j<k}.
+      have hsum : b i + ∑ j ∈ Finset.Ico (i + 1) k, b j = ∑ j ∈ Finset.Ico i k, b j := by
+        rw [Finset.sum_eq_sum_Ico_succ_bot hilt]
+      calc expectedHitting K y Done
+          ≤ expectedHitting K y (S (i + 1)) + ∑ j ∈ Finset.Ico (i + 1) k, b j := htower
+        _ ≤ b i + ∑ j ∈ Finset.Ico (i + 1) k, b j := by gcongr
+        _ = ∑ j ∈ Finset.Ico i k, b j := hsum
+
+/-- **`StableDone` cap from an `S 0`-start (the consumed form).**
+
+The telescope at rung `0`: from any `S 0`-state, `E[T to Done] ≤ ∑_{0 ≤ j < k} b j`.
+This is the `RecoveryClass`-witness derivation: take `Done = StableDone`, `S j` the
+campaign's per-phase progress sets ending at `StableDone`, and `b j` the E3/E2
+per-phase bounds; the constructor data `expectedHitting … StableDone ≤ B` becomes a
+theorem with `B = ∑ b j`. -/
+theorem expectedHitting_telescope_from_start [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (S : ℕ → Set α) (hS : ∀ i, MeasurableSet (S i))
+    (k : ℕ) {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0) (hSk : S k = Done)
+    (b : ℕ → ℝ≥0∞)
+    (hlink : ∀ i, i < k → ∀ y ∈ S i, expectedHitting K y (S (i + 1)) ≤ b i)
+    (c : α) (hc : c ∈ S 0) :
+    expectedHitting K c Done ≤ ∑ j ∈ Finset.range k, b j := by
+  have h := expectedHitting_ladder_le K S hS k hDone hAbs hSk b hlink 0 (Nat.zero_le k) c hc
+  rwa [Finset.range_eq_Ico]
+
 end ExactMajority
