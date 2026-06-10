@@ -61,6 +61,11 @@ open GatedDrift ClockKilledMinute ClockRealHours
 
 variable {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α] [Inhabited α]
 
+/-- The cemetery extension carries the discrete (`⊤`) measurable space (matching
+`GatedKillNow`'s / `ClockKilledMinute`'s local instances). -/
+local instance instOptionMScwa : MeasurableSpace (Option α) := ⊤
+local instance instOptionDMScwa : DiscreteMeasurableSpace (Option α) := ⟨fun _ => trivial⟩
+
 /-! ## Deliverable 1 (B-10a) — `leg_escape_global`.
 
 The global-start telescoped escape bound.  From the per-start
@@ -83,19 +88,25 @@ theorem kill_now_escape_prefix_all {K : Kernel α α} {G S : Set α} [IsMarkovKe
     (GatedDrift.killK_now K G ^ M) (some y) {(none : Option α)}
       ≤ (M : ℝ≥0∞) * q + ∑ σ ∈ Finset.range M, (K ^ σ) y Sᶜ := by
   classical
+  have hMKkill : ∀ s : ℕ, IsMarkovKernel (GatedDrift.killK_now K G ^ s) := by
+    intro s; induction s with
+    | zero => rw [pow_zero]
+              exact inferInstanceAs (IsMarkovKernel (Kernel.id : Kernel (Option α) (Option α)))
+    | succ s ih => haveI := ih; rw [pow_succ]
+                   exact inferInstanceAs (IsMarkovKernel ((GatedDrift.killK_now K G ^ s) ∘ₖ _))
   by_cases hy : y ∈ G
   · exact GatedDrift.kill_now_escape_le_prefix_union (K := K) (G := G) S q hstep M y hy
   · -- ungated start: dominate by 1; for M ≥ 1 the σ=0 prefix term is 1, for M = 0 escape is 0.
     rcases Nat.eq_zero_or_pos M with hM0 | hMpos
     · subst hM0
       have : (GatedDrift.killK_now K G ^ 0) (some y) {(none : Option α)} = 0 := by
-        rw [pow_zero, Kernel.id_apply,
+        rw [pow_zero, show ((1 : Kernel (Option α) (Option α))) = Kernel.id from rfl,
+          Kernel.id_apply,
           Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _)]
         simp
       rw [this]; exact zero_le'
     · have hesc1 : (GatedDrift.killK_now K G ^ M) (some y) {(none : Option α)} ≤ 1 := by
-        haveI : IsMarkovKernel (GatedDrift.killK_now K G ^ M) :=
-          inferInstanceAs (IsMarkovKernel ((GatedDrift.killK_now K G) ^ M))
+        haveI := hMKkill M
         calc (GatedDrift.killK_now K G ^ M) (some y) {(none : Option α)}
             ≤ (GatedDrift.killK_now K G ^ M) (some y) Set.univ := measure_mono (Set.subset_univ _)
           _ = 1 := measure_univ

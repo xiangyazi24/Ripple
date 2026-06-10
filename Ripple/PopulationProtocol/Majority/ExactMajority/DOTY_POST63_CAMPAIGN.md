@@ -198,6 +198,42 @@ Lean bricks:
     (ii) prove `InvClosed` + `PotNonincrOn` for the COUPON stage (clean, no-B-spread), (iii) handle the
     cancel stage via conserved signed sum (the activeBCount monotone is subtler than a plain PotNonincrOn).
     All `_on` engine lemmas + the drop-probability lemma are reusable as-is.
+  - **E2-14** SHA aedcbe8e: B2 coupon-stage per-pair drop (`wrongACount_post_convert_lt`,
+    `scheduledStep_activeA_wrongB_in_drop`) via public `Phase10Transition_activeA_nonActiveB_outputs_A`.
+  - **E2-15** SHA 7aae202f: **B2 coupon-stage DROP PROBABILITY DELIVERED**. `WrongNotActiveB` class,
+    `activeAWrongPairs`, `sum_interactionCount_activeAWrong = activeACount·wrongNotBCount`,
+    `wrongNotBCount_eq_wrongACount_of_no_activeB` (post-cancel bridge), `wrongACount_drop_prob`:
+    on all-phase-10 with activeBCount=0 & activeACount≥1, `kernel c (dropTarget wrongACount c) ≥
+    wrongACount c/(n(n-1))`. Both stages' drop probabilities now axiom-clean.
+  - **FURTHER SCOPING REFINEMENT (E2-15 discovery).** `wrongACount` is ALSO not cleanly non-increasing
+    even under {AllPhase10 ∧ activeBCount=0}: `Phase10Transition` Block 2 lets an active-**T** spread T
+    onto a passive whose output is A → that agent becomes output-T (≠A), so `wrongACount` INCREASES.
+    The honest three-stage invariant chain (matches Doty's order):
+      1. **cancel** Φ=activeBCount, Inv₁={AllPhase10}, drop via `activeBCount_drop_prob` (DONE). Monotone
+         subtlety: activeBCount not non-increasing (B-spread) — use conserved signed sum
+         (activeACount−activeBCount=g>0, `phase10Transition_preserves_signedContribution` public) so
+         activeBCount≤activeACount and the cancel reaction is the only signed-sum-preserving move that
+         changes the pair; alternatively bound the cancel hitting time by the E1 one-step engine on the
+         {activeBCount>0} event directly (drop prob ≥ activeBCount/(n²) ≥ 1/(n²)).
+      2. **absorb-T** Φ=activeTCount, Inv₂={AllPhase10 ∧ activeBCount=0}, useful pairs active-A×active-T
+         (active-A absorbs active-T → both A; `Phase10Transition_activeA_nonActiveB_outputs_A` covers it).
+         The drop-probability lemma transfers verbatim (swap WrongNotActiveB→IsActiveT). Under Inv₂,
+         activeTCount IS non-increasing (no A→T move when no active-B; active-T only gets absorbed).
+      3. **convert-passive** Φ=wrongACount, Inv₃={AllPhase10 ∧ activeBCount=0 ∧ activeTCount=0}, useful
+         pairs active-A×{output≠A} (`wrongACount_drop_prob`, DONE, holds under Inv₃ a fortiori). Under
+         Inv₃ (only active-A and passives left) wrongACount IS non-increasing (active-A only spreads A).
+    **REMAINING for full E2 capstone** (all engine + all drop-prob lemmas done):
+      (a) prove `InvClosed K Invᵢ` for i=2,3 (Inv₂ closure: no B reappears from no-B — block-2 spreads
+          only present active outputs {A,T}; Inv₃ closure: additionally no active-T reappears once gone,
+          since A-spread makes A and T-absorb makes A). Re-derivable in-file from public per-pair output
+          lemmas + the support template `ae_of_stepDistOrSelf_support_preserved`.
+      (b) prove `PotNonincrOn Invᵢ K Φᵢ` per-pair (the full output case-analysis on Phase10Transition,
+          ~the private activeBCount/wrongACount _lt lemmas generalized to ≤ for all pair types under Invᵢ).
+      (c) instantiate `coupon_expectedHitting_le_uniform_on` per stage with qₘ=1−m/(n(n-1)) (from the
+          drop-prob lemmas: `K b (potBelow Φ m)ᶜ = 1 − K b (dropTarget) ≤ 1 − m/(n(n-1))` when Φ b=m),
+          chain via `expectedHitting_le_through_mid`, majority/tie split on `backupSignal` sign.
+    The probability/coupon/drop machinery carries NO further obligation; remaining is (a)+(b) per-pair
+    monotonicity case-analysis (Analysis-style, re-derivable in-file) + (c) mechanical assembly.
 - **E3** Conditional progress: from any config with |C| ≥ 2 (post-Phase-0), each timed phase ends
   within expected O(n/|C| · log n)-shape time (counter always ticks); gives both the bad-event
   O(log n) (|C| ≥ 0.24n) and the tiny-clock poly(n) bound from ONE parameterized lemma.

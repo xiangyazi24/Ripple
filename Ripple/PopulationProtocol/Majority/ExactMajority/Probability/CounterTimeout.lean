@@ -88,6 +88,65 @@ theorem counterTimeout_tail (K : Kernel Ω Ω) [IsMarkovKernel K]
     (K ^ (numBlocks * s)) c₀ Doneᶜ ≤ q ^ numBlocks :=
   bad_block_geometric K hDone hAbs s q hblock c₀ numBlocks
 
+/-! ## Part 2 — Packaging the tail as a `PhaseConvergenceW`
+
+The phase files target `PhaseConvergenceW K`, the weak convergence structure
+(`Pre`/`Post`/`t`/`ε`/`convergence`, no deterministic absorption field).  The
+`convergence` field is exactly the timeout tail of Part 1 once `Done := {y | Post y}`.
+
+We work over a `DiscreteMeasurableSpace`, so `Done`'s measurability is automatic
+(`DiscreteMeasurableSpace.forall_measurableSet`) — the instance writer never has to
+supply it. -/
+
+section Weak
+
+variable {Ω : Type*} [MeasurableSpace Ω] [DiscreteMeasurableSpace Ω]
+
+/-- **Counter-timeout convergence packaging.**  Given the same per-block
+contraction `hblock` over `Done := {y | Post y}`, plus the entailment
+`hpre : Pre x → ¬ Post x → ...` baked into `hblock`, package the timeout tail into
+a `PhaseConvergenceW K` with horizon `t = numBlocks * s` and failure
+`ε = q ^ numBlocks`.
+
+* `Post` is the phase-advance trigger; `Done := {y | Post y}`.
+* `hAbs` — `Post` is absorbing (the deterministic closure the phase owns).
+* `hblock` — per-block finish-failure ≤ `q` from every not-yet-`Post` config.
+* `hε` — `(q ^ numBlocks : ℝ≥0∞) ≤ ε`, i.e. the geometric tail fits under the
+  target failure budget. -/
+noncomputable def counterTimeout_PhaseConvergenceW (K : Kernel Ω Ω) [IsMarkovKernel K]
+    (Pre Post : Ω → Prop)
+    (hAbs : ∀ x, Post x → K x {y | ¬ Post y} = 0)
+    (s : ℕ) (q : ℝ≥0∞)
+    (hblock : ∀ b, ¬ Post b → (K ^ s) b {y | ¬ Post y} ≤ q)
+    (numBlocks : ℕ) (ε : ℝ≥0)
+    (hε : (q ^ numBlocks : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW K where
+  Pre := Pre
+  Post := Post
+  t := numBlocks * s
+  ε := ε
+  convergence := by
+    intro x₀ _hPre₀
+    -- `Done := {y | Post y}`, so `Doneᶜ = {y | ¬ Post y}`.
+    have hDone : MeasurableSet {y : Ω | Post y} :=
+      DiscreteMeasurableSpace.forall_measurableSet _
+    have hcompl : ({y : Ω | Post y}ᶜ) = {y : Ω | ¬ Post y} := by
+      ext y; simp
+    have hAbs' : ∀ x ∈ {y : Ω | Post y}, K x ({y : Ω | Post y}ᶜ) = 0 := by
+      intro x hx; rw [hcompl]; exact hAbs x hx
+    have hblock' : ∀ b ∈ ({y : Ω | Post y}ᶜ : Set Ω),
+        (K ^ s) b ({y : Ω | Post y}ᶜ) ≤ q := by
+      intro b hb
+      rw [hcompl] at hb ⊢
+      exact hblock b hb
+    calc (K ^ (numBlocks * s)) x₀ {y | ¬ Post y}
+        = (K ^ (numBlocks * s)) x₀ ({y : Ω | Post y}ᶜ) := by rw [hcompl]
+      _ ≤ q ^ numBlocks :=
+          counterTimeout_tail K hDone hAbs' s q hblock' x₀ numBlocks
+      _ ≤ (ε : ℝ≥0∞) := hε
+
+end Weak
+
 end CounterTimeout
 
 end ExactMajority

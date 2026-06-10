@@ -118,5 +118,74 @@ theorem mainCount_lower_of_RoleSplitGood
   -- (1 − η)·n/2 ≥ (24/25)·n/2 = 12n/25 ≥ n/3.
   nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ 1 / 25 - η) hn]
 
+/-! ## The probability-1 floor `2 ≤ |Clock|`.
+
+The Standard Counter Subroutine needs at least two Clock agents to count at all
+and end Phase 0; hence whenever Phase 1 initializes, `c ≥ 2` (paper, deterministic
+fallback bounds).  On the good-split event this floor is automatic once `n` is
+large enough: `(1 − η)·n/4 ≥ 2` whenever `η ≤ 1/25` and `9 ≤ n`. -/
+
+/-- On the good-split event with `n ≥ 9`, the clock count is at least `2`: the
+deterministic floor the counter subroutine needs.  `(1 − 1/25)·n/4 ≥ (24/25)·9/4
+= 54/25 > 2`. -/
+theorem clockCount_ge_two_of_RoleSplitGood
+    {η : ℝ} (hη : η ≤ 1 / 25) {n : ℕ} (hn : 9 ≤ n) {c : Config (AgentState L K)}
+    (hgood : RoleSplitGood (L := L) (K := K) η n c) :
+    2 ≤ clockCount (L := L) (K := K) c := by
+  obtain ⟨_, _, _, hclk, _⟩ := hgood
+  -- Get `2 ≤ (clockCount : ℝ)` over the reals, then transfer to ℕ.
+  have hnR : (9 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  have hreal : (2 : ℝ) ≤ (clockCount (L := L) (K := K) c : ℝ) := by
+    refine le_trans ?_ hclk
+    -- (1 − η)·n/4 ≥ (24/25)·n/4 ≥ (24/25)·9/4 = 54/25 ≥ 2.
+    nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ 1 / 25 - η) (by linarith : (0 : ℝ) ≤ (n : ℝ))]
+  exact_mod_cast hreal
+
+/-! ## The whp statement of Lemma 5.2.
+
+The Phase-0 initial configuration is `n` agents all in phase `0` with role
+`RoleMCR`.  Lemma 5.2 says that after the Phase-0 horizon the bad event
+`¬ RoleSplitGood` has kernel mass `O(1/n²)`.
+
+The probabilistic content — the two-stage role-split Chernoff concentration —
+is abstracted into the `roleSplitTail` budget: the exact kernel mass of the bad
+set after `tRole` steps.  The future role-split concentration engine discharges
+`roleSplitTail n η tRole ≤ O(1/n²)`; this file provides the precise statement
+that engine targets and that every downstream timed phase consumes.  Phrasing
+`roleSplitTail` as the literal bad-set mass keeps the interface honest (no fake
+content) and makes `phase0_roleSplit_whp` a `rfl`-level packaging lemma. -/
+
+/-- The Phase-0 initial configuration: `n` agents, all in phase `0` with the
+transient role `RoleMCR`. -/
+def Phase0Initial (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  Multiset.card c = n ∧ ∀ a ∈ c, a.phase = 0 ∧ a.role = .mcr
+
+/-- The role-split failure budget: the kernel mass of the bad-split event
+`¬ RoleSplitGood η n` after `tRole` steps, started from `c₀`.  The Lemma 5.2
+concentration engine bounds this by `O(1/n²)`. -/
+noncomputable def roleSplitTail (η : ℝ) (n : ℕ) (tRole : ℕ)
+    (c₀ : Config (AgentState L K)) : ENNReal :=
+  ((NonuniformMajority L K).transitionKernel ^ tRole) c₀
+    {c | ¬ RoleSplitGood (L := L) (K := K) η n c}
+
+/-- **Lemma 5.2 (whp statement).** From the Phase-0 initial all-`RoleMCR`
+configuration, after the Phase-0 horizon `tRole`, the probability that the
+role split is *not* good is at most the supplied `εRole` budget, provided the
+role-split tail meets that budget.  The concentration engine supplies
+`hbudget` with `εRole = O(1/n²)`; this lemma is the packaging interface every
+Phase-0 `PhaseConvergence` upgrade and timed phase consumes. -/
+theorem phase0_roleSplit_whp
+    {n : ℕ} {η : ℝ} {c₀ : Config (AgentState L K)}
+    (_hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (tRole : ℕ) (εRole : ENNReal)
+    (hbudget : roleSplitTail (L := L) (K := K) η n tRole c₀ ≤ εRole) :
+    ((NonuniformMajority L K).transitionKernel ^ tRole) c₀
+      {c | ¬ RoleSplitGood (L := L) (K := K) η n c}
+      ≤ εRole :=
+  hbudget
+
 end RoleSplitConcentration
 end ExactMajority
+
+#print axioms ExactMajority.RoleSplitConcentration.clockCount_ge_two_of_RoleSplitGood
+#print axioms ExactMajority.RoleSplitConcentration.phase0_roleSplit_whp
