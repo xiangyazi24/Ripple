@@ -214,6 +214,146 @@ noncomputable def phase8Convergence_calibrated {L K : ℕ} (σ : Sign) (n M₀ t
   Phase8Convergence.phase8Convergence σ n (ENNReal.ofReal q_r) hstep M₀ t (budgetNN M₀ n)
     (rect_pow_le_budget_enn hn (le_refl 1) hM1 hM₀ hα0 hα1 hq0 hq hT)
 
+open scoped Classical in
+/-- **Phase 7 calibrated convergence** (cleaned global-mass form `phase7Convergence''`).
+The `hstep` drain floor (eliminator pool `≥ 0.8·|M| ≥ 4n/15`, Doty Lemma 7.4 elimGap1)
+is carried; the budget `hε` is discharged at rate `q_r ≤ 1 − α/n` and horizon
+`t ≥ (3/α)·n·log n`, giving `ε = budgetNN M₀ n ≤ 1/n²`.  Concrete Phase-7 floor:
+`α = 4/15`.  The `Inv7Sum` closure and `classMassN` non-increase are proved upstream
+(`invClosed_Inv7Sum`, `potNonincrOn_classMassN`); only `hε` is calibrated here. -/
+noncomputable def phase7Convergence_calibrated {L K : ℕ} (σ : Sign) (n M₀ t : ℕ)
+    {α q_r : ℝ}
+    (hstep : ∀ b : Config (AgentState L K), Phase7Convergence.Inv7Sum n b →
+      1 ≤ Phase7Convergence.classMassN σ b →
+      ((NonuniformMajority L K).transitionKernel b)
+        (OneSidedCancel.potDone (fun c => Phase7Convergence.classMassN σ c))ᶜ
+        ≤ ENNReal.ofReal q_r)
+    (hn : 2 ≤ n) (hM1 : 1 ≤ M₀) (hM₀ : (M₀ : ℝ) ≤ n)
+    (hα0 : 0 < α) (hα1 : α ≤ 1) (hq0 : 0 ≤ q_r)
+    (hq : q_r ≤ 1 - α * ((1 : ℕ) : ℝ) / n)
+    (hT : (3 / α) * ((n : ℝ) / ((1 : ℕ) : ℝ)) * Real.log n ≤ t) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  Phase7Convergence.phase7Convergence'' σ n (ENNReal.ofReal q_r) hstep M₀ t (budgetNN M₀ n)
+    (rect_pow_le_budget_enn hn (le_refl 1) hM1 hM₀ hα0 hα1 hq0 hq hT)
+
+open scoped Classical in
+/-- **Phase 1 calibrated convergence** (`phase1Convergence`, `extremeU`).  The `hstep`
+averaging-drain floor (main-pair rectangle `mainCount ≥ n/3`, `RoleSplitWindows`) is
+carried; the budget `hε` is discharged at rate `q_r ≤ 1 − α/n` and horizon
+`t ≥ (3/α)·n·log n`, giving `ε = budgetNN M₀ n ≤ 1/n²`.  Concrete Phase-1 floor:
+`α = 1/3`. -/
+noncomputable def phase1Convergence_calibrated {L K : ℕ} (n M₀ t : ℕ)
+    {α q_r : ℝ}
+    (hstep : ∀ b : Config (AgentState L K), Phase1Convergence.Phase1AllMain n b →
+      1 ≤ Phase1Convergence.extremeU b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => Phase1Convergence.extremeU c))ᶜ
+        ≤ ENNReal.ofReal q_r)
+    (hn : 2 ≤ n) (hM1 : 1 ≤ M₀) (hM₀ : (M₀ : ℝ) ≤ n)
+    (hα0 : 0 < α) (hα1 : α ≤ 1) (hq0 : 0 ≤ q_r)
+    (hq : q_r ≤ 1 - α * ((1 : ℕ) : ℝ) / n)
+    (hT : (3 / α) * ((n : ℝ) / ((1 : ℕ) : ℝ)) * Real.log n ≤ t) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  Phase1Convergence.phase1Convergence n (ENNReal.ofReal q_r) hstep M₀ t (budgetNN M₀ n)
+    (rect_pow_le_budget_enn hn (le_refl 1) hM1 hM₀ hα0 hα1 hq0 hq hT)
+
+open scoped Classical in
+/-- **Phase 5 calibrated convergence** (`phase5Convergence`, `unsampledReserveU`).  The
+`hstep` reserve-drain floor (biased-main floor `≥ 0.92·mainCount ≥ 23n/75`, Theorem 6.2
+biased structure) is carried, along with the structural-window closure `hClosed` and the
+sampling-concentration input `εConc`/`hConc` (the `ReserveSampleGood` floor — a SEPARATE
+carried atom, not a drain budget).  Only the drain budget `hε` is calibrated: at rate
+`q_r ≤ 1 − α/n` and horizon `t ≥ (3/α)·n·log n` the drain failure is
+`budgetNN M₀ n ≤ 1/n²`, so the total `ε = budgetNN M₀ n + εConc`.  Concrete Phase-5
+floor: `α = 23/75`. -/
+noncomputable def phase5Convergence_calibrated {L K : ℕ} (n : ℕ) (i : Fin (L + 1))
+    (K₀ M₀ t : ℕ) {α q_r : ℝ}
+    (hClosed : OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => ReserveSampling.Phase5AllWin (L := L) (K := K) n c))
+    (hstep : ∀ b : Config (AgentState L K), ReserveSampling.Phase5AllWin (L := L) (K := K) n b →
+      1 ≤ ReserveSampling.unsampledReserveU (L := L) (K := K) b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone
+          (fun c => ReserveSampling.unsampledReserveU (L := L) (K := K) c))ᶜ
+        ≤ ENNReal.ofReal q_r)
+    (εConc : ℝ≥0)
+    (hConc : ∀ c₀, ReserveSampling.Phase5AllWin (L := L) (K := K) n c₀ →
+      ReserveSampling.unsampledReserveU (L := L) (K := K) c₀ ≤ M₀ →
+      ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {c | ¬ Phase5Convergence.sampledFloor (L := L) (K := K) i K₀ c} ≤ (εConc : ℝ≥0∞))
+    (hn : 2 ≤ n) (hM1 : 1 ≤ M₀) (hM₀ : (M₀ : ℝ) ≤ n)
+    (hα0 : 0 < α) (hα1 : α ≤ 1) (hq0 : 0 ≤ q_r)
+    (hq : q_r ≤ 1 - α * ((1 : ℕ) : ℝ) / n)
+    (hT : (3 / α) * ((n : ℝ) / ((1 : ℕ) : ℝ)) * Real.log n ≤ t) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  Phase5Convergence.phase5Convergence n i K₀ hClosed (ENNReal.ofReal q_r) hstep M₀ t
+    (budgetNN M₀ n)
+    (rect_pow_le_budget_enn hn (le_refl 1) hM1 hM₀ hα0 hα1 hq0 hq hT)
+    εConc hConc
+
+/-! ## Part D — the level-form sum budget (form a, for Phase 6).
+
+The Phase-6 instance `phase6Convergence'` uses `OneSidedCancel.levels_PhaseConvergenceW`,
+whose `hε` is the SUM over level windows
+`∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) ≤ ε`.  Calibrating each per-level summand to
+`budgetNN M₀ n = 1/(M₀ n²)` (via `rect_pow_le_budget_enn` at the level-`m` rate), the
+sum over the `M₀` levels is `≤ M₀ · 1/(M₀ n²) = 1/n²`. -/
+
+/-- **The level-sum budget discharge.**  If each per-level tail `(q m) ^ (tWin m)` is
+`≤ (budgetNN M₀ n : ℝ≥0∞) = ofReal(1/(M₀ n²))` over the `M₀` windows, the union sum is
+`≤ ofReal(1/n²)`.  This is the form-(a) analogue of `rect_pow_le_budget_enn`. -/
+theorem rect_sum_le_phase_budget {n M₀ : ℕ} (hn : 2 ≤ n) (hM1 : 1 ≤ M₀)
+    (q : ℕ → ℝ≥0∞) (tWin : ℕ → ℕ)
+    (hpt : ∀ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) ≤ (budgetNN M₀ n : ℝ≥0∞)) :
+    (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m)) ≤ ENNReal.ofReal (1 / (n : ℝ) ^ 2) := by
+  have hn0 : (0 : ℝ) < (n : ℝ) := by
+    have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+    linarith
+  have hM₀0 : (0 : ℝ) < (M₀ : ℝ) := by exact_mod_cast hM1
+  have hcard : (Finset.Icc 1 M₀).card = M₀ := by rw [Nat.card_Icc]; omega
+  -- sum ≤ card • budget = M₀ • ofReal(1/(M₀ n²)).
+  have hsum : (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m))
+      ≤ (Finset.Icc 1 M₀).card • (budgetNN M₀ n : ℝ≥0∞) :=
+    Finset.sum_le_card_nsmul _ _ _ hpt
+  rw [hcard] at hsum
+  refine le_trans hsum ?_
+  -- M₀ • ofReal(1/(M₀ n²)) = ofReal(1/n²).
+  rw [coe_budgetNN, nsmul_eq_mul, ← ENNReal.ofReal_natCast,
+    ← ENNReal.ofReal_mul (by positivity)]
+  apply ENNReal.ofReal_le_ofReal
+  rw [mul_one_div]
+  apply le_of_eq
+  field_simp
+
+open scoped Classical in
+/-- **Phase 6 calibrated convergence** (`phase6Convergence'`, `highMass l`, LEVEL form).
+The per-level `hdrop` drain floor (band-top reserve rectangle; the reserve floor is
+Phase-5's carried `sampledReserveClassU`/`ReserveSampleGood K₀`) and the working-window
+closure `hClosed` are carried; the level-sum budget `hε` is calibrated: each per-level
+tail `(q m)^(tWin m) ≤ budgetNN M₀ n`, so the union sum is `≤ 1/n²` (form-(a) via
+`rect_sum_le_phase_budget`).  The per-level rates `q m = 1 − ρ₆·m/n` use the carried
+reserve fraction `ρ₆` (provenance `ReserveSampleGood K₀`); the corollary takes the
+already-calibrated per-level bounds `hpt` (each via `rect_pow_le_budget_enn` at
+level-`m` rate `q m`). -/
+noncomputable def phase6Convergence_calibrated {L K : ℕ} (l n M₀ : ℕ)
+    (q : ℕ → ℝ≥0∞) (tWin : ℕ → ℕ)
+    (hClosed : OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Phase6Convergence.Phase6Win (L := L) (K := K) n c))
+    (hdrop : ∀ m, ∀ b : Config (AgentState L K), Phase6Convergence.Phase6Win (L := L) (K := K) n b →
+      Phase6Convergence.highMass (L := L) (K := K) l b = m →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow
+          (fun c => Phase6Convergence.highMass (L := L) (K := K) l c) m)ᶜ ≤ q m)
+    (hn : 2 ≤ n) (hM1 : 1 ≤ M₀)
+    (hpt : ∀ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) ≤ (budgetNN M₀ n : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  Phase6Convergence.phase6Convergence' l n hClosed q hdrop tWin M₀
+    (Real.toNNReal (1 / (n : ℝ) ^ 2))
+    (by
+      have h := rect_sum_le_phase_budget hn hM1 q tWin hpt
+      rwa [show ((Real.toNNReal (1 / (n : ℝ) ^ 2) : ℝ≥0) : ℝ≥0∞)
+          = ENNReal.ofReal (1 / (n : ℝ) ^ 2) from by rw [ENNReal.ofReal]])
+
 end DrainCalibration
 
 end ExactMajority

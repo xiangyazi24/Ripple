@@ -2527,3 +2527,90 @@ The global form is `εEntry + εside` over `τ < (L+1)·Mhour` (`hside_concrete_
 
 3. **The eight named feeders** `εQ εfloor εP εB εge3 εno3 εcpos εsucc` inside `εside` remain the
    genuine §-engine residuals carried from B-12 (unchanged by D-5).
+
+---
+
+## Phase D-6 — the per-phase drain calibration (DrainCalibration.lean)
+
+Landed 2026-06-10 (commits 0d5d29e5, 74c61b61, 6a321f04, eadfe181 on `main`).
+New file `Probability/DrainCalibration.lean`. 0-sorry, axiom-clean
+(`[propext, Classical.choice, Quot.sound]` per theorem), single-file `lake env lean`
+compiled; oleans staged into `.lake/build/lib/lean/`.
+
+### What this delivers
+
+Every phase drain instance is built on `OneSidedCancel.crude_PhaseConvergenceW` (form b,
+single uniform rate `q : ℝ≥0∞`) or `OneSidedCancel.levels_PhaseConvergenceW` (form a,
+per-level rate family `q : ℕ → ℝ≥0∞`).  Both carry the failure-budget hypothesis `hε`:
+
+* form (b): `hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)`;
+* form (a): `hε : (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) : ℝ≥0∞) ≤ (ε : ℝ≥0∞)`.
+
+D-6 CALIBRATES `hε` (and only `hε`) at concrete constants.  The per-step drain bound
+`hstep`/`hdrop` and the α-floor it encodes are NOT discharged — they stay carried as
+upstream named inputs (provenance table below).
+
+### Generic atoms
+
+| theorem | statement (shape) |
+|---|---|
+| `rect_pow_le_budget` | `0≤q≤1−α·m/n`, `1≤M₀≤n`, `0<α≤1`, `T≥(3/α)(n/m)log n` ⊢ `q^T ≤ 1/(M₀ n²)` (ℝ). Route: `q≤1−u≤exp(−u)` (`Real.add_one_le_exp`), `q^T≤exp(−uT)` (`pow_le_pow_left₀`,`Real.exp_nat_mul`), `uT≥3log n`, `exp(−3log n)=1/n³` (`Real.exp_log`), `1/n³≤1/(M₀n²)`. |
+| `budgetNN`,`coe_budgetNN`,`budgetNN_le_inv_sq` | `ε := (1/(M₀n²)).toNNReal`; cast to `ofReal(1/(M₀n²))`; `≤ ofReal(1/n²)` when `1≤M₀`. |
+| `rect_pow_le_budget_enn` | ENNReal bridge: `(ofReal q_r)^T ≤ (budgetNN M₀ n : ℝ≥0∞)` — the form-(b) `hε` shape. |
+| `rect_sum_le_phase_budget` | each `(q m)^(tWin m) ≤ budgetNN M₀ n` ⊢ `∑_{Icc 1 M₀} ≤ ofReal(1/n²)` (`Finset.sum_le_card_nsmul`, `card_Icc=M₀`, `M₀·1/(M₀n²)=1/n²`) — the form-(a) `hε` shape. |
+
+### Calibrated instances inventory
+
+All produce `PhaseConvergenceW (NonuniformMajority L K).transitionKernel` with the carried
+drain floor as a hypothesis and the budget `hε` discharged; final ε is `budgetNN M₀ n ≤ 1/n²`
+(Phase 5 adds the separate carried concentration `εConc`).
+
+| corollary | engine call | potential / window | α floor | horizon t |
+|---|---|---|---|---|
+| `phase1Convergence_calibrated` | `Phase1Convergence.phase1Convergence` (form b) | `extremeU` / `Phase1AllMain` | `1/3` | `≥(3/α)·n·log n` |
+| `phase5Convergence_calibrated` | `Phase5Convergence.phase5Convergence` (form b + εConc/hConc) | `unsampledReserveU` / `Phase5AllWin` | `23/75` | `≥(3/α)·n·log n` |
+| `phase6Convergence_calibrated` | `Phase6Convergence.phase6Convergence'` (form a, level) | `highMass l` / `Phase6Win` | `ρ₆` (per level) | per-level `tWin m`, summed |
+| `phase7Convergence_calibrated` | `Phase7Convergence.phase7Convergence''` (form b) | `classMassN σ` / `Inv7Sum` | `4/15` | `≥(3/α)·n·log n` |
+| `phase8Convergence_calibrated` | `Phase8Convergence.phase8Convergence` (form b) | `minorityU σ` / `Phase8AllMain` | `1/5` | `≥(3/α)·n·log n` |
+
+The corollaries are RATE-GENERIC: the caller supplies a concrete `q_r ≤ 1 − α·(1/n)` (the
+slowest level `m=1` rate) together with the carried `hstep`; the budget is discharged.
+
+### The floors' provenance table (what remains named)
+
+The α floor is the honest per-step drain fraction.  It enters ONLY through the carried
+`hstep`/`hdrop`; D-6 does not derive it.  Provenance (the upstream Pre fact that supplies it):
+
+| phase | floor | numeric α | provenance (carried, NOT discharged in D-6) |
+|---|---|---|---|
+| 1 | main-pair rectangle `mainCount ≥ n/3` | `1/3` | `RoleSplitWindows` / Lemma 5.2 main-count concentration |
+| 5 | biased-main `≥ 0.92·mainCount ≥ 23n/75` | `23/75` | Theorem 6.2 biased structure (`biasedMainClassU`) |
+| 6 | band-top reserve rectangle `reserveClassCount ≥ ρ₆·n` | `ρ₆` | `ReserveSampleGood K₀` (Phase-5 `sampledReserveClassU`) |
+| 7 | elimGap1 `≥ 0.8·mainCount ≥ 4n/15` | `4/15` | Lemma 7.4 `0.8|M|` elimination gap |
+| 8 | non-full-majority `≥ (0.8−0.2)|M| ≥ n/5` | `1/5` | Lemma 7.4 `0.8|M|` minus Lemma 7.6 `0.2|M|` minority |
+
+### Calibrated vs carried
+
+* **Calibrated (discharged in D-6):** the failure budget `hε` of all five phases — turned
+  from "a drain rate `q` + horizon `t`" into "failure `≤ 1/n²`" (form b) / "level-sum `≤ 1/n²`"
+  (form a, Phase 6).
+* **Carried (still named upstream):** (i) the per-step drain floor `hstep`/`hdrop` for every
+  phase (the eliminator/reserve rectangle — the α floors above, the documented remaining
+  drain-rectangle atoms); (ii) Phase 5's sampling concentration `εConc`/`hConc`
+  (`ReserveSampleGood`, a separate atom, not a drain budget); (iii) Phase 5/6/7's structural
+  closure `hClosed` where the working window is not the FULL engine `InvClosed`
+  (Phase 8's `invClosed_phase8AllMain` and Phase 7''s `invClosed_Inv7Sum` ARE proved upstream
+  and need no carry).
+
+### Precise remaining gaps (for the drain layer)
+
+1. **The drain-rectangle `hstep`/`hdrop` derivations** — converting each provenance floor
+   (RoleSplit n/3, Thm 6.2 biased, ReserveSampleGood ρ₆, Lemma 7.4/7.6) into the concrete
+   `q_r ≤ 1 − α·m/n` bound.  The rectangle probability lemmas EXIST per phase
+   (`minorityU_drop_prob_rect`, `unsampledReserveU_drop_prob_rect5`, `highMass_drop_prob_rect6`,
+   `classMassN_drop_prob_rect7`, plus the `_hdrop_of_floor` packagers); what remains is feeding
+   the named upstream floor (the count lower bound `#elim ≥ α·n`-shape) into them.  This is the
+   documented remaining drain atom, unchanged by D-6.
+2. **The horizon-as-`⌈·⌉` discharge** — the corollaries take `hT : (3/α)(n/m)log n ≤ t` with `t`
+   an explicit ℕ; instantiating `t = ⌈(3/α)·(n/m)·log n⌉` and discharging `hT` via
+   `Nat.le_ceil` is a one-liner at the call site (no new content).

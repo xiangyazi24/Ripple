@@ -245,13 +245,19 @@ theorem sum_fst_interactionProb (c : Config Λ) (hc : 2 ≤ c.card) (g : Λ → 
       (∑ s₂ : Λ, g s₁ * ((c.interactionCount s₁ s₂ : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞)))
         = g s₁ * ((c.count s₁ * (c.card - 1) : ℕ) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
     intro s₁
-    simp_rw [mul_div_assoc']
-    rw [← Finset.sum_div]
-    congr 1
-    rw [← Finset.mul_sum]
-    congr 1
-    rw [← Nat.cast_sum]
-    exact_mod_cast congrArg (Nat.cast : ℕ → ℝ≥0∞) (Config.sum_interactionCount_right c s₁)
+    have hcount : (∑ s₂ : Λ, (c.interactionCount s₁ s₂ : ℝ≥0∞))
+        = ((c.count s₁ * (c.card - 1) : ℕ) : ℝ≥0∞) := by
+      rw [← Nat.cast_sum]
+      exact_mod_cast congrArg (Nat.cast : ℕ → ℝ≥0∞) (Config.sum_interactionCount_right c s₁)
+    calc (∑ s₂ : Λ, g s₁ * ((c.interactionCount s₁ s₂ : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞)))
+        = ∑ s₂ : Λ, (g s₁ * (c.interactionCount s₁ s₂ : ℝ≥0∞)) / (c.totalPairs : ℝ≥0∞) := by
+          simp_rw [mul_div_assoc]
+      _ = (∑ s₂ : Λ, g s₁ * (c.interactionCount s₁ s₂ : ℝ≥0∞)) / (c.totalPairs : ℝ≥0∞) := by
+          simp_rw [div_eq_mul_inv, ← Finset.sum_mul]
+      _ = (g s₁ * ∑ s₂ : Λ, (c.interactionCount s₁ s₂ : ℝ≥0∞)) / (c.totalPairs : ℝ≥0∞) := by
+          rw [Finset.mul_sum]
+      _ = g s₁ * ((c.count s₁ * (c.card - 1) : ℕ) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+          rw [hcount]
   rw [Finset.sum_congr rfl (fun s₁ _ => hinner s₁)]
   -- totalPairs = card*(card-1); cancel (card-1)
   have hcard1 : (1 : ℕ) ≤ c.card := by omega
@@ -269,15 +275,15 @@ theorem sum_fst_interactionProb (c : Config Λ) (hc : 2 ≤ c.card) (g : Λ → 
         = g s₁ * (c.count s₁ : ℝ≥0∞) / (c.card : ℝ≥0∞) := by
     intro s₁
     rw [htp, Nat.cast_mul]
-    rw [mul_comm (c.card : ℝ≥0∞) ((c.card - 1 : ℕ) : ℝ≥0∞)]
-    rw [← mul_assoc, mul_div_assoc, mul_div_assoc]
-    congr 1
-    rw [mul_comm ((c.card - 1 : ℕ) : ℝ≥0∞) (c.card : ℝ≥0∞),
-        ← ENNReal.div_div, mul_div_assoc]
-    rw [ENNReal.div_self hc1ne hc1top, mul_one]
+    -- (g * (count*(card-1))) / (card*(card-1)) = (g*count)/card, cancel (card-1)
+    rw [show g s₁ * ((c.count s₁ : ℝ≥0∞) * ((c.card - 1 : ℕ) : ℝ≥0∞))
+          = (g s₁ * (c.count s₁ : ℝ≥0∞)) * ((c.card - 1 : ℕ) : ℝ≥0∞) by ring]
+    rw [ENNReal.mul_div_mul_right _ _ hc1ne hc1top]
   rw [Finset.sum_congr rfl (fun s₁ _ => hterm s₁)]
   -- ∑ g s₁ * count s₁ / card = (∑ g s₁ * count s₁) / card = sumOf g c / card
-  rw [← Finset.sum_div]
+  rw [show (∑ s₁ : Λ, g s₁ * (c.count s₁ : ℝ≥0∞) / (c.card : ℝ≥0∞))
+        = (∑ s₁ : Λ, g s₁ * (c.count s₁ : ℝ≥0∞)) / (c.card : ℝ≥0∞) from
+      by simp_rw [div_eq_mul_inv, ← Finset.sum_mul]]
   congr 1
   -- Config.sumOf g c = ∑_{s∈univ} g s * count s  (count = 0 off toFinset)
   unfold Config.sumOf
@@ -286,9 +292,32 @@ theorem sum_fst_interactionProb (c : Config Λ) (hc : 2 ≤ c.card) (g : Λ → 
   rw [← Finset.sum_subset (Finset.subset_univ c.toFinset)
         (fun x _ hx => by
           rw [Multiset.mem_toFinset] at hx
-          simp [Multiset.count_eq_zero_of_notMem hx])]
+          rw [Config.count, Multiset.count_eq_zero_of_notMem hx]
+          simp)]
   refine Finset.sum_congr rfl (fun s₁ _ => ?_)
   rw [Config.count, nsmul_eq_mul, mul_comm]
+
+/-- `interactionCount` is symmetric in its two state arguments. -/
+private lemma interactionCount_comm (c : Config Λ) (s₁ s₂ : Λ) :
+    c.interactionCount s₁ s₂ = c.interactionCount s₂ s₁ := by
+  unfold Config.interactionCount
+  by_cases h : s₁ = s₂
+  · subst h; rfl
+  · rw [if_neg h, if_neg (fun h' => h h'.symm), mul_comm]
+
+/-- **Second-coordinate interaction marginal.**  By the symmetry of
+`interactionCount`, summing any observable of the RESPONDER state against the
+interaction law also gives the configuration average `Config.sumOf g c / card`. -/
+theorem sum_snd_interactionProb (c : Config Λ) (hc : 2 ≤ c.card) (g : Λ → ℝ≥0∞) :
+    (∑ pair : Λ × Λ, g pair.2 * c.interactionProb pair.1 pair.2)
+      = Config.sumOf g c / (c.card : ℝ≥0∞) := by
+  rw [← sum_fst_interactionProb c hc g]
+  -- reindex by the swap (s₁,s₂) ↦ (s₂,s₁); interactionProb is symmetric.
+  rw [← Equiv.sum_comp (Equiv.prodComm Λ Λ)
+      (fun pair : Λ × Λ => g pair.1 * c.interactionProb pair.1 pair.2)]
+  refine Finset.sum_congr rfl (fun pair _ => ?_)
+  simp only [Equiv.prodComm_apply, Prod.fst_swap, Prod.snd_swap]
+  rw [Config.interactionProb, Config.interactionProb, interactionCount_comm]
 
 end SchedulerPairSum
 
