@@ -4,6 +4,30 @@ Source: ChatGPT Pro (family3, Ripple connector). 16,998 B via network. Verbatim 
 
 ---
 
+## STATUS (2026-06-10, post-delivery)
+
+- **Phase-5 Theorem-6.2 useful-Main floor** — DELIVERED (see `DOTY_POST63_CAMPAIGN.md`
+  "Theorem 6.2 useful-Main floor" section). Structure `Theorem62EntryHypotheses` carries the
+  `0.92·|M|` confinement; headline + wiring landed.
+- **Phase-7/8 eliminator-margin floor package** — DELIVERED in NEW `Probability/EliminatorMargins.lean`
+  (0-sorry, axioms ⊆ [propext, Classical.choice, Quot.sound]). Full record in
+  `DOTY_POST63_CAMPAIGN.md` "Phase-7/8 eliminator-margin floor package" section. Summary:
+  - Deterministic adapters (priority 1) — CLOSED: `exists_minorityAt_of_minorityU_pos`,
+    `exists_minorityAt7_of_minorityU_pos`, `exists_minorityAt7_of_classMassN_pos` (mass form),
+    `phase1_pullPos_floor_of_mainCount_and_saturated_bound`.
+  - §3 `lemma7_4_phase7_elimGap1_floor` + §4 `lemma7_6_phase8_elimAbove_floor` — minority-witness
+    half PROVED from landed potentials (`classMassN` / `minorityU` witness extraction); the
+    eliminator-count LOWER bound is carried as honest named fields of `Phase6To7Structure` /
+    `Phase7To8Structure` (the blueprint's placeholders, now concrete predicates). The landed
+    `Invariants.lemma_7_5/7_6` are survival UPPER bounds and do NOT export these counts (verified).
+  - §3/§4 wirings `phase7_hdrop_wired_from_lemma7_4` / `phase8_hdrop_wired_from_lemma7_6` — CLOSED.
+    The Phase-7/8 drop rectangles were already landed, so no new transition-probability content was
+    needed (confirms the blueprint "count-structure theorem, rectangle already landed").
+- **Phase-1 saturated-side averaging floor** (§1) — still the genuinely-new probabilistic remainder;
+  the arithmetic wrapper reduces the floor to the saturated-side bound `P + #saturatedPos ≤ mainCount`.
+
+---
+
 [intro]
 I’ll inspect the new floor-wiring file first, then trace each consumer back through the drain lemmas and existing invariant/phase posts to classify “adapter only” versus genuinely new probability.
 

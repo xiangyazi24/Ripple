@@ -102,13 +102,12 @@ theorem bias_dyadic_of_agentClassMass_pos {L K : ℕ} (σ : Sign) (a : AgentStat
     (h : 1 ≤ Phase7Convergence.agentClassMass (L := L) (K := K) σ a) :
     ∃ i : Fin (L + 1), a.bias = Bias.dyadic σ i := by
   unfold Phase7Convergence.agentClassMass Phase7Convergence.biasClassMass at h
-  cases hb : a.bias with
-  | zero => rw [hb] at h; simp at h
-  | dyadic s i =>
-      rw [hb] at h
-      by_cases hs : s = σ
-      · exact ⟨i, by rw [hb, hs]⟩
-      · simp only [hs, if_false] at h; omega
+  rcases hb : a.bias with _ | ⟨s, i⟩
+  · rw [hb] at h; simp at h
+  · rw [hb] at h
+    by_cases hs : s = σ
+    · exact ⟨i, by rw [hs]⟩
+    · simp only [hs, if_false] at h; omega
 
 /-- **Deterministic witness (Phase 7, mass form): nonzero σ-class MASS gives a level with a
 minority.**  The Phase-7 drain tracks `classMassN σ` (not the count, which can rise under a
@@ -130,7 +129,7 @@ theorem exists_minorityAt7_of_classMassN_pos {L K n : ℕ} (σ : Sign)
   -- extract a positive-mass agent: if every per-agent mass were `0` the total would be `0 < 1`.
   have hex : ∃ a ∈ c, 1 ≤ Phase7Convergence.agentClassMass (L := L) (K := K) σ a := by
     by_contra hno
-    push_neg at hno
+    simp only [not_exists, not_and, not_le] at hno
     -- each `agentClassMass ≥ 0` and `< 1` ⟹ `= 0`; the mass sum is then `0`, contradicting `≥ 1`.
     have hzero : Phase7Convergence.classMass (L := L) (K := K) σ c = 0 := by
       rw [Phase7Convergence.classMass]

@@ -3490,3 +3490,73 @@ content of Theorem 6.2.
 `phase5_hdrop_wired_from_theorem6_2` supplies the `PhaseFloors.phase5_hdrop_wired` floor directly
 from `Theorem62EntryHypotheses` + `P ≤ 23n/75`. The blueprint's `Theorem62EntryHypotheses`
 placeholder is now a concrete `structure`, with the chain mapping documented in the file header.
+
+## Phase-7/8 eliminator-margin floor package (`Probability/EliminatorMargins.lean`, NEW) — DELIVERED 2026-06-10
+
+Per `HANDOFF_FOUR_FLOORS.md` §3/§4. New append-only file; no existing file edited.
+Single-file `lake env lean Probability/EliminatorMargins.lean` EXIT_0; all 9 headlines
+`#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide.
+
+### Group 1 — deterministic minority-witness adapters (priority 1, fully closed)
+
+- `exists_minorityAt_of_minorityU_pos` (Phase 8): `1 ≤ minorityU σ c ⟹ ∃ i, 1 ≤ minorityAt σ i .sum count`.
+  Pure `Multiset.countP_pos` witness extraction (unfold `minorityU`, take the witness exponent `i`,
+  the witness agent lands in `minorityAt σ i` with `count ≥ 1`).
+- `exists_minorityAt7_of_minorityU_pos` (Phase 7 count form): same extraction targeting `minorityAt7`.
+- `exists_minorityAt7_of_classMassN_pos` (Phase 7 MASS form): the form the Phase-7 drain actually
+  consumes (the drain drives `classMassN σ → 0`, the count can RISE under a gap-2 fire). From
+  `Phase7AllMain` + `classMassN σ c ≥ 1`, the class-mass ledger gives a positive-mass agent
+  (`agentClassMass ≥ 1 ⟹ bias = dyadic σ i`); the window forces `role = main`, so it witnesses
+  `minorityAt7 σ i`. Helper `bias_dyadic_of_agentClassMass_pos`.
+- `phase1_pullPos_floor_of_mainCount_and_saturated_bound` (Phase 1 arithmetic wrapper): pure ℕ
+  `omega` from the landed `PhaseFloors.mainCount_eq_pullPos_add_saturatedPos` — from
+  `P + #saturatedPos ≤ mainCount` conclude `P ≤ #pullPos`. Reduces the missing link to the
+  saturated-side bound (the remaining Phase-1 averaging burden, named in HANDOFF §1).
+
+### Group 2 — eliminator-margin structures + floor lemmas (priority 3)
+
+Provenance audit (verified against the actual theorems, matching the `PhaseFloors` audit): the
+landed `Analysis/Invariants.lemma_7_5_phase_seven_minority` / `lemma_7_6_phase_eight_eliminates`
+are minority-survival/absorbing UPPER bounds (whp `1−O(1/n²)` that no minority survives), NOT
+eliminator-count LOWER bounds. So the eliminator floors `elimGap1 ≥ E` / `elimAbove ≥ E` are
+genuinely not derivable from a landed Post.
+
+Per discipline ("define the predicate honestly, prove what IS derivable, carry the precise
+remainder named"):
+
+- `Phase6To7Structure σ E c` / `Phase7To8Structure σ E c` are honest carriers of EXACTLY the
+  Doty Lemma-7.4 / 7.6 eliminator margin (the precise named remainder):
+  - `Phase6To7Structure`: every minority level `j` (`1 ≤ #minorityAt7 σ j`) has a gap-1 partner
+    level `i = j−1` with `E ≤ #elimGap1 σ i`.
+  - `Phase7To8Structure`: every minority level `i` (`1 ≤ #minorityAt σ i`) has `E ≤ #elimAbove σ i`
+    (non-`full` σ-eliminators strictly above).
+- `lemma7_4_phase7_elimGap1_floor` (blueprint §3 shape): from `Phase7AllMain` + `Phase6To7Structure`
+  + `classMassN σ c ≥ 1`, derives the full existential `∃ i j, i+1=j ∧ 1 ≤ #minorityAt7 σ j ∧
+    E ≤ #elimGap1 σ i`. The minority-witness half is PROVED (Group 1 mass-form witness); the
+    eliminator half is the carried structure field.
+- `lemma7_6_phase8_elimAbove_floor` (blueprint §4 shape): from `Phase7To8Structure` at a given
+  minority level `i`, conclude `E ≤ #elimAbove σ i`. (The `minorityAt ≥ 1` witness for the level
+  comes from Group 1's `exists_minorityAt_of_minorityU_pos`.)
+
+The paper-constant real bounds (`E ≤ 4n/15`, `E ≤ n/5`) are carried as documenting hypotheses.
+
+### Group 3 — wiring adapters (blueprint exact shapes)
+
+- `phase7_hdrop_wired_from_lemma7_4`: repackages the existential gap-1 floor into
+  `PhaseFloors.phase7_hdrop_wired`.
+- `phase8_hdrop_wired_from_lemma7_6`: repackages the existential above-level floor into
+  `PhaseFloors.phase8_hdrop_wired`.
+
+### Closed vs the precise named remainder
+
+- **CLOSED (proven, axiom-clean):** all four Group-1 deterministic adapters; both Group-2 floor
+  lemmas' minority-witness halves; both Group-3 wirings; the helper lemmas. The Phase-7/8 drop
+  rectangles were already landed (`phase7/8_drop_floor_of_struct` in `DrainThreading`), so no new
+  transition-probability content was needed — confirming the blueprint's "count-structure theorem,
+  rectangle already landed" classification.
+- **CARRIED (precise named remainder):** the eliminator-count LOWER bounds themselves — the
+  `Phase6To7Structure` gap-1 margin (`E ≤ #elimGap1 σ (j−1)` at each minority level `j`) and the
+  `Phase7To8Structure` above-level margin (`E ≤ #elimAbove σ i` at each minority level `i`). These
+  are the Doty Lemma 7.4 `0.8·|M|` / Lemma 7.6 `0.8|M|−0.2|M|` eliminator-majority floors, which
+  no landed Post exports (the landed Lemmas 7.5/7.6 are survival upper bounds). They are now
+  honest named predicate fields, not faked.
