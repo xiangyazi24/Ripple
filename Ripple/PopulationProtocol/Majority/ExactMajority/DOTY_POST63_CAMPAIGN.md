@@ -2683,3 +2683,59 @@ the prior phase's Post invariant into each phase's start — the Phase-D composi
 drain-layer atom.  All drain-layer mathematics (rule → per-cell drop → rectangle → drop-prob →
 engine `hdrop`/`hstep`) is now FULLY DISCHARGED for all five phases; only the upstream-Post
 count-floor wiring (and the crude-vs-levels engine choice noted above) remains for assembly.
+
+## Phase C-0w12..21 record — Gap-1 affine scheduler drift DISCHARGED (2026-06-10)
+
+Relay on `Probability/Phase0Window.lean`, continuing the Phase-0 timing half.  The
+quantitative scheduler drift (Gap 1) is now PROVEN as an affine one-step drift on the
+phase-0 window, plus its matching immigration tail engine.  All results 0-sorry,
+axiom-clean (⊆ propext/Classical.choice/Quot.sound), single-file compiled.
+
+**The affine drift (capstone `clockCounterPotential_drift_affine`):**
+  `∫ Φ_s dK(c) ≤ ofReal(1 + 2(eˢ−1)/n)·Φ_s(c) + e^{−s·50(L+1)}` on `allPhase0`.
+Multiplicative rate `1 + 2(eˢ−1)/n` PLUS one additive fresh-clock immigration per step.
+Built bottom-up (commit SHAs):
+- `0f393fb7` C-0w12: non-clock–clock per-pair ledger (`clockSummand_full`, L/R
+  structural `Phase0Transition_{left,right}_summand_not_both`, combined
+  `Phase0Transition_summand_not_both_clock`: output block ≤ source + fresh).
+- `8ac7d83f` C-0w13: universal per-pair output bound `clockSummand_pair_le`
+  (clock–clock exact eˢ + non-cc bumped via eˢ≥1) + `Transition_summand_eq_phase0`.
+- `296a9fee` C-0w14: first-coordinate interaction marginal `sum_fst_interactionProb`
+  (∑ g(pair.1)·prob = sumOf g c / card — the scheduler 1/n-marginal).
+- `5355523f` C-0w15: second-coordinate marginal `sum_snd_interactionProb` (via
+  `interactionCount_comm` + prodComm reindex).
+- `88ebea87` C-0w16: per-pair potential bound `clockCounterPotential_stepOrSelf_le`
+  (Φ(step) ≤ Φ(c) + (eˢ−1)·pair-block + fresh; applicable via localized splits).
+- `2e040dd8` C-0w17: CAPSTONE `clockCounterPotential_drift_affine` (pair-sum + 2
+  marginals collapse to 2(eˢ−1)/n + 1 fresh/step via ∑interactionProb=1).
+
+**The affine tail engine (commit `a5b1bb49` C-0w18):**
+- `lintegral_decay_affine_on_absorbing`: `∫Φ d(Kᵗ)c₀ ≤ aᵗ·Φ(c₀) + b·∑_{i<t}aⁱ` (the
+  immigration analogue of `WindowConcentration.lintegral_decay_on_absorbing`, which
+  only handles the multiplicative b=0 case).
+- `phase0_window_tail_affine`: Markov tail `(Kᵗ)c₀{¬Post} ≤ (aᵗΦ(c₀)+b·∑aⁱ)/θ`.
+The affine `+b` is essential (NOT absorbable): at a clock-free phase-0 start Φ=0 while
+b>0, so no multiplicative rate holds.  Numerics close with slack: aᵗΦ₀ ≤ e^{−45(L+1)}
+(`phase0_numerics_real`); b·∑aⁱ ≤ n(L+1)·e^{−50(L+1)}·e^{2(e−1)(L+1)} ≤ e^{−44(L+1)}.
+
+**Route (a) strengthening (commit `33ca78c8` C-0w20):** the affine drift now holds on
+`allPhase0` ALONE — `clockSummand_pair_le` no longer needs the positive-counter
+hypotheses.  At a counter-0 clock the source summand is e^0=1 and the Rule-5
+`advancePhaseWithInit` output summand is ≤1, so the per-side bound
+`summand(δ_i) ≤ eˢ·summand(r_i)` holds at ANY counter
+(`clockSummand_clock_clock_{left,right}_le` + `clockSummand_le_one`).  Hence the
+downstream relay's `hdrift` is discharged against any absorbing `Q ⊆ allPhase0` — no
+`noClockAtZero` side condition.
+
+**REMAINING — the absorbing-window bridge (the one structural input still open):**
+`allPhase0` itself is NOT `stepDistOrSelf`-absorbing (Gap 2: preserved one step w.p.1
+only while `noClockAtZero` — the protocol genuinely leaves phase 0 once a clock hits
+counter 0).  The affine tail engine needs an absorbing `Q` on which the drift holds.
+The fix (documented in-file): supply an absorbing `Q ⊆ allPhase0` (a `RoleSplitGood`-
+style count invariant — count-only role splits ARE absorbing — implying `allPhase0`
+along the surviving trajectory), feed `clockCounterPotential_drift_affine` as `hdrift`,
+run `phase0_window_tail_affine` (Post=`noClockAtZero`, θ=1, a=ofReal(1+2(e−1)/n),
+b=e^{−50(L+1)}, Φ(c₀)≤n·e^{−50(L+1)} via `clockCounterPotential_init_le`) for the
+per-τ `hτ`, then `allPhase0_window_whp` (Gap 2) assembles.  The missing Lean object is
+the `Q ⊆ allPhase0` absorbing witness, which lives in the role-split layer (not in
+Phase0Window.lean).  Commits `9dec6f8d`/`2ecc36ae` record the in-file gap note + header.

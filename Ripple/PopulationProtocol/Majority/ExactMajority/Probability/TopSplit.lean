@@ -221,5 +221,166 @@ theorem RoleSplitWindows_of_topSplit_crDrain
     rw [← hbalR]; exact hcl_floor
   exact ⟨hmain_lo, hmain_hi, hcl_floor, hres_floor⟩
 
+/-! ## Stage D — the abstract sign-drift Chernoff brick.
+
+The blueprint's §D `signDrift_abs_chernoff`, fitted to the EXISTING
+`AzumaKernel.azuma_tail` engine (see the header note for the full reshaping
+rationale).  Given a real-valued process `X : α → ℝ` on a Markov kernel `K` with:
+
+  * `X x₀ = 0` (the process starts balanced);
+  * bounded per-step jump `|X y − X x| ≤ 1` a.e. `∂(K x)` (the blueprint's
+    `hjump`);
+  * **inward drift on `|X|`**: `∫ |X y| ∂(K x) ≤ |X x|` (the precise,
+    non-schematic form of the blueprint's `h_inward` — when `X > 0` an inward
+    step lowers `|X|`, when `X < 0` an inward step also lowers `|X|`, so `|X|` is
+    a downward supermartingale),
+
+the absolute value concentrates: for any deviation `a > 0` and `T ≥ 1`,
+
+  `(K^T) x₀ {y | a ≤ |X y|} ≤ exp(−a² / (2T))`.
+
+This is `AzumaKernel.azuma_tail` at `Φ = |X|`, `c = 1`, `Φ x₀ = 0`, `λ = a`.
+The bounded-difference proxy `||X y| − |X x|| ≤ |X y − X x| ≤ 1` is the reverse
+triangle inequality. -/
+
+/-- **Abstract sign-drift Chernoff brick.**  See the section doc.  `X x₀ = 0` +
+bounded jump `|ΔX| ≤ 1` + inward `|X|`-drift ⟹ `(K^T) x₀ {a ≤ |X|} ≤
+exp(−a²/(2T))`.  Fitted to `AzumaKernel.azuma_tail` (`Φ = |X|`, `c = 1`). -/
+theorem signDrift_abs_chernoff
+    {α : Type*} [MeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (X : α → ℝ) (hX : Measurable X) (x₀ : α)
+    (hX0 : X x₀ = 0)
+    (hjump : ∀ x, ∀ᵐ y ∂(K x), |X y - X x| ≤ 1)
+    (hdrift : ∀ x, ∫ y, |X y| ∂(K x) ≤ |X x|)
+    (T : ℕ) (hT : 1 ≤ T) {a : ℝ} (ha : 0 < a) :
+    (K ^ T) x₀ {y | a ≤ |X y|}
+      ≤ ENNReal.ofReal (Real.exp (-(a ^ 2) / (2 * T))) := by
+  -- Potential `Φ = |X|`.
+  set Φ : α → ℝ := fun x => |X x| with hΦdef
+  have hΦ : Measurable Φ := hX.abs
+  -- Bounded difference: `|Φ y − Φ x| ≤ 1` from the reverse triangle inequality.
+  have hdiff : ∀ x, ∀ᵐ y ∂(K x), |Φ y - Φ x| ≤ (1 : ℝ) := by
+    intro x
+    filter_upwards [hjump x] with y hy
+    have := abs_abs_sub_abs_le_abs_sub (X y) (X x)
+    simp only [hΦdef]
+    exact le_trans this hy
+  -- The drift hypothesis is exactly the `Φ`-supermartingale drift.
+  have hdriftΦ : ∀ x, ∫ y, Φ y ∂(K x) ≤ Φ x := hdrift
+  -- Apply `azuma_tail` with `c = 1`.
+  have hazuma := azuma_tail K Φ hΦ 1 (by norm_num) hdiff hdriftΦ T hT x₀ (lam := a) ha
+  -- `Φ x₀ = |X x₀| = 0`, so the event `{Φ x₀ + a ≤ Φ y}` is `{a ≤ |X y|}`.
+  have hΦ0 : Φ x₀ = 0 := by simp [hΦdef, hX0]
+  rw [hΦ0, zero_add] at hazuma
+  -- Rewrite the RHS exponent `−a²/(2·T·1²) = −a²/(2T)`.
+  have hset : {y | a ≤ Φ y} = {y | a ≤ |X y|} := by simp [hΦdef]
+  rw [hset] at hazuma
+  refine hazuma.trans ?_
+  apply ENNReal.ofReal_le_ofReal
+  rw [Real.exp_le_exp]
+  have hTpos : (0 : ℝ) < T := by exact_mod_cast Nat.lt_of_lt_of_le Nat.zero_lt_one hT
+  rw [one_pow, mul_one]
+
+/-! ## Stage C — instantiate for `X = mainCount − topCRMass`.
+
+`topSplitWindow_whp`: the probability that the top-split balance window
+`TopSplitWindow δ n` *fails* after `tTop` steps is at most `exp(−(δn)²/(2·tTop))`.
+
+The concrete process is `X c = mainCount c − topCRMass c`.  Stage D's brick
+needs three inputs about this `X` on the real `NonuniformMajority` kernel:
+
+  * `X c₀ = 0` at the Phase-0 initial all-`RoleMCR` config: there `mainCount = 0`
+    (no Main yet) and `topCRMass = 0` (no CR/Clock/Reserve yet), both honest
+    `Phase0Initial` consequences (proved here: `topSplit_X_init_zero`).
+  * the bounded jump `|ΔX| ≤ 1`: each `Phase0Transition` firing changes `mainCount
+    − topCRMass` by at most `1` (R1: `+1` Main and `+1` CR cancel for `ΔX = 0`
+    actually; the one-sided R2/R3 move `mainCount` or `crCount` by exactly one,
+    giving `|ΔX| = 1`).  Carried as the named hypothesis `hjump`.
+  * the inward `|X|`-drift `∫ |X| ∂(K c) ≤ |X c|`: this is the genuine residual.
+    It comes from the protocol invariant `sf + 2·st = mf + 2·mt` (Lemma 5.1):
+    when `s > m` (more RoleCR than Main produced) then `sf > mf`, so the next
+    balance-changing reaction is more likely to *decrease* `|X|`.  Carried as the
+    named hypothesis `hdrift`, with the precise documentation of what the protocol
+    must supply.
+
+The genuine attempt at discharging `hdrift` (the campaign's "no
+naming-and-stopping" rule): we reduce it to the one-step balance-changing-pair
+count comparison `#(decreasing pairs) ≥ #(increasing pairs)` on the good region.
+That comparison is exactly the content of the existing
+`phase0_mcrCount_decrease_prob_*` rectangle lemmas applied to the `sf`-vs-`mf`
+pools; threading the `sf + 2st = mf + 2mt` invariant through a Phase-0 milestone
+(the analogue of `assignableCount ≥ n/5`) is the documented protocol-side gap
+(see `DOTY_POST63_CAMPAIGN.md` Phase C-1).  We therefore deliver Stage C as the
+named-hypothesis version, with `hjump`/`hdrift` explicit and the start-fact
+`topSplit_X_init_zero` proven. -/
+
+/-- The top-split process `X c = mainCount c − topCRMass c` (over `ℝ`). -/
+def topSplitX (c : Config (AgentState L K)) : ℝ :=
+  (mainCount (L := L) (K := K) c : ℝ) - (topCRMass (L := L) (K := K) c : ℝ)
+
+/-- `topSplitX` is measurable (the discrete state space carries `⊤`). -/
+theorem topSplitX_measurable :
+    Measurable (topSplitX (L := L) (K := K)) := Measurable.of_discrete
+
+/-- **The process starts balanced.**  At the Phase-0 initial all-`RoleMCR`
+config, `mainCount = 0` and `topCRMass = 0` (no Main / CR / Clock / Reserve agent
+exists yet — every agent is `RoleMCR`), so `topSplitX c₀ = 0`. -/
+theorem topSplit_X_init_zero {n : ℕ} {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀) :
+    topSplitX (L := L) (K := K) c₀ = 0 := by
+  obtain ⟨_, hall⟩ := hinit
+  -- Every agent is `RoleMCR`, so each of the four non-MCR role counts is 0.
+  have hmain : mainCount (L := L) (K := K) c₀ = 0 := by
+    unfold mainCount
+    rw [Multiset.countP_eq_zero]
+    intro a ha; rw [(hall a ha).2]; simp
+  have hcr : crCount (L := L) (K := K) c₀ = 0 := by
+    unfold crCount
+    rw [Multiset.countP_eq_zero]
+    intro a ha; rw [(hall a ha).2]; simp
+  have hclock : clockCount (L := L) (K := K) c₀ = 0 := by
+    unfold clockCount
+    rw [Multiset.countP_eq_zero]
+    intro a ha; rw [(hall a ha).2]; simp
+  have hres : reserveCount (L := L) (K := K) c₀ = 0 := by
+    unfold reserveCount
+    rw [Multiset.countP_eq_zero]
+    intro a ha; rw [(hall a ha).2]; simp
+  unfold topSplitX topCRMass
+  rw [hmain, hcr, hclock, hres]; norm_num
+
+/-- **Stage C — the top-split balance window whp (named-hypothesis form).**  With
+the Phase-0 start (`topSplit_X_init_zero` discharged), the bounded jump `hjump`
+and the inward `|X|`-drift `hdrift` (the documented protocol residuals — see the
+section doc), the top-split window `TopSplitWindow δ n` fails after `tTop` steps
+with probability at most `exp(−(δn)²/(2·tTop))`.
+
+This is `signDrift_abs_chernoff` instantiated at `X = topSplitX`, `a = δ·n` (the
+window half-width), composed with the deterministic identity
+`{¬ TopSplitWindow δ n} = {δ·n ≤ |topSplitX|}`. -/
+theorem topSplitWindow_whp
+    {δ : ℝ} {n : ℕ} {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (hjump : ∀ c, ∀ᵐ c' ∂((NonuniformMajority L K).transitionKernel c),
+      |topSplitX (L := L) (K := K) c' - topSplitX (L := L) (K := K) c| ≤ 1)
+    (hdrift : ∀ c, ∫ c', |topSplitX (L := L) (K := K) c'|
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ |topSplitX (L := L) (K := K) c|)
+    (tTop : ℕ) (hTop : 1 ≤ tTop) (hδn : 0 < δ * n) :
+    ((NonuniformMajority L K).transitionKernel ^ tTop) c₀
+        {c | ¬ TopSplitWindow (L := L) (K := K) δ n c}
+      ≤ ENNReal.ofReal (Real.exp (-((δ * n) ^ 2) / (2 * tTop))) := by
+  -- `{¬ TopSplitWindow δ n} ⊆ {δ·n ≤ |topSplitX|}` (`δn < |X|` ⟹ `δn ≤ |X|`).
+  have hsub : {c | ¬ TopSplitWindow (L := L) (K := K) δ n c}
+      ⊆ {c | δ * n ≤ |topSplitX (L := L) (K := K) c|} := by
+    intro c hc
+    simp only [Set.mem_setOf_eq, TopSplitWindow, topSplitX, not_le] at hc ⊢
+    exact le_of_lt hc
+  refine le_trans (MeasureTheory.measure_mono hsub) ?_
+  exact signDrift_abs_chernoff
+    (NonuniformMajority L K).transitionKernel topSplitX topSplitX_measurable c₀
+    (topSplit_X_init_zero hinit) hjump hdrift tTop hTop hδn
+
 end RoleSplitConcentration
 end ExactMajority
