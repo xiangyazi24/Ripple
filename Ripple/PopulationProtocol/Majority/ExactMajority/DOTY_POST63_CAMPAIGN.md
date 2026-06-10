@@ -3796,3 +3796,72 @@ Quot.sound], 0 sorry/admit/axiom/native_decide):
   budget is proved) and `SurvivalBandAbove σ E c` (the surviving eliminator LOWER bound; landed
   `lemma_7_5/7_6` are minority-survival UPPER bounds only). Genuine attack: the `cancelSplit` gap-1
   preservation is PROVED from the frozen rule, not asserted.
+
+---
+
+## 2026-06-10 — E4 reachable-relative recovery ladder (`Probability/ReachableLadder.lean`)
+
+Per `HANDOFF_HLADDER.md` (ChatGPT Pro doctrine): make the E4 recovery surface
+reachability/invariant-relative, replacing `RecoveryBridges`' UNIVERSAL `hLadder` (over all
+of `StableDoneᶜ`, including synthetic garbage `AgentState` configs `init` can never reach)
+by a reachable-relative one. The all-backup route is DISHONEST (the protocol has no
+universal force-to-phase-10; clock-less states have no counter-drain route) — the
+paper-faithful reachable ladder stands. NEW append-only file; no existing file edited.
+Single-file `lake env lean … ReachableLadder.lean` EXIT_0; all seven headlines
+`#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide.
+Two commits (D1-2 reachability+`_on` split-geometric; D3-4 classifier+final E4).
+
+### Reachability notion (D1)
+
+Reused the repo's own kernel reachability `Protocol.Reachable`
+(= `Relation.ReflTransGen StepRel`); named `ReachableFrom L K init c`. The closure fact
+`hReachClosed` is now the THEOREM `reachableFrom_kernel_closed` — from the landed bridge
+`stepDistOrSelf_support_reachable` (one-step support point ⟹ deterministically reachable) +
+`ReflTransGen.trans`, through the generic kernel-power support-preservation template at
+`t = 1`. So the closure is discharged, not assumed.
+
+### `J`-relative split-geometric (D2)
+
+`expected_time_from_whp_and_recovery_on`: the invariant-relative analogue of
+`DotyExpectedTime.expected_time_from_whp_and_recovery`, mirroring `expectedHitting_seqcomp_on`.
+Built fresh `_on` block atoms (`bad_block_geometric_from_on`, `tail_le_block_on`,
+`expectedHitting_split_geometric_on`, `block_half_from_recovery_expected_on`) by assembling
+the landed `ExpectedHitting` `_on` engine (`bad_block_contracts_from_on`, `bad_antitone_le_on`,
+`pow_compl_inv_eq_zero_eh`, `bad_le_half_of_expectedHitting_on`). The whp start carries `J`;
+`J`'s one-step closure keeps every block restart inside `J`, so the Markov half-tail bound
+only ever needs the `J`-relative recovery cap.
+
+### Reachable recovery cap + `reachable_hLadder` classifier (D3)
+
+`doty_recovery_bound_via_ladder_on_reachable` (verbatim §4 shape): the recovery cap on
+reachable not-done states from a reachable-relative `hLadder`, gated by `ReachableFrom`,
+each per-state cap the `RecoveryBridges` Stage-3 telescope. `reachable_hLadder`: the §6
+4-way classifier `ReachablePhaseRegimeClassification` — a `Type`-valued inductive with the
+four §6 regime constructors (bigClock/tinyClock timed, phase10 majority/tie), each carrying
+its per-state `LadderData` keyed by the regime witness (the named E3/E2 caps documented per
+constructor: `timed_phase_progress_real_{big,tiny}Clock`,
+`phase10_expected_stabilization{,_tie}_O_nsq_log`). The classifier had to be `Type`-valued
+(carries `ℕ`/`LadderData`), so the §6 `Or`-branch became an eliminable-into-data inductive.
+
+### Final E4 (D4)
+
+`doty_expected_time_reachable`: conclusion identical to `doty_expected_time_via_ladder`
+(`E[T] ≤ (21·C0 + 4·Cbad)·n·(L+1)`), recovery half running the `_on` split-geometric with
+`J := ReachableFrom L K init` on the reachable not-done states; per-state caps from the
+reachable ladder telescope. Consumes the two honest residuals
+`ReachablePhaseRegimeClassification` + `ReachableClockFloors` instead of the universal
+`hLadder`.
+
+### Closed vs the precise named remainder (honest)
+
+- **CLOSED (proven, axiom-clean):** the entire reachability layer (D1, `hReachClosed` is a
+  theorem); the `J`-relative split-geometric chain (D2); the reachable recovery cap and the
+  classifier-extraction `reachable_hLadder` (D3); the final E4 assembly `doty_expected_time_reachable`
+  (D4, the whp composition + reachable-relative recovery + reachability closure).
+- **CARRIED (the two honest protocol residuals, precisely named):**
+  `ReachablePhaseRegimeClassification` (the deterministic 4-way classification of reachable
+  not-done states INTO a regime, WITH the per-state phase-ladder to `StableDone`) and
+  `ReachableClockFloors` (the Lemma-5.2 clock-floor propagation per timed branch). Discharge
+  = phase-regime classification of reachable configs + ladder-spine construction + Lemma 5.2
+  floor propagation — the documented future work. These are strictly weaker than the original
+  universal `hLadder`: they only ever speak about states `init` can actually reach.

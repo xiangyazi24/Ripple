@@ -312,3 +312,57 @@ The remaining protocol work is exactly:
 3. A reachable-relative E4 recovery theorem so `hLadder` only has to classify states that can actually occur from `init`.
 
 Everything else—seqcomp, ladder telescope, clock-role preservation after role split, and E3/E2 expected-time caps—is already in place.
+
+---
+
+## STATUS — LANDED (2026-06-10): `Probability/ReachableLadder.lean`
+
+All four deliverables implemented in the new append-only file
+`Probability/ReachableLadder.lean` (no existing file edited). Single-file
+`lake env lean … ReachableLadder.lean` EXIT_0; all seven headlines `#print axioms`
+⊆ `[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide.
+
+**Reachability notion used.** The repo's own kernel reachability predicate
+`Protocol.Reachable` (= `Relation.ReflTransGen StepRel`, `Basic/PopulationProtocol.lean:89`),
+named `ReachableFrom L K init c := (NonuniformMajority L K).Reachable init c`. The
+closure fact `hReachClosed` is the THEOREM `reachableFrom_kernel_closed`: from the landed
+bridge `stepDistOrSelf_support_reachable` (every one-step support point is deterministically
+reachable) + `ReflTransGen.trans`, fed through the generic kernel-power support-preservation
+template at `t = 1`. So `hReachClosed` is no longer a hypothesis — it is discharged.
+
+1. **`ReachableFrom`, `reachableFrom_step_closed`, `reachableFrom_kernel_closed`** — the
+   reachability predicate + its one-step support/kernel closure.
+2. **`expected_time_from_whp_and_recovery_on`** — the `J`-invariant-relative split-geometric
+   E1 composition, mirroring `expectedHitting_seqcomp_on`'s `_on` pattern. Built from new
+   `_on` block atoms (`bad_block_geometric_from_on`, `tail_le_block_on`,
+   `expectedHitting_split_geometric_on`, `block_half_from_recovery_expected_on`) assembled
+   from the landed `ExpectedHitting` `_on` engine; `J`'s one-step closure keeps restarts
+   inside `J`, so the Markov half-tail only needs the `J`-relative recovery cap.
+3. **`doty_recovery_bound_via_ladder_on_reachable`** (verbatim §4 shape) + the
+   **`reachable_hLadder`** §6 skeleton: the 4-way classifier
+   `ReachablePhaseRegimeClassification` (a `Type`-valued inductive with the four §6 regime
+   constructors, each carrying its per-state `LadderData` keyed by the regime witness) and
+   the floor data `ReachableClockFloors`. `reachable_hLadder` extracts the carried ladder
+   per branch (the engine each branch uses is documented per constructor).
+4. **`doty_expected_time_reachable`** — the final E4 theorem, conclusion identical to
+   `doty_expected_time_via_ladder` (`E[T] ≤ (21·C0 + 4·Cbad)·n·(L+1)`), but the recovery
+   half runs `expected_time_from_whp_and_recovery_on` with `J := ReachableFrom L K init`
+   on the reachable not-done states, whose per-state caps are the reachable ladder telescope
+   (`doty_recovery_bound_via_ladder_on_reachable`). Consumes the two honest residuals
+   instead of the universal `hLadder`.
+
+**What the two residuals demand (precisely).**
+- `ReachablePhaseRegimeClassification L K n init b Brecover`: a deterministic 4-way
+  classification of every *reachable not-done* `b` into bigClock-timed / tinyClock-timed /
+  phase-10-majority / phase-10-tie, **with the per-state `LadderData` to `StableDone`** for
+  that regime. The ladder's first link is the named E3/E2 cap
+  (`timed_phase_progress_real_{big,tiny}Clock`, `phase10_expected_stabilization{,_tie}_O_nsq_log`);
+  the remaining links chain through the phase progress sets via the landed
+  seqcomp/telescope. Discharge = the phase-regime classification of reachable configs +
+  the ladder-spine construction (future work).
+- `ReachableClockFloors L K n init b Brecover`: the Lemma-5.2 clock-floor propagation per
+  timed branch (`n/5 ≤ mC` big, `2 ≤ mC` tiny), each propagating to every `AllClockGEpCard`
+  invariant state via `posClockCount`. Discharge = Lemma 5.2 floor propagation (future work).
+
+Everything above these two residuals — the reachability layer, the `_on` split-geometric,
+the seqcomp/telescope transfer (`RecoveryBridges`), the whp composition — is discharged.
