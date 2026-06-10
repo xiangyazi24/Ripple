@@ -725,9 +725,61 @@ phase keyed only on `mcrCount` cannot carry it. The faithful witness therefore n
 invariant threaded as a carried predicate (an `assignableCount c ≥ n/5` side condition,
 discharged by a separate epidemic-style monotonicity lemma — the analogue of `informedU`
 already used in Phase 2/4). This relay delivers the **count-level building blocks** (the
-one-sided assignable-target good set, the `assignableCount` definition, and the
-`Θ(M·assignable/n²)` mass bound over the real kernel) and wires what is mechanically
-reachable; the full carried-invariant milestone is the precise documented next gap.
+one-sided assignable-target good set, the `assignableCount` definition, and the real-kernel
+config-level `mcrCount` decrement for the one-sided good set) and wires what is mechanically
+reachable; the `Θ(M·assignable/n²)` interactionPMF mass bound and the carried-invariant
+milestone are the precise documented next gaps (exact signatures below).
+
+### Phase C-1 (relay 2) — DELIVERED LEMMAS (all 0-sorry, axioms ⊆ [propext,Classical.choice,Quot.sound])
+
+In `RoleSplitConcentration.lean` (after `phase0MilestonePhase_pMin_le_two_div`):
+- `IsAssignable a` / `assignableCount c` — the one-sided conversion target predicate/count.
+- `Phase0Transition_first_no_mcr_of_mcr_main` / `_of_mcr_cr` — Rule-2/Rule-3 s-side effect:
+  MCR meets unassigned Main / RoleCR ⟹ s-output non-MCR. (C-1a, C-1b)
+- `Phase0Transition_second_no_mcr_of_main_mcr` / `_of_cr_mcr` — t-side mirrors. (C-1b)
+- `mcrCount_singleton'` / `mcrCount_pair'` — local pair-count helpers (upstream is private).
+- `Phase0Transition_mcrCount_pair_lt_of_one_sided` + concrete `_of_mcr_assignable` /
+  `_of_assignable_mcr` — pair-level `1→0` `mcrCount` drop per one-sided conversion. (C-1c)
+- `phaseEpidemicUpdate_eq_self_of_both_phase0` + `Transition_roles_eq_phase0_of_both_phase0`
+  — both `Transition` wrappers are role-identities at phase 0. (C-1d)
+- `mcrCount_config_decrease_of_mcr_assignable` / `_of_assignable_mcr` — **real-kernel
+  config-level** `mcrCount` strict decrement for the one-sided good set, the analogue of
+  `mcrCount_config_decrease_of_phase0_mcr_pair` (Phase0Convergence) for the `Θ(M/n)` route. (C-1d/e)
+- `assignableCount_pred_iff` — Bool↔Prop bridge for the mass/Finset-filter route. (C-1f)
+Commits: C-1a 9ecbdc83 · C-1b 6aef813b · C-1c 1791b52c · C-1d e36b907d · C-1e fc42dce4 · C-1f 908d087e.
+
+### Phase C-1 (relay 2) — PRECISE REMAINING GAP (exact next-lemma signatures)
+
+The count-level chain is closed up to the **real-kernel config decrement**.  The mass bound
+and milestone assembly remain.  Exact next atoms:
+
+1. **Cross-class interaction-count sum** (the easy `s₁≠s₂` analogue of the private
+   `sum_interactionCount_mcr`):
+   `∑_{s₁ : role=mcr} ∑_{s₂ : assignable} c.interactionCount s₁ s₂ = mcrCount c · assignableCount c`.
+   Here `mcr ≠ main,cr ⟹ s₁≠s₂`, so each term is `count s₁ · count s₂` (NO `−1`), giving the
+   clean product.  Re-derive `mcrCount_singleton'`-style `sum_count = mcrCount`/`assignableCount`.
+
+2. **One-sided interactionPMF mass bound** (clone `interactionPMF_toMeasure_mcr_phase0_ge`):
+   `(c.interactionPMF hc).toMeasure {p | (p.1 mcr∧phase0∧p.2 assignable) ∨ (p.1 assignable∧p.2 mcr∧phase0) ∧ Applicable}
+     ≥ ofReal((2·M·assignable)/(n(n−1)))`  (factor 2 = both ordered directions).
+
+3. **Strengthened decrease prob** (clone `phase0_mcrCount_decrease_prob`, chaining #1+#2 through
+   `stepDistOrSelf_toMeasure_ge` + the config-decrement lemmas above):
+   `stepDistOrSelf c |>.toMeasure {c' | mcrCount c' < mcrCount c} ≥ ofReal((2·M·assignable)/(n(n−1)))`.
+
+4. **The carried `assignableCount ≥ n/5` invariant.** `assignableCount` is NOT a function of
+   `mcrCount`, so a milestone phase keyed on `mcrCount` alone cannot carry it.  Need an
+   epidemic-style monotonicity lemma (analogue of Phase-2/4 `informedU`): once `mcrCount < 2n/3`,
+   `assignableCount` is non-decreasing AND `≥ n/5` (Lemma 5.1's `s_f+m_f > n/5` Chernoff step —
+   this is the ONE genuinely probabilistic ingredient, a Chernoff/Azuma bound on the early-phase
+   split, not derivable by pure counting).  Thread it as a side predicate in a new milestone
+   phase `phase0MilestonePhaseOneSided` whose `p i = (2·M·(n/5))/(n(n−1)) = Θ(M/n)`, giving
+   `pMin = Θ(1/n)`, `meanTime = Σ_{M=2}^{n} (n(n−1))/(2·M·(n/5)) = Θ(n log n)`,
+   `pMin·meanTime = Θ(log n) ≥ log n` — **the potential the witness needs**.
+
+5. **Assemble `RoleSplitMilestone`** from `phase0MilestonePhaseOneSided` + the Stage-2 crCount
+   family (campaign gap 1) + `post_sound` (deterministic 1:1 counts) ⟹ `roleSplitTail_le_inv_sq`
+   ⟹ `phase0_roleSplit_whp_inv_sq`.
 
 ---
 

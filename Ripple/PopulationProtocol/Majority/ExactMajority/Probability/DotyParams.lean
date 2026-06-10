@@ -343,7 +343,7 @@ theorem windowedFrontProfile_whp_concrete (n : ℕ) (hn : N₀ ≤ n)
           {mc' | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc') : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc' : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc') ≤ aM n ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc') ≤ n / 10 ∧
             mc'.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc')}
         ≤ δ T)
     (dB eB tB : ℝ≥0∞)
@@ -377,7 +377,7 @@ theorem windowedFrontProfile_whp_concrete (n : ℕ) (hn : N₀ ≤ n)
     exact ⟨⟨hcardc, hP3, neg_params n hn c hcardc⟩, hwfp⟩
   refine le_trans (measure_mono hset) ?_
   exact windowedFrontProfile_whp_packaged (L := L) (K := K) (θn n) n (two_le n hn) (9/10) (w n)
-    (θ n) (θ_pos n hn) (fun _ => aM n) (fun _ => n_le_ten_aM n) δ hB
+    (θ n) (θ_pos n hn) δ hB
     (σ (L := L) (K := K) n) (σ_pos n hn) (KK L K) (hsmall_eq (L := L) (K := K) n hn)
     (tt n) Tcap hcap mc₀
     (fun T _ => h0_params n (9/10) mc₀ hcard hge3 hnotP3 T)
@@ -1245,26 +1245,11 @@ noncomputable def deltaB (n : ℕ) : ℝ≥0∞ :=
               * ((9/10 : ℝ) - Geff ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200))))))
 
 /-- **`hB_params`** — the two-regime discharge of `windowedFrontProfile_whp_concrete`'s carried `hB`
-at the concrete parameters (`σ := σw`, `δ := deltaB n`), capping at `aM n`.  Regime 1 is fully
-discharged via `hB_regime1` + reach + `perWindowDelta_uniform`; regime 2 via `hB_regime2`; the
-regime-2 cap reconciliation `hReg2Cap` (the documented window-exit single point) is named. -/
-theorem hB_params (n : ℕ) (hn : N₀ ≤ n)
-    (hReg2Cap : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T (θn n) n (9/10) mc₀ →
-      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
-      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
-      n < 10 * ⌈gC * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ)⌉₊ →
-      ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀
-          {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
-                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
-              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM n ∧
-            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
-        ≤ ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀
-          {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
-                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
-              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
-            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}) :
+at the concrete parameters (`σ := σw`, `δ := deltaB n`), capping at the window-aligned `⌊n/10⌋`
+(Phase B-5z, resolution b1).  Regime 1 is fully discharged via `hB_regime1` + reach (`⌊n/10⌋ ≤ aM n ≤
+ladderA`) + `perWindowDelta_uniform`; regime 2 via `hB_regime2` DIRECTLY (the floor cap `⌊n/10⌋`
+matches the carried cap — no `hReg2Cap` reconciliation needed). -/
+theorem hB_params (n : ℕ) (hn : N₀ ≤ n) :
     ∀ T, ∀ mc₀, recInv (L := L) (K := K) T (θn n) n (9/10) mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
       10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
@@ -1272,7 +1257,7 @@ theorem hB_params (n : ℕ) (hn : N₀ ≤ n)
           {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM n ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ deltaB n := by
   classical
@@ -1281,10 +1266,10 @@ theorem hB_params (n : ℕ) (hn : N₀ ≤ n)
   have hnpos : 0 < n := N₀_pos n hn
   have hθX : θn n ≤ X₀ := (hInv.2.2 hP3 hX).1
   by_cases hreg : 10 * ⌈gC * (X₀ : ℝ)⌉₊ ≤ n
-  · -- REGIME 1: ladderA cap, reach aM n ≤ ladderA X₀ n, then monotonize.
+  · -- REGIME 1: ladderA cap, reach n/10 ≤ ladderA X₀ n, then monotonize.
     have hbound := hB_regime1 n hn mc₀ T hInv hP3 hX hreg
-    -- aM n ≤ ladderA X₀ n (reach: aM n ≤ G^n·θn ≤ G^n·X₀ ≤ ladderA X₀ n).
-    have hreach : aM n ≤ ladderA X₀ n := by
+    -- n/10 ≤ aM n ≤ ladderA X₀ n (reach: aM n ≤ G^n·θn ≤ G^n·X₀ ≤ ladderA X₀ n).
+    have hreach : n / 10 ≤ ladderA X₀ n := by
       have h1 : (aM n : ℝ) ≤ (201/200 : ℝ) ^ n * (θn n : ℝ) := G_pow_n_reach n hn
       have h2 : (201/200 : ℝ) ^ n * (θn n : ℝ) ≤ (201/200 : ℝ) ^ n * (X₀ : ℝ) := by
         apply mul_le_mul_of_nonneg_left _ (by positivity)
@@ -1294,14 +1279,16 @@ theorem hB_params (n : ℕ) (hn : N₀ ≤ n)
         apply mul_le_mul_of_nonneg_left _ (by positivity)
         nlinarith [hg1, (by positivity : (0:ℝ) ≤ (X₀:ℝ))]
       have h4 : (201/200 : ℝ) ^ n * (gC * (X₀ : ℝ)) ≤ (ladderA X₀ n : ℝ) := ladderA_ge X₀ n
-      have : (aM n : ℝ) ≤ (ladderA X₀ n : ℝ) := by linarith [h1, h2, h3, h4]
-      exact_mod_cast this
-    -- measure_mono: {cap aM n} ⊆ {cap ladderA X₀ n}.
+      have haMlad : (aM n : ℝ) ≤ (ladderA X₀ n : ℝ) := by linarith [h1, h2, h3, h4]
+      have haMlad' : aM n ≤ ladderA X₀ n := by exact_mod_cast haMlad
+      have : n / 10 ≤ aM n := by unfold aM; omega
+      omega
+    -- measure_mono: {cap n/10} ⊆ {cap ladderA X₀ n}.
     have hmono : ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀
         {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
               (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
             < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM n ∧
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
           mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀
         {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
@@ -1317,11 +1304,10 @@ theorem hB_params (n : ℕ) (hn : N₀ ≤ n)
     exact perWindowDelta_uniform n hnpos σw (1/10) δgLocked
       ((9/10 : ℝ) * RWb - gC ^ 2 * ((9/10 : ℝ) - Geff ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)))
       n (θn n) X₀ σw_pos.le δgLocked_pos hAB_inflated hθX
-  · -- REGIME 2: floor cap ⌊n/10⌋, reconcile cap via hReg2Cap.
+  · -- REGIME 2: floor cap ⌊n/10⌋ — discharged directly by hB_regime2 (no reconciliation).
     push_neg at hreg
     have hbound := hB_regime2 n hn mc₀ T hInv hP3 hX hreg
-    have hrecon := hReg2Cap T mc₀ hInv hP3 hX hreg
-    refine le_trans hrecon (le_trans hbound ?_)
+    refine le_trans hbound ?_
     -- exp(−δgLocked·X₀+1/10) ≤ deltaB n (floor term, monotone X₀≥θn; slice term ≥ 0 added).
     unfold deltaB
     refine le_trans ?_ (le_add_right (le_refl _))
@@ -1336,13 +1322,15 @@ theorem hB_params (n : ℕ) (hn : N₀ ≤ n)
 
 `windowedFrontProfile_whp_concrete` with its carried `hB` supplied by `hB_params` (`δ := λ_, deltaB n`,
 `dB := deltaB n`, `hdB` trivial).  The remaining hypotheses are the standing campaign residuals:
-`heB` (the hour-escape mass, the doctrine's single named escape) and `htB` (the explicit taint tail),
-plus `hReg2Cap` (the regime-2 1-point cap reconciliation). -/
+`heB` (the hour-escape mass, the doctrine's single named escape) and `htB` (the explicit taint tail).
+The former regime-2 cap reconciliation `hReg2Cap` is GONE: the carried `hB` cap is now window-aligned
+at `⌊n/10⌋` (Phase B-5z, resolution b1), so `hB_regime2` discharges regime 2 directly. -/
 
 open ClockFrontProfile in
 /-- **`windowedFrontProfile_whp_final`** — `windowedFrontProfile_whp_concrete` with `hB` discharged by
 `hB_params`.  Remaining hypotheses: `N₀ ≤ n`, the all-clean Doty start, `Tcap`, the escape mass
-`heB`, the taint tail `htB`, and the regime-2 cap reconciliation `hReg2Cap`. -/
+`heB`, and the taint tail `htB`.  (The regime-2 cap reconciliation `hReg2Cap` is no longer needed —
+the `hB` cap is window-aligned at `⌊n/10⌋`, Phase B-5z resolution b1.) -/
 theorem windowedFrontProfile_whp_final (n : ℕ) (hn : N₀ ≤ n)
     (mc₀ : Config (MarkedAgent L K))
     (hcard : mc₀.card = n)
@@ -1350,22 +1338,6 @@ theorem windowedFrontProfile_whp_final (n : ℕ) (hn : N₀ ≤ n)
     (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
     (hclean : ∀ m ∈ mc₀, m.2 = false)
     (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
-    (hReg2Cap : ∀ T, ∀ mc₀', recInv (L := L) (K := K) T (θn n) n (9/10) mc₀' →
-      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀') →
-      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀') ≤ n →
-      n < 10 * ⌈gC * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀') : ℝ)⌉₊ →
-      ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀'
-          {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
-                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
-              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM n ∧
-            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
-        ≤ ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀'
-          {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
-                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
-              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
-            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)})
     (eB tB : ℝ≥0∞)
     (heB : ∀ T < Tcap,
       (GatedDrift.killK (markedK (L := L) (K := K) T (θn n))
@@ -1383,7 +1355,7 @@ theorem windowedFrontProfile_whp_final (n : ℕ) (hn : N₀ ≤ n)
           ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c}
       ≤ (Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * deltaB n + (eB + tB)) := by
   exact windowedFrontProfile_whp_concrete n hn mc₀ hcard hge3 hnotP3 hclean Tcap hcap
-    (fun _ => deltaB n) (hB_params n hn hReg2Cap)
+    (fun _ => deltaB n) (hB_params n hn)
     (deltaB n) eB tB (fun _ _ => le_refl _) heB htB
 
 /-! ## Part 15 — `goodFrontWidth_whp_final`: the moving-frame width invariant whp, `hB` discharged. -/
@@ -1399,22 +1371,6 @@ theorem goodFrontWidth_whp_final (n : ℕ) (hn : N₀ ≤ n)
     (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
     (hclean : ∀ m ∈ mc₀, m.2 = false)
     (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
-    (hReg2Cap : ∀ T, ∀ mc₀', recInv (L := L) (K := K) T (θn n) n (9/10) mc₀' →
-      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀') →
-      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀') ≤ n →
-      n < 10 * ⌈gC * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀') : ℝ)⌉₊ →
-      ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀'
-          {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
-                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
-              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM n ∧
-            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
-        ≤ ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀'
-          {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
-                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
-              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
-            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)})
     (eB tB : ℝ≥0∞)
     (heB : ∀ T < Tcap,
       (GatedDrift.killK (markedK (L := L) (K := K) T (θn n))
@@ -1450,7 +1406,7 @@ theorem goodFrontWidth_whp_final (n : ℕ) (hn : N₀ ≤ n)
         ∧ ¬ WindowedFrontProfile (L := L) (K := K) (θ n) c}
       ≤ (Tcap : ℝ≥0∞) * ((KK L K : ℝ≥0∞) * deltaB n + (eB + tB)) := by
     refine le_trans (measure_mono ?_)
-      (windowedFrontProfile_whp_final n hn mc₀ hcard hge3 hnotP3 hclean Tcap hcap hReg2Cap
+      (windowedFrontProfile_whp_final n hn mc₀ hcard hge3 hnotP3 hclean Tcap hcap
         eB tB heB htB)
     intro c hc
     exact ⟨⟨hc.1.1, hc.1.2.1⟩, hc.2⟩

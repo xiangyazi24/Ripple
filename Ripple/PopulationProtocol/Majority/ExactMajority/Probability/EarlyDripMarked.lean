@@ -4791,7 +4791,7 @@ def recInv (T θn n : ℕ) (cc : ℝ) (mc : Config (MarkedAgent L K)) : Prop :=
 probability that `recInv` fails after `w` steps is at most the recurrence-window bad-event bound
 `δ` (supplied, in the live case, by `per_window_delta`); the window-exit and region-exit failure
 modes are NULL (monotone/absorbing).  This is `checkpoint_composition`'s `hwindow` input. -/
-theorem window_failure_le (T θn n : ℕ) (cc : ℝ) (w : ℕ) (aM : ℕ) (haM : n ≤ 10 * aM)
+theorem window_failure_le (T θn n : ℕ) (cc : ℝ) (w : ℕ)
     (δ : ℝ≥0∞) (mc₀ : Config (MarkedAgent L K))
     (hInv : recInv (L := L) (K := K) T θn n cc mc₀)
     (hB : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -4800,7 +4800,7 @@ theorem window_failure_le (T θn n : ℕ) (cc : ℝ) (w : ℕ) (aM : ℕ) (haM :
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ) :
     ((markedK (L := L) (K := K) T θn) ^ w) mc₀
@@ -4862,7 +4862,7 @@ theorem window_failure_le (T θn n : ℕ) (cc : ℝ) (w : ℕ) (aM : ℕ) (haM :
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧
             AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}) := by
         intro mc hmc
@@ -4975,7 +4975,7 @@ theorem window_failure_le (T θn n : ℕ) (cc : ℝ) (w : ℕ) (aM : ℕ) (haM :
 /-- **The recurrence checkpoint composition** (brick 3.5e step 2 capstone): with a uniform
 per-window recurrence-bad bound `δ` over invariant window-open starts, the invariant fails by
 checkpoint `K·w` with probability at most `K·δ`. -/
-theorem recurrence_checkpoint (T θn n : ℕ) (cc : ℝ) (w aM : ℕ) (haM : n ≤ 10 * aM)
+theorem recurrence_checkpoint (T θn n : ℕ) (cc : ℝ) (w : ℕ)
     (δ : ℝ≥0∞)
     (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -4984,7 +4984,7 @@ theorem recurrence_checkpoint (T θn n : ℕ) (cc : ℝ) (w aM : ℕ) (haM : n �
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ)
     (KK : ℕ) (mc₀ : Config (MarkedAgent L K))
@@ -4993,7 +4993,7 @@ theorem recurrence_checkpoint (T θn n : ℕ) (cc : ℝ) (w aM : ℕ) (haM : n �
         {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ≤ (KK : ℝ≥0∞) * δ :=
   checkpoint_composition (markedK (L := L) (K := K) T θn)
     (recInv (L := L) (K := K) T θn n cc) w δ
-    (fun mc hmc => window_failure_le (L := L) (K := K) T θn n cc w aM haM δ mc hmc
+    (fun mc hmc => window_failure_le (L := L) (K := K) T θn n cc w δ mc hmc
       (fun hP3 hX => hB mc hmc hP3 hX))
     KK mc₀ h0
 
@@ -5122,7 +5122,7 @@ theorem front_bad_subset (T θn n : ℕ) (hn : 0 < n) (cc : ℝ) (tt : ℕ)
 start, at horizon `t = w·KK`, the probability that the level is in the recurrence window yet the
 front fails to square is at most the recurrence-checkpoint failure `KK·δ` plus the taint tail.  The
 mark-invariant failure mode is null (a.s.-preserved from the start). -/
-theorem front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM : ℕ) (haM : n ≤ 10 * aM)
+theorem front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ)
     (δ : ℝ≥0∞)
     (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -5131,7 +5131,7 @@ theorem front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM : ℕ)
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ)
     (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
@@ -5183,7 +5183,7 @@ theorem front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM : ℕ)
   refine le_trans (measure_union_le _ _) ?_
   refine add_le_add ?_ ?_
   · -- the recurrence-checkpoint failure ≤ KK·δ.
-    exact recurrence_checkpoint (L := L) (K := K) T θn n cc w aM haM δ hB KK mc₀ h0
+    exact recurrence_checkpoint (L := L) (K := K) T θn n cc w δ hB KK mc₀ h0
   · refine le_trans (measure_union_le _ _) ?_
     -- the MarkInv-failure mass is 0 (null), so the union ≤ taint tail + 0.
     have hmarknull : ((markedK (L := L) (K := K) T θn) ^ (w * KK)) mc₀
@@ -5229,7 +5229,7 @@ theorem markedFrontBad_eq_preimage (T n : ℕ) (cc : ℝ) (tt : ℕ) :
 recurrence failure (in the window) is bounded by `KK·δ` plus the (marked-world) hour-escape and
 taint tail.  Via `markedK_pow_erase`, the bound on the marked world transfers verbatim, since the
 event is erase-measurable. -/
-theorem real_front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM : ℕ) (haM : n ≤ 10 * aM)
+theorem real_front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ)
     (δ : ℝ≥0∞)
     (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -5238,7 +5238,7 @@ theorem real_front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM :
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ)
     (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
@@ -5261,7 +5261,7 @@ theorem real_front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM :
   rw [← markedK_pow_erase (L := L) (K := K) T θn (w * KK) mc₀
     (realFrontBad (L := L) (K := K) T n cc tt),
     ← markedFrontBad_eq_preimage (L := L) (K := K) T n cc tt]
-  exact front_squares_whp (L := L) (K := K) T θn n hn cc w aM haM δ hB σ hσ KK hsmall tt
+  exact front_squares_whp (L := L) (K := K) T θn n hn cc w δ hB σ hσ KK hsmall tt
     mc₀ h0 hmark
 
 /-! ## Part 35 — the level union (STEP 4 continued): union the per-level real-kernel failure over
@@ -5273,7 +5273,6 @@ the window, run-long. -/
 and the per-level checkpoint inputs, the real-kernel probability that SOME level `< Tcap` is in its
 recurrence window yet fails to square is at most the sum of the per-level bounds. -/
 theorem real_front_union (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ)
-    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
     (δ : ℕ → ℝ≥0∞)
     (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -5282,7 +5281,7 @@ theorem real_front_union (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ)
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ T)
     (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
@@ -5310,7 +5309,7 @@ theorem real_front_union (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ)
   apply Finset.sum_le_sum
   intro T hT
   rw [Finset.mem_range] at hT
-  exact real_front_squares_whp (L := L) (K := K) T θn n hn cc w (aM T) (haM T) (δ T)
+  exact real_front_squares_whp (L := L) (K := K) T θn n hn cc w (δ T)
     (hB T) σ hσ KK hsmall tt mc₀ (h0 T hT) (hmark T hT)
 
 /-! ## Part 36 — the `WindowedFrontProfile` bridge (STEP 4 deliverable): the complement of the
@@ -5385,7 +5384,6 @@ on which the negligibility holds at every floor-met level yet the windowed front
 and negligibility are carried as properties of the END config; their own whp control is the bulk
 epidemic / scale plug-in, supplied separately.) -/
 theorem windowedFrontProfile_whp (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ) (θ : ℝ) (hθpos : 0 < θ)
-    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
     (δ : ℕ → ℝ≥0∞)
     (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -5394,7 +5392,7 @@ theorem windowedFrontProfile_whp (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : �
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ T)
     (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
@@ -5439,7 +5437,7 @@ theorem windowedFrontProfile_whp (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : �
     rw [Set.mem_iUnion₂]
     exact ⟨T, Finset.mem_range.mpr hT, hbad⟩
   refine le_trans (measure_mono hsub) ?_
-  exact real_front_union (L := L) (K := K) θn n hn cc w aM haM δ hB σ hσ KK hsmall tt Tcap
+  exact real_front_union (L := L) (K := K) θn n hn cc w δ hB σ hσ KK hsmall tt Tcap
     mc₀ h0 hmark (w * KK) rfl
 
 /-! ## Part 38 — the initial-config start hypotheses (STEP 3, item 3): the all-clean,
@@ -5568,7 +5566,6 @@ front recurrence is at most the single term `Tcap · (KK·dB + eB + tB)` — an 
 exponential/polynomial form (each factor `n^{−ω(1)}` at the paper scales). -/
 theorem windowedFrontProfile_whp_packaged
     (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ) (θ : ℝ) (hθpos : 0 < θ)
-    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
     (δ : ℕ → ℝ≥0∞)
     (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -5577,7 +5574,7 @@ theorem windowedFrontProfile_whp_packaged
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ T)
     (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
@@ -5606,7 +5603,7 @@ theorem windowedFrontProfile_whp_packaged
                 ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
           ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c}
       ≤ (Tcap : ℝ≥0∞) * ((KK : ℝ≥0∞) * dB + (eB + tB)) := by
-  refine le_trans (windowedFrontProfile_whp (L := L) (K := K) θn n hn cc w θ hθpos aM haM δ hB
+  refine le_trans (windowedFrontProfile_whp (L := L) (K := K) θn n hn cc w θ hθpos δ hB
     σ hσ KK hsmall tt Tcap hcap mc₀ h0 hmark) ?_
   exact front_tail_sum_le KK Tcap δ
     (fun T => (GatedDrift.killK (markedK (L := L) (K := K) T θn)

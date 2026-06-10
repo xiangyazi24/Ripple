@@ -158,7 +158,7 @@ open ClockFrontProfile in
 the one at `w * KK` via `hsmall_mono`.  Everything else is `windowedFrontProfile_whp` verbatim at
 `KK := j`. -/
 theorem windowedFrontProfile_whp_checkpoint (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ) (θ : ℝ)
-    (hθpos : 0 < θ) (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T) (δ : ℕ → ℝ≥0∞)
+    (hθpos : 0 < θ) (δ : ℕ → ℝ≥0∞)
     (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
       10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
@@ -166,7 +166,7 @@ theorem windowedFrontProfile_whp_checkpoint (θn n : ℕ) (hn : 2 ≤ n) (cc : �
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ T)
     (σ : ℝ) (hσ : 0 < σ) (j KK : ℕ) (hjKK : j ≤ KK)
@@ -191,7 +191,7 @@ theorem windowedFrontProfile_whp_checkpoint (θn n : ℕ) (hn : 2 ≤ n) (cc : �
                   + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * j) * ((θn : ℝ) / (n : ℝ)) ^ 2
                       * ((w * j : ℕ) : ℝ)
                   - σ * ((tt + 1 : ℕ) : ℝ))))) :=
-  windowedFrontProfile_whp (L := L) (K := K) θn n hn cc w θ hθpos aM haM δ hB σ hσ j
+  windowedFrontProfile_whp (L := L) (K := K) θn n hn cc w θ hθpos δ hB σ hσ j
     (hsmall_mono n σ hσ.le w j KK hjKK hsmall) tt Tcap hcap mc₀ h0 hmark
 
 /-! ## Deliverable 3 — the remainder version at `τ = w·j + r`, `r < w`.
@@ -209,8 +209,8 @@ horizon-parametric (free `t`), so they instantiate at `t := w·j + r` directly. 
 horizon.  Mirrors `front_squares_whp` but bounds the `{¬recInv}` mass with
 `checkpoint_composition_prefix` (per-window `δ` via `window_failure_le`/`hB`, per-remainder `δRem` as
 input).  The taint tail and the MarkInv null are at the prefix horizon `w·j + r`. -/
-theorem front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r aM : ℕ)
-    (haM : n ≤ 10 * aM) (δ δRem : ℝ≥0∞)
+theorem front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : ℕ)
+    (δ δRem : ℝ≥0∞)
     (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
       10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
@@ -218,7 +218,7 @@ theorem front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r 
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ)
     -- the `r`-horizon remainder window bound (INPUT, per the campaign audit):
@@ -276,7 +276,7 @@ theorem front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r 
   · -- the recurrence-checkpoint-prefix failure ≤ j·δ + δRem.
     exact checkpoint_composition_prefix (markedK (L := L) (K := K) T θn)
       (recInv (L := L) (K := K) T θn n cc) w r δ δRem
-      (fun mc hmc => window_failure_le (L := L) (K := K) T θn n cc w aM haM δ mc hmc
+      (fun mc hmc => window_failure_le (L := L) (K := K) T θn n cc w δ mc hmc
         (fun hP3 hX => hB mc hmc hP3 hX))
       (fun mc hmc => hRem mc hmc)
       j mc₀ h0
@@ -292,8 +292,8 @@ theorem front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r 
 /-- **STEP 4 — the real-kernel per-level transfer at horizon `w·j + r`.**  The `front_squares_whp_prefix`
 bound transfers to the real kernel verbatim (the bad event is erase-measurable, via
 `markedK_pow_erase`). -/
-theorem real_front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r aM : ℕ)
-    (haM : n ≤ 10 * aM) (δ δRem : ℝ≥0∞)
+theorem real_front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : ℕ)
+    (δ δRem : ℝ≥0∞)
     (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
       10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
@@ -301,7 +301,7 @@ theorem real_front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) 
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ)
     (hRem : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
@@ -328,14 +328,13 @@ theorem real_front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) 
   rw [← markedK_pow_erase (L := L) (K := K) T θn (w * j + r) mc₀
     (realFrontBad (L := L) (K := K) T n cc tt),
     ← markedFrontBad_eq_preimage (L := L) (K := K) T n cc tt]
-  exact front_squares_whp_prefix (L := L) (K := K) T θn n hn cc w r aM haM δ δRem hB hRem
+  exact front_squares_whp_prefix (L := L) (K := K) T θn n hn cc w r δ δRem hB hRem
     σ hσ j hsmall tt mc₀ h0 hmark
 
 /-- **STEP 4 continued — the level union at horizon `w·j + r`.**  Union the per-level real-kernel
 recurrence failure over `T < Tcap`; mirrors `real_front_union` but at the prefix horizon, with the
 per-level remainder bounds `δRem T` carried as a family. -/
 theorem real_front_union_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : ℕ)
-    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
     (δ δRem : ℕ → ℝ≥0∞)
     (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -344,7 +343,7 @@ theorem real_front_union_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : �
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ T)
     (hRem : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
@@ -375,7 +374,7 @@ theorem real_front_union_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : �
   apply Finset.sum_le_sum
   intro T hT
   rw [Finset.mem_range] at hT
-  exact real_front_squares_whp_prefix (L := L) (K := K) T θn n hn cc w r (aM T) (haM T)
+  exact real_front_squares_whp_prefix (L := L) (K := K) T θn n hn cc w r
     (δ T) (δRem T) (hB T) (hRem T) σ hσ j hsmall tt mc₀ (h0 T hT) (hmark T hT)
 
 open ClockFrontProfile in
@@ -384,7 +383,7 @@ at an ARBITRARY minute boundary.  Mirrors `windowedFrontProfile_whp` exactly, us
 at the prefix horizon (`real_front_union_prefix`).  The `r`-horizon remainder window bounds `δRem T`
 are inputs (per the campaign audit). -/
 theorem windowedFrontProfile_whp_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : ℕ) (θ : ℝ)
-    (hθpos : 0 < θ) (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
+    (hθpos : 0 < θ)
     (δ δRem : ℕ → ℝ≥0∞)
     (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
       AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
@@ -393,7 +392,7 @@ theorem windowedFrontProfile_whp_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) 
           {mc | (cc * (rBeyond (L := L) (K := K) T
                 (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
               < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
-            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
             mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
         ≤ δ T)
     (hRem : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
@@ -439,7 +438,7 @@ theorem windowedFrontProfile_whp_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) 
     rw [Set.mem_iUnion₂]
     exact ⟨T, Finset.mem_range.mpr hT, hbad⟩
   refine le_trans (measure_mono hsub) ?_
-  exact real_front_union_prefix (L := L) (K := K) θn n hn cc w r aM haM δ δRem hB hRem
+  exact real_front_union_prefix (L := L) (K := K) θn n hn cc w r δ δRem hB hRem
     σ hσ j hsmall tt Tcap mc₀ h0 hmark (w * j + r) rfl
 
 /-! ## Deliverable 4 — the per-`τ` width-bound glue.

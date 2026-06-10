@@ -643,5 +643,201 @@ theorem Phase0Transition_second_no_mcr_of_cr_mcr
     if_false, if_true, not_false_eq_true, not_true_eq_false,
     ne_eq, Bool.false_eq_true]
 
+/-- `mcrCount` of a singleton (re-derived locally; the upstream lemma is private). -/
+private lemma mcrCount_singleton' (a : AgentState L K) :
+    ExactMajority.mcrCount (L := L) (K := K) ({a} : Config (AgentState L K)) =
+      if a.role = .mcr then 1 else 0 := by
+  unfold ExactMajority.mcrCount
+  by_cases h : a.role = .mcr <;> simp [h, Multiset.filter_singleton]
+
+/-- `mcrCount` of a pair, by role cases (re-derived locally). -/
+private lemma mcrCount_pair' (a b : AgentState L K) :
+    ExactMajority.mcrCount (L := L) (K := K) ({a, b} : Config (AgentState L K)) =
+      (if a.role = .mcr then 1 else 0) + (if b.role = .mcr then 1 else 0) := by
+  show ExactMajority.mcrCount (L := L) (K := K) ({a} + {b}) = _
+  rw [ExactMajority.mcrCount_add, mcrCount_singleton', mcrCount_singleton']
+
+/-- **Pair-level mcrCount strict decrease for a one-sided conversion.** If the
+`Phase0Transition` output of a pair has both roles non-MCR, and exactly one of
+the inputs (`s`) was MCR while the other (`t`) was not, then the pair `mcrCount`
+strictly drops (`1 → 0`).  This is the count consequence of the Rule-2/Rule-3
+effect lemmas, packaging the one-sided conversion as a `mcrCount` decrement. -/
+theorem Phase0Transition_mcrCount_pair_lt_of_one_sided
+    (s t : AgentState L K) (hs : s.role = .mcr) (ht : t.role ≠ .mcr)
+    (hout1 : (Phase0Transition L K s t).1.role ≠ .mcr)
+    (hout2 : (Phase0Transition L K s t).2.role ≠ .mcr) :
+    ExactMajority.mcrCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} : Config (AgentState L K)) <
+      ExactMajority.mcrCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  rw [mcrCount_pair', mcrCount_pair']
+  rw [if_pos hs, if_neg ht, if_neg hout1, if_neg hout2]
+  omega
+
+/-- **One-sided pair decrement, concrete (s = MCR meets assignable t).** Combines
+the Rule-2/Rule-3 `s`-side effect with the generic non-MCR `t`-side preservation
+to get the pair `mcrCount` strict drop, for `t` an unassigned Main or RoleCR. -/
+theorem Phase0Transition_mcrCount_pair_lt_of_mcr_assignable
+    (s t : AgentState L K) (hs : s.role = .mcr)
+    (ht : IsAssignable t) :
+    ExactMajority.mcrCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} : Config (AgentState L K)) <
+      ExactMajority.mcrCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  obtain ⟨_, ht_un, ht_role⟩ := ht
+  have ht_ne : t.role ≠ .mcr := by rcases ht_role with h | h <;> rw [h] <;> decide
+  have hout1 : (Phase0Transition L K s t).1.role ≠ .mcr := by
+    rcases ht_role with h | h
+    · exact Phase0Transition_first_no_mcr_of_mcr_main s t hs h ht_un
+    · exact Phase0Transition_first_no_mcr_of_mcr_cr s t hs h ht_un
+  have hout2 : (Phase0Transition L K s t).2.role ≠ .mcr :=
+    ExactMajority.Phase0Transition_second_no_mcr (L := L) (K := K) s t ht_ne
+  exact Phase0Transition_mcrCount_pair_lt_of_one_sided s t hs ht_ne hout1 hout2
+
+/-- **One-sided pair decrement, mirror (t = MCR meets assignable s).** -/
+theorem Phase0Transition_mcrCount_pair_lt_of_assignable_mcr
+    (s t : AgentState L K) (hs : IsAssignable s) (ht : t.role = .mcr) :
+    ExactMajority.mcrCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} : Config (AgentState L K)) <
+      ExactMajority.mcrCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  obtain ⟨_, hs_un, hs_role⟩ := hs
+  have hs_ne : s.role ≠ .mcr := by rcases hs_role with h | h <;> rw [h] <;> decide
+  have hout2 : (Phase0Transition L K s t).2.role ≠ .mcr := by
+    rcases hs_role with h | h
+    · exact Phase0Transition_second_no_mcr_of_main_mcr s t h ht hs_un
+    · exact Phase0Transition_second_no_mcr_of_cr_mcr s t h ht hs_un
+  have hout1 : (Phase0Transition L K s t).1.role ≠ .mcr :=
+    ExactMajority.Phase0Transition_first_no_mcr (L := L) (K := K) s t hs_ne
+  -- Here `t` is the MCR side; swap the roles of `s,t` in the generic lemma via the
+  -- pair `{s,t} = {t,s}` (multiset cons-comm) is unnecessary: re-derive directly.
+  rw [mcrCount_pair', mcrCount_pair']
+  rw [if_neg hs_ne, if_pos ht, if_neg hout1, if_neg hout2]
+  omega
+
+/-! ### Lifting the pair decrement through the full `Transition` wrapper.
+
+The kernel uses the full `Transition` dispatcher, which wraps the phase-specific
+transition with `phaseEpidemicUpdate` (pre-step inits) and `finishPhase10Entry`
+(post-step phase-10 entry).  When both agents sit at phase 0, both wrappers are
+the identity on roles, so `Transition` reduces to `Phase0Transition` at the role
+level — the same reduction the predecessor used for the MCR–MCR case. -/
+
+/-- With both agents at phase 0, `phaseEpidemicUpdate` is the identity. -/
+theorem phaseEpidemicUpdate_eq_self_of_both_phase0
+    (s t : AgentState L K) (hs : s.phase.val = 0) (ht : t.phase.val = 0) :
+    phaseEpidemicUpdate L K s t = (s, t) := by
+  have hphase_eq : s.phase = t.phase := Fin.ext (by omega)
+  have hmax : max s.phase t.phase = s.phase := by rw [hphase_eq, max_self]
+  have ht_rec : ({t with phase := s.phase} : AgentState L K) = t := by
+    rw [hphase_eq]
+  unfold phaseEpidemicUpdate
+  simp only [hmax, ht_rec]
+  rw [runInitsBetween_self_api (L := L) (K := K) s.phase.val s]
+  rw [show (s.phase.val : ℕ) = t.phase.val from by omega,
+      runInitsBetween_self_api (L := L) (K := K) t.phase.val t]
+  rw [if_neg]
+  rintro ⟨_, hor⟩
+  rcases hor with h | h <;> omega
+
+/-- With both agents at phase 0, the full `Transition` output roles equal the
+`Phase0Transition` output roles (both wrappers are role-identities). -/
+theorem Transition_roles_eq_phase0_of_both_phase0
+    (s t : AgentState L K) (hs : s.phase.val = 0) (ht : t.phase.val = 0) :
+    (Transition L K s t).1.role = (Phase0Transition L K s t).1.role ∧
+    (Transition L K s t).2.role = (Phase0Transition L K s t).2.role := by
+  have hpe := phaseEpidemicUpdate_eq_self_of_both_phase0 (L := L) (K := K) s t hs ht
+  have hs0 : s.phase = (⟨0, by omega⟩ : Fin _) := Fin.ext hs
+  unfold Transition
+  rw [hpe]
+  simp only [finishPhase10Entry_role_eq]
+  rw [hs0]
+  exact ⟨rfl, rfl⟩
+
+/-- **Config-level one-sided `mcrCount` decrement (full kernel).** A scheduled
+interaction of a phase-0 MCR `s` with a phase-0 assignable target `t` (within a
+config `c`) strictly drops `mcrCount c`.  This is the real-kernel building block
+mirroring `mcrCount_config_decrease_of_phase0_mcr_pair` (Phase0Convergence) for
+the *one-sided* good set; it converts the `Θ(M/n)` good pairs into `mcrCount`
+decrements.  Symmetric form (s assignable, t MCR) is `..._of_assignable_mcr`. -/
+theorem mcrCount_config_decrease_of_mcr_assignable
+    (c : Config (AgentState L K)) (s t : AgentState L K)
+    (h_sub : ({s, t} : Config (AgentState L K)) ≤ c)
+    (hs : s.role = .mcr) (hs_phase : s.phase.val = 0) (ht : IsAssignable t) :
+    ExactMajority.mcrCount (L := L) (K := K)
+        (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2}) <
+      ExactMajority.mcrCount (L := L) (K := K) c := by
+  have ht_phase : t.phase.val = 0 := ht.1
+  have h_restore : c - {s, t} + {s, t} = c := Multiset.sub_add_cancel h_sub
+  have hroles := Transition_roles_eq_phase0_of_both_phase0 (L := L) (K := K) s t hs_phase ht_phase
+  -- The pair mcrCount of the Transition output equals that of the Phase0Transition output
+  -- (mcrCount only reads roles).
+  have hpair_eq : ExactMajority.mcrCount (L := L) (K := K)
+      ({(Transition L K s t).1, (Transition L K s t).2} : Config (AgentState L K)) =
+      ExactMajority.mcrCount (L := L) (K := K)
+      ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} : Config (AgentState L K)) := by
+    rw [mcrCount_pair', mcrCount_pair', hroles.1, hroles.2]
+  have h_pair_lt := Phase0Transition_mcrCount_pair_lt_of_mcr_assignable s t hs ht
+  calc ExactMajority.mcrCount (L := L) (K := K)
+          (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2})
+      = ExactMajority.mcrCount (L := L) (K := K) (c - {s, t}) +
+          ExactMajority.mcrCount (L := L) (K := K)
+            ({(Transition L K s t).1, (Transition L K s t).2}) :=
+        ExactMajority.mcrCount_add _ _
+    _ = ExactMajority.mcrCount (L := L) (K := K) (c - {s, t}) +
+          ExactMajority.mcrCount (L := L) (K := K)
+            ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2}) := by rw [hpair_eq]
+    _ < ExactMajority.mcrCount (L := L) (K := K) (c - {s, t}) +
+          ExactMajority.mcrCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) :=
+        Nat.add_lt_add_left h_pair_lt _
+    _ = ExactMajority.mcrCount (L := L) (K := K) (c - {s, t} + {s, t}) :=
+        (ExactMajority.mcrCount_add _ _).symm
+    _ = ExactMajority.mcrCount (L := L) (K := K) c := by rw [h_restore]
+
+/-- **Config-level one-sided `mcrCount` decrement (mirror: s assignable, t MCR).** -/
+theorem mcrCount_config_decrease_of_assignable_mcr
+    (c : Config (AgentState L K)) (s t : AgentState L K)
+    (h_sub : ({s, t} : Config (AgentState L K)) ≤ c)
+    (hs : IsAssignable s) (ht : t.role = .mcr) (ht_phase : t.phase.val = 0) :
+    ExactMajority.mcrCount (L := L) (K := K)
+        (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2}) <
+      ExactMajority.mcrCount (L := L) (K := K) c := by
+  have hs_phase : s.phase.val = 0 := hs.1
+  have h_restore : c - {s, t} + {s, t} = c := Multiset.sub_add_cancel h_sub
+  have hroles := Transition_roles_eq_phase0_of_both_phase0 (L := L) (K := K) s t hs_phase ht_phase
+  have hpair_eq : ExactMajority.mcrCount (L := L) (K := K)
+      ({(Transition L K s t).1, (Transition L K s t).2} : Config (AgentState L K)) =
+      ExactMajority.mcrCount (L := L) (K := K)
+      ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} : Config (AgentState L K)) := by
+    rw [mcrCount_pair', mcrCount_pair', hroles.1, hroles.2]
+  have h_pair_lt := Phase0Transition_mcrCount_pair_lt_of_assignable_mcr s t hs ht
+  calc ExactMajority.mcrCount (L := L) (K := K)
+          (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2})
+      = ExactMajority.mcrCount (L := L) (K := K) (c - {s, t}) +
+          ExactMajority.mcrCount (L := L) (K := K)
+            ({(Transition L K s t).1, (Transition L K s t).2}) :=
+        ExactMajority.mcrCount_add _ _
+    _ = ExactMajority.mcrCount (L := L) (K := K) (c - {s, t}) +
+          ExactMajority.mcrCount (L := L) (K := K)
+            ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2}) := by rw [hpair_eq]
+    _ < ExactMajority.mcrCount (L := L) (K := K) (c - {s, t}) +
+          ExactMajority.mcrCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) :=
+        Nat.add_lt_add_left h_pair_lt _
+    _ = ExactMajority.mcrCount (L := L) (K := K) (c - {s, t} + {s, t}) :=
+        (ExactMajority.mcrCount_add _ _).symm
+    _ = ExactMajority.mcrCount (L := L) (K := K) c := by rw [h_restore]
+
+/-- The `assignableCount` Bool predicate decides `IsAssignable` pointwise.  This
+bridges the `countP`/Finset-filter form used in mass arguments with the `Prop`
+`IsAssignable` used in the decrement lemmas. -/
+theorem assignableCount_pred_iff (a : AgentState L K) :
+    (decide (a.phase.val = 0) && (!a.assigned) &&
+      (decide (a.role = .main) || decide (a.role = .cr))) = true ↔ IsAssignable a := by
+  unfold IsAssignable
+  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq,
+    Bool.not_eq_eq_eq_not, Bool.not_true]
+  constructor
+  · rintro ⟨⟨hp, ha⟩, hr⟩
+    exact ⟨hp, by simpa using ha, hr⟩
+  · rintro ⟨hp, ha, hr⟩
+    exact ⟨⟨hp, by simpa using ha⟩, hr⟩
+
 end RoleSplitConcentration
 end ExactMajority

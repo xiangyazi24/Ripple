@@ -1761,6 +1761,31 @@ theorem Transition_wrongACount_le (a b : AgentState L K)
   cases aoutput <;> cases boutput <;> cases afull <;> cases bfull <;>
     simp_all [Phase10Transition, IsActiveB, IsActiveT]
 
+/-- **Per-pair `wrongTCount` non-increase** on a both-phase-10 pair with **no
+active-`A`** and **no active-`B`** member.  Under that restriction every member is
+either active-`T` or passive; an active-`T` only ever spreads `T` (never un-`T`s a
+partner), and passives among themselves are inert, so the number of non-`T` outputs
+cannot rise. -/
+theorem Transition_wrongTCount_le (a b : AgentState L K)
+    (ha : a.phase.val = 10) (hb : b.phase.val = 10)
+    (hnA_a : ¬ IsActiveA a) (hnA_b : ¬ IsActiveA b)
+    (hnB_a : ¬ IsActiveB a) (hnB_b : ¬ IsActiveB b) :
+    Multiset.countP (fun a => a.output ≠ Output.T)
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K))
+      ≤ Multiset.countP (fun a => a.output ≠ Output.T)
+          ({a, b} : Multiset (AgentState L K)) := by
+  rw [Transition_eq_Phase10Transition_of_phase10 (L := L) (K := K) a b ha hb]
+  rw [countP_pair, countP_pair]
+  rcases a with
+    ⟨ainput, aoutput, aphase, arole, aassigned, abias, asmallBias,
+      ahour, aminute, afull, aopinions, acounter⟩
+  rcases b with
+    ⟨binput, boutput, bphase, brole, bassigned, bbias, bsmallBias,
+      bhour, bminute, bfull, bopinions, bcounter⟩
+  cases aoutput <;> cases boutput <;> cases afull <;> cases bfull <;>
+    simp_all [Phase10Transition, IsActiveA, IsActiveB, IsActiveT]
+
 end PairMonotone
 
 /-! ## Kernel-level lifting: `InvClosed` and `PotNonincrOn`
@@ -1792,7 +1817,7 @@ def Inv3 (c : Config (AgentState L K)) : Prop :=
 
 /-- A configuration's `countP P` decomposes over a peeled applicable pair, using the
 per-pair bound `hpair` to control the new pair's contribution. -/
-private theorem countP_scheduledStep_le
+theorem countP_scheduledStep_le
     (P : AgentState L K → Prop) [DecidablePred P]
     {c c' : Config (AgentState L K)}
     (h : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support)
@@ -1831,7 +1856,7 @@ private theorem countP_scheduledStep_le
 
 /-- Generic `PotNonincrOn` from a step-level `countP`-bound conditioned on the
 invariant.  Reduces `K b {Φ b < Φ x} = 0` to the support-pointwise bound. -/
-private theorem potNonincrOn_of_countP_step
+theorem potNonincrOn_of_countP_step
     (Inv : Config (AgentState L K) → Prop) (P : AgentState L K → Prop)
     [DecidablePred P]
     (hstep : ∀ c, Inv c → ∀ c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support,
@@ -2499,6 +2524,561 @@ theorem phase10_expected_stabilization (n : ℕ) (hn : 2 ≤ n)
     exact stage23_expectedHitting_le n hn z ⟨hzS1, hzB⟩
 
 end Capstone
+
+/-! ## Tie case (`backupSignal = 0`, i.e. `phase10ActiveSignedSum = 0`)
+
+When the signed active sum is `0`, `activeACount = activeBCount` throughout, so the
+majority invariant's `0 < phase10ActiveSignedSum` fails.  The stabilization is
+two-stage:
+
+* **Tie cancel stage** `Φ := activeBCount` on `Tie1 := AllPhase10 ∧ card = n ∧
+  signedSum = 0`.  The cancel drop-prob `activeBCount_drop_prob` needs `1 ≤
+  activeACount`; under `Tie1` with `activeBCount = m ≥ 1`, `activeACount = m ≥ 1`
+  holds (signed sum `0`), so it applies VERBATIM.  After this stage
+  `activeACount = activeBCount = 0` (signed sum `0`), so every remaining active
+  agent is active-`T`.
+
+* **T-spread stage** `Φ := wrongTCount` on `Tie2 := Tie1 ∧ activeBCount = 0`
+  (whence also `activeACount = 0`).  An active-`T` converts any non-active-biased
+  partner to output `T`; under `Tie2` every non-`T` agent is passive (not
+  active-A/B), so it is a valid conversion target.  This is the genuinely new drop
+  family `wrongTCount_drop_prob`.
+
+The two stages chain through `Done = {activeBCount = 0}` exactly as in the majority
+case, the cross-term closed by `occupation_mid_le_on` with `J = Tie1`. -/
+
+section TieStages
+
+open Protocol
+
+/-- Tie-case stage-1 invariant (cancel): all phase-10, fixed card, signed sum `0`. -/
+def Tie1 (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  AllPhase10 (L := L) (K := K) c ∧ c.card = n ∧ phase10ActiveSignedSum c = 0
+
+/-- Tie-case stage-2 invariant (T-spread): additionally no active-`B` (hence, with
+signed sum `0`, no active-`A`). -/
+def Tie2 (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  Tie1 (L := L) (K := K) n c ∧ activeBCount c = 0
+
+/-- Under a tie (`signedSum = 0`), `activeACount = activeBCount`. -/
+theorem activeACount_eq_activeBCount_of_tie {c : Config (AgentState L K)}
+    (h : phase10ActiveSignedSum c = 0) : activeACount c = activeBCount c := by
+  rw [phase10ActiveSignedSum_eq_activeACount_sub_activeBCount] at h
+  omega
+
+/-- Under `Tie2`, `activeACount = 0`. -/
+theorem activeACount_zero_of_Tie2 {n : ℕ} {c : Config (AgentState L K)}
+    (h : Tie2 (L := L) (K := K) n c) : activeACount c = 0 := by
+  obtain ⟨⟨_, _, hsum⟩, hB⟩ := h
+  rw [activeACount_eq_activeBCount_of_tie hsum]; exact hB
+
+/-- **`InvClosed` for the tie cancel stage** (`Tie1`). -/
+theorem invClosed_Tie1 (n : ℕ) :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Tie1 (L := L) (K := K) n c) := by
+  intro b hb
+  obtain ⟨hphase, hcard, hsum⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ Tie1 (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  obtain ⟨hc'card, hc'sum⟩ := card_signedSum_step hphase hcard hc'
+  exact ⟨allPhase10_step hphase hc', hc'card, hc'sum ▸ hsum⟩
+
+/-- **`InvClosed` for the tie T-spread stage** (`Tie2`). -/
+theorem invClosed_Tie2 (n : ℕ) :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Tie2 (L := L) (K := K) n c) := by
+  intro b hb
+  obtain ⟨⟨hphase, hcard, hsum⟩, hB⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ Tie2 (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  obtain ⟨hc'card, hc'sum⟩ := card_signedSum_step hphase hcard hc'
+  exact ⟨⟨allPhase10_step hphase hc', hc'card, hc'sum ▸ hsum⟩,
+    activeBCount_step_zero hphase hB hc'⟩
+
+/-- The drop hypothesis for the tie cancel stage: under `Tie1`, the not-dropped
+mass at level `m` is `≤ qLevel n m`.  Uses that `activeACount = activeBCount = m`
+when `m ≥ 1` (so `1 ≤ activeACount`), so `activeBCount_drop_prob` applies. -/
+theorem hdrop_Tie1 (n : ℕ) (hn : 2 ≤ n) :
+    ∀ m : ℕ, ∀ b : Config (AgentState L K), Tie1 (L := L) (K := K) n b →
+      activeBCount b = m →
+      (NonuniformMajority L K).transitionKernel b
+        (potBelow (fun c => activeBCount c) m)ᶜ ≤ qLevel n m := by
+  intro m b hb hBm
+  obtain ⟨hphase, hcard, hsum⟩ := hb
+  have hcard2 : 2 ≤ b.card := by omega
+  -- For the drop-prob lemma we need 1 ≤ activeACount only when m ≥ 1; when m = 0
+  -- the complement set is empty so the bound is vacuous.  Handle both via case split.
+  by_cases hm0 : m = 0
+  · -- m = 0: potBelow Φ 0 = ∅, complement = univ; but qLevel n 0 = 1, kernel mass ≤ 1.
+    subst hm0
+    have h1 : (NonuniformMajority L K).transitionKernel b
+        (potBelow (fun c => activeBCount c) 0)ᶜ ≤ 1 := kernel_pow_le_one _ 1 b _ |>.trans_eq' (by rw [pow_one])
+    have hq0 : qLevel n 0 = 1 := by
+      unfold qLevel
+      simp
+    rw [hq0]; exact h1
+  · have hAm : activeACount b = m := by
+      rw [activeACount_eq_activeBCount_of_tie hsum, hBm]
+    have hA : 1 ≤ activeACount b := by rw [hAm]; omega
+    have hge := activeBCount_drop_prob b hcard2 hphase hA
+    have hTPeq : (b.totalPairs : ℝ≥0∞) = ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+      unfold Config.totalPairs; rw [hcard]
+    have hcompl := drop_compl_le (fun c => activeBCount c) b m hBm hge
+    rw [hTPeq] at hcompl
+    unfold qLevel
+    exact hcompl
+
+/-- **Tie cancel-stage expected-time bound.** From a `Tie1 n` start `c` with
+`activeBCount c ≤ M ≤ n(n−1)`, expected interactions to `{activeBCount = 0}` is
+`≤ M · n(n−1)`. -/
+theorem tie_stage1_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : Tie1 (L := L) (K := K) n c)
+    (M : ℕ) (hM : activeBCount c ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => activeBCount c) 1) ≤
+      (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) :=
+  coupon_expectedHitting_le_uniform_on
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Tie1 (L := L) (K := K) n c) (invClosed_Tie1 n)
+    (fun c => activeBCount c)
+    (potNonincrOn_weaken potNonincrOn_activeBCount (fun _ h => h.1))
+    (qLevel n) (hdrop_Tie1 n hn) M c hM hc
+    ((n * (n - 1) : ℕ) : ℝ≥0∞) (qLevel_uniform_ceiling n M hMle)
+
+/-! ### T-spread stage drop machinery (`wrongTCount`, active-T × wrong-not-biased)
+
+This mirrors the `wrongACount` coupon-stage chain (`activeAWrongPairs` …
+`wrongACount_drop_prob`), swapping the driver class active-A → active-T and the
+responder class "wrong-not-activeB" → "wrong-not-biased" (output ≠ T and not active
+A/B).  An active-T meeting a non-biased partner converts the partner's output to T
+(`Phase10Transition_activeT_noActiveBiased_outputs_T`), strictly lowering
+`wrongTCount`.  Under `Tie2` (no active-A/B) every wrong-T agent is non-biased, so
+the responder count equals `wrongTCount`. -/
+
+/-- The "wrong, not active-biased" responder class: output `≠ T` and not an active
+A/B source.  Such an agent is converted to output `T` by an active-T partner. -/
+def WrongNotBiased (a : AgentState L K) : Prop :=
+  a.output ≠ Output.T ∧ ¬ (a.full = true ∧ (a.output = Output.A ∨ a.output = Output.B))
+
+instance : DecidablePred (@WrongNotBiased L K) := fun a => by
+  unfold WrongNotBiased; infer_instance
+
+/-- Count of wrong-not-biased agents. -/
+def wrongNotTBiasedCount (c : Config (AgentState L K)) : ℕ :=
+  c.countP WrongNotBiased
+
+/-- `wrongTCount` of the post-convert configuration is strictly below the base, for
+an active-T meeting a wrong-not-biased partner (converted to output `T`).  Re-derived
+in-file from `Phase10Transition_activeT_noActiveBiased_outputs_T`. -/
+theorem wrongTCount_post_convert_lt
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveT a) (hb : WrongNotBiased b) :
+    wrongTCount
+        (c - ({a, b} : Multiset (AgentState L K)) +
+          ({(Transition L K a b).1, (Transition L K a b).2} :
+            Multiset (AgentState L K))) <
+      wrongTCount c := by
+  obtain ⟨hb_wrong, hb_nb⟩ := hb
+  have hne : a ≠ b := by
+    intro h; subst h; exact hb_wrong ha.2
+  have happ : ({a, b} : Multiset (AgentState L K)) ≤ c :=
+    applicable_of_mem_ne ha_mem hb_mem hne
+  have htransition : Transition L K a b = Phase10Transition L K a b :=
+    Transition_eq_Phase10Transition_of_phase10
+      (L := L) (K := K) a b (hphase a ha_mem) (hphase b hb_mem)
+  have hpair_before :
+      Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T)
+        ({a, b} : Multiset (AgentState L K)) = 1 := by
+    change Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T)
+      (a ::ₘ ({b} : Multiset (AgentState L K))) = 1
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T)
+        (b ::ₘ (0 : Multiset (AgentState L K))) = 1
+      rw [Multiset.countP_cons_of_pos]
+      · simp
+      · exact hb_wrong
+    · simp only [not_not]; exact ha.2
+  have hlocal :=
+    Phase10Transition_activeT_noActiveBiased_outputs_T
+      (L := L) (K := K) a b ha.1 ha.2 hb_nb
+  have hpair_after :
+      Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T)
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K)) = 0 := by
+    rw [htransition]
+    obtain ⟨h1out, h2out⟩ := hlocal
+    change Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T)
+      ((Phase10Transition L K a b).1 ::ₘ
+        ({(Phase10Transition L K a b).2} : Multiset (AgentState L K))) = 0
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T)
+        ((Phase10Transition L K a b).2 ::ₘ (0 : Multiset (AgentState L K))) = 0
+      rw [Multiset.countP_cons_of_neg]
+      · simp
+      · simp only [not_not]; exact h2out
+    · simp only [not_not]; exact h1out
+  have hres :
+      Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T)
+        (c - ({a, b} : Multiset (AgentState L K))) =
+        wrongTCount c - 1 := by
+    have hsub := Multiset.countP_sub
+      (s := c) (t := ({a, b} : Multiset (AgentState L K))) happ
+      (fun x : AgentState L K => x.output ≠ Output.T)
+    unfold wrongTCount
+    rw [hsub, hpair_before]
+  have hpos_old : 0 < wrongTCount c :=
+    Multiset.countP_pos_of_mem (s := c) hb_mem hb_wrong
+  have hbridge : wrongTCount c
+      = Multiset.countP (fun x : AgentState L K => x.output ≠ Output.T) c := rfl
+  unfold wrongTCount
+  rw [Multiset.countP_add, hpair_after, hres]
+  rw [← hbridge] at *
+  omega
+
+/-- An active-T × wrong-not-biased ordered pair lands in the `wrongTCount`-drop
+target. -/
+theorem scheduledStep_activeT_wrong_in_drop
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveT a) (hb : WrongNotBiased b) :
+    (NonuniformMajority L K).scheduledStep c (a, b) ∈
+      dropTarget (wrongTCount (L := L) (K := K)) c := by
+  have hne : a ≠ b := by intro h; subst h; exact hb.1 ha.2
+  have happ : Protocol.Applicable c a b := applicable_of_mem_ne ha_mem hb_mem hne
+  simp only [dropTarget, Set.mem_setOf_eq, Protocol.scheduledStep]
+  have hstep : Protocol.stepOrSelf (NonuniformMajority L K) c a b =
+      c - {a, b} + {(Transition L K a b).1, (Transition L K a b).2} := by
+    unfold Protocol.stepOrSelf NonuniformMajority
+    simp only [if_pos happ]
+  rw [hstep]
+  exact wrongTCount_post_convert_lt c hphase ha_mem hb_mem ha hb
+
+/-- The active-T × wrong-not-biased rectangle of ordered pairs. -/
+def activeTWrongPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (Finset.univ.filter (fun a : AgentState L K => IsActiveT a)) ×ˢ
+    (Finset.univ.filter (fun a : AgentState L K => WrongNotBiased a))
+
+/-- The total `interactionCount` over the active-T × wrong-not-biased rectangle
+equals `activeTCount c · wrongNotTBiasedCount c`. -/
+theorem sum_interactionCount_activeTWrong (c : Config (AgentState L K)) :
+    (∑ p ∈ activeTWrongPairs (L := L) (K := K) c, c.interactionCount p.1 p.2)
+      = activeTCount c * wrongNotTBiasedCount c := by
+  classical
+  have hdisj : ∀ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveT a),
+      ∀ b ∈ Finset.univ.filter (fun a : AgentState L K => WrongNotBiased a), a ≠ b := by
+    intro a ha b hb hab
+    rw [Finset.mem_filter] at ha hb
+    subst hab
+    exact hb.2.1 ha.2.2
+  rw [activeTWrongPairs,
+    ClockRealMixed.sum_interactionCount_cross_disjoint c _ _ hdisj]
+  rw [show (∑ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveT a), c.count a)
+      = Multiset.countP IsActiveT c from
+    (HourCouplingV2.countP_eq_sum_count IsActiveT c).symm]
+  rw [show (∑ b ∈ Finset.univ.filter (fun a : AgentState L K => WrongNotBiased a), c.count b)
+      = Multiset.countP WrongNotBiased c from
+    (HourCouplingV2.countP_eq_sum_count WrongNotBiased c).symm]
+  rfl
+
+/-- When `activeACount c = 0` and `activeBCount c = 0`, every wrong-`T` agent is
+non-biased, so `wrongNotTBiasedCount c = wrongTCount c`. -/
+theorem wrongNotTBiasedCount_eq_wrongTCount_of_no_biased
+    (c : Config (AgentState L K)) (hA : activeACount c = 0) (hB : activeBCount c = 0) :
+    wrongNotTBiasedCount c = wrongTCount c := by
+  classical
+  unfold wrongNotTBiasedCount wrongTCount
+  apply Multiset.countP_congr rfl
+  intro a ha
+  have hnotA : ¬ IsActiveA a :=
+    (Multiset.countP_eq_zero.1 (by simpa [activeACount] using hA)) a ha
+  have hnotB : ¬ IsActiveB a :=
+    (Multiset.countP_eq_zero.1 (by simpa [activeBCount] using hB)) a ha
+  have hnb : ¬ (a.full = true ∧ (a.output = Output.A ∨ a.output = Output.B)) := by
+    rintro ⟨hfull, hout⟩
+    rcases hout with hA' | hB'
+    · exact hnotA ⟨hfull, hA'⟩
+    · exact hnotB ⟨hfull, hB'⟩
+  simp only [WrongNotBiased, hnb, not_false_iff, and_true]
+
+/-- The present active-T × wrong-not-biased pairs. -/
+def presentActiveTWrongPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (activeTWrongPairs (L := L) (K := K) c).filter
+    (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2)
+
+/-- The `interactionProb`-sum over the present active-T × wrong-not-biased pairs
+equals `activeTCount · wrongNotTBiasedCount / totalPairs`. -/
+theorem sum_interactionProb_presentActiveTWrong (c : Config (AgentState L K)) :
+    (∑ p ∈ presentActiveTWrongPairs (L := L) (K := K) c, c.interactionProb p.1 p.2)
+      = (↑(activeTCount c * wrongNotTBiasedCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hpresent : (∑ p ∈ presentActiveTWrongPairs (L := L) (K := K) c,
+        c.interactionProb p.1 p.2)
+      = ∑ p ∈ activeTWrongPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    apply Finset.sum_subset (s₁ := presentActiveTWrongPairs (L := L) (K := K) c)
+      (Finset.filter_subset _ _)
+    intro p hp_in hpnot
+    rw [presentActiveTWrongPairs, Finset.mem_filter, not_and, not_and_or, not_le, not_le,
+      Nat.lt_one_iff, Nat.lt_one_iff] at hpnot
+    have hcounts : c.count p.1 = 0 ∨ c.count p.2 = 0 := hpnot hp_in
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases hpp : p.1 = p.2
+      · rw [if_pos hpp]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [hpp, h2, Nat.zero_mul]
+      · rw [if_neg hpp]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [h2, Nat.mul_zero]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hpresent]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum,
+    sum_interactionCount_activeTWrong, ← div_eq_mul_inv]
+
+/-- **T-spread stage per-level drop probability.** On an all-phase-10 configuration
+with `activeACount = activeBCount = 0` (the post-cancel tie regime) and at least one
+active-`T`, the kernel maps into the `wrongTCount`-drop set with probability
+`≥ wrongTCount c / (n·(n−1))`. -/
+theorem wrongTCount_drop_prob (c : Config (AgentState L K))
+    (hc : 2 ≤ c.card)
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    (hA : activeACount c = 0) (hB : activeBCount c = 0)
+    (hT : 1 ≤ activeTCount c) :
+    (NonuniformMajority L K).transitionKernel c
+        (dropTarget (wrongTCount (L := L) (K := K)) c) ≥
+      (↑(wrongTCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hgood : ∀ pair ∈ presentActiveTWrongPairs (L := L) (K := K) c,
+      (NonuniformMajority L K).scheduledStep c pair ∈
+        dropTarget (wrongTCount (L := L) (K := K)) c := by
+    intro pair hpair
+    rw [presentActiveTWrongPairs, activeTWrongPairs, Finset.mem_filter, Finset.mem_product,
+      Finset.mem_filter, Finset.mem_filter] at hpair
+    obtain ⟨⟨⟨_, hT1⟩, ⟨_, hW2⟩⟩, h1, h2⟩ := hpair
+    have ha_mem : pair.1 ∈ c := Multiset.count_pos.mp h1
+    have hb_mem : pair.2 ∈ c := Multiset.count_pos.mp h2
+    have := scheduledStep_activeT_wrong_in_drop c hphase ha_mem hb_mem hT1 hW2
+    simpa using this
+  have hge := stepDistOrSelf_toMeasure_ge c hc
+    (dropTarget (wrongTCount (L := L) (K := K)) c)
+    (↑(presentActiveTWrongPairs (L := L) (K := K) c) :
+      Set (AgentState L K × AgentState L K))
+    (fun pair hpair => hgood pair (by simpa using hpair))
+  have hSmeasure : (c.interactionPMF hc).toMeasure
+      (↑(presentActiveTWrongPairs (L := L) (K := K) c) :
+        Set (AgentState L K × AgentState L K))
+      = ∑ p ∈ presentActiveTWrongPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  rw [sum_interactionProb_presentActiveTWrong] at hSmeasure
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure _ ≥ _
+  rw [hSmeasure] at hge
+  refine le_trans ?_ hge
+  apply ENNReal.div_le_div_right
+  rw [wrongNotTBiasedCount_eq_wrongTCount_of_no_biased c hA hB]
+  have : wrongTCount c ≤ activeTCount c * wrongTCount c := by
+    calc wrongTCount c = 1 * wrongTCount c := (Nat.one_mul _).symm
+      _ ≤ activeTCount c * wrongTCount c := Nat.mul_le_mul_right _ hT
+  exact_mod_cast this
+
+/-! ### T-spread stage: monotonicity, liveness invariant, drop, stage bound -/
+
+/-- **`PotNonincrOn` for `wrongTCount` on `Tie2`.** Under `Tie2` every agent is
+active-`T` or passive (no active-A/B), so the per-pair `wrongTCount` bound applies. -/
+theorem potNonincrOn_wrongTCount (n : ℕ) :
+    PotNonincrOn (fun c => Tie2 (L := L) (K := K) n c)
+      (NonuniformMajority L K).transitionKernel
+      (fun c => wrongTCount c) :=
+  potNonincrOn_of_countP_step (fun c => Tie2 (L := L) (K := K) n c)
+    (fun a => a.output ≠ Output.T)
+    (fun c hInv c' hc' => by
+      have hA : activeACount c = 0 := activeACount_zero_of_Tie2 hInv
+      obtain ⟨⟨hphase, _, _⟩, hB⟩ := hInv
+      have hphase' : ∀ x ∈ c, x.phase.val = 10 := hphase
+      have hnoA : ∀ x ∈ c, ¬ IsActiveA x := fun x hx =>
+        (Multiset.countP_eq_zero.1 (by simpa [activeACount] using hA)) x hx
+      have hnoB : ∀ x ∈ c, ¬ IsActiveB x := fun x hx =>
+        (Multiset.countP_eq_zero.1 (by simpa [activeBCount] using hB)) x hx
+      exact countP_scheduledStep_le (fun a => a.output ≠ Output.T) hc'
+        (fun r₁ r₂ hr₁ hr₂ =>
+          Transition_wrongTCount_le r₁ r₂ (hphase' r₁ hr₁) (hphase' r₂ hr₂)
+            (hnoA r₁ hr₁) (hnoA r₂ hr₂) (hnoB r₁ hr₁) (hnoB r₂ hr₂)))
+
+/-- A support config of an all-phase-10 base inherits `hasActiveAgent`. -/
+private theorem hasActiveAgent_step
+    {c c' : Config (AgentState L K)} (hphase : AllPhase10 (L := L) (K := K) c)
+    (hact : hasActiveAgent c)
+    (h : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    hasActiveAgent c' := by
+  unfold Protocol.stepDistOrSelf at h
+  split_ifs at h with h_size
+  · obtain ⟨⟨r₁, r₂⟩, heq⟩ := Protocol.stepDist_support _ _ h_size _ h
+    subst heq
+    unfold Protocol.scheduledStep Protocol.stepOrSelf at *
+    split_ifs at * with h_app
+    · exact phase10_hasActiveAgent_preserved_by_step c _ hphase hact ⟨r₁, r₂, h_app, rfl⟩
+    · simpa using hact
+  · simp only [PMF.support_pure, Set.mem_singleton_iff] at h; rw [h]; exact hact
+
+/-- Tie-case T-spread liveness invariant: `Tie2` together with `hasActiveAgent`
+(at least one active agent — which, under `Tie2`, is necessarily active-`T`). -/
+def Tie2plus (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  Tie2 (L := L) (K := K) n c ∧ hasActiveAgent c
+
+/-- **`InvClosed` for the tie T-spread liveness stage** (`Tie2plus`). -/
+theorem invClosed_Tie2plus (n : ℕ) :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Tie2plus (L := L) (K := K) n c) := by
+  intro b hb
+  obtain ⟨⟨⟨hphase, hcard, hsum⟩, hB⟩, hact⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ Tie2plus (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  obtain ⟨hc'card, hc'sum⟩ := card_signedSum_step hphase hcard hc'
+  exact ⟨⟨⟨allPhase10_step hphase hc', hc'card, hc'sum ▸ hsum⟩,
+    activeBCount_step_zero hphase hB hc'⟩, hasActiveAgent_step hphase hact hc'⟩
+
+/-- `Tie2plus → Tie2`. -/
+theorem tie2_of_Tie2plus {n : ℕ} {c : Config (AgentState L K)}
+    (h : Tie2plus (L := L) (K := K) n c) : Tie2 (L := L) (K := K) n c := h.1
+
+/-- The drop hypothesis for the tie T-spread stage: under `Tie2plus`, the
+not-dropped mass at level `m` is `≤ qLevel n m`.  Uses `1 ≤ activeTCount` from
+`hasActiveAgent` + no-active-A/B. -/
+theorem hdrop_Tie2plus (n : ℕ) (hn : 2 ≤ n) :
+    ∀ m : ℕ, ∀ b : Config (AgentState L K), Tie2plus (L := L) (K := K) n b →
+      wrongTCount b = m →
+      (NonuniformMajority L K).transitionKernel b
+        (potBelow (fun c => wrongTCount c) m)ᶜ ≤ qLevel n m := by
+  intro m b hb hWm
+  obtain ⟨hTie2, hact⟩ := hb
+  have hA : activeACount b = 0 := activeACount_zero_of_Tie2 hTie2
+  obtain ⟨⟨hphase, hcard, _⟩, hB⟩ := hTie2
+  have hcard2 : 2 ≤ b.card := by omega
+  have hT : 1 ≤ activeTCount b := by
+    obtain ⟨a, ha_mem, ha⟩ :=
+      exists_activeT_of_hasActive_no_activeA_no_activeB b hact hA hB
+    exact Multiset.countP_pos_of_mem (s := b) ha_mem ha
+  have hge := wrongTCount_drop_prob b hcard2 hphase hA hB hT
+  have hTPeq : (b.totalPairs : ℝ≥0∞) = ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+    unfold Config.totalPairs; rw [hcard]
+  have hcompl := drop_compl_le (fun c => wrongTCount c) b m hWm hge
+  rw [hTPeq] at hcompl
+  unfold qLevel
+  exact hcompl
+
+/-- **Tie T-spread-stage expected-time bound.** From a `Tie2plus n` start `c` with
+`wrongTCount c ≤ M ≤ n(n−1)`, expected interactions to `{wrongTCount = 0}` (all
+outputs `T`) is `≤ M · n(n−1)`. -/
+theorem tie_stage2_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : Tie2plus (L := L) (K := K) n c)
+    (M : ℕ) (hM : wrongTCount c ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongTCount c) 1) ≤
+      (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) :=
+  coupon_expectedHitting_le_uniform_on
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Tie2plus (L := L) (K := K) n c) (invClosed_Tie2plus n)
+    (fun c => wrongTCount c)
+    (potNonincrOn_weaken (potNonincrOn_wrongTCount n) (fun _ h => tie2_of_Tie2plus h))
+    (qLevel n) (hdrop_Tie2plus n hn) M c hM hc
+    ((n * (n - 1) : ℕ) : ℝ≥0∞) (qLevel_uniform_ceiling n M hMle)
+
+/-! ### Tie-case combined headline (`Tie1` + liveness start) -/
+
+/-- Every active-`B` source has output `B ≠ T`, so `activeBCount ≤ wrongTCount`. -/
+theorem activeBCount_le_wrongTCount (c : Config (AgentState L K)) :
+    activeBCount c ≤ wrongTCount c :=
+  countP_le_countP_of_imp IsActiveB (fun a => a.output ≠ Output.T) c
+    (fun a _ ha => by show a.output ≠ Output.T; rw [ha.2]; decide)
+
+/-- `wrongTCount = 0` forces `activeBCount = 0`. -/
+theorem activeBCount_zero_of_wrongTCount_zero {c : Config (AgentState L K)}
+    (h : wrongTCount c = 0) : activeBCount c = 0 :=
+  Nat.le_zero.mp (le_trans (activeBCount_le_wrongTCount c) (Nat.le_of_eq h))
+
+/-- **Set nesting** `{wrongTCount = 0} ⊆ {activeBCount = 0}` (tie case). -/
+theorem doneT_subset_done1 :
+    potBelow (fun c => wrongTCount (L := L) (K := K) c) 1 ⊆
+      potBelow (fun c => activeBCount (L := L) (K := K) c) 1 := by
+  intro c hc
+  simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hc ⊢
+  exact activeBCount_zero_of_wrongTCount_zero hc
+
+/-- Tie-case stage-1 liveness invariant: `Tie1` together with `hasActiveAgent`. -/
+def Tie1plus (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  Tie1 (L := L) (K := K) n c ∧ hasActiveAgent c
+
+/-- **`InvClosed` for the tie cancel liveness stage** (`Tie1plus`). -/
+theorem invClosed_Tie1plus (n : ℕ) :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Tie1plus (L := L) (K := K) n c) := by
+  intro b hb
+  obtain ⟨⟨hphase, hcard, hsum⟩, hact⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ Tie1plus (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  obtain ⟨hc'card, hc'sum⟩ := card_signedSum_step hphase hcard hc'
+  exact ⟨⟨allPhase10_step hphase hc', hc'card, hc'sum ▸ hsum⟩,
+    hasActiveAgent_step hphase hact hc'⟩
+
+/-- **Phase-10 backup expected stabilization (TIE case, unconditional `Tie1` +
+liveness start).** From any all-phase-10 tie configuration (`Tie1 n`, card `= n ≥
+2`, signed sum `0`) with at least one active agent, the expected number of
+interactions to reach `{wrongTCount = 0}` (every agent outputs the tie answer `T`)
+is `≤ 2·n(n−1)·n(n−1)`.  The two coupon stages (cancel `activeBCount`, T-spread
+`wrongTCount`) are chained through the absorbing `Done₁ = {activeBCount = 0}`, the
+cross-term closed by `occupation_mid_le_on` with `J = Tie1plus`. -/
+theorem phase10_expected_stabilization_tie (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : Tie1plus (L := L) (K := K) n c) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongTCount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+        + ((n * (n - 1) : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+  obtain ⟨⟨hphase, hcard, hsum⟩, hact⟩ := hc
+  refine le_trans
+    (expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel
+      (doneT_subset_done1) c) ?_
+  refine add_le_add ?_ ?_
+  · -- tie cancel stage with activeBCount c ≤ n(n−1).
+    exact tie_stage1_expectedHitting_le n hn c ⟨hphase, hcard, hsum⟩
+      (n * (n - 1)) (countP_le_n _ hcard |>.trans (by
+        calc n = n * 1 := (Nat.mul_one n).symm
+          _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))) le_rfl
+  · -- cross-term Done₁ ∩ Doneᵀᶜ via occupation_mid_le_on, J = Tie1plus.
+    refine occupation_mid_le_on (NonuniformMajority L K).transitionKernel
+      (fun c => Tie1plus (L := L) (K := K) n c) (invClosed_Tie1plus n)
+      (potBelow_measurable (fun c => activeBCount c) 1)
+      (potBelow_measurable (fun c => wrongTCount c) 1)
+      _ ?_ c ⟨⟨hphase, hcard, hsum⟩, hact⟩
+    -- inner: every Tie1plus-state z below activeBCount-level-1 is Tie2plus.
+    intro z hzT1p hzMid
+    obtain ⟨⟨hzphase, hzcard, hzsum⟩, hzact⟩ := hzT1p
+    have hzB : activeBCount z = 0 := by
+      simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
+    have hWle : wrongTCount z ≤ n * (n - 1) :=
+      (countP_le_n (fun a => a.output ≠ Output.T) hzcard).trans (by
+        calc n = n * 1 := (Nat.mul_one n).symm
+          _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))
+    exact tie_stage2_expectedHitting_le n hn z ⟨⟨⟨hzphase, hzcard, hzsum⟩, hzB⟩, hzact⟩
+      (n * (n - 1)) hWle le_rfl
+
+end TieStages
 
 end MajStages
 

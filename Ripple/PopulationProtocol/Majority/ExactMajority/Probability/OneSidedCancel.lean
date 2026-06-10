@@ -353,7 +353,255 @@ theorem crude_tail (K : Kernel α α) [IsMarkovKernel K]
         _ ≤ q * q ^ t := by gcongr
         _ = q ^ (t + 1) := by rw [pow_succ]; ring
 
+/-- **Form (b): crude whp tail, packaged as a `PhaseConvergenceW`.**
+
+`Pre x = Inv x ∧ Φ x ≤ M₀` (the eliminator/target floor invariant plus a target
+budget — `M₀` is unused in the crude bound but recorded for chaining), and
+`Post x = Inv x ∧ Φ x = 0` (still in the invariant, no targets left).  The horizon
+is `t` interactions with failure `ε ≥ q^t`.
+
+The `¬Post` event `{¬(Inv ∧ Φ = 0)}` is covered by `{¬Inv} ∪ {1 ≤ Φ}`; from an
+`Inv`-start the `{¬Inv}` mass is `0` (invariant closure), and the `{1 ≤ Φ}` mass is
+`≤ q^t` (`crude_tail`). -/
+noncomputable def crude_PhaseConvergenceW (K : Kernel α α) [IsMarkovKernel K]
+    (Inv : α → Prop) (hClosed : InvClosed K Inv)
+    (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (q : ℝ≥0∞)
+    (hstep : ∀ b, Inv b → 1 ≤ Φ b → K b (potDone Φ)ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0)
+    (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW K where
+  Pre x := Inv x ∧ Φ x ≤ M₀
+  Post x := Inv x ∧ Φ x = 0
+  t := t
+  ε := ε
+  convergence := by
+    intro x₀ hPre₀
+    obtain ⟨hInvx₀, _⟩ := hPre₀
+    -- {¬Post} ⊆ {¬Inv} ∪ (potDone Φ)ᶜ.
+    have hcover : {y : α | ¬ (Inv y ∧ Φ y = 0)} ⊆ {x | ¬ Inv x} ∪ (potDone Φ)ᶜ := by
+      intro y hy
+      simp only [Set.mem_setOf_eq, not_and] at hy
+      by_cases hInvy : Inv y
+      · exact Or.inr (by simp only [potDone, Set.mem_compl_iff, Set.mem_setOf_eq]; exact hy hInvy)
+      · exact Or.inl hInvy
+    calc (K ^ t) x₀ {y | ¬ (Inv y ∧ Φ y = 0)}
+        ≤ (K ^ t) x₀ ({x | ¬ Inv x} ∪ (potDone Φ)ᶜ) := measure_mono hcover
+      _ ≤ (K ^ t) x₀ {x | ¬ Inv x} + (K ^ t) x₀ (potDone Φ)ᶜ := measure_union_le _ _
+      _ = 0 + (K ^ t) x₀ (potDone Φ)ᶜ := by
+          rw [pow_not_inv_eq_zero K Inv hClosed x₀ hInvx₀ t]
+      _ = (K ^ t) x₀ (potDone Φ)ᶜ := by rw [zero_add]
+      _ ≤ q ^ t := crude_tail K Inv hClosed Φ hmono q hstep x₀ hInvx₀ t
+      _ ≤ (ε : ℝ≥0∞) := hε
+
 end Crude
+
+/-! ## Form (a) — the level-decomposed paper-faithful whp tail
+
+The crude tail uses a single uniform per-step drop probability, giving a `Θ(n²)`
+horizon.  The paper's `O(n log n)` comes from the **level-dependent** drop rate:
+when `Φ = m` targets remain, the per-interaction drain probability is
+`eFloor·m / (n(n−1))`-shape — proportional to `m`.  So the level-`m` window
+geometric tail uses `q_m = 1 − eFloor·m/(n(n−1))`, and the total horizon
+`T = ∑_{m=1}^{M₀} t_m` is the coupon-collector sum.
+
+We deliver the engine over an abstract level-dependent rate family `q : ℕ → ℝ≥0∞`
+and a per-level window family `tWin : ℕ → ℕ`.  The whp tail at the fixed horizon
+`T = ∑_{m=1}^{M₀} tWin m` is the union over level windows:
+
+    (K^T) c {1 ≤ Φ} ≤ ∑_{m=1}^{M₀} (q m) ^ (tWin m).
+
+The key new generic addition (absent from the E[T]-flavored level engine) is the
+**fixed-horizon union-over-levels tail** `levels_union_tail`, proved by induction on
+the number of levels via a Chapman-Kolmogorov split through the absorbing nested
+sets `{Φ < m}`. -/
+
+section Levels
+
+variable {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+
+/-- The level-`m` geometric tail, specialized for the union bound: for an `Inv`-start
+at level `≤ m`, the mass still at-or-above level `m` after `t` steps is `≤ (q m)^t`.
+This is `level_occ_geometric_on` packaged at the per-level rate `q m`. -/
+theorem level_tail (K : Kernel α α) [IsMarkovKernel K]
+    (Inv : α → Prop) (hClosed : InvClosed K Inv)
+    (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m, ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (m : ℕ) (c : α) (hc : Φ c ≤ m) (hInvc : Inv c) (t : ℕ) :
+    (K ^ t) c (potBelow Φ m)ᶜ ≤ (q m) ^ t :=
+  level_occ_geometric_on K Inv hClosed Φ hmono m (q m) (hdrop m) c hc hInvc t
+
+/-- **Chapman-Kolmogorov split through an absorbing level set.** For `1 ≤ m`, the mass
+still above level `0` after `s + t` steps splits: either the first `s` steps fail to
+drop below level `m` (mass `≤ (q m)^s`, since the start is at level `≤ m`), or they
+do drop below `m`, landing at level `≤ m − 1` for the remaining `t` steps.  Formally:
+
+    (K^(s+t)) c (potBelow Φ 1)ᶜ
+      ≤ (K^s) c (potBelow Φ m)ᶜ
+        + ∫_{potBelow Φ m} (K^t) b (potBelow Φ 1)ᶜ d((K^s) c).
+
+The integral restricts to `{Φ < m}` = states at level `≤ m − 1`, the recursion base
+for the next window. -/
+theorem level_split_step (K : Kernel α α) [IsMarkovKernel K]
+    (Φ : α → ℕ) (m : ℕ) (c : α) (s t : ℕ) :
+    (K ^ (s + t)) c (potBelow Φ 1)ᶜ
+      ≤ (K ^ s) c (potBelow Φ m)ᶜ
+        + ∫⁻ b in (potBelow Φ m), (K ^ t) b (potBelow Φ 1)ᶜ ∂((K ^ s) c) := by
+  have hbad1 : MeasurableSet ((potBelow Φ 1)ᶜ : Set α) := (potBelow_measurable Φ 1).compl
+  have hbadm : MeasurableSet (potBelow Φ m : Set α) := potBelow_measurable Φ m
+  -- (K^(s+t)) c B₁ᶜ = ∫ (K^t) b B₁ᶜ d((K^s) c), split the base measure over {Φ < m}.
+  rw [Kernel.pow_add_apply_eq_lintegral K s t c hbad1]
+  rw [← lintegral_add_compl _ hbadm]
+  -- The {Φ < m} part is kept; the {Φ ≥ m} part is bounded by (K^s) c B_mᶜ.
+  rw [add_comm]
+  gcongr
+  -- ∫_{(potBelow Φ m)ᶜ} (K^t) b B₁ᶜ d((K^s) c) ≤ (K^s) c (potBelow Φ m)ᶜ.
+  calc ∫⁻ b in ((potBelow Φ m)ᶜ), (K ^ t) b (potBelow Φ 1)ᶜ ∂((K ^ s) c)
+      ≤ ∫⁻ _ in ((potBelow Φ m)ᶜ), (1 : ℝ≥0∞) ∂((K ^ s) c) := by
+        apply lintegral_mono
+        intro b
+        exact kernel_pow_le_one K t b _
+    _ = (K ^ s) c (potBelow Φ m)ᶜ := by
+        rw [lintegral_const, Measure.restrict_apply_univ, one_mul]
+
+/-- **Fixed-horizon union-over-levels tail (the new generic addition).**  Under a
+target count `Φ` non-increasing on `Inv` (`PotNonincrOn`), `Inv` `K`-closed
+(`InvClosed`), and a level-dependent per-step drop bound `hdrop` (when `Φ = m`, one
+step drops below `m` with probability `≥ 1 − q m`), starting from an `Inv`-state at
+level `≤ M₀`, after the total horizon `T = ∑_{m=1}^{M₀} tWin m` the mass still above
+level `0` is bounded by the union over level windows:
+
+    (K^(∑_{m=1}^{M₀} tWin m)) c (potBelow Φ 1)ᶜ ≤ ∑_{m=1}^{M₀} (q m) ^ (tWin m).
+
+This is the coupon-collector whp tail.  For the Doty Phase 7/8 instantiation,
+`q m = 1 − eFloor·m/(n(n−1))`-shape and `tWin m = Θ(n(n−1)/(eFloor·m) · log n)`, so
+each term is `n^{-Θ(1)}` and `T = Θ(n log n / eFloor-fraction)`. -/
+theorem levels_union_tail (K : Kernel α α) [IsMarkovKernel K]
+    (Inv : α → Prop) (hClosed : InvClosed K Inv)
+    (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m, ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (tWin : ℕ → ℕ) :
+    ∀ (M₀ : ℕ) (c : α), Φ c ≤ M₀ → Inv c →
+      (K ^ (∑ m ∈ Finset.Icc 1 M₀, tWin m)) c (potBelow Φ 1)ᶜ
+        ≤ ∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) := by
+  intro M₀
+  induction M₀ with
+  | zero =>
+      intro c hc _hInvc
+      -- Φ c ≤ 0 ⇒ Φ c = 0 ⇒ c ∈ potBelow Φ 1 ⇒ (K^0) c B₁ᶜ = 0.  Sum over ∅ = 0.
+      have hc0 : Φ c = 0 := Nat.le_zero.mp hc
+      have hmem : c ∈ potBelow Φ 1 := by
+        simp only [potBelow, Set.mem_setOf_eq]; omega
+      have heval : (K ^ (∑ m ∈ Finset.Icc 1 0, tWin m)) c (potBelow Φ 1)ᶜ = 0 := by
+        simp only [Finset.Icc_eq_empty_of_lt (by norm_num : (0:ℕ) < 1),
+          Finset.sum_empty]
+        rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+          Measure.dirac_apply' c ((potBelow_measurable Φ 1).compl)]
+        have : c ∉ ((potBelow Φ 1)ᶜ : Set α) := by
+          simp only [Set.mem_compl_iff]; exact fun h => h hmem
+        simp [this]
+      rw [heval]
+      simp only [Finset.Icc_eq_empty_of_lt (by norm_num : (0:ℕ) < 1), Finset.sum_empty,
+        le_refl]
+  | succ M₀ ih =>
+      intro c hc hInvc
+      set s := tWin (M₀ + 1) with hs
+      set T' := ∑ m ∈ Finset.Icc 1 M₀, tWin m with hT'
+      -- Horizon: ∑_{m=1}^{M₀+1} tWin m = s + T'.
+      have hsum : ∑ m ∈ Finset.Icc 1 (M₀ + 1), tWin m = s + T' := by
+        rw [Finset.sum_Icc_succ_top (by omega : 1 ≤ M₀ + 1), hs, hT', add_comm]
+      have hsumRHS : ∑ m ∈ Finset.Icc 1 (M₀ + 1), (q m) ^ (tWin m)
+          = (q (M₀ + 1)) ^ s + ∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) := by
+        rw [Finset.sum_Icc_succ_top (by omega : 1 ≤ M₀ + 1), hs, add_comm]
+      rw [hsum, hsumRHS]
+      -- Chapman-Kolmogorov split through the absorbing level set {Φ < M₀+1}.
+      refine le_trans (level_split_step K Φ (M₀ + 1) c s T') ?_
+      apply add_le_add
+      · -- top-level window: (K^s) c (potBelow Φ (M₀+1))ᶜ ≤ (q (M₀+1))^s.
+        exact level_tail K Inv hClosed Φ hmono q hdrop (M₀ + 1) c hc hInvc s
+      · -- residual: ∫_{potBelow Φ (M₀+1)} (K^T') b B₁ᶜ d((K^s) c) ≤ ∑_{m=1}^{M₀} (q m)^(tWin m).
+        -- a.e. b in the base measure is in Inv; on {Φ < M₀+1} ∩ Inv, IH gives the bound.
+        have hbase_inv : (K ^ s) c {x | ¬ Inv x} = 0 :=
+          pow_not_inv_eq_zero K Inv hClosed c hInvc s
+        have hbadm : MeasurableSet (potBelow Φ (M₀ + 1) : Set α) :=
+          potBelow_measurable Φ (M₀ + 1)
+        calc ∫⁻ b in (potBelow Φ (M₀ + 1)), (K ^ T') b (potBelow Φ 1)ᶜ ∂((K ^ s) c)
+            ≤ ∫⁻ _ in (potBelow Φ (M₀ + 1)),
+                (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m)) ∂((K ^ s) c) := by
+              apply lintegral_mono_ae
+              -- a.e. on the restricted measure: b ∈ Inv (null set {¬Inv} removed).
+              rw [ae_restrict_iff' hbadm]
+              -- Show: a.e. b, b ∈ potBelow (M₀+1) → (K^T') b B₁ᶜ ≤ RHS.
+              have hnull : (K ^ s) c {x | ¬ Inv x} = 0 := hbase_inv
+              rw [Filter.eventually_iff_exists_mem]
+              refine ⟨{x | Inv x}, ?_, ?_⟩
+              · rw [mem_ae_iff]
+                have hcompl : ({x | Inv x}ᶜ : Set α) = {x | ¬ Inv x} := by
+                  ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+                rw [hcompl]; exact hnull
+              · intro b hbInv hbmem
+                simp only [Set.mem_setOf_eq] at hbInv
+                have hblev : Φ b ≤ M₀ := by
+                  have : b ∈ potBelow Φ (M₀ + 1) := hbmem
+                  simp only [potBelow, Set.mem_setOf_eq] at this; omega
+                exact ih b hblev hbInv
+          _ ≤ ∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) := by
+              rw [lintegral_const, Measure.restrict_apply_univ]
+              calc (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m)) * ((K ^ s) c (potBelow Φ (M₀ + 1)))
+                  ≤ (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m)) * 1 := by
+                    gcongr; exact kernel_pow_le_one K s c _
+                _ = ∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) := by rw [mul_one]
+
+/-- **Form (a): level-decomposed whp tail, packaged as a `PhaseConvergenceW`.**
+
+Same `Pre`/`Post` shape as the crude packaging (`Pre = Inv ∧ Φ ≤ M₀`,
+`Post = Inv ∧ Φ = 0`), but the horizon is the coupon-collector sum
+`T = ∑_{m=1}^{M₀} tWin m` and the failure budget is the union-over-levels tail
+`ε ≥ ∑_{m=1}^{M₀} (q m)^(tWin m)`.  This is the paper-faithful `O(n log n)` engine:
+with the level-dependent rate `q m = 1 − eFloor·m/(n(n−1))`-shape, the horizon is
+`Θ(n log n / eFloor-fraction)` and the failure is `O(1/n²)`.
+
+`{¬Post} ⊆ {¬Inv} ∪ (potBelow Φ 1)ᶜ`; the `{¬Inv}` mass vanishes from an `Inv`-start,
+and the `(potBelow Φ 1)ᶜ` mass is `≤ ∑ (q m)^(tWin m)` by `levels_union_tail`. -/
+noncomputable def levels_PhaseConvergenceW (K : Kernel α α) [IsMarkovKernel K]
+    (Inv : α → Prop) (hClosed : InvClosed K Inv)
+    (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m, ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (tWin : ℕ → ℕ) (M₀ : ℕ) (ε : ℝ≥0)
+    (hε : (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW K where
+  Pre x := Inv x ∧ Φ x ≤ M₀
+  Post x := Inv x ∧ Φ x = 0
+  t := ∑ m ∈ Finset.Icc 1 M₀, tWin m
+  ε := ε
+  convergence := by
+    intro x₀ hPre₀
+    obtain ⟨hInvx₀, hΦx₀⟩ := hPre₀
+    -- {¬Post} ⊆ {¬Inv} ∪ (potBelow Φ 1)ᶜ.
+    have hcover : {y : α | ¬ (Inv y ∧ Φ y = 0)} ⊆ {x | ¬ Inv x} ∪ (potBelow Φ 1)ᶜ := by
+      intro y hy
+      simp only [Set.mem_setOf_eq, not_and] at hy
+      by_cases hInvy : Inv y
+      · refine Or.inr ?_
+        simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+        have := hy hInvy; omega
+      · exact Or.inl hInvy
+    set T := ∑ m ∈ Finset.Icc 1 M₀, tWin m with hT
+    calc (K ^ T) x₀ {y | ¬ (Inv y ∧ Φ y = 0)}
+        ≤ (K ^ T) x₀ ({x | ¬ Inv x} ∪ (potBelow Φ 1)ᶜ) := measure_mono hcover
+      _ ≤ (K ^ T) x₀ {x | ¬ Inv x} + (K ^ T) x₀ (potBelow Φ 1)ᶜ := measure_union_le _ _
+      _ = 0 + (K ^ T) x₀ (potBelow Φ 1)ᶜ := by
+          rw [pow_not_inv_eq_zero K Inv hClosed x₀ hInvx₀ T]
+      _ = (K ^ T) x₀ (potBelow Φ 1)ᶜ := by rw [zero_add]
+      _ ≤ ∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) := by
+          rw [hT]
+          exact levels_union_tail K Inv hClosed Φ hmono q hdrop tWin M₀ x₀ hΦx₀ hInvx₀
+      _ ≤ (ε : ℝ≥0∞) := hε
+
+end Levels
 
 end OneSidedCancel
 
