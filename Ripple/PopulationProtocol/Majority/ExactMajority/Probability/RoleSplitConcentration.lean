@@ -531,5 +531,83 @@ theorem phase0MilestonePhase_pMin_le_two_div
   rw [hp_eq] at hpmin_le
   exact hpmin_le
 
+/-! ## Phase C-1 (relay 2) — the one-sided MCR-conversion building blocks.
+
+RESOLUTION of the pinned obstruction (see `DOTY_POST63_CAMPAIGN.md`, "Phase C-1
+(relay 2)").  The `pMin = Θ(1/n²)` obstruction above is an artifact of the
+predecessor's milestone phase counting **only** `RoleMCR,RoleMCR → Main,RoleCR`
+pairs (`Phase0Transition` Rule 1).  The protocol ALSO has the one-sided
+conversion reactions of paper Lemma 5.1 — `S_f,U → S_t,M_f` and `M_f,U → M_t,S_f`
+— formalized as `Phase0Transition` Rules 2 and 3 (Protocol/Transition.lean
+L364–386): an MCR meeting an *unassigned* Main (Rule 2) or an *unassigned*
+RoleCR (Rule 3) is converted, decreasing `mcrCount` by 1.  The number of such
+ordered (MCR, assignable-target) pairs is `mcrCount · assignableCount`, giving a
+decrease rate `Θ(M·n/n²) = Θ(M/n)` (once `assignableCount = Θ(n)` by Lemma 5.1's
+Chernoff invariant), hence `pMin = Θ(1/n)` and the potential `pMin·meanTime =
+Θ(log n)` is reachable.
+
+These lemmas deliver the **count-level** content: the `assignableCount`
+definition and the pair-level fact that a (phase-0 MCR, phase-0 unassigned
+assignable-target) interaction strictly drops `mcrCount`.  Threading the
+`assignableCount ≥ n/5` invariant through a milestone phase (the analogue of the
+Phase-2/4 `informedU` epidemic monotonicity) is the documented next gap. -/
+
+/-- An agent is an *assignable target* for one-sided MCR conversion: it is an
+unassigned `Main` (Rule 2 partner) or an unassigned `RoleCR` (Rule 3 partner),
+at phase 0.  An MCR meeting such an agent is converted, dropping `mcrCount`. -/
+def IsAssignable (a : AgentState L K) : Prop :=
+  a.phase.val = 0 ∧ ¬ a.assigned ∧ (a.role = .main ∨ a.role = .cr)
+
+/-- Number of assignable targets in a configuration (the `Θ(n)` pool that drives
+the one-sided MCR conversion at rate `Θ(M/n)`). -/
+def assignableCount (c : Config (AgentState L K)) : ℕ :=
+  Multiset.countP (fun a => decide (a.phase.val = 0) &&
+    (!a.assigned) && (decide (a.role = .main) || decide (a.role = .cr))) c
+
+/-- **Rule 2 effect (s-side MCR meets unassigned Main on the t-side).** When `s`
+is `RoleMCR` and `t` is an unassigned `Main`, `Phase0Transition` makes the
+`s`-output non-MCR (`s` becomes `RoleCR`).  Pure unfolding of the five rules. -/
+theorem Phase0Transition_first_no_mcr_of_mcr_main
+    (s t : AgentState L K) (hs : s.role = .mcr) (ht : t.role = .main)
+    (ht_un : ¬ t.assigned) :
+    (Phase0Transition L K s t).1.role ≠ .mcr := by
+  -- Rule 1 (s1): needs both mcr — false (t is main), so s1 = s, s1.role = mcr.
+  -- t1 = t (Rule 1 t-branch needs both mcr — false), so t1.role = main, ¬t1.assigned.
+  -- Rule 2 (s2): s1.role = mcr ∧ t1.role = main ∧ ¬t1.assigned — fires, s2.role = cr.
+  -- Rules 3,4,5 leave a `.cr` role untouched (their `.mcr`/`.cr×.cr`/`.clock` guards miss).
+  have hmcr_main : (Role.mcr = Role.main) = False := by simp
+  have hmain_mcr : (Role.main = Role.mcr) = False := by simp
+  have hcr_mcr : (Role.cr = Role.mcr) = False := by simp
+  have hmain_cr : (Role.main = Role.cr) = False := by simp
+  have hcr_clock : (Role.cr = Role.clock) = False := by simp
+  have hmain_clock : (Role.main = Role.clock) = False := by simp
+  unfold Phase0Transition
+  simp only [hs, ht, hmcr_main, hmain_mcr, hcr_mcr, hmain_cr, hcr_clock, hmain_clock,
+    ht_un, true_and, and_true, false_and, and_false,
+    if_false, if_true, not_false_eq_true, not_true_eq_false,
+    ne_eq, Bool.false_eq_true]
+
+/-- **Rule 3 effect (s-side MCR meets unassigned RoleCR on the t-side).** When `s`
+is `RoleMCR` and `t` is an unassigned `RoleCR`, `Phase0Transition` makes the
+`s`-output non-MCR (`s` becomes `Main`).  Pure unfolding of the five rules. -/
+theorem Phase0Transition_first_no_mcr_of_mcr_cr
+    (s t : AgentState L K) (hs : s.role = .mcr) (ht : t.role = .cr)
+    (ht_un : ¬ t.assigned) :
+    (Phase0Transition L K s t).1.role ≠ .mcr := by
+  -- Rule 1: needs both mcr — false. Rule 2: t1.role = cr ≠ main and ≠ mcr — no fire.
+  -- Rule 3 (s3): s2.role = mcr ∧ t2.role ≠ main ∧ t2.role ≠ mcr ∧ ¬t2.assigned — fires,
+  -- s becomes `.main`. Rules 4,5: `.main` misses `.cr`/`.clock` guards.
+  have hmcr_main : (Role.mcr = Role.main) = False := by simp
+  have hcr_main : (Role.cr = Role.main) = False := by simp
+  have hcr_mcr : (Role.cr = Role.mcr) = False := by simp
+  have hmain_mcr : (Role.main = Role.mcr) = False := by simp
+  have hmain_cr : (Role.main = Role.cr) = False := by simp
+  have hmain_clock : (Role.main = Role.clock) = False := by simp
+  unfold Phase0Transition
+  simp only [hs, ht, hmcr_main, hcr_main, hcr_mcr, hmain_mcr, hmain_cr,
+    hmain_clock, ht_un, and_true, false_and, and_false,
+    if_false, if_true, not_false_eq_true, not_true_eq_false,
+    ne_eq, Bool.false_eq_true]
+
 end RoleSplitConcentration
 end ExactMajority

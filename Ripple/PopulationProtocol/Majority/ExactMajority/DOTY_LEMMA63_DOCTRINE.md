@@ -892,3 +892,64 @@ NET: the two pre-existing open residuals were hB (item 1, the two-regime ceiling
 hour escape). hB is now CLOSED modulo the single documented window-exit point (hReg2Cap); eB (heB) and
 the taint tail (htB) remain as named hypotheses per standing doctrine. The _final corollaries are the
 hB-discharged form of the concretes, ready for the FrontSync consumer rethread (Phase B step 3–4).
+
+## PHASE B-5 hReg2Cap — EXHAUSTIVE avenue search; CONFIRMED blocked with frozen inputs (2026-06-10 relay)
+## No commit (no proof found that respects ZERO-sorry / frozen-EarlyDripMarked). DotyParams baseline EXIT_0.
+
+EXACT STATEMENT OF hReg2Cap (DotyParams.lean:1252): for regime-2 starts (recInv, AllClockP3 erase,
+`10·X₀ ≤ n`, `n < 10·⌈g·X₀⌉₊`), `μ(E_{aM n}) ≤ μ(E_{n/10})` where E_c is the cleanAbove-bad event
+`{(9/10)·rBeyond²/n < cleanAbove ∧ rBeyond ≤ c ∧ card=n ∧ AllClockP3-erase}`.  aM n = n/10+1.
+
+THE TWO EVENTS DIFFER EXACTLY ON THE SLICE S := {rBeyond = n/10+1} (since E_{aM n} = E_{n/10} ∪
+(E_{aM n}∩S)).  So hReg2Cap holds iff μ(E_{aM n}∩S) ≤ μ(E_{n/10}) − μ(E_{n/10}) ... i.e. iff
+μ(E_{aM n}∩S) is absorbed.  ROUTE (a) "S is ∅/null" is FALSE: rBeyond is monotone-increasing
+(rBeyond_erase_monotone_ge3) and the regime-2 start only has 10·X₀≤n, so rBeyond CAN grow to n/10+1
+over the w=3n/200 window; S has positive measure.  No project-wide rBeyond-growth UPPER tail exists
+(grep: every `rBeyond ≤ aM` is a consumer hypothesis, never a derived tail; growth_marked_tail
+@2950 bounds {rBeyond ≤ a} = the front SMALL, the wrong direction).
+
+ROUTE "floor+single-rung ladder" (anchor a0:=n/10, a1:=aM n, M:=1 in per_window_delta to cap at
+aM n directly): BLOCKED by an Θ(n²) hYt SQUEEZE.  per_window_delta's two hYt's on the rung force
+  cc·g²·X₀²/n ≤ Yt 0 ≤ cc·(a0)²/n + 1 = cc·(n/10)²/n + 1   (slice_exp_le_inflated hYt ∧ per_window_delta hYt).
+In regime 2 g·X₀ > n/10 ⟹ g²·X₀² > (n/10)², and the slack n/cc is O(n) ≪ (n/10)² = O(n²); the two
+bounds are inconsistent by Θ(n²).  This is the SAME squeeze the doctrine (lines 851–857) found for
+the ladder anchor — anchoring the rung at n/10 makes the threshold too small to absorb the drip from
+X₀>n/(10g).  Confirmed irreconcilable.
+
+ROUTE "reuse regime-1 full ladder with M:=1": BLOCKED — regime-1's ha0 is `10·⌈g·X₀⌉₊ ≤ n`, which is
+the NEGATION of the regime-2 defining hypothesis `n < 10·⌈g·X₀⌉₊`.  The regime-1 ladder cannot be
+anchored in regime 2.
+
+ROUTE "bound E_{aM n} directly via per_window_step / window_bad_subset at a:=aM n": BLOCKED — these
+carry the killK ESCAPE masses (growth-escape `killK growthGate^w (some mc₀){none}` + clean-escape).
+per_window_delta's achievement was absorbing those escapes into the GATE-CONDITIONED tails
+(slice_growth_tail_up / slice_clean_tail_explicit), which requires the cap a0 to satisfy `10·a0 ≤ n`
+so the floor branch lands inside growthGate (per_window_ladder_up @4514–4515: `rBeyond≤a0 ⟹ growthGate`
+needs ha0 by omega).  With a0 = aM n = n/10+1 the slice S exits growthGate (10·(n/10+1) > n), the
+floor branch's growthGate derivation fails, and the bulk-arrival escape resurfaces.  That escape is
+NOT in deltaB n (= floor-exp(θn) + n·slice-exp(θn) only) — it is precisely the eB/heB hour-escape
+mass, already a SEPARATE named hypothesis.
+
+DOWNSTREAM FACT (why the slice is spurious in the END consumer, but cannot retire hReg2Cap as a
+standalone measure inequality): window_failure_le (EarlyDripMarked 4790–4933) consumes the cap-aM hB
+but ITS hsub (4882–4883) derives `rBeyond ≤ aM` from the window guard `10·rBeyond ≤ n` via omega, so
+the bad event it actually hits has rBeyond ≤ n/10 — the slice S is NEVER exercised by the consumer.
+But hReg2Cap / hB_params must still produce the LITERAL `∀T mc, … → μ(E_{aM n}) ≤ deltaB` that
+windowedFrontProfile_whp_concrete (DotyParams 339–346) hard-codes as its hB hypothesis; that literal
+inequality is FALSE because μ(E_{aM n}∩S) > 0 with no deltaB-sized bound.
+
+RESOLUTION (two upstream-touching options, neither doable under the frozen-file rule this session):
+ (b1) Rethread windowedFrontProfile_whp_concrete's hB cap from `aM n` to `n/10` so the carried event
+      is E_{n/10} (which hB_regime2 already discharges, 0 extra work).  This edits
+      windowedFrontProfile_whp_packaged / its concrete specialization — EarlyDripMarked is FROZEN.
+      Cheapest correct fix; needs the owning agent to widen the consumer's `by omega` (it already
+      proves rBeyond ≤ n/10 ≤ aM, so n/10 is the natural cap).
+ (b2) Carry the bulk-arrival escape `μ(E_{aM n}∩S) ≤ killK growthGate^w (some mc₀){none}` as an
+      added named hypothesis (an eB/heB-shaped term) and add it into deltaB.  This is honest but
+      enlarges deltaB and the _final hyp lists; it is the same mass eB already controls, so it should
+      be UNIFIED with heB rather than introduced fresh.
+
+NET: hReg2Cap stays a named hypothesis (unchanged from 254b6e43).  It is NOT ladder arithmetic and
+NOT a vacuous boundary case; it is the regime-2 bulk-arrival escape, structurally identical to eB.
+Recommend route (b1) by the EarlyDripMarked owner (one-line cap relax in the packaged consumer),
+after which hB_params regime 2 closes with hB_regime2 alone and hReg2Cap is deleted everywhere.

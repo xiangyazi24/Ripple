@@ -659,3 +659,123 @@ must be assembled NOT from a uniform-pMin Janson bound but from the coupon decom
 3. `post_sound : Post ⊆ RoleSplitGood` — Stage-1 Post gives `mcrCount ≤ 1` (need = 0: parity
    cleanup via the phase-end `RoleCR → Reserve` rule); Stage-2 Post gives the Clock/Reserve
    Θ(n) floors and the Main n/2±εn window via the deterministic 1:1 counts (pure omega).
+
+## Phase C-1 (relay 2) — RESOLUTION of the critical math question
+
+**The pinned obstruction was a MODELING gap in the predecessor's milestone phase, NOT a
+property of the protocol. Answer (a) is correct: the protocol HAS one-sided MCR conversion.**
+
+### The paper quote (Lemma 5.1, the Phase-0 top-level split reactions, paper line 2311)
+
+> "Lemma 5.1. Consider the reactions
+>   U, U → S_f, M_f
+>   S_f, U → S_t, M_f
+>   M_f, U → M_t, S_f
+> starting with n U agents. … This converges to u = 0 in expected time at most 2.5 ln n and
+> in 12.5 ln n time with high probability 1 − O(1/n²)."
+
+with the proof's rate computation:
+
+> "The probability of decreasing u is at least 2(u/n)(1/5), so the number of interactions it
+> takes to decrement u is stochastically dominated by a geometric random variable with
+> probability p = 2u/(5n). Then the number of interactions for u to decrease from 2n/3 down
+> to 0 is dominated by a sum T of geometric random variables with mean
+> E[T] = Σ_{u=1}^{2n/3} 5n/(2u) ∼ (5/2) n ln n."
+
+And Lemma 5.2 (paper line 2391) states exactly the role-split postcondition we target:
+
+> "Lemma 5.2. For any ε > 0, with high probability 1 − O(1/n²), by the end of Phase 0,
+> |RoleMCR| = 0, (n/2)(1−ε) ≤ |M| ≤ (n/2)(1+ε) and |C|,|R| ≥ (n/4)(1−ε)."
+
+### What this means for the Lean obstruction
+
+The decrement rate is **`p = 2u/(5n) = Θ(u/n)`, NOT `Θ(u²/n²)`**. The `Θ(u/n)` comes from
+the SECOND and THIRD reactions of Lemma 5.1 — `S_f,U → S_t,M_f` and `M_f,U → M_t,S_f` — i.e.
+an MCR meeting an *already-assigned* RoleCR or Main agent and being one-sidedly converted.
+These are precisely **Rules 2 and 3 of `Phase0Transition`** (Protocol/Transition.lean
+L364–386, paper pseudocode Lines 4–9), which the Lean protocol ALREADY formalizes:
+  * Rule 2 (L364–374, paper Lines 4–6): MCR meets unassigned Main → MCR becomes RoleCR.
+  * Rule 3 (L375–386, paper Lines 7–9): MCR meets unassigned RoleCR (non-Main) → MCR becomes Main.
+Each decreases `mcrCount` by 1, and the number of such (MCR, assignable-target) ordered pairs
+is `u · (#unassigned assignable targets)`. By Lemma 5.1's Chernoff step, `s_f + m_f > n/5`
+holds for all future interactions once `u < 2n/3` (the count `s_f + m_f` is non-decreasing),
+so the assignable-target count is `Θ(n)` and the per-step decrease probability is `Θ(u/n)`.
+
+**The predecessor's `phase0_mcrCount_decrease_prob` (Phase0Convergence.lean L1672) bounds the
+decrease probability using ONLY the MCR–MCR good set** (Rule 1, `Σ count·(M−1) = M(M−1)`),
+hence `p ≥ M(M−1)/(n(n−1)) = Θ(M²/n²)` and `pMin = Θ(1/n²)`. That bound is CORRECT but WEAK:
+it omits the Rule-2/Rule-3 one-sided good pairs. The honest fix is a STRONGER decrease bound
+adding the (MCR × assignable-target) good set, giving `p ≥ Θ(M·n/5 / n²) = Θ(M/n)`, hence a
+milestone phase with `pMin = Θ(1/n)`, `meanTime = Σ 5n/(2M) = Θ(n ln n)`, and
+`pMin · meanTime = Θ(ln n)` — the potential is SATISFIED.
+
+**FAITHFUL FORM (final):** `RoleSplitGood` and `roleSplitTail` are kept exactly as the
+predecessor stated them (paper-faithful to Lemma 5.2: `|RoleMCR| = 0`, the M window, the
+C,R floors). The witness's `RoleSplitMilestone.mp.p` must be the `Θ(M/n)` family, not the
+predecessor's `Θ(M²/n²)` `phase0MilestonePhase`. The in-file `RoleSplitGood` already encodes
+`roleMCRCount = 0` as the target, so NO definition change is needed — only the milestone
+family's rate. All C-1c/d/e lemmas are untouched (prompt's "keep predecessors' lemmas intact").
+
+### Honest scope assessment for this relay
+
+Proving the `Θ(M/n)` decrease bound over the real kernel requires the **`s_f + m_f > n/5`
+concentration invariant** (Lemma 5.1's Chernoff step) as a hypothesis on the configs the
+milestone phase visits — that count is NOT determined by `mcrCount` alone, so a milestone
+phase keyed only on `mcrCount` cannot carry it. The faithful witness therefore needs the
+invariant threaded as a carried predicate (an `assignableCount c ≥ n/5` side condition,
+discharged by a separate epidemic-style monotonicity lemma — the analogue of `informedU`
+already used in Phase 2/4). This relay delivers the **count-level building blocks** (the
+one-sided assignable-target good set, the `assignableCount` definition, and the
+`Θ(M·assignable/n²)` mass bound over the real kernel) and wires what is mechanically
+reachable; the full carried-invariant milestone is the precise documented next gap.
+
+---
+
+## Phase C-4: Phase4Convergence (tie detection / non-tie continuation) — COMPLETE
+
+File: `Probability/Phase4Convergence.lean` (NEW, 0-sorry, axioms ⊆ [propext, Classical.choice, Quot.sound], no native_decide). Single-file `lake env lean` EXIT_0.
+
+The actual Phase-4 rule (`Protocol/Transition.lean:1042`): a phase-4 agent with a
+**big bias** (`bias = .dyadic _ i` with `i.val < L`, i.e. `|bias| > 2^{-L}`) is a witness;
+meeting any partner advances BOTH to phase 5 (`advancePhase`). With no big bias the
+transition is the identity.
+
+### Honest predicate choices (vs HANDOFF sketch placeholders)
+The sketch named `TieAllMinExp`/`Phase3StructuredNonTiePost`/`StableTieOutput`/`Phase5Pre`,
+none of which exist. Replaced with honest in-file predicates read off the real rule:
+- `noBigBias a` — bias `.zero` or `.dyadic _ i` with `¬ i.val < L` (mirrors the `private`
+  `StableEndpoints.phase4NoBigBias`).
+- `StableTie4 c` — `∀ a ∈ c, phase=4 ∧ output=T ∧ noBigBias a` (mirrors the `private`
+  `StableEndpoints.phase4TieWith`) — the tie `Post`.
+- `advancedP a := 5 ≤ a.phase.val`, `advancedU c := countP advancedP`, `advFinished n c := n ≤ advancedU c` — non-tie `Post`.
+- `Q4 n c := card=n ∧ ∀ a, 4 ≤ a.phase.val` — non-tie window; `Qwin4 := Q4 ∧ 1 ≤ advancedU` (window + epidemic seed).
+
+### Mechanism
+- **Tie branch**: genuinely deterministic. With no big bias the guard never fires;
+  `Transition_preserves_tie_pair` ⟹ `StableTie4_stepOrSelf`/`_absorbing` ⟹
+  `StableTie4_pow_tail` (`(K^t) c {¬StableTie4} = 0` by induction). ε = 0.
+- **Non-tie branch**: the phase-`max` epidemic baked into `phaseEpidemicUpdate`. "informed"
+  = `phase ≥ 5`; a mixed (advanced, phase-4) pair sends BOTH outputs to `phase ≥ 5`
+  (`Transition_*_phase_ge_pair_max`, public, from `Invariants.lean`). This is the SAME engine
+  as `Phase2Convergence`'s opinion epidemic, ported with `advancedU` as the monotone count:
+  `advancedP_pair_mono/_advances`, `advancedU_ge_monotone`, the DERIVED rectangle prob
+  `advanced_advance_prob` (`≥ m(n−m)/(n(n−1))`), the exponential deficit drift
+  `phase4AdvancedDrift`, and the keystone `windowDrift_PhaseConvergence` →
+  `phase4NonTieConvergence : PhaseConvergence`.
+
+### Deliverables (theorems)
+- `phase4NonTieConvergence (n) (hn:2≤n) (s) (hs:0<s) (t) (ε) (hε) : PhaseConvergence (NonuniformMajority L K).transitionKernel` — Pre = `Qwin4 n`, Post = `Qwin4 n ∧ advFinished n`.
+- `phase4Convergence (n) (hn:2≤n) (s) (hs:0<s) (t) (ε) (hε) : PhaseConvergenceW (NonuniformMajority L K).transitionKernel` — the **unified instance**: Pre = `StableTie4 ∨ Qwin4 n`, Post = `StableTie4 ∨ advFinished n`. Tie branch contributes failure 0; ε is the non-tie geometric tail `r^t·exp(s(n−1))` with `r = 1 − ((n−1)/(n(n−1)))(1−e^{−s})`.
+
+### Honest carried assumption (the one documented gap, by design)
+The non-tie Pre carries the epidemic **source seed** `1 ≤ advancedU c` (`∃ a, phase ≥ 5`),
+exactly as `Phase3Convergence`'s Pre carries `∃ a, 4 ≤ a.phase`. The **witness-bootstrap**
+(one witness pair firing to CREATE the first phase-5 agent in O(n) steps, before the spread)
+is NOT in this file — it is the upstream/composition's job to supply the source, matching the
+repo's established Phase-3 design. This is a deliberate scope boundary, not a sorry: the
+witness-firing lemma (per-step `≥ #witness·(n−1)/(n(n−1))` from the `hasBigBias‖` guard) is
+the precise next atom if a self-seeding non-tie instance is wanted.
+
+Commits: C-4a bc51ff8d (tie determinism) · C-4b 98654cb3 (epidemic kinematics) ·
+C-4c ad50d020 (rectangle prob) · C-4d 33b1a660 (sync prob) · C-4e 2bad00f8 (window+potential) ·
+C-4f 2e3acf05 (drift) · C-4g c84645cf (non-tie PhaseConvergence) · C-4h 8edab1f6 (unified).

@@ -2391,6 +2391,113 @@ theorem phase10_expected_stabilization_chain (n : ℕ) (hn : 2 ≤ n)
       (done3_subset_done1) c) ?_
   exact add_le_add (stage1_expectedHitting_le n hn c hc M hM hMle) le_rfl
 
+/-! ### Closing the chain: the two cross-terms
+
+The remaining work is to bound, unconditionally from an `S1` start, the two
+occupation cross-terms produced by chaining through `Done₁ = {activeBCount = 0}`
+and `Done₂ = {activeTCount = 0}`.  Both are closed by the generic
+`occupation_mid_le_on` (the strong-Markov restart): from an `Sᵢ`-start the band
+mass concentrates on `Sᵢ`-states (`InvClosed`), where the next-stage hitting bound
+applies.  The key uniform cap is `wrongACount/activeTCount ≤ card = n ≤ n(n−1)`. -/
+
+/-- Any potential counting a subclass of agents is `≤ card = n` under `card = n`. -/
+private theorem countP_le_n {n : ℕ} {c : Config (AgentState L K)}
+    (P : AgentState L K → Prop) [DecidablePred P]
+    (hcard : c.card = n) : Multiset.countP P c ≤ n := by
+  rw [← hcard]; exact Multiset.countP_le_card P c
+
+/-- `wrongACount ≤ n(n−1)` for a card-`n` config with `n ≥ 2`. -/
+private theorem wrongACount_le_nn {n : ℕ} (hn : 2 ≤ n)
+    {c : Config (AgentState L K)} (hcard : c.card = n) :
+    wrongACount c ≤ n * (n - 1) := by
+  have h1 : wrongACount c ≤ n := countP_le_n _ hcard
+  have h2 : n ≤ n * (n - 1) := by
+    calc n = n * 1 := (Nat.mul_one n).symm
+      _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega)
+  omega
+
+/-- `activeTCount ≤ n(n−1)` for a card-`n` config with `n ≥ 2`. -/
+private theorem activeTCount_le_nn {n : ℕ} (hn : 2 ≤ n)
+    {c : Config (AgentState L K)} (hcard : c.card = n) :
+    activeTCount c ≤ n * (n - 1) := by
+  have h1 : activeTCount c ≤ n := countP_le_n _ hcard
+  have h2 : n ≤ n * (n - 1) := by
+    calc n = n * 1 := (Nat.mul_one n).symm
+      _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega)
+  omega
+
+/-- **Stage 2→3 chained hitting bound.** From an `S2 n` start `y` the expected
+hitting time of the stabilized set `Done₃ = {wrongACount = 0}` is `≤ 2·n(n−1)·n(n−1)`:
+the absorb-T time to `Done₂ = {activeTCount = 0}` (stage 2) plus the occupation of
+`Done₂ ∖ Done₃`, the latter closed by `occupation_mid_le_on` with `J = S2`,
+`Mid = Done₂`, inner bound from stage 3 (every `S2 ∩ Done₂`-state is `S3`). -/
+theorem stage23_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
+    (y : Config (AgentState L K)) (hy : S2 (L := L) (K := K) n y) :
+    expectedHitting (NonuniformMajority L K).transitionKernel y
+        (potBelow (fun c => wrongACount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+        + ((n * (n - 1) : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+  obtain ⟨⟨hphase, hcard, hpos⟩, hB⟩ := hy
+  -- E[hit Done₃] ≤ E[hit Done₂] + ∑ₜ (K^t) y (Done₂ ∩ Done₃ᶜ).
+  refine le_trans
+    (expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel
+      (done3_subset_done2) y) ?_
+  refine add_le_add ?_ ?_
+  · -- stage 2 with activeTCount y ≤ n(n−1).
+    exact stage2_expectedHitting_le n hn y ⟨⟨hphase, hcard, hpos⟩, hB⟩
+      (n * (n - 1)) (activeTCount_le_nn hn hcard) le_rfl
+  · -- cross-term Done₂ ∩ Done₃ᶜ via occupation_mid_le_on, J = S2.
+    refine occupation_mid_le_on (NonuniformMajority L K).transitionKernel
+      (fun c => S2 (L := L) (K := K) n c) (invClosed_S2 n)
+      (potBelow_measurable (fun c => activeTCount c) 1)
+      (potBelow_measurable (fun c => wrongACount c) 1)
+      _ ?_ y ⟨⟨hphase, hcard, hpos⟩, hB⟩
+    -- inner: every S2-state z below activeTCount-level-1 is S3, with wrongACount ≤ n(n−1).
+    intro z hzS2 hzMid
+    obtain ⟨⟨hzphase, hzcard, hzpos⟩, hzB⟩ := hzS2
+    have hzT : activeTCount z = 0 := by
+      simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
+    exact stage3_expectedHitting_le n hn z ⟨⟨⟨hzphase, hzcard, hzpos⟩, hzB⟩, hzT⟩
+      (n * (n - 1)) (wrongACount_le_nn hn hzcard) le_rfl
+
+/-- **Phase-10 backup expected stabilization (majority case, unconditional `S1`
+start).** From any all-phase-10 majority-`A` configuration (`S1 n`, card `= n ≥ 2`)
+the expected number of interactions to reach the stabilized set `{wrongACount = 0}`
+(every agent outputs the majority answer `A`) is `≤ 3·n(n−1)·n(n−1) = O(n⁴)` crudely
+(`O(n² log n)` after the orthogonal harmonic refinement).  The three coupon stages
+(cancel `activeBCount`, absorb-T `activeTCount`, convert-passive `wrongACount`) are
+chained additively through the two intermediate absorbing done-sets, each cross-term
+closed by the strong-Markov restart `occupation_mid_le_on`. -/
+theorem phase10_expected_stabilization (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S1 (L := L) (K := K) n c) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongACount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+        + (((n * (n - 1) : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+            + ((n * (n - 1) : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)) := by
+  obtain ⟨hphase, hcard, hpos⟩ := hc
+  -- E[hit Done₃] ≤ E[hit Done₁] + ∑ₜ (K^t) c (Done₁ ∩ Done₃ᶜ).
+  refine le_trans
+    (expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel
+      (done3_subset_done1) c) ?_
+  refine add_le_add ?_ ?_
+  · -- stage 1 with activeBCount c ≤ n(n−1).
+    exact stage1_expectedHitting_le n hn c ⟨hphase, hcard, hpos⟩
+      (n * (n - 1)) (countP_le_n _ hcard |>.trans (by
+        calc n = n * 1 := (Nat.mul_one n).symm
+          _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))) le_rfl
+  · -- cross-term Done₁ ∩ Done₃ᶜ via occupation_mid_le_on, J = S1.
+    refine occupation_mid_le_on (NonuniformMajority L K).transitionKernel
+      (fun c => S1 (L := L) (K := K) n c) (invClosed_S1 n)
+      (potBelow_measurable (fun c => activeBCount c) 1)
+      (potBelow_measurable (fun c => wrongACount c) 1)
+      _ ?_ c ⟨hphase, hcard, hpos⟩
+    -- inner: every S1-state z below activeBCount-level-1 is S2; apply stage23.
+    intro z hzS1 hzMid
+    have hzB : activeBCount z = 0 := by
+      simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
+    exact stage23_expectedHitting_le n hn z ⟨hzS1, hzB⟩
+
 end Capstone
 
 end MajStages

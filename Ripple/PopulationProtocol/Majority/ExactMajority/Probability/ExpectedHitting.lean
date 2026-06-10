@@ -445,4 +445,192 @@ theorem expectedHitting_one_step_q (K : Kernel α α) [IsMarkovKernel K]
         expectedHitting_geometric K hDone hAbs 1 (by norm_num) q hblock c₀
     _ = (1 - q)⁻¹ := by rw [Nat.cast_one, one_mul]
 
+/-! ## Part 6 — Occupation of an intermediate set (sequential composition)
+
+The cross-term in the multi-stage chaining `expectedHitting_le_through_mid` is the
+occupation `∑' t, (K^t) c (Mid ∩ Doneᶜ)` of the band `Mid ∖ Done`.  We bound it,
+**uniformly in the start `c`**, by the supremum over `Mid`-entry configs of the
+expected hitting time of `Done`:
+
+    (∀ y ∈ Mid, expectedHitting K y Done ≤ B)  ⟹  ∑' t, (K^t) c (Mid ∩ Doneᶜ) ≤ B.
+
+No absorption hypothesis is needed: the expected hitting time from a `Mid`-state
+already counts *all* future "not-Done" time, so re-entry into `Mid` cannot
+double-count.  The proof mirrors the truncated-induction `occLevelUpTo_le` route
+exactly: induct on a time-truncated occupation, split on `c ∈ Mid` (the truncated
+sum is then `≤ ∑' (K^t) c Doneᶜ = expectedHitting K c Done ≤ B`, since
+`Mid ∩ Doneᶜ ⊆ Doneᶜ`) vs `c ∉ Mid` (the `t = 0` term vanishes; one
+Chapman-Kolmogorov step pushes the remaining sum onto successors where the IH
+gives `≤ B` uniformly, integrated against the Markov kernel `K c`).
+
+This is the "strong-Markov restart" the campaign specs for closing the Phase-E2
+three-stage chaining cross-term, in fully generic kernel form. -/
+
+/-- The **time-truncated occupation** of `Mid ∩ Doneᶜ`: the partial sum of the
+band masses over the first `t` steps. -/
+noncomputable def occMidUpTo (K : Kernel α α) (Mid Done : Set α) (t : ℕ) (c : α) :
+    ℝ≥0∞ :=
+  ∑ i ∈ Finset.range t, (K ^ i) c (Mid ∩ Doneᶜ)
+
+/-- **Uniform truncated occupation bound.** For every truncation `t` and every start
+`c`, the truncated `Mid ∩ Doneᶜ` occupation is `≤ B`, given that from every
+`Mid`-state the expected hitting time of `Done` is `≤ B`.
+
+Proof by induction on `t`.  If `c ∈ Mid`, the truncated sum is `≤ ∑' (K^t) c Doneᶜ
+= expectedHitting K c Done ≤ B` (`Mid ∩ Doneᶜ ⊆ Doneᶜ`).  If `c ∉ Mid`, the `i = 0`
+term vanishes (`(K^0) c (Mid ∩ Doneᶜ) = δ_c(Mid ∩ Doneᶜ) = 0`); reindex `i ↦ j+1`,
+apply Chapman-Kolmogorov per term, pull the finite sum inside, and bound the
+integrand `occMidUpTo … t b ≤ B` by the IH (uniform in `b`). -/
+theorem occMidUpTo_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    {Mid Done : Set α} (hMid : MeasurableSet Mid) (hDone : MeasurableSet Done)
+    (B : ℝ≥0∞) (hB : ∀ y ∈ Mid, expectedHitting K y Done ≤ B)
+    (t : ℕ) (c : α) :
+    occMidUpTo K Mid Done t c ≤ B := by
+  have hband : MeasurableSet (Mid ∩ Doneᶜ : Set α) := hMid.inter hDone.compl
+  induction t generalizing c with
+  | zero => simp only [occMidUpTo, Finset.range_zero, Finset.sum_empty]; exact zero_le'
+  | succ t ih =>
+      by_cases hc : c ∈ Mid
+      · -- c ∈ Mid: truncated band-sum ≤ full Doneᶜ-tail = expectedHitting ≤ B.
+        calc occMidUpTo K Mid Done (t + 1) c
+            ≤ ∑' i : ℕ, (K ^ i) c (Doneᶜ : Set α) := by
+              rw [occMidUpTo]
+              refine le_trans (Finset.sum_le_sum (fun i _ =>
+                measure_mono (Set.inter_subset_right))) ?_
+              exact ENNReal.sum_le_tsum _
+          _ = expectedHitting K c Done := (expectedHitting_eq_tsum K c Done).symm
+          _ ≤ B := hB c hc
+      · -- c ∉ Mid: the i = 0 band-mass is 0; peel and reindex i = j+1.
+        have hzero : (K ^ 0) c (Mid ∩ Doneᶜ) = 0 := by
+          rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+            Measure.dirac_apply' c hband]
+          have : c ∉ (Mid ∩ Doneᶜ : Set α) := fun h => hc h.1
+          simp [this]
+        have hsplit : occMidUpTo K Mid Done (t + 1) c
+            = ∑ j ∈ Finset.range t, (K ^ (j + 1)) c (Mid ∩ Doneᶜ) := by
+          rw [occMidUpTo, Finset.sum_range_succ']
+          simp only [hzero, add_zero]
+        rw [hsplit]
+        have hCK : ∀ j : ℕ, (K ^ (j + 1)) c (Mid ∩ Doneᶜ)
+            = ∫⁻ b, (K ^ j) b (Mid ∩ Doneᶜ) ∂(K c) := by
+          intro j
+          rw [show j + 1 = 1 + j from by ring,
+            Kernel.pow_add_apply_eq_lintegral K 1 j c hband, pow_one]
+        simp only [hCK]
+        rw [← lintegral_finsetSum (Finset.range t)
+          (fun j _ => Kernel.measurable_coe (K ^ j) hband)]
+        calc ∫⁻ b, (∑ j ∈ Finset.range t, (K ^ j) b (Mid ∩ Doneᶜ)) ∂(K c)
+            ≤ ∫⁻ _ : α, B ∂(K c) := by
+              apply lintegral_mono
+              intro b
+              simpa only [occMidUpTo] using ih b
+          _ = B := by rw [lintegral_const, measure_univ, mul_one]
+
+/-- **Occupation of an intermediate band (sequential composition / strong-Markov
+restart).** If from every `Mid`-state the expected hitting time of `Done` is `≤ B`,
+then the full occupation of the band `Mid ∩ Doneᶜ` from *any* start `c` is `≤ B`:
+
+    ∑' t, (K^t) c (Mid ∩ Doneᶜ) ≤ B.
+
+The truncated occupations are uniformly `≤ B` (`occMidUpTo_le`) and increase to the
+`tsum`, which therefore inherits the bound.  This is the cross-term bound that
+closes the additive multi-stage chaining `expectedHitting_le_through_mid`. -/
+theorem occupation_mid_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    {Mid Done : Set α} (hMid : MeasurableSet Mid) (hDone : MeasurableSet Done)
+    (B : ℝ≥0∞) (hB : ∀ y ∈ Mid, expectedHitting K y Done ≤ B)
+    (c : α) :
+    ∑' t : ℕ, (K ^ t) c (Mid ∩ Doneᶜ) ≤ B := by
+  rw [ENNReal.tsum_eq_iSup_nat]
+  refine iSup_le (fun t => ?_)
+  simpa only [occMidUpTo] using occMidUpTo_le K hMid hDone B hB t c
+
+/-! ### Invariant-relative occupation bound
+
+In the Phase-E2 application the per-`Mid`-state hitting bound `expectedHitting K y
+Done ≤ B` is only available for `Mid`-states that *also* satisfy a closed invariant
+`J` (e.g. `Mid = {activeBCount = 0}` only gives the stage-2/3 bound when the config
+is additionally `S1`, i.e. all-phase-10 with positive signed sum — together making
+it `S2`).  From a `J`-start the band occupation lives a.e. on `J`-states
+(`InvClosed`), so the `J`-restricted hitting bound suffices.  The invariant
+hypothesis is spelled out directly (matching `InvClosed`'s shape) to keep this file
+self-contained. -/
+
+/-- **Invariant-relative uniform truncated occupation bound.** Mirrors
+`occMidUpTo_le`, threading a one-step-closed invariant `J` (from a `J`-state the
+next-step mass on `¬ J` is `0`).  The per-`Mid`-state hitting bound is needed only
+at `J ∩ Mid`-states, and the start must satisfy `J`. -/
+theorem occMidUpTo_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Mid Done : Set α} (hMid : MeasurableSet Mid) (hDone : MeasurableSet Done)
+    (B : ℝ≥0∞) (hB : ∀ y : α, J y → y ∈ Mid → expectedHitting K y Done ≤ B)
+    (t : ℕ) (c : α) (hJc : J c) :
+    occMidUpTo K Mid Done t c ≤ B := by
+  have hband : MeasurableSet (Mid ∩ Doneᶜ : Set α) := hMid.inter hDone.compl
+  induction t generalizing c with
+  | zero => simp only [occMidUpTo, Finset.range_zero, Finset.sum_empty]; exact zero_le'
+  | succ t ih =>
+      by_cases hc : c ∈ Mid
+      · -- c ∈ Mid ∩ J: truncated band-sum ≤ Doneᶜ-tail = expectedHitting ≤ B.
+        calc occMidUpTo K Mid Done (t + 1) c
+            ≤ ∑' i : ℕ, (K ^ i) c (Doneᶜ : Set α) := by
+              rw [occMidUpTo]
+              refine le_trans (Finset.sum_le_sum (fun i _ =>
+                measure_mono (Set.inter_subset_right))) ?_
+              exact ENNReal.sum_le_tsum _
+          _ = expectedHitting K c Done := (expectedHitting_eq_tsum K c Done).symm
+          _ ≤ B := hB c hJc hc
+      · -- c ∉ Mid: the i = 0 band-mass is 0; peel, reindex, CK step, IH on J-successors.
+        have hzero : (K ^ 0) c (Mid ∩ Doneᶜ) = 0 := by
+          rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+            Measure.dirac_apply' c hband]
+          have : c ∉ (Mid ∩ Doneᶜ : Set α) := fun h => hc h.1
+          simp [this]
+        have hsplit : occMidUpTo K Mid Done (t + 1) c
+            = ∑ j ∈ Finset.range t, (K ^ (j + 1)) c (Mid ∩ Doneᶜ) := by
+          rw [occMidUpTo, Finset.sum_range_succ']
+          simp only [hzero, add_zero]
+        rw [hsplit]
+        have hCK : ∀ j : ℕ, (K ^ (j + 1)) c (Mid ∩ Doneᶜ)
+            = ∫⁻ b, (K ^ j) b (Mid ∩ Doneᶜ) ∂(K c) := by
+          intro j
+          rw [show j + 1 = 1 + j from by ring,
+            Kernel.pow_add_apply_eq_lintegral K 1 j c hband, pow_one]
+        simp only [hCK]
+        rw [← lintegral_finsetSum (Finset.range t)
+          (fun j _ => Kernel.measurable_coe (K ^ j) hband)]
+        -- a.e. successor b under (K c) satisfies J (closure); IH applies there.
+        have hinv_ae : (K c) {x | ¬ J x} = 0 := hClosed c hJc
+        calc ∫⁻ b, (∑ j ∈ Finset.range t, (K ^ j) b (Mid ∩ Doneᶜ)) ∂(K c)
+            ≤ ∫⁻ _ : α, B ∂(K c) := by
+              apply lintegral_mono_ae
+              rw [Filter.eventually_iff_exists_mem]
+              refine ⟨{x | J x}, ?_, ?_⟩
+              · rw [mem_ae_iff]
+                have : ({x | J x}ᶜ : Set α) = {x | ¬ J x} := by
+                  ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+                rw [this]; exact hinv_ae
+              · intro b hb
+                simp only [Set.mem_setOf_eq] at hb
+                simpa only [occMidUpTo] using ih b hb
+          _ = B := by rw [lintegral_const, measure_univ, mul_one]
+
+/-- **Invariant-relative occupation of an intermediate band.** From a `J`-start `c`
+(with `J` one-step-closed), the band occupation is `≤ B`, given the `J`-restricted
+per-`Mid`-state hitting bound.  Closes the Phase-E2 chaining cross-term:
+`Mid = {activeBCount = 0}`, `J = S1`, `Done = {wrongACount = 0}`, so `J ∩ Mid = S2`
+and `B = 2·M·n(n−1)` (stage-2 then stage-3). -/
+theorem occupation_mid_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Mid Done : Set α} (hMid : MeasurableSet Mid) (hDone : MeasurableSet Done)
+    (B : ℝ≥0∞) (hB : ∀ y : α, J y → y ∈ Mid → expectedHitting K y Done ≤ B)
+    (c : α) (hJc : J c) :
+    ∑' t : ℕ, (K ^ t) c (Mid ∩ Doneᶜ) ≤ B := by
+  rw [ENNReal.tsum_eq_iSup_nat]
+  refine iSup_le (fun t => ?_)
+  simpa only [occMidUpTo] using occMidUpTo_le_on K J hClosed hMid hDone B hB t c hJc
+
 end ExactMajority
