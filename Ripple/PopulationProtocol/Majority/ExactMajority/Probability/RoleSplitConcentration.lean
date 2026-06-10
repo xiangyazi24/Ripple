@@ -2906,6 +2906,41 @@ theorem mem_support_of_pos_toMeasure {c c' : Config (AgentState L K)}
     (DiscreteMeasurableSpace.forall_measurableSet _), hzero] at h
   exact absurd h (lt_irrefl 0)
 
+/-- **mcrCount at the milestone frontier.**  If all milestones `< i` are reached at `c` but
+`i` is not, *and* the carried Phase-0 invariants hold (`card = n`, all MCR at phase 0), then
+`mcrCount c = n − i.val`.  (Public re-derivation of the private
+`phase0_milestone_mcrCount_eq`.) -/
+theorem mcrCount_eq_of_milestone_frontier {n : ℕ} (hn2 : 2 ≤ n) (i : Fin (n - 1))
+    (c : Config (AgentState L K)) (hcard : Multiset.card c = n)
+    (hphase : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0)
+    (h_prev : ∀ j : Fin (n - 1), j < i →
+      liftMilestone (L := L) (K := K) n ⟨j.val, by omega⟩ (some c))
+    (h_not : ¬ liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ (some c)) :
+    ExactMajority.mcrCount (L := L) (K := K) c = n - i.val := by
+  have h_not' : ¬ ExactMajority.phase0Milestone n ⟨i.val, by omega⟩ c := h_not
+  unfold ExactMajority.phase0Milestone at h_not'
+  push_neg at h_not'
+  obtain ⟨h_mcr_gt, _, _⟩ := h_not'
+  have hthr_i : ExactMajority.mcrThreshold n ⟨i.val, by omega⟩ = n - 1 - i.val := rfl
+  rw [hthr_i] at h_mcr_gt
+  have h_le_n : ExactMajority.mcrCount (L := L) (K := K) c ≤ n := by
+    have : ExactMajority.mcrCount (L := L) (K := K) c ≤ Multiset.card c := by
+      unfold ExactMajority.mcrCount; exact Multiset.card_le_card (Multiset.filter_le _ _)
+    omega
+  by_cases hi0 : i.val = 0
+  · omega
+  · have hlt : (⟨i.val - 1, by omega⟩ : Fin (n - 1)) < i := by
+      simp only [Fin.lt_def]; omega
+    have h_prev_j := h_prev ⟨i.val - 1, by omega⟩ hlt
+    have h_prev_j' : ExactMajority.phase0Milestone n ⟨i.val - 1, by omega⟩ c := h_prev_j
+    unfold ExactMajority.phase0Milestone at h_prev_j'
+    rcases h_prev_j' with h_mcr_prev | h_card_prev | h_phase_prev
+    · have hthr : ExactMajority.mcrThreshold n ⟨i.val - 1, by omega⟩ = n - 1 - (i.val - 1) := rfl
+      rw [hthr] at h_mcr_prev; omega
+    · exact absurd hcard h_card_prev
+    · obtain ⟨a, ha, ha_mcr, ha_phase⟩ := h_phase_prev
+      exact absurd (hphase a ha ha_mcr) ha_phase
+
 /-- **`milestone_monotone` for the lifted family.**  Along any positive-mass killed-kernel
 successor, a reached lifted milestone stays reached.  Three cases: the cemetery is
 absorbing (`killK_now none = δ none`) and milestone-`True`; an alive→cemetery step lands at
@@ -2952,12 +2987,81 @@ theorem liftMilestone_monotone {n a₀ : ℕ} (hn2 : 2 ≤ n) (i : Fin (n - 1))
         have hsupp' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support :=
           mem_support_of_pos_toMeasure (L := L) (K := K) hsupp
         exact (phase0MilestonePhase (L := L) (K := K) n hn2).milestone_monotone
-          ⟨i.val, by omega⟩ c c' hmono' hsupp'
+          i c c' hmono' hsupp'
       · rw [killK_now_ungated c hcG,
           Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _),
           Set.indicator_of_notMem (by simp : (none : Option (Config (AgentState L K))) ∉
             ({some c'} : Set (Option (Config (AgentState L K)))))] at hsupp
         exact absurd hsupp (lt_irrefl 0)
+
+/-- **Global `progress` for the lifted family.**  At *every* `o : Option (Config …)` with
+milestones `< i` reached and `i` unreached, the killed-kernel mass on the lifted milestone-`i`
+target is at least `floorRate n a₀ (n − i.val)`.  Three cases discharge the GLOBAL
+obligation (no `Inv` threading): cemetery `none` — vacuous (`i` reached there); ungated alive
+`some c` (`c ∉ G`) — `killK_now = δ none`, the whole mass lands at milestone-`True`, `≥
+floorRate` since `floorRate ≤ 1`; gated alive `some c` (`c ∈ G`) — the frontier `mcrCount c =
+n − i.val` (`mcrCount_eq_of_milestone_frontier`, invariants from `c ∈ floorGate`), then
+`liftMilestone_progress_mass` (the floor → rate bridge).  This is why the killed kernel
+dissolves `inv_closed`: off-gate the bound is FREE (cemetery mass `= 1`). -/
+theorem liftMilestone_progress {n a₀ : ℕ} (hn2 : 2 ≤ n) (ha_le : a₀ ≤ n - 1)
+    (i : Fin (n - 1)) (o : Option (Config (AgentState L K)))
+    (h_prev : ∀ j : Fin (n - 1), j < i →
+      liftMilestone (L := L) (K := K) n ⟨j.val, by omega⟩ o)
+    (h_not : ¬ liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o) :
+    killK_now (NonuniformMajority L K).transitionKernel
+        (floorGate (L := L) (K := K) n a₀) o
+        {o' | liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o'} ≥
+      ENNReal.ofReal (floorRate n a₀ (n - i.val)) := by
+  classical
+  -- M = n - i.val ∈ [2, n] (since i.val ≤ n-2 = (n-1)-1).
+  have hMge2 : 2 ≤ n - i.val := by have := i.isLt; omega
+  have hMlen : n - i.val ≤ n := by omega
+  have hfloorRate_le_one : floorRate n a₀ (n - i.val) ≤ 1 :=
+    floorRate_le_one (n := n) (a₀ := a₀) (M := n - i.val) hn2 hMlen ha_le
+  rcases o with _ | c
+  · exact absurd (trivial : liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩
+      (none : Option (Config (AgentState L K)))) h_not
+  · by_cases hcG : c ∈ floorGate (L := L) (K := K) n a₀
+    · -- gated: the frontier mcrCount and the floor → rate bridge.
+      have hcard := floorGate_card (L := L) (K := K) hcG
+      have hphase := floorGate_phase0 (L := L) (K := K) hcG
+      have hfront := mcrCount_eq_of_milestone_frontier (L := L) (K := K) hn2 i c hcard hphase
+        h_prev h_not
+      exact liftMilestone_progress_mass (L := L) (K := K) hn2 i c hcG hfront
+    · -- ungated: killK_now (some c) = δ none, none ∈ milestone set (True), mass = 1.
+      rw [killK_now_ungated c hcG, Measure.dirac_apply' _
+        (DiscreteMeasurableSpace.forall_measurableSet _),
+        Set.indicator_of_mem (show (none : Option (Config (AgentState L K))) ∈
+          {o' | liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o'} from trivial)]
+      calc ENNReal.ofReal (floorRate n a₀ (n - i.val)) ≤ ENNReal.ofReal 1 :=
+            ENNReal.ofReal_le_ofReal hfloorRate_le_one
+        _ = 1 := ENNReal.ofReal_one
+
+/-- **The concrete role-split `KernelMilestone` witness (Stage 1).**  Instantiates the
+relay-6 abstract engine `KernelMilestone (killK_now K G)` for Doty's Lemma 5.1.  The gate is
+`floorGate n a₀`; the milestone family is the `n−1` diagonal `mcrCount` thresholds lifted to
+`Option (Config …)` (cemetery `none` = milestone-`True`); the per-step rate is the
+floor-driven `floorRate n a₀ (n−i.val) = (n−i.val)·a₀/(n(n−1))` (the `Θ(M/n)` rate).  The
+three fields are the three relay-7 lemmas: `milestone_monotone = liftMilestone_monotone`,
+`progress = liftMilestone_progress` (GLOBAL, `inv_closed` dissolved).  This is the witness
+relay 6 isolated as the single remaining atom. -/
+noncomputable def roleSplitKernelMilestone (n a₀ : ℕ) (hn2 : 2 ≤ n)
+    (ha1 : 1 ≤ a₀) (ha_le : a₀ ≤ n - 1) :
+    KernelMilestone (killK_now (NonuniformMajority L K).transitionKernel
+      (floorGate (L := L) (K := K) n a₀)) where
+  k := n - 1
+  milestone i := liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩
+  p i := floorRate n a₀ (n - i.val)
+  hp_pos i := by
+    have hMge2 : 2 ≤ n - i.val := by have := i.isLt; omega
+    exact floorRate_pos (n := n) (a₀ := a₀) (M := n - i.val) hn2 (by omega) ha1
+  hp_le_one i := by
+    have hMlen : n - i.val ≤ n := by omega
+    exact floorRate_le_one (n := n) (a₀ := a₀) (M := n - i.val) hn2 hMlen ha_le
+  milestone_monotone i o o' hmono hsupp :=
+    liftMilestone_monotone (L := L) (K := K) (a₀ := a₀) hn2 i o o' hmono hsupp
+  progress i o h_prev h_not :=
+    liftMilestone_progress (L := L) (K := K) hn2 ha_le i o h_prev h_not
 
 end RoleSplitConcentration
 end ExactMajority

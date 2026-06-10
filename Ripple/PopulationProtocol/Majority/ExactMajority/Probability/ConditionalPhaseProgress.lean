@@ -1415,6 +1415,94 @@ theorem clockCounterSumAt_PotNonincrOn (p : ℕ)
   have hle := clockCounterSumAt_stepDistOrSelf_le (L := L) (K := K) p hp b c' hb hsupp
   exact absurd hbad (by simp only [Set.mem_setOf_eq]; omega)
 
+/-! ## Part 7 — Brick 2: the clock-clock rectangle drop mass `hdrop`
+
+From an `AllClockGEp p`-state at level `m ≥ 1`, the one-step kernel mass on
+`{clockCounterSumAt p drops below m}` is `≥ clockPairRate posCount n`, where
+`posCount` is the count of POSITIVE-counter phase-`p` clocks.  The rectangle is the
+square of ordered distinct positive-counter phase-`p` clock pairs; each such pair
+strictly drops the sum (`transition_pair_wtAt_lt`, first counter positive), and the
+square `interactionCount` aggregates to `posCount·(posCount−1)`. -/
+
+/-- A clock at phase exactly `p` with a positive counter — the contributors that the
+rectangle pairs over. -/
+def isPosPhaseP (p : ℕ) (a : AgentState L K) : Prop :=
+  a.role = .clock ∧ a.phase.val = p ∧ 0 < a.counter.val
+
+instance (p : ℕ) : DecidablePred (isPosPhaseP (L := L) (K := K) p) := fun a => by
+  unfold isPosPhaseP; infer_instance
+
+/-- The count of positive-counter phase-`p` clocks. -/
+def posClockCount (p : ℕ) (c : Config (AgentState L K)) : ℕ :=
+  Multiset.countP (fun a => isPosPhaseP (L := L) (K := K) p a) c
+
+/-- `Σ count over the positive-phase-p filter = posClockCount`.  (Cloned from
+`ClockRealMixed.sum_count_frontier`'s count bridge.) -/
+theorem sum_count_posPhaseP (p : ℕ) (c : Config (AgentState L K)) :
+    (∑ a ∈ Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a),
+        c.count a)
+      = posClockCount (L := L) (K := K) p c := by
+  classical
+  have hcard : (Multiset.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a) c).card
+      = Multiset.countP (fun a => isPosPhaseP (L := L) (K := K) p a) c :=
+    (Multiset.countP_eq_card_filter _ _).symm
+  unfold posClockCount
+  rw [← hcard]
+  have hcount_eq : ∀ a ∈ Finset.univ.filter
+        (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a),
+      c.count a
+        = Multiset.count a
+            (Multiset.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a) c) := by
+    intro a ha
+    rw [Finset.mem_filter] at ha
+    rw [Config.count, Multiset.count_filter, if_pos ha.2]
+  rw [Finset.sum_congr rfl hcount_eq, Multiset.sum_count_eq_card]
+  intro a ha
+  rw [Multiset.mem_filter] at ha
+  rw [Finset.mem_filter]
+  exact ⟨Finset.mem_univ a, ha.2⟩
+
+/-- The square `interactionCount` sum over the positive-phase-`p` clock rectangle is
+`posClockCount·(posClockCount−1)`.  (Cloned from `ClockRealMixed.sum_interactionCount_frontierRect`.) -/
+theorem sum_interactionCount_posPhaseP_square (p : ℕ) (c : Config (AgentState L K)) :
+    (∑ q ∈ (Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a)) ×ˢ
+        (Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a)),
+        c.interactionCount q.1 q.2)
+      = posClockCount (L := L) (K := K) p c * (posClockCount (L := L) (K := K) p c - 1) := by
+  classical
+  set F := Finset.univ.filter (fun a : AgentState L K => isPosPhaseP (L := L) (K := K) p a) with hF
+  set N := ∑ a ∈ F, c.count a with hN
+  have hpoint : ∀ q ∈ F ×ˢ F,
+      c.interactionCount q.1 q.2 + (if q.1 = q.2 then c.count q.1 else 0)
+        = c.count q.1 * c.count q.2 := by
+    rintro ⟨a, b⟩ _
+    unfold Config.interactionCount
+    by_cases h : a = b
+    · subst h; rw [if_pos rfl, if_pos rfl]
+      have hle : c.count a ≤ c.count a * c.count a := by nlinarith [Nat.zero_le (c.count a)]
+      rw [Nat.mul_sub_one, Nat.sub_add_cancel hle]
+    · rw [if_neg h, if_neg h, Nat.add_zero]
+  have hsq : (∑ q ∈ F ×ˢ F, c.count q.1 * c.count q.2) = N * N := by
+    rw [Finset.sum_product, hN, Finset.sum_mul]
+    apply Finset.sum_congr rfl
+    intro a _; rw [Finset.mul_sum]
+  have hdiag : (∑ q ∈ F ×ˢ F, (if q.1 = q.2 then c.count q.1 else 0)) = N := by
+    rw [Finset.sum_product]
+    have : ∀ a ∈ F, (∑ b ∈ F, (if a = b then c.count a else 0)) = c.count a := by
+      intro a ha
+      rw [Finset.sum_ite_eq F a (fun _ => c.count a), if_pos ha]
+    rw [Finset.sum_congr rfl this]
+  have hadd : (∑ q ∈ F ×ˢ F, c.interactionCount q.1 q.2) + N = N * N := by
+    have hcollect : (∑ q ∈ F ×ˢ F, c.interactionCount q.1 q.2)
+        + (∑ q ∈ F ×ˢ F, (if q.1 = q.2 then c.count q.1 else 0))
+        = ∑ q ∈ F ×ˢ F, c.count q.1 * c.count q.2 := by
+      rw [← Finset.sum_add_distrib]; exact Finset.sum_congr rfl hpoint
+    rw [hdiag, hsq] at hcollect; exact hcollect
+  have hNval : N = posClockCount (L := L) (K := K) p c := by
+    rw [hN, hF]; exact sum_count_posPhaseP p c
+  rw [← hNval, Nat.mul_sub_one]
+  omega
+
 end ConditionalPhaseProgress
 
 end ExactMajority
