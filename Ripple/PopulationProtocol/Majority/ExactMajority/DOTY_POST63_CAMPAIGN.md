@@ -356,3 +356,55 @@ E. Side gates (HabsDischarge phase/counter): fold into S (the side event of the 
 Endpoint: clock_real_faithful_all_minutes_W with budget L₀·(εseed+εbulk) + H·q + ∑_{τ<H} global
 side-failure prefixes; then the O(log n) wrapper. Retire the habs_mix_all consumers per the
 letter-1 dead-code list.
+
+---
+
+## Phase B-9 — KILLED-MINUTE BRICK DELIVERED (2026-06-10, 0-sorry axiom-clean)
+
+Three new files (commits 2026418c, a45eb3c6, bd72da46; pushed main + opus-wip):
+
+1. `Probability/GatedKillNow.lean` — the IMMEDIATE-kill kernel `killK_now K G`: from `some x`
+   (`x∈G`) push `K x` through `gateMap G = fun y => if y∈G then some y else none` (off-gate
+   successors die in the SAME step). Delivered: IsMarkovKernel, `killK_now_none`/`_ungated`/
+   `_some_gated`, `none_absorbing_now`, **`alive_support_gate`** (the FIX: any positive-mass
+   alive successor lies in G — stated as `0 < killK_now o {some c'} → c'∈G`, since
+   `Measure.support` is not in Mathlib), **`real_le_killed_now`**, **`killed_now_alive_le_real`**,
+   **`kill_now_escape_le_prefix_union`** (simpler than the lagged version: escape registers
+   immediately, no carried ungated-alive mass).
+
+2. `Probability/KernelWindowDrift.lean` — Kernel-parametric WEAK window-drift builder:
+   `kernel_lintegral_decay`, `kernel_measure_ge_thresh`, `kernel_windowDrift_tail`,
+   **`kernelWindowDrift_PhaseConvergenceW`**. PORT of WindowConcentration's bodies, Protocol→Kernel,
+   strong→weak.
+   DEVIATION: uses the UNCONDITIONAL one-step drift `∀x, ∫Φ∂(Kx) ≤ r·Φx` instead of the
+   blueprint's `hQ_abs`+a.e.-invariance form — because `Measure.support` is not first-class in
+   Mathlib, and the killed kernel's drift IS unconditional (0 off-gate / at cemetery). Strictly
+   cleaner; reuses no a.e. machinery.
+
+3. `Probability/ClockKilledMinute.lean` — the minute skeleton, all holes filled:
+   `Qset`/`QbulkSet`/`κQ_now`/`κQ_now_bulk`, `SeedPre/Post`, `BulkPre/Post`, `optLift`,
+   `seedΦ`/`bulkΦ`/`minuteRate`, `killed_int_le_real`(+`_bulk`), `real_int_zero_of_finished`,
+   **`killed_seed_drift`**, **`killed_bulk_drift`** (unconditional; alive branch reduces killed
+   integral to the gate-filtered real integral ≤ real unguarded `rSeedPot_contracts_seed/bulk`;
+   finished branch = 0 via `hmono_mix_discharged`), **`killedSeedPhase`**, **`killedBulkPhase`**
+   (via `kernelWindowDrift_PhaseConvergenceW`, θ=1, link = `not_finished_imp_rSeedPot_ge_one`),
+   **`clock_killed_seed_stepW`**, **`clock_killed_bulk_stepW`**, **`clock_real_seed_step_gated`**
+   (real transfer via `real_le_killed_now` + `{none}∪{some bad}` split).
+
+### Post-shape choice: NUMERICAL-ONLY killed Post.
+`SeedPost c := seedLo mC ≤ rBeyond(T+1) c`, `BulkPost c := bulkHi mC ≤ rBeyond(T+1) c` — NO
+`Q_mix` conjunct. Reason: full `Q_mix` one-step closure (`habs_mix`) is UNPROVEN (rests on
+`HabsDischarge.ClockPhase3_remaining_synchronization`, the front-shape synchronization, a
+multi-step reachability fact). The killed kernel FILTERS successors through the gate
+(`alive_support_gate`), so alive successors lie in `Q_mix` by construction — we never need the
+real dynamics to preserve `Q_mix`. The unguarded `rSeedPot` links to the numerical threshold
+only. The `Q_mix` endpoint conjunct is recovered by consumers from the side gates.
+
+### DEVIATION: two kernels, not one composed minute.
+SEED gates on `Q_mix` (`κQ_now`); BULK gates on the STRONGER `QbulkWin` (`κQ_now_bulk`) because
+`rSeedPot_contracts_bulk` consumes the `mC/10` infected floor `hlo`, which an alive `Q_mix`-only
+successor need NOT satisfy. A single-kernel `composeW_two_phases` would need ONE gate that tracks
+the `mC/10` floor for ALL alive successors — exactly the unproven front-shape floor invariant.
+So the blueprint's `clock_killed_stepW` (one composed minute) is delivered as TWO separate
+per-leg tails (`clock_killed_seed_stepW`/`clock_killed_bulk_stepW`) plus the seed-leg real
+transfer; consumers chain the legs at the real-kernel level. This is the precise residual obstruction.

@@ -784,6 +784,36 @@ theorem ladderA_succ_le (X₀ : ℕ) (m : ℕ) :
     mul_le_mul_of_nonneg_left ha0le hG0
   linarith [hceil_lt, hmono]
 
+/-- **Per-rung square cap for the ladder**: `(ladderA X₀ (m+1))² ≤ G^{2m}·Geff²·g²·X₀²` for a large
+feeder (`10²³ ≤ X₀`).  Via `rung_sq_cap` (with `a0 := ⌈g·X₀⌉₊`, `Gp := G^{m+1}`) giving
+`≤ κ·G^{2m+2}·g²·X₀²`, then `G^{2m}·Geff² = G^{2m}·κG² = κ·G^{2m+2}` (`Geff_sq`). -/
+theorem ladderA_sq_cap (X₀ : ℕ) (m : ℕ) (hX₀ : (10:ℝ) ^ (23:ℕ) ≤ (X₀ : ℝ)) :
+    (ladderA X₀ (m + 1) : ℝ) ^ 2
+      ≤ (201/200 : ℝ) ^ (2 * m) * Geff ^ 2 * gC ^ 2 * (X₀ : ℝ) ^ 2 := by
+  have hg1 : (1:ℝ) ≤ gC := one_le_gC
+  have hGp1 : (1:ℝ) ≤ (201/200 : ℝ) ^ (m + 1) := one_le_pow₀ (by norm_num)
+  have hgX : (10:ℝ) ^ (23:ℕ) ≤ gC * (X₀ : ℝ) := by nlinarith [hX₀, hg1]
+  have ha0 : (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) ≤ gC * (X₀ : ℝ) + 1 := by
+    have hg0 : (0:ℝ) ≤ gC * (X₀ : ℝ) := by positivity
+    exact le_of_lt (Nat.ceil_lt_add_one hg0)
+  -- ladderA X₀ (m+1) ≤ G^{m+1}·⌈g·X₀⌉₊ + 1.
+  have hsucc : (ladderA X₀ (m + 1) : ℝ)
+      ≤ (201/200 : ℝ) ^ (m + 1) * (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) + 1 := by
+    unfold ladderA
+    apply le_of_lt
+    apply Nat.ceil_lt_add_one
+    positivity
+  have hasucc0 : (0:ℝ) ≤ (ladderA X₀ (m + 1) : ℝ) := by positivity
+  have hcap := rung_sq_cap (ladderA X₀ (m + 1) : ℝ) (⌈gC * (X₀ : ℝ)⌉₊ : ℝ)
+    ((201/200 : ℝ) ^ (m + 1)) gC (X₀ : ℝ) hGp1 hg1 hgX ha0 hsucc hasucc0
+  -- κ·(G^{m+1})²·g²·X₀² = G^{2m}·Geff²·g²·X₀².
+  have hpow : ((201/200 : ℝ) ^ (m + 1)) ^ 2 = (201/200 : ℝ) ^ (2 * m) * (201/200 : ℝ) ^ 2 := by
+    rw [← pow_mul]; rw [show (m + 1) * 2 = 2 * m + 2 by ring, pow_add]
+  have hrw : (1 + 1/10000 : ℝ) * ((201/200 : ℝ) ^ (m + 1)) ^ 2 * gC ^ 2 * (X₀ : ℝ) ^ 2
+      = (201/200 : ℝ) ^ (2 * m) * Geff ^ 2 * gC ^ 2 * (X₀ : ℝ) ^ 2 := by
+    rw [hpow, Geff_sq]; ring
+  rw [← hrw]; exact hcap
+
 /-! ### Part 13b — the INFLATED slice discharger (the fix for the ceiling-ladder drip↔threshold gap).
 
 `EarlyDripMarked.slice_exp_le`/`slice_discharge` couple the drip cap and the threshold through the

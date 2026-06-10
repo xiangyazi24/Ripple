@@ -1132,8 +1132,99 @@ theorem sum_interactionCount_activeAB (c : Config (AgentState L K)) :
     (HourCouplingV2.countP_eq_sum_count IsActiveB c).symm]
   rfl
 
+/-- The present active-A × active-B pairs (those with both states actually present
+in `c`). -/
+def presentActiveABPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (activeABPairs (L := L) (K := K) c).filter
+    (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2)
+
+/-- The `interactionProb`-sum over the present active-A × active-B pairs equals the
+full-rectangle sum (absent pairs have `interactionCount = 0`), which by
+`sum_interactionCount_activeAB` is `activeACount · activeBCount / totalPairs`. -/
+theorem sum_interactionProb_presentActiveAB (c : Config (AgentState L K)) :
+    (∑ p ∈ presentActiveABPairs (L := L) (K := K) c,
+        c.interactionProb p.1 p.2)
+      = (↑(activeACount c * activeBCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  -- present-pair sum = full rectangle sum (drop absent pairs: interactionProb 0)
+  have hpresent : (∑ p ∈ presentActiveABPairs (L := L) (K := K) c,
+        c.interactionProb p.1 p.2)
+      = ∑ p ∈ activeABPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    rw [presentActiveABPairs]
+    apply Finset.sum_subset (Finset.filter_subset _ _)
+    intro p _ hpnot
+    simp only [Finset.mem_filter, not_and, not_le, Nat.lt_one_iff] at hpnot
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases hpp : p.1 = p.2
+      · rw [if_pos hpp]
+        rcases Nat.eq_zero_or_pos (c.count p.1) with h1 | h1
+        · rw [h1, Nat.zero_mul]
+        · have := hpnot h1; omega
+      · rw [if_neg hpp]
+        rcases Nat.eq_zero_or_pos (c.count p.1) with h1 | h1
+        · rw [h1, Nat.zero_mul]
+        · rw [hpnot h1, Nat.mul_zero]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hpresent]
+  -- full-rectangle interactionProb sum = (∑ interactionCount) / totalPairs
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum,
+    sum_interactionCount_activeAB, ← div_eq_mul_inv]
+
+/-- **Cancel-stage per-level drop probability.** On an all-phase-10 configuration
+with at least one active-A agent (the majority-A regime), the transition kernel
+maps into the `activeBCount`-drop set with probability `≥ activeBCount c /
+(n·(n−1))`.  This is the per-level drop lower bound consumed by the
+invariant-relative engine with `q m = 1 − m/(n(n−1))`. -/
+theorem activeBCount_drop_prob (c : Config (AgentState L K))
+    (hc : 2 ≤ c.card)
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    (hA : 1 ≤ activeACount c) :
+    (NonuniformMajority L K).transitionKernel c
+        (dropTarget (activeBCount (L := L) (K := K)) c) ≥
+      (↑(activeBCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  -- every present active-A × active-B pair lands in the drop target
+  have hgood : ∀ pair ∈ presentActiveABPairs (L := L) (K := K) c,
+      (NonuniformMajority L K).scheduledStep c pair ∈
+        dropTarget (activeBCount (L := L) (K := K)) c := by
+    intro pair hpair
+    rw [presentActiveABPairs, activeABPairs, Finset.mem_filter, Finset.mem_product,
+      Finset.mem_filter, Finset.mem_filter] at hpair
+    obtain ⟨⟨⟨_, hA1⟩, ⟨_, hB2⟩⟩, h1, h2⟩ := hpair
+    have ha_mem : pair.1 ∈ c := Multiset.count_pos.mp h1
+    have hb_mem : pair.2 ∈ c := Multiset.count_pos.mp h2
+    have := scheduledStep_activeA_activeB_in_drop c hphase ha_mem hb_mem hA1 hB2
+    simpa using this
+  -- kernel mass ≥ interactionPMF mass of the good Finset
+  have hge := Phase0Convergence.stepDistOrSelf_toMeasure_ge c hc
+    (dropTarget (activeBCount (L := L) (K := K)) c)
+    (↑(presentActiveABPairs (L := L) (K := K) c) :
+      Set (AgentState L K × AgentState L K))
+    (fun pair hpair => hgood pair (by simpa using hpair))
+  -- the interactionPMF mass of the Finset = the interactionProb sum
+  have hSmeasure : (c.interactionPMF hc).toMeasure
+      (↑(presentActiveABPairs (L := L) (K := K) c) :
+        Set (AgentState L K × AgentState L K))
+      = ∑ p ∈ presentActiveABPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  rw [sum_interactionProb_presentActiveAB] at hSmeasure
+  change (NonuniformMajority L K).transitionKernel c _ ≥ _
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure _ ≥ _
+  rw [hSmeasure] at hge
+  refine le_trans ?_ hge
+  -- activeBCount / totalPairs ≤ activeACount·activeBCount / totalPairs (activeACount ≥ 1)
+  apply ENNReal.div_le_div_right
+  have : activeBCount c ≤ activeACount c * activeBCount c := by
+    calc activeBCount c = 1 * activeBCount c := (Nat.one_mul _).symm
+      _ ≤ activeACount c * activeBCount c := Nat.mul_le_mul_right _ hA
+  exact_mod_cast this
+
 end Phase10Drop
 
 end ExactMajority
-
-#print axioms ExactMajority.Phase10Drop.sum_interactionCount_activeAB
