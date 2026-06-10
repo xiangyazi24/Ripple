@@ -81,6 +81,7 @@ Reference: Doty et al. §5.1–5.2; `HANDOFF_ROLESPLIT_TOPSPLIT.md`;
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.TopSplit
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase0Window
+import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
 namespace ExactMajority
 namespace RoleSplitConcentration
@@ -262,6 +263,37 @@ private lemma mul_sinh_nonneg (x : ℝ) : 0 ≤ x * Real.sinh x := by
       have := Real.exp_le_exp.mpr (by linarith : x ≤ -x); linarith
     nlinarith [hx, hs]
 
+/-- **Real one-step expectation as the interaction pair-sum.**  On `2 ≤ card` the
+Bochner integral of a real observable under one scheduler step is the finite
+`interactionProb`-weighted sum over ordered pairs of the `stepOrSelf` updates.
+(Local copy of `HourCouplingV2.integral_transitionKernel_eq_sum`, reproved here to
+avoid importing the heavy `HourCouplingV2` module.) -/
+theorem integral_transitionKernel_eq_pairSum
+    (f : Config (AgentState L K) → ℝ) (c : Config (AgentState L K))
+    (hc : 2 ≤ Multiset.card c) :
+    ∫ c', f c' ∂((NonuniformMajority L K).transitionKernel c)
+      = ∑ p : AgentState L K × AgentState L K,
+          (Config.interactionProb c p.1 p.2).toReal
+            * f (Protocol.stepOrSelf (NonuniformMajority L K) c p.1 p.2) := by
+  classical
+  have hker : (NonuniformMajority L K).transitionKernel c
+      = (Protocol.stepDistOrSelf (NonuniformMajority L K) c).toMeasure := rfl
+  rw [hker]
+  have hsd : Protocol.stepDistOrSelf (NonuniformMajority L K) c
+      = PMF.map (Protocol.scheduledStep (NonuniformMajority L K) c)
+          (Config.interactionPMF c hc) := by
+    unfold Protocol.stepDistOrSelf; rw [dif_pos hc]; rfl
+  rw [hsd]
+  rw [← PMF.toMeasure_map (Config.interactionPMF c hc)
+      (f := Protocol.scheduledStep (NonuniformMajority L K) c) Measurable.of_discrete]
+  rw [MeasureTheory.integral_map (Measurable.of_discrete.aemeasurable)
+      (Measurable.of_discrete.aestronglyMeasurable)]
+  rw [PMF.integral_eq_sum]
+  apply Finset.sum_congr rfl
+  intro p _
+  rw [smul_eq_mul]
+  rfl
+
 /-- The per-state cosh MGF observable `coshExpVal s c = cosh (s · X c)`. -/
 noncomputable def coshExpVal (s : ℝ) (c : Config (AgentState L K)) : ℝ :=
   Real.cosh (s * (topSplitXZ (L := L) (K := K) c : ℝ))
@@ -375,7 +407,7 @@ theorem coshExpVal_drift_real (s : ℝ) (hs : 0 ≤ s)
   -- abbreviations
   set X : ℝ := (topSplitXZ (L := L) (K := K) c : ℝ) with hX
   -- 1) integral = pair sum.
-  rw [integral_transitionKernel_eq_sum coshExpVal c hc2]
+  rw [integral_transitionKernel_eq_pairSum (coshExpVal (L := L) (K := K) s) c hc2]
   -- 2) per-pair cosh_add decomposition.
   have hdecomp : ∀ pair : AgentState L K × AgentState L K,
       (Config.interactionProb c pair.1 pair.2).toReal
@@ -400,21 +432,25 @@ theorem coshExpVal_drift_real (s : ℝ) (hs : 0 ≤ s)
   set probR : AgentState L K × AgentState L K → ℝ :=
     fun pair => (Config.interactionProb c pair.1 pair.2).toReal with hprobR
   -- ∑ prob = 1
-  have hsumprob : (∑ pair : AgentState L K × AgentState L K, probR pair) = 1 := by
+  have hsumENN : (∑ pair : AgentState L K × AgentState L K,
+      Config.interactionProb c pair.1 pair.2) = 1 := by
     have := (c.interactionPMF hc2).tsum_coe
     rw [tsum_eq_sum (s := Finset.univ)
         (by intro x hx; exact absurd (Finset.mem_univ x) hx)] at this
+    convert this using 1
+  have hsumprob : (∑ pair : AgentState L K × AgentState L K, probR pair) = 1 := by
     have hcast : (∑ pair : AgentState L K × AgentState L K, probR pair)
         = ((∑ pair : AgentState L K × AgentState L K,
             Config.interactionProb c pair.1 pair.2)).toReal := by
-      rw [ENNReal.toReal_sum]
+      rw [ENNReal.toReal_sum (fun pair _ => ?_)]
       · rfl
-      · intro pair _; exact (c.interactionProb_ne_top pair.1 pair.2)
-    rw [hcast]
-    rw [show (∑ pair : AgentState L K × AgentState L K,
-        Config.interactionProb c pair.1 pair.2) = 1 from by
-      convert this using 1]
-    simp
+      · -- interactionProb pair ≠ ⊤ : it is a PMF coefficient (≤ 1).
+        have : Config.interactionProb c pair.1 pair.2 ≤ 1 := by
+          rw [← hsumENN]
+          exact Finset.single_le_sum (f := fun p => Config.interactionProb c p.1 p.2)
+            (fun _ _ => zero_le') (Finset.mem_univ pair)
+        exact ne_top_of_le_ne_top one_ne_top this
+    rw [hcast, hsumENN, ENNReal.one_toReal]
   -- COSH part: each term ≤ cosh s · cosh(sX) · prob.
   have hcoshpart : (∑ pair : AgentState L K × AgentState L K,
         probR pair * (Real.cosh (s * X)
