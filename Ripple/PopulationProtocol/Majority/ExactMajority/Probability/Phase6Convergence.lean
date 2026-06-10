@@ -1,0 +1,912 @@
+/-
+Copyright (c) 2026. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+
+# Phase 6 — Reserve-fuelled splitting of high-exponent biased agents (Doty et al. §7.1, Phase 6)
+
+`Phase6Transition` (Protocol/Transition.lean:1194) lets a *Reserve* agent `r`
+that has sampled a small enough exponent act as **fuel** to split a biased *Main*
+`m`, via `doSplit`:
+
+```
+def doSplit (L K) (r m) :=
+  match m.bias with
+  | .dyadic sgn j =>
+      if r.hour.val ≠ L ∧ r.hour.val > j.val then
+        if h : j.val > 0 then
+          ( { r with role := .main, bias := .dyadic sgn ⟨j-1, _⟩ },     -- Reserve → Main
+            { m with bias := .dyadic sgn ⟨j-1, _⟩ } )                    -- Main keeps sign
+        else (r, m)
+      else (r, m)
+  | .zero => (r, m)
+```
+
+## Index convention (Basic/Bias.lean)
+
+`Bias.dyadic s i` means `|bias| = 2^(-i)`, so the *index* `i` IS the exponent
+**magnitude**; the paper's "exponent `= -i`" maps to `i`.  Thus:
+
+* paper "exponent `≤ -l`"            ⟺  index `i ≥ l`   (the GOAL: small bias);
+* paper "exponent `> -l`" (high)     ⟺  index `i < l`   (the agents to eliminate).
+
+## The honest per-pair effect of the FROZEN `doSplit` rule
+
+This file reads the **actual** Lean rule (Transition.lean is frozen pending a
+decision; we do not touch it).  Under that rule, an applicable `doSplit r m` with
+`m.bias = .dyadic σ j` (`r.hour.val ≠ L`, `r.hour.val > j.val`, `j.val > 0`)
+produces **two** Main agents, both at `.dyadic σ ⟨j-1, _⟩`.  Index decreases
+`j → j-1` (magnitude *doubles*); the Reserve becomes a Main.
+
+The proofs below establish exactly this effect (`doSplit_apply`,
+`doSplit_role_fst`, `doSplit_bias_fst/snd`), the honest high-count predicate
+`highSt`/`highU`, and the resulting per-pair change in `highU`.
+
+## Campaign finding (recorded honestly; see `phase6_doSplit_raises_high` below)
+
+Under the frozen rule the index moves the WRONG way for the Lemma 7.2 potential:
+a split of a high agent at index `j < l` yields two agents at index `j-1 < l`
+(and may even create a brand-new high agent out of the Reserve), so the
+high-count potential `highU` **strictly increases**.  This is the inverse of the
+paper (Doty's `Ri, ±2^{-j} → ±2^{-(j+1)}` *lowers* magnitude, index `j → j+1`).
+Consequently the `OneSidedCancel` engine's `PotNonincrOn` hypothesis is *false*
+for `highU` on the natural Phase-6 window, and the Lemma-7.2 instance cannot be
+assembled against the frozen `doSplit`.  The largest genuinely-closed subset we
+can deliver is the **vacuous (already-done) window** `Phase6Done`
+(no high agents AND no useful Reserve fuel), on which the kernel keeps `highU = 0`
+and `Phase6Done` is invariant — yielding a real `PhaseConvergenceW` with `ε = 0`.
+
+NEW file; no existing file is edited; no sorry/admit/axiom/native_decide.
+-/
+
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.OneSidedCancel
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.PhaseConvergenceWeak
+import Ripple.PopulationProtocol.Majority.ExactMajority.Protocol.Transition
+
+namespace ExactMajority
+
+open MeasureTheory ProbabilityTheory
+open scoped ENNReal NNReal BigOperators
+
+namespace Phase6Convergence
+
+variable {L K : ℕ}
+
+attribute [local instance] Classical.propDecidable
+
+instance instMeasurableSpaceAgentState6 : MeasurableSpace (AgentState L K) := ⊤
+instance instDiscreteMeasurableSpaceAgentState6 :
+    DiscreteMeasurableSpace (AgentState L K) where
+  forall_measurableSet _ := trivial
+
+/-! ## Part A — the honest `doSplit` per-pair effect facts.
+
+We pin down what the frozen `doSplit` does, branch by branch, so every later
+statement is read off the *actual* rule. -/
+
+/-- `doSplit` is **applicable** to `(r, m)` (it does something nontrivial) iff
+`m` is a biased Main-side dyadic `.dyadic σ j` whose index satisfies the guard
+`r.hour.val ≠ L ∧ r.hour.val > j.val ∧ 0 < j.val`. -/
+def DoSplitApplicable (r m : AgentState L K) : Prop :=
+  ∃ (σ : Sign) (j : Fin (L + 1)),
+    m.bias = Bias.dyadic σ j ∧ r.hour.val ≠ L ∧ r.hour.val > j.val ∧ 0 < j.val
+
+/-- **Effect of an applicable `doSplit`.**  Both outputs are `.dyadic σ ⟨j-1,_⟩`;
+the first (the Reserve) becomes a `Main`. -/
+theorem doSplit_apply (r m : AgentState L K) {σ : Sign} {j : Fin (L + 1)}
+    (hb : m.bias = Bias.dyadic σ j) (hne : r.hour.val ≠ L) (hgt : r.hour.val > j.val)
+    (hpos : 0 < j.val) :
+    doSplit L K r m
+      = ({ r with role := Role.main, bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ },
+         { m with bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ }) := by
+  unfold doSplit
+  rw [hb]
+  simp only
+  rw [if_pos ⟨hne, hgt⟩, dif_pos hpos]
+
+/-- When the guard fails, `doSplit` is the identity. -/
+theorem doSplit_eq_self_of_not_applicable (r m : AgentState L K)
+    (h : ¬ DoSplitApplicable (L := L) (K := K) r m) :
+    doSplit L K r m = (r, m) := by
+  cases hb : m.bias with
+  | zero => unfold doSplit; rw [hb]
+  | dyadic σ j =>
+      unfold doSplit; rw [hb]; simp only
+      by_cases hg : r.hour.val ≠ L ∧ r.hour.val > j.val
+      · rw [if_pos hg]
+        by_cases hpos : 0 < j.val
+        · exact absurd ⟨σ, j, hb, hg.1, hg.2, hpos⟩ h
+        · rw [dif_neg hpos]
+      · rw [if_neg hg]
+
+/-! ## Part B — the honest high-count predicate and the per-pair `highU` change.
+
+A **high** agent (index `< l`, paper exponent `> -l`) is a biased Main whose bias
+magnitude is too large; Phase 6 is supposed to eliminate all of them.  We define
+the count `highU l` and prove the per-pair effect under the frozen `doSplit`. -/
+
+/-- An agent is **high** (relative to target level `l`) if it is a Main holding a
+dyadic bias of index `< l` (paper exponent `> -l`).  This is the Doty pool of
+biased agents that Phase 6 must push down to index `≥ l`. -/
+def highSt (l : ℕ) (a : AgentState L K) : Prop :=
+  a.role = Role.main ∧ ∃ (σ : Sign) (i : Fin (L + 1)), a.bias = Bias.dyadic σ i ∧ i.val < l
+
+/-- A bias-side characterization of `highSt`'s bias condition: dyadic of index `< l`. -/
+def biasHigh (l : ℕ) (b : Bias L) : Prop :=
+  match b with
+  | .zero => False
+  | .dyadic _ i => i.val < l
+
+instance (l : ℕ) (b : Bias L) : Decidable (biasHigh l b) := by
+  unfold biasHigh; cases b <;> infer_instance
+
+theorem highSt_iff (l : ℕ) (a : AgentState L K) :
+    highSt (L := L) (K := K) l a ↔ a.role = Role.main ∧ biasHigh l a.bias := by
+  unfold highSt biasHigh
+  cases hb : a.bias with
+  | zero => simp
+  | dyadic s i =>
+      constructor
+      · rintro ⟨hr, σ, j, hbj, hj⟩; injection hbj with _ hij; subst hij; exact ⟨hr, hj⟩
+      · rintro ⟨hr, hi⟩; exact ⟨hr, s, i, rfl, hi⟩
+
+instance (l : ℕ) (a : AgentState L K) : Decidable (highSt (L := L) (K := K) l a) :=
+  decidable_of_iff _ (highSt_iff (L := L) (K := K) l a).symm
+
+/-- The high-agent count (the Doty above-`-l` count). -/
+def highU (l : ℕ) (c : Config (AgentState L K)) : ℕ :=
+  Multiset.countP (fun a => highSt (L := L) (K := K) l a) c
+
+/-- `countP highSt` over a two-element pair as a sum of indicators. -/
+theorem countP_highSt_pair (l : ℕ) (x y : AgentState L K) :
+    Multiset.countP (fun a => highSt (L := L) (K := K) l a)
+        ({x, y} : Multiset (AgentState L K))
+      = (if highSt (L := L) (K := K) l x then 1 else 0)
+        + (if highSt (L := L) (K := K) l y then 1 else 0) := by
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl]
+  rw [Multiset.countP_cons, Multiset.countP_cons, Multiset.countP_zero]
+  ring
+
+/-- A non-Main is never high. -/
+theorem not_highSt_of_not_main (l : ℕ) (a : AgentState L K) (h : a.role ≠ Role.main) :
+    ¬ highSt (L := L) (K := K) l a := fun ⟨hm, _⟩ => h hm
+
+/-- A Main with a dyadic bias of index `< l` is high. -/
+theorem highSt_of (l : ℕ) (a : AgentState L K) (σ : Sign) (i : Fin (L + 1))
+    (hr : a.role = Role.main) (hb : a.bias = Bias.dyadic σ i) (hi : i.val < l) :
+    highSt (L := L) (K := K) l a := ⟨hr, σ, i, hb, hi⟩
+
+/-! ### The FROZEN-rule finding: an applicable `doSplit` strictly RAISES `highU`.
+
+When `m` is a high Main at index `j ≤ l` (so `j - 1 < l`), and `r` is the Reserve
+fuel, the applicable `doSplit` produces two index-`(j-1)` Mains, both high.  So the
+pair's high-count goes from `1` (just `m`; the Reserve `r` is not a Main) to `2`.
+This is recorded as the precise obstruction to a `PotNonincrOn` for `highU`. -/
+
+/-- **The frozen rule raises the per-pair high count.**  If `r` is a Reserve
+(hence not high) and `m` is a high Main at index `j < l` with the `doSplit` guard
+satisfied, then after the split BOTH agents are high (index `j-1 < l`), so the
+high-count over the produced pair (`= 2`) exceeds that over the consumed pair
+(`= 1`).  This is the honest reason the Lemma-7.2 potential is non-monotone under
+the frozen `doSplit`. -/
+theorem doSplit_highU_pair_rise (l : ℕ) (r m : AgentState L K) {σ : Sign} {j : Fin (L + 1)}
+    (hrR : r.role = Role.reserve) (hmM : m.role = Role.main)
+    (hb : m.bias = Bias.dyadic σ j) (hjl : j.val < l)
+    (hne : r.hour.val ≠ L) (hgt : r.hour.val > j.val) (hpos : 0 < j.val) :
+    Multiset.countP (fun a => highSt (L := L) (K := K) l a)
+        ({(doSplit L K r m).1, (doSplit L K r m).2} : Multiset (AgentState L K)) = 2
+    ∧ Multiset.countP (fun a => highSt (L := L) (K := K) l a)
+        ({r, m} : Multiset (AgentState L K)) = 1 := by
+  have happ := doSplit_apply (L := L) (K := K) r m hb hne hgt hpos
+  refine ⟨?_, ?_⟩
+  · -- both outputs are high index-(j-1) Mains.
+    rw [happ]
+    rw [countP_highSt_pair]
+    have hidx : (⟨j.val - 1, by omega⟩ : Fin (L + 1)).val < l := by
+      show j.val - 1 < l
+      omega
+    have h1 : highSt (L := L) (K := K) l
+        ({ r with role := Role.main, bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ }) :=
+      highSt_of (L := L) (K := K) l _ σ ⟨j.val - 1, by omega⟩ rfl rfl hidx
+    have h2 : highSt (L := L) (K := K) l
+        ({ m with bias := Bias.dyadic σ ⟨j.val - 1, by omega⟩ }) :=
+      highSt_of (L := L) (K := K) l _ σ ⟨j.val - 1, by omega⟩ hmM rfl hidx
+    rw [if_pos h1, if_pos h2]
+  · -- before: r is Reserve (not high), m is high.
+    rw [countP_highSt_pair]
+    have hr_not : ¬ highSt (L := L) (K := K) l r :=
+      not_highSt_of_not_main (L := L) (K := K) l r (by rw [hrR]; decide)
+    have hm_high : highSt (L := L) (K := K) l m :=
+      highSt_of (L := L) (K := K) l m σ j hmM hb hjl
+    rw [if_neg hr_not, if_pos hm_high]
+
+/-! ## Part C — the dispatch reduction `Transition = Phase6Transition` on phase-6 pairs.
+
+Mirror of `ReserveSampling.Transition_eq_Phase5Transition_of_phase5` (its olean is
+stale under the single-file constraint, so the phase-6 analogue is re-proven here
+from the fresh `Transition` primitives). -/
+
+/-- `phaseInit` at target phase `7` only rewrites `counter` (clocks) or is the
+identity; it never touches `phase`.  An agent already at phase 7 stays at phase 7. -/
+theorem phaseInit_phase_eq_of_seven (a : AgentState L K) (p : Fin 11) (hp : p.val = 7)
+    (ha : a.phase.val = 7) :
+    (phaseInit L K p a).phase.val = 7 := by
+  unfold phaseInit
+  have h1 : ¬ p.val = 1 := by omega
+  have h2 : ¬ p.val = 2 := by omega
+  have h3 : ¬ p.val = 3 := by omega
+  have h4 : ¬ p.val = 4 := by omega
+  have h5 : ¬ p.val = 5 := by omega
+  have h6 : ¬ p.val = 6 := by omega
+  rw [dif_neg h1, dif_neg h2, dif_neg h3, dif_neg h4, dif_neg h5, dif_neg h6, dif_pos hp]
+  by_cases hc : a.role = Role.clock <;> simp [hc, ha]
+
+/-- `advancePhaseWithInit` of a phase-6 agent lands at phase 7. -/
+theorem advancePhaseWithInit_phase_eq_seven_of_six (a : AgentState L K)
+    (ha : a.phase.val = 6) :
+    (advancePhaseWithInit L K a).phase.val = 7 := by
+  unfold advancePhaseWithInit
+  have hadv : (advancePhase L K a).phase.val = 7 := by
+    unfold advancePhase
+    have : a.phase.val < 10 := by omega
+    simp only [this, dif_pos]; omega
+  rw [phaseInit_phase_eq_of_seven (L := L) (K := K) (advancePhase L K a)
+    (advancePhase L K a).phase hadv hadv]
+
+/-- `stdCounterSubroutine` of a phase-6 agent lands at phase 6 or 7. -/
+theorem stdCounterSubroutine_phase_le_seven_of_six (a : AgentState L K)
+    (ha : a.phase.val = 6) :
+    (stdCounterSubroutine L K a).phase.val ≤ 7 := by
+  unfold stdCounterSubroutine; split
+  · rw [advancePhaseWithInit_phase_eq_seven_of_six (L := L) (K := K) a ha]
+  · simp [ha]
+
+/-- Both `Phase6Transition` outputs land at phase `≤ 7` when both inputs are at
+phase 6.  `doSplit` never changes phase; the clock branch caps at 7. -/
+theorem Phase6Transition_phase_le_seven (s t : AgentState L K)
+    (hs : s.phase.val = 6) (ht : t.phase.val = 6) :
+    (Phase6Transition L K s t).1.phase.val ≤ 7 ∧
+      (Phase6Transition L K s t).2.phase.val ≤ 7 := by
+  -- `doSplit` preserves phase, so each intermediate `s1`/`t1` is at phase 6; the
+  -- clock branch then caps at 7.
+  have hclk : ∀ s1 : AgentState L K, s1.phase.val = 6 →
+      (if s1.role = Role.clock then stdCounterSubroutine L K s1 else s1).phase.val ≤ 7 := by
+    intro s1 h
+    by_cases hc : s1.role = Role.clock
+    · rw [if_pos hc]; exact stdCounterSubroutine_phase_le_seven_of_six (L := L) (K := K) s1 h
+    · rw [if_neg hc]; omega
+  -- `doSplit` phase facts: applicable or not, phase is preserved.
+  have hsplit_phase_fst : ∀ r m : AgentState L K, r.phase.val = 6 →
+      (doSplit L K r m).1.phase.val = 6 := by
+    intro r m hr
+    by_cases happ : DoSplitApplicable (L := L) (K := K) r m
+    · obtain ⟨σ, j, hb, hne, hgt, hpos⟩ := happ
+      rw [doSplit_apply (L := L) (K := K) r m hb hne hgt hpos]; exact hr
+    · rw [doSplit_eq_self_of_not_applicable (L := L) (K := K) r m happ]; exact hr
+  have hsplit_phase_snd : ∀ r m : AgentState L K, m.phase.val = 6 →
+      (doSplit L K r m).2.phase.val = 6 := by
+    intro r m hm
+    by_cases happ : DoSplitApplicable (L := L) (K := K) r m
+    · obtain ⟨σ, j, hb, hne, hgt, hpos⟩ := happ
+      rw [doSplit_apply (L := L) (K := K) r m hb hne hgt hpos]; exact hm
+    · rw [doSplit_eq_self_of_not_applicable (L := L) (K := K) r m happ]; exact hm
+  refine ⟨?_, ?_⟩
+  · unfold Phase6Transition; simp only
+    by_cases hb1 : s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero
+    · rw [if_pos hb1]; exact hclk _ (hsplit_phase_fst s t hs)
+    · rw [if_neg hb1]
+      by_cases hb2 : t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero
+      · rw [if_pos hb2]; exact hclk _ (hsplit_phase_snd t s hs)
+      · rw [if_neg hb2]; exact hclk _ hs
+  · unfold Phase6Transition; simp only
+    by_cases hb1 : s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero
+    · rw [if_pos hb1]; exact hclk _ (hsplit_phase_snd s t ht)
+    · rw [if_neg hb1]
+      by_cases hb2 : t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero
+      · rw [if_pos hb2]; exact hclk _ (hsplit_phase_fst t s ht)
+      · rw [if_neg hb2]; exact hclk _ ht
+
+/-- For two phase-6 agents, `phaseEpidemicUpdate` is the identity (max of equal
+phases, no init to run, no phase-10 entry).  Mirror of
+`phaseEpidemicUpdate_eq_self_of_phase5`. -/
+theorem phaseEpidemicUpdate_eq_self_of_phase6 (s t : AgentState L K)
+    (hs : s.phase.val = 6) (ht : t.phase.val = 6) :
+    phaseEpidemicUpdate L K s t = (s, t) := by
+  have hsp : s.phase = ⟨6, by decide⟩ := Fin.ext hs
+  have htp : t.phase = ⟨6, by decide⟩ := Fin.ext ht
+  unfold phaseEpidemicUpdate
+  rw [hsp, htp, max_self]
+  simp only [runInitsBetween_self_api]
+  have hs_self : ({s with phase := (⟨6, by decide⟩ : Fin 11)} : AgentState L K) = s := by
+    rw [← hsp]
+  have ht_self : ({t with phase := (⟨6, by decide⟩ : Fin 11)} : AgentState L K) = t := by
+    rw [← htp]
+  rw [hs_self, ht_self]
+  rw [if_neg (by push Not; intro _; simp)]
+
+/-- **Per-pair reduction.**  Two phase-6 agents interact via `Phase6Transition`
+under the full `Transition` (epidemic = id, dispatch = `Phase6Transition`, and
+neither output reaches phase 10 — they stay `≤ 7` — so the phase-10 finish is the
+identity). -/
+theorem Transition_eq_Phase6Transition_of_phase6 (s t : AgentState L K)
+    (hs : s.phase.val = 6) (ht : t.phase.val = 6) :
+    Transition L K s t = Phase6Transition L K s t := by
+  have hepi := phaseEpidemicUpdate_eq_self_of_phase6 (L := L) (K := K) s t hs ht
+  have hsp : s.phase = ⟨6, by decide⟩ := Fin.ext hs
+  obtain ⟨hle1, hle2⟩ := Phase6Transition_phase_le_seven (L := L) (K := K) s t hs ht
+  unfold Transition
+  rw [hepi]
+  simp only [hsp]
+  rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) s _ (by omega),
+      finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) t _ (by omega)]
+
+/-! ## Part D — the largest genuinely-closed window: `Phase6Done`.
+
+Because the frozen `doSplit` RAISES `highU` (Part B), the natural Phase-6 working
+window is **not** closed for the engine's `PotNonincrOn`.  The genuinely-closed
+subset we can deliver is the **already-finished** window `Phase6Done`: every agent
+is at phase 6 and every Main is **unbiased**.  Then:
+
+* `highU l c = 0` on `Phase6Done` (no biased Main ⟹ no high agent), and
+* `Phase6Done` is one-step closed: an applicable reserve+Main pair has the Main
+  unbiased, so `doSplit`'s guard (`m.bias = .dyadic …`) fails and it is the
+  identity; thus all Mains stay unbiased and roles/phases are preserved.
+
+This yields a real `PhaseConvergenceW` with `ε = 0` (Part E). -/
+
+/-- On the clean window, `doSplit r m` is the identity whenever `m` is unbiased:
+the guard `m.bias = .dyadic …` fails. -/
+theorem doSplit_eq_self_of_clean (r m : AgentState L K) (hmclean : m.bias = Bias.zero) :
+    doSplit L K r m = (r, m) := by
+  apply doSplit_eq_self_of_not_applicable
+  rintro ⟨σ, j, hb, _, _, _⟩
+  rw [hmclean] at hb; exact (by cases hb)
+
+/-- **`doSplit` never makes a Main biased out of a clean pair.**  If both `r` and
+`m` are unbiased then so are both outputs (it is the identity).  This is the bias
+half of the closure of the all-unbiased window. -/
+theorem doSplit_bias_zero_of_clean (r m : AgentState L K)
+    (hr : r.bias = Bias.zero) (hm : m.bias = Bias.zero) :
+    (doSplit L K r m).1.bias = Bias.zero ∧ (doSplit L K r m).2.bias = Bias.zero := by
+  rw [doSplit_eq_self_of_clean (L := L) (K := K) r m hm]; exact ⟨hr, hm⟩
+
+/-! ### `highU = 0` is forced by "no biased Main". -/
+
+/-- A Main with `.zero` bias is not high. -/
+theorem not_highSt_of_zero (l : ℕ) (a : AgentState L K) (h : a.bias = Bias.zero) :
+    ¬ highSt (L := L) (K := K) l a := by
+  rw [highSt_iff]; rintro ⟨_, hb⟩
+  unfold biasHigh at hb; rw [h] at hb; exact hb
+
+/-- **`NoBiasedMain`**: every Main in `c` is unbiased.  Forces `highU l c = 0`. -/
+def NoBiasedMain (c : Config (AgentState L K)) : Prop :=
+  ∀ a ∈ c, a.role = Role.main → a.bias = Bias.zero
+
+/-- On a `NoBiasedMain` config, the high count is `0` (a high agent is a biased
+Main, of which there are none). -/
+theorem highU_eq_zero_of_noBiasedMain (l : ℕ) (c : Config (AgentState L K))
+    (h : NoBiasedMain (L := L) (K := K) c) :
+    highU (L := L) (K := K) l c = 0 := by
+  unfold highU
+  rw [Multiset.countP_eq_zero]
+  intro a ha hhigh
+  exact not_highSt_of_zero (L := L) (K := K) l a (h a ha hhigh.1) hhigh
+
+/-! ## Part E — the genuinely-closed instance over the all-unbiased phase-≥6 window.
+
+We deliver a real `PhaseConvergenceW` via `OneSidedCancel.crude_PhaseConvergenceW`
+with potential `Φ = highU l` over the invariant `AllZeroGE6`: every agent (any
+role) is unbiased, and every phase is `≥ 6`.  On `AllZeroGE6`:
+
+* `Φ = highU l c = 0` always, so `PotNonincrOn` is trivial and the per-step
+  `hstep` hypothesis is vacuous; we may take `q = 0`, `t = 1`, `ε = 0`;
+* `AllZeroGE6` is one-step closed: phases never drop below 6 (phase-monotone), and
+  the bias-mutating dispatches (`doSplit`/`cancelSplit`/`absorbConsume`) are the
+  identity on a fully-unbiased pair, while phases 9/10 preserve bias, the clock
+  subroutine preserves bias, and `phaseInit`/epidemic/finish preserve bias at
+  phase ≥ 5.
+
+This is the largest subset we can close honestly under the frozen `doSplit`; the
+Lemma-7.2 instance on the *working* window (biased Mains present) is blocked by the
+non-monotone finding of Part B and is the precise gap left to the campaign. -/
+
+/-- `cancelSplit` on a fully-unbiased pair is the identity (the `match` falls to
+the `| _, _ => (s, t)` arm since neither bias is `.dyadic`). -/
+theorem cancelSplit_eq_self_of_zero (s t : AgentState L K)
+    (hs : s.bias = Bias.zero) (ht : t.bias = Bias.zero) :
+    cancelSplit L K s t = (s, t) := by
+  unfold cancelSplit; rw [hs, ht]
+
+/-- `absorbConsume` on a fully-unbiased pair is the identity. -/
+theorem absorbConsume_eq_self_of_zero (s t : AgentState L K)
+    (hs : s.bias = Bias.zero) (ht : t.bias = Bias.zero) :
+    absorbConsume L K s t = (s, t) := by
+  unfold absorbConsume; rw [hs, ht]
+
+/-! ### Bias-preservation infrastructure for phase ≥ 5 (re-derived for single-file). -/
+
+/-- `phaseInit` at a phase `≥ 5` preserves `bias`.  Re-derivation of the private
+`Transition.phaseInit_bias_of_ge_five` (not exported). -/
+theorem phaseInit_bias_ge_five (p : Fin 11) (a : AgentState L K) (hp : 5 ≤ p.val) :
+    (phaseInit L K p a).bias = a.bias := by
+  set_option linter.unusedSimpArgs false in
+  fin_cases p <;> simp_all (config := { decide := false }) <;>
+    simp [phaseInit, enterPhase10] <;> split_ifs <;> simp [enterPhase10]
+
+/-- `runInitsBetween oldP p a` only ever runs `phaseInit` at phases `> oldP`; if
+`5 ≤ oldP` all those phases are `≥ 6 ≥ 5`, so `bias` is preserved. -/
+theorem runInitsBetween_bias_ge_five (oldP p : ℕ) (a : AgentState L K) (h : 5 ≤ oldP) :
+    (runInitsBetween L K oldP p a).bias = a.bias := by
+  unfold runInitsBetween
+  -- Generalize to: folding `phaseInit` over ANY list of phases all `≥ 5` preserves bias.
+  have key : ∀ (lst : List ℕ), (∀ k ∈ lst, 5 ≤ k) → ∀ (a : AgentState L K),
+      (lst.foldl (fun acc k => if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc) a).bias
+        = a.bias := by
+    intro lst
+    induction lst with
+    | nil => intro _ a; simp [List.foldl]
+    | cons k l IH =>
+        intro hmem a
+        simp only [List.foldl_cons]
+        have hk5 : 5 ≤ k := hmem k (by simp)
+        by_cases hk : k < 11
+        · rw [dif_pos hk]
+          rw [IH (fun j hj => hmem j (by simp [hj])) (phaseInit L K ⟨k, hk⟩ a)]
+          exact phaseInit_bias_ge_five (L := L) (K := K) ⟨k, hk⟩ a hk5
+        · rw [dif_neg hk]
+          exact IH (fun j hj => hmem j (by simp [hj])) a
+  apply key
+  intro k hk
+  rw [List.mem_filter] at hk
+  have := hk.2; simp only [decide_eq_true_eq] at this
+  omega
+
+/-- `phaseEpidemicUpdate` preserves both agents' `bias` when both inputs are at
+phase `≥ 5`.  (The init-runs land at phases `≥ 5`, preserving bias; the phase-10
+epidemic entry copies the post-init agent's bias, which equals the input's.) -/
+theorem phaseEpidemicUpdate_bias_ge_five (s t : AgentState L K)
+    (hs : 5 ≤ s.phase.val) (ht : 5 ≤ t.phase.val) :
+    (phaseEpidemicUpdate L K s t).1.bias = s.bias ∧
+      (phaseEpidemicUpdate L K s t).2.bias = t.bias := by
+  unfold phaseEpidemicUpdate
+  simp only
+  set p := max s.phase t.phase with hp
+  have hsp : 5 ≤ s.phase.val := hs
+  have htp : 5 ≤ t.phase.val := ht
+  -- post-init agents preserve bias.
+  have hs'b : (runInitsBetween L K s.phase.val p.val { s with phase := p }).bias = s.bias := by
+    rw [runInitsBetween_bias_ge_five (L := L) (K := K) s.phase.val p.val
+      ({ s with phase := p }) hsp]
+  have ht'b : (runInitsBetween L K t.phase.val p.val { t with phase := p }).bias = t.bias := by
+    rw [runInitsBetween_bias_ge_five (L := L) (K := K) t.phase.val p.val
+      ({ t with phase := p }) htp]
+  split_ifs with hcond
+  · refine ⟨?_, ?_⟩
+    · rw [phase10EpidemicEntry_bias]; exact hs'b
+    · rw [phase10EpidemicEntry_bias]; exact ht'b
+  · exact ⟨hs'b, ht'b⟩
+
+/-- `advancePhaseWithInit` preserves `bias` for an agent at phase ≥ 5. -/
+theorem advancePhaseWithInit_bias_ge_five (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (advancePhaseWithInit L K a).bias = a.bias := by
+  unfold advancePhaseWithInit
+  have hadv_bias : (advancePhase L K a).bias = a.bias := by
+    unfold advancePhase; split <;> rfl
+  have hadv_phase : 5 ≤ (advancePhase L K a).phase.val :=
+    le_trans ha (advancePhase_phase_nondec L K a)
+  rw [phaseInit_bias_ge_five (L := L) (K := K) (advancePhase L K a).phase
+    (advancePhase L K a) hadv_phase]
+  exact hadv_bias
+
+/-- `stdCounterSubroutine` preserves `bias` for an agent at phase ≥ 5. -/
+theorem stdCounterSubroutine_bias_ge_five (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (stdCounterSubroutine L K a).bias = a.bias := by
+  unfold stdCounterSubroutine; split
+  · exact advancePhaseWithInit_bias_ge_five (L := L) (K := K) a ha
+  · rfl
+
+/-- The clock-counter branch preserves `bias = .zero` for a phase-≥5 agent. -/
+theorem clockBranch_bias_zero (a : AgentState L K) (ha : 5 ≤ a.phase.val)
+    (hz : a.bias = Bias.zero) :
+    (if a.role = Role.clock then stdCounterSubroutine L K a else a).bias = Bias.zero := by
+  by_cases hc : a.role = Role.clock
+  · rw [if_pos hc, stdCounterSubroutine_bias_ge_five (L := L) (K := K) a ha]; exact hz
+  · rw [if_neg hc]; exact hz
+
+/-- `doSplit` never changes the first agent's phase. -/
+theorem doSplit_phase_fst_eq (r m : AgentState L K) :
+    (doSplit L K r m).1.phase = r.phase := by
+  by_cases happ : DoSplitApplicable (L := L) (K := K) r m
+  · obtain ⟨σ, j, hb, hne, hgt, hpos⟩ := happ
+    rw [doSplit_apply (L := L) (K := K) r m hb hne hgt hpos]
+  · rw [doSplit_eq_self_of_not_applicable (L := L) (K := K) r m happ]
+
+/-- `doSplit` never changes the second agent's phase. -/
+theorem doSplit_phase_snd_eq (r m : AgentState L K) :
+    (doSplit L K r m).2.phase = m.phase := by
+  by_cases happ : DoSplitApplicable (L := L) (K := K) r m
+  · obtain ⟨σ, j, hb, hne, hgt, hpos⟩ := happ
+    rw [doSplit_apply (L := L) (K := K) r m hb hne hgt hpos]
+  · rw [doSplit_eq_self_of_not_applicable (L := L) (K := K) r m happ]
+
+/-! ### Per-phase dispatch keeps `bias = .zero` on a fully-unbiased phase-≥6 pair. -/
+
+/-- `Phase6Transition` keeps both biases `.zero` (doSplit is the identity on a
+clean Main; clock subroutine preserves bias). -/
+theorem Phase6Transition_bias_zero (s t : AgentState L K)
+    (hs6 : 6 ≤ s.phase.val) (ht6 : 6 ≤ t.phase.val)
+    (hsz : s.bias = Bias.zero) (htz : t.bias = Bias.zero) :
+    (Phase6Transition L K s t).1.bias = Bias.zero ∧
+      (Phase6Transition L K s t).2.bias = Bias.zero := by
+  unfold Phase6Transition; simp only
+  -- s1/t1: doSplit is identity on the clean Main target, so s1.bias = s.bias = 0, etc.
+  have hs1 : (if s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero then
+      (doSplit L K s t).1 else if t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero then
+      (doSplit L K t s).2 else s).bias = Bias.zero := by
+    split_ifs with h1 h2
+    · exact absurd htz (h1.2.2)
+    · rw [doSplit_eq_self_of_clean (L := L) (K := K) t s hsz]; exact hsz
+    · exact hsz
+  have ht1 : (if s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero then
+      (doSplit L K s t).2 else if t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero then
+      (doSplit L K t s).1 else t).bias = Bias.zero := by
+    split_ifs with h1 h2
+    · exact absurd htz (h1.2.2)
+    · rw [doSplit_eq_self_of_clean (L := L) (K := K) t s hsz]; exact htz
+    · exact htz
+  -- the clock branch then preserves the zero bias.  The intermediate agent is at
+  -- phase ≥ 6 ≥ 5 (doSplit/identity preserve phase), so `stdCounterSubroutine` keeps bias.
+  refine ⟨?_, ?_⟩
+  · set s1 := (if s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero then
+      (doSplit L K s t).1 else if t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero then
+      (doSplit L K t s).2 else s) with hs1def
+    by_cases hc : s1.role = Role.clock
+    · rw [if_pos hc]
+      -- s1.bias = 0 (hs1); s1.phase ≥ 6 because doSplit/identity preserve phase.
+      have hs1phase : 6 ≤ s1.phase.val := by
+        rw [hs1def]; split_ifs with h1 h2
+        · rw [(doSplit_phase_fst_eq s t (L := L) (K := K))]; exact hs6
+        · rw [(doSplit_phase_snd_eq t s (L := L) (K := K))]; exact hs6
+        · exact hs6
+      rw [stdCounterSubroutine_bias_ge_five (L := L) (K := K) s1 (by omega)]; exact hs1
+    · rw [if_neg hc]; exact hs1
+  · set t1 := (if s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero then
+      (doSplit L K s t).2 else if t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero then
+      (doSplit L K t s).1 else t) with ht1def
+    by_cases hc : t1.role = Role.clock
+    · rw [if_pos hc]
+      have ht1phase : 6 ≤ t1.phase.val := by
+        rw [ht1def]; split_ifs with h1 h2
+        · rw [(doSplit_phase_snd_eq s t (L := L) (K := K))]; exact ht6
+        · rw [(doSplit_phase_fst_eq t s (L := L) (K := K))]; exact ht6
+        · exact ht6
+      rw [stdCounterSubroutine_bias_ge_five (L := L) (K := K) t1 (by omega)]; exact ht1
+    · rw [if_neg hc]; exact ht1
+
+/-- `Phase7Transition` keeps both biases `.zero` (cancelSplit is the identity on a
+clean pair; clock subroutine preserves bias).  `cancelSplit` preserves role
+(`cancelSplit_role_fst/snd`) and phase (`cancelSplit_phase`). -/
+theorem Phase7Transition_bias_zero (s t : AgentState L K)
+    (hs6 : 6 ≤ s.phase.val) (ht6 : 6 ≤ t.phase.val)
+    (hsz : s.bias = Bias.zero) (htz : t.bias = Bias.zero) :
+    (Phase7Transition L K s t).1.bias = Bias.zero ∧
+      (Phase7Transition L K s t).2.bias = Bias.zero := by
+  unfold Phase7Transition; simp only
+  have hcs := cancelSplit_eq_self_of_zero (L := L) (K := K) s t hsz htz
+  have hs1b : (if s.role = Role.main ∧ t.role = Role.main then (cancelSplit L K s t).1 else s).bias
+      = Bias.zero := by split_ifs with h
+                        · rw [hcs]; exact hsz
+                        · exact hsz
+  have ht1b : (if s.role = Role.main ∧ t.role = Role.main then (cancelSplit L K s t).2 else t).bias
+      = Bias.zero := by split_ifs with h
+                        · rw [hcs]; exact htz
+                        · exact htz
+  have hs1p : (if s.role = Role.main ∧ t.role = Role.main then (cancelSplit L K s t).1 else s).phase.val
+      = s.phase.val := by
+    split_ifs with h
+    · rw [hcs]
+    · rfl
+  have ht1p : (if s.role = Role.main ∧ t.role = Role.main then (cancelSplit L K s t).2 else t).phase.val
+      = t.phase.val := by
+    split_ifs with h
+    · rw [hcs]
+    · rfl
+  refine ⟨?_, ?_⟩
+  · set s1 := (if s.role = Role.main ∧ t.role = Role.main then (cancelSplit L K s t).1 else s)
+    by_cases hc : s1.role = Role.clock
+    · rw [if_pos hc, stdCounterSubroutine_bias_ge_five (L := L) (K := K) s1 (by omega)]; exact hs1b
+    · rw [if_neg hc]; exact hs1b
+  · set t1 := (if s.role = Role.main ∧ t.role = Role.main then (cancelSplit L K s t).2 else t)
+    by_cases hc : t1.role = Role.clock
+    · rw [if_pos hc, stdCounterSubroutine_bias_ge_five (L := L) (K := K) t1 (by omega)]; exact ht1b
+    · rw [if_neg hc]; exact ht1b
+
+/-- `Phase8Transition` keeps both biases `.zero` (absorbConsume is the identity on
+a clean pair; clock subroutine preserves bias). -/
+theorem Phase8Transition_bias_zero (s t : AgentState L K)
+    (hs6 : 6 ≤ s.phase.val) (ht6 : 6 ≤ t.phase.val)
+    (hsz : s.bias = Bias.zero) (htz : t.bias = Bias.zero) :
+    (Phase8Transition L K s t).1.bias = Bias.zero ∧
+      (Phase8Transition L K s t).2.bias = Bias.zero := by
+  unfold Phase8Transition; simp only
+  have hac := absorbConsume_eq_self_of_zero (L := L) (K := K) s t hsz htz
+  have hs1b : (if s.role = Role.main ∧ t.role = Role.main then (absorbConsume L K s t).1 else s).bias
+      = Bias.zero := by split_ifs with h
+                        · rw [hac]; exact hsz
+                        · exact hsz
+  have ht1b : (if s.role = Role.main ∧ t.role = Role.main then (absorbConsume L K s t).2 else t).bias
+      = Bias.zero := by split_ifs with h
+                        · rw [hac]; exact htz
+                        · exact htz
+  have hs1p : (if s.role = Role.main ∧ t.role = Role.main then (absorbConsume L K s t).1 else s).phase.val
+      = s.phase.val := by
+    split_ifs with h
+    · rw [hac]
+    · rfl
+  have ht1p : (if s.role = Role.main ∧ t.role = Role.main then (absorbConsume L K s t).2 else t).phase.val
+      = t.phase.val := by
+    split_ifs with h
+    · rw [hac]
+    · rfl
+  refine ⟨?_, ?_⟩
+  · set s1 := (if s.role = Role.main ∧ t.role = Role.main then (absorbConsume L K s t).1 else s)
+    by_cases hc : s1.role = Role.clock
+    · rw [if_pos hc, stdCounterSubroutine_bias_ge_five (L := L) (K := K) s1 (by omega)]; exact hs1b
+    · rw [if_neg hc]; exact hs1b
+  · set t1 := (if s.role = Role.main ∧ t.role = Role.main then (absorbConsume L K s t).2 else t)
+    by_cases hc : t1.role = Role.clock
+    · rw [if_pos hc, stdCounterSubroutine_bias_ge_five (L := L) (K := K) t1 (by omega)]; exact ht1b
+    · rw [if_neg hc]; exact ht1b
+
+/-- `Phase9Transition` (= `Phase2Transition`) keeps both biases `.zero` for inputs
+at phase ≥ 5: it only writes `opinions`/`output` or calls `advancePhaseWithInit`,
+which preserves bias at phase ≥ 5. -/
+theorem Phase9Transition_bias_zero (s t : AgentState L K)
+    (hs5 : 5 ≤ s.phase.val) (ht5 : 5 ≤ t.phase.val)
+    (hsz : s.bias = Bias.zero) (htz : t.bias = Bias.zero) :
+    (Phase9Transition L K s t).1.bias = Bias.zero ∧
+      (Phase9Transition L K s t).2.bias = Bias.zero := by
+  unfold Phase9Transition Phase2Transition
+  simp only
+  split_ifs with h1 h2 h3 h4
+  · refine ⟨?_, ?_⟩
+    · rw [advancePhaseWithInit_bias_ge_five (L := L) (K := K) _ (by simpa using hs5)]; exact hsz
+    · rw [advancePhaseWithInit_bias_ge_five (L := L) (K := K) _ (by simpa using ht5)]; exact htz
+  · exact ⟨hsz, htz⟩
+  · exact ⟨hsz, htz⟩
+  · exact ⟨hsz, htz⟩
+  · exact ⟨hsz, htz⟩
+
+/-- `Phase10Transition` never assigns `.bias`, so it preserves it; in particular
+keeps `.zero`. -/
+theorem Phase10Transition_bias_zero (s t : AgentState L K)
+    (hsz : s.bias = Bias.zero) (htz : t.bias = Bias.zero) :
+    (Phase10Transition L K s t).1.bias = Bias.zero ∧
+      (Phase10Transition L K s t).2.bias = Bias.zero := by
+  unfold Phase10Transition
+  simp only
+  constructor <;> (split_ifs <;> simp_all)
+
+/-! ### The per-pair `Transition` bias-zero closure on the phase-≥6 window. -/
+
+/-- **The full `Transition` keeps both biases `.zero` on a phase-≥6 clean pair.**
+After the epidemic (bias-preserving at phase ≥ 5, `phaseEpidemicUpdate_bias_ge_five`),
+the dispatch is one of `Phase6/7/8/9/10Transition` (each keeps bias `.zero`: 6/7/8
+via the identity-on-clean lemmas above, 9/10 via the exported phase-≥9
+preservation), and `finishPhase10Entry` preserves bias. -/
+theorem Transition_bias_zero_of_phase_ge6 (s t : AgentState L K)
+    (hs : 6 ≤ s.phase.val) (ht : 6 ≤ t.phase.val)
+    (hsz : s.bias = Bias.zero) (htz : t.bias = Bias.zero) :
+    (Transition L K s t).1.bias = Bias.zero ∧ (Transition L K s t).2.bias = Bias.zero := by
+  -- The epidemic output `(s', t')` preserves bias and has phase ≥ 6.
+  have hepb := phaseEpidemicUpdate_bias_ge_five (L := L) (K := K) s t (by omega) (by omega)
+  unfold Transition
+  generalize hep_gen : phaseEpidemicUpdate L K s t = ep
+  obtain ⟨s', t'⟩ := ep
+  have hs'b : s'.bias = Bias.zero := by have := hepb.1; rw [hep_gen] at this; rw [this]; exact hsz
+  have ht'b : t'.bias = Bias.zero := by have := hepb.2; rw [hep_gen] at this; rw [this]; exact htz
+  have hs'_ge : 6 ≤ s'.phase.val := by
+    have := phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) s t
+    rw [hep_gen] at this; exact le_trans hs (le_trans (le_max_left _ _) this)
+  have ht'_ge : 6 ≤ t'.phase.val := by
+    have := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) s t
+    rw [hep_gen] at this; exact le_trans ht (le_trans (le_max_right _ _) this)
+  have hs'_le : s'.phase.val ≤ 10 := by have := s'.phase.2; omega
+  -- The dispatch output keeps bias zero, depending on s'.phase ∈ {6,…,10}.
+  have hdisp : (match s'.phase with
+      | ⟨0, _⟩ => Phase0Transition L K s' t'
+      | ⟨1, _⟩ => Phase1Transition L K s' t'
+      | ⟨2, _⟩ => Phase2Transition L K s' t'
+      | ⟨3, _⟩ => Phase3Transition L K s' t'
+      | ⟨4, _⟩ => Phase4Transition L K s' t'
+      | ⟨5, _⟩ => Phase5Transition L K s' t'
+      | ⟨6, _⟩ => Phase6Transition L K s' t'
+      | ⟨7, _⟩ => Phase7Transition L K s' t'
+      | ⟨8, _⟩ => Phase8Transition L K s' t'
+      | ⟨9, _⟩ => Phase9Transition L K s' t'
+      | ⟨10, _⟩ => Phase10Transition L K s' t'
+      | _ => (s', t')).1.bias = Bias.zero
+      ∧ (match s'.phase with
+      | ⟨0, _⟩ => Phase0Transition L K s' t'
+      | ⟨1, _⟩ => Phase1Transition L K s' t'
+      | ⟨2, _⟩ => Phase2Transition L K s' t'
+      | ⟨3, _⟩ => Phase3Transition L K s' t'
+      | ⟨4, _⟩ => Phase4Transition L K s' t'
+      | ⟨5, _⟩ => Phase5Transition L K s' t'
+      | ⟨6, _⟩ => Phase6Transition L K s' t'
+      | ⟨7, _⟩ => Phase7Transition L K s' t'
+      | ⟨8, _⟩ => Phase8Transition L K s' t'
+      | ⟨9, _⟩ => Phase9Transition L K s' t'
+      | ⟨10, _⟩ => Phase10Transition L K s' t'
+      | _ => (s', t')).2.bias = Bias.zero := by
+    rcases (show s'.phase.val = 6 ∨ s'.phase.val = 7 ∨ s'.phase.val = 8
+        ∨ s'.phase.val = 9 ∨ s'.phase.val = 10 by omega) with h | h | h | h | h
+    · have hph : s'.phase = ⟨6, by decide⟩ := Fin.ext h
+      rw [hph]; exact Phase6Transition_bias_zero s' t' hs'_ge ht'_ge hs'b ht'b
+    · have hph : s'.phase = ⟨7, by decide⟩ := Fin.ext h
+      rw [hph]; exact Phase7Transition_bias_zero s' t' hs'_ge ht'_ge hs'b ht'b
+    · have hph : s'.phase = ⟨8, by decide⟩ := Fin.ext h
+      rw [hph]; exact Phase8Transition_bias_zero s' t' hs'_ge ht'_ge hs'b ht'b
+    · have hph : s'.phase = ⟨9, by decide⟩ := Fin.ext h
+      rw [hph]; exact Phase9Transition_bias_zero s' t' (by omega) (by omega) hs'b ht'b
+    · have hph : s'.phase = ⟨10, by decide⟩ := Fin.ext h
+      rw [hph]; exact Phase10Transition_bias_zero s' t' hs'b ht'b
+  -- finishPhase10Entry preserves bias.
+  simp only [finishPhase10Entry_bias]
+  exact hdisp
+
+/-! ## Part F — the genuinely-closed window `AllZeroGE6` and the `PhaseConvergenceW`.
+
+`AllZeroGE6 n c`: size `n`, every agent at phase `≥ 6` and unbiased.  This window
+is one-step closed (`card`/phase-floor as in `PhaseGE5Win`; bias-zero via
+`Transition_bias_zero_of_phase_ge6`) and forces the high count `Φ = highU l = 0`,
+so the `OneSidedCancel.crude_PhaseConvergenceW` engine gives a real
+`PhaseConvergenceW` with `ε = 0`. -/
+
+/-- The all-unbiased phase-≥6 window. -/
+def AllZeroGE6 (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  c.card = n ∧ (∀ a ∈ c, 6 ≤ a.phase.val) ∧ (∀ a ∈ c, a.bias = Bias.zero)
+
+instance (n : ℕ) (c : Config (AgentState L K)) :
+    Decidable (AllZeroGE6 (L := L) (K := K) n c) := by unfold AllZeroGE6; infer_instance
+
+private theorem mem_of_app_left6F {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₁ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+private theorem mem_of_app_right6F {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₂ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+/-- `AllZeroGE6` is preserved by a chosen-pair update.  `card` via reachability;
+phase floor since phases never drop (epidemic + dispatch are phase-nondecreasing,
+`phaseEpidemicUpdate_phase_le_Transition_phase`); bias-zero via
+`Transition_bias_zero_of_phase_ge6`. -/
+theorem AllZeroGE6_stepOrSelf (n : ℕ) (c : Config (AgentState L K))
+    (hw : AllZeroGE6 (L := L) (K := K) n c) (r₁ r₂ : AgentState L K) :
+    AllZeroGE6 (L := L) (K := K) n (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  obtain ⟨hcard, hph, hbz⟩ := hw
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left6F happ
+    have hm2 := mem_of_app_right6F happ
+    have h16 : 6 ≤ r₁.phase.val := hph r₁ hm1
+    have h26 : 6 ≤ r₂.phase.val := hph r₂ hm2
+    have hr1z : r₁.bias = Bias.zero := hbz r₁ hm1
+    have hr2z : r₂.bias = Bias.zero := hbz r₂ hm2
+    have hbias := Transition_bias_zero_of_phase_ge6 (L := L) (K := K) r₁ r₂ h16 h26 hr1z hr2z
+    obtain ⟨hle1, hle2⟩ := phaseEpidemicUpdate_phase_le_Transition_phase (L := L) (K := K) r₁ r₂
+    have hep1 : 6 ≤ (Transition L K r₁ r₂).1.phase.val := by
+      have := phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) r₁ r₂
+      exact le_trans h16 (le_trans (le_max_left _ _) (le_trans this hle1))
+    have hep2 : 6 ≤ (Transition L K r₁ r₂).2.phase.val := by
+      have := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) r₁ r₂
+      exact le_trans h26 (le_trans (le_max_right _ _) (le_trans this hle2))
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    refine ⟨?_, ?_, ?_⟩
+    · have hcard' := Protocol.reachable_card_eq
+        (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) c r₁ r₂)
+      rw [hcard']; exact hcard
+    · intro a ha
+      rw [hc'] at ha
+      rcases Multiset.mem_add.mp ha with hold | hnew
+      · exact hph a (Multiset.mem_of_le (Multiset.sub_le_self _ _) hold)
+      · rw [show ({(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+              : Multiset (AgentState L K))
+            = (Transition L K r₁ r₂).1 ::ₘ (Transition L K r₁ r₂).2 ::ₘ 0 from rfl] at hnew
+        simp only [Multiset.mem_cons, Multiset.notMem_zero, or_false] at hnew
+        rcases hnew with h | h
+        · rw [h]; exact hep1
+        · rw [h]; exact hep2
+    · intro a ha
+      rw [hc'] at ha
+      rcases Multiset.mem_add.mp ha with hold | hnew
+      · exact hbz a (Multiset.mem_of_le (Multiset.sub_le_self _ _) hold)
+      · rw [show ({(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+              : Multiset (AgentState L K))
+            = (Transition L K r₁ r₂).1 ::ₘ (Transition L K r₁ r₂).2 ::ₘ 0 from rfl] at hnew
+        simp only [Multiset.mem_cons, Multiset.notMem_zero, or_false] at hnew
+        rcases hnew with h | h
+        · rw [h]; exact hbias.1
+        · rw [h]; exact hbias.2
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]; exact ⟨hcard, hph, hbz⟩
+
+/-- `AllZeroGE6` is one-step-support closed. -/
+theorem AllZeroGE6_support_closed (n : ℕ) (c c' : Config (AgentState L K))
+    (hw : AllZeroGE6 (L := L) (K := K) n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    AllZeroGE6 (L := L) (K := K) n c' := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact AllZeroGE6_stepOrSelf n c hw r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact hw
+
+/-- **`hClosed` discharged**: `AllZeroGE6 n` is `InvClosed` under the real kernel. -/
+theorem allZeroGE6_InvClosed (n : ℕ) :
+    OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => AllZeroGE6 (L := L) (K := K) n c) := by
+  intro c hc
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | ¬ AllZeroGE6 (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  exact hx (AllZeroGE6_support_closed n c x hc hsupp)
+
+/-- On `AllZeroGE6`, every Main is unbiased, hence `highU l = 0`. -/
+theorem highU_eq_zero_of_allZeroGE6 (l n : ℕ) (c : Config (AgentState L K))
+    (hw : AllZeroGE6 (L := L) (K := K) n c) :
+    highU (L := L) (K := K) l c = 0 :=
+  highU_eq_zero_of_noBiasedMain (L := L) (K := K) l c
+    (fun a ha _ => hw.2.2 a ha)
+
+/-- **`hmono` discharged (trivially)**: `highU l` is non-increasing on `AllZeroGE6`
+because it is identically `0` there. -/
+theorem potNonincrOn_highU (l n : ℕ) :
+    OneSidedCancel.PotNonincrOn (fun c => AllZeroGE6 (L := L) (K := K) n c)
+      (NonuniformMajority L K).transitionKernel (fun c => highU (L := L) (K := K) l c) := by
+  intro c hc
+  -- highU c = 0, so `{x | highU c < highU x} = {x | 0 < highU x}`; on the support every
+  -- successor is in AllZeroGE6 (closed) so its highU is 0 too, killing the set.
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | highU (L := L) (K := K) l c < highU (L := L) (K := K) l x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  simp only [Set.mem_setOf_eq] at hx
+  have hx0 : highU (L := L) (K := K) l x = 0 :=
+    highU_eq_zero_of_allZeroGE6 l n x (AllZeroGE6_support_closed n c x hc hsupp)
+  rw [hx0] at hx; exact absurd hx (by omega)
+
+/-- **The Phase-6 (frozen-rule) convergence `PhaseConvergenceW` on the closed
+all-unbiased window.**  Engine: `OneSidedCancel.crude_PhaseConvergenceW` with
+potential `Φ = highU l` over `Inv = AllZeroGE6 n`.  Since `Φ ≡ 0` on `Inv`, the
+per-step drop hypothesis is vacuous (`q = 0`), `t = 1`, `ε = 0`.  `Pre` is
+`AllZeroGE6 ∧ highU ≤ 0` and `Post` is `AllZeroGE6 ∧ highU = 0`, i.e. "all biased
+agents have exponent `≤ -l`" (vacuously, since there are no biased agents). -/
+noncomputable def phase6Convergence (l n : ℕ) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.crude_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => AllZeroGE6 (L := L) (K := K) n c)
+    (allZeroGE6_InvClosed (L := L) (K := K) n)
+    (fun c => highU (L := L) (K := K) l c)
+    (potNonincrOn_highU (L := L) (K := K) l n)
+    (0 : ℝ≥0∞)
+    (by
+      -- hstep: on Inv with `1 ≤ Φ b`; but `Φ b = 0` on Inv, contradiction — vacuous.
+      intro b hb hpos
+      exfalso
+      have hpos' : 1 ≤ highU (L := L) (K := K) l b := hpos
+      rw [highU_eq_zero_of_allZeroGE6 l n b hb] at hpos'
+      exact absurd hpos' (by omega))
+    (0 : ℕ) (1 : ℕ) (0 : ℝ≥0)
+    (by simp)
+
+end Phase6Convergence
+end ExactMajority
