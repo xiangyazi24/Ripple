@@ -40,6 +40,7 @@ next step on: `(killK^t)(some y){none} = 1` for `1 ≤ t`. -/
 theorem killed_none_of_ungated [IsMarkovKernel K] (y : α) (hy : y ∉ G) (t : ℕ)
     (ht : 1 ≤ t) :
     (killK K G ^ t) (some y) {(none : Option α)} = 1 := by
+  classical
   obtain ⟨s, rfl⟩ : ∃ s, t = 1 + s := ⟨t - 1, by omega⟩
   have hdead : killK K G (some y) = Measure.dirac (none : Option α) := by
     unfold killK
@@ -62,13 +63,18 @@ Induction on `t`; per step, the alive-and-gated mass pays at most `η` for stepp
 theorem killed_none_mass_le [IsMarkovKernel K] (η : ℝ≥0∞)
     (hesc : ∀ x ∈ G, K x Gᶜ ≤ η) (t : ℕ) (x₀ : α) (hx₀ : x₀ ∈ G) :
     (killK K G ^ t) (some x₀) {(none : Option α)} ≤ (t : ℝ≥0∞) * η := by
+  classical
   induction t generalizing x₀ with
   | zero =>
       rw [pow_zero]
-      show (Measure.dirac (some x₀)) {(none : Option α)} ≤ 0 * η
-      rw [Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _)]
-      simp [Set.indicator_of_notMem
-        (show (some x₀) ∉ ({none} : Set (Option α)) from by simp)]
+      have hid : (Kernel.id : Kernel (Option α) (Option α)) (some x₀)
+          {(none : Option α)} = 0 := by
+        rw [Kernel.id_apply,
+          Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+        simp
+      calc ((1 : Kernel (Option α) (Option α))) (some x₀) {(none : Option α)}
+          = 0 := hid
+        _ ≤ ((0 : ℕ) : ℝ≥0∞) * η := zero_le'
   | succ t ih =>
       have hCK : (killK K G ^ (t + 1)) (some x₀) {(none : Option α)}
           = ∫⁻ o, (killK K G ^ t) o {(none : Option α)} ∂(killK K G (some x₀)) := by
@@ -143,7 +149,7 @@ theorem gated_real_tail_full [IsMarkovKernel K] (Φ : α → ℝ≥0∞) (r : �
     (t : ℕ) (x : α) (hx : x ∈ G) (θ : ℝ≥0∞) (hθ0 : θ ≠ 0) (hθtop : θ ≠ ∞) :
     (K ^ t) x {y | θ ≤ Φ y} ≤ (t : ℝ≥0∞) * η + r ^ t * Φ x / θ := by
   refine le_trans (gated_real_tail (K := K) (G := G) Φ r hr hdrift_G t x θ hθ0 hθtop) ?_
-  exact add_le_add_right (killed_none_mass_le η hesc t x hx) _
+  exact add_le_add (killed_none_mass_le η hesc t x hx) le_rfl
 
 end GatedDrift
 

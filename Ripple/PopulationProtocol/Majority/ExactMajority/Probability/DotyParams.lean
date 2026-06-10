@@ -514,6 +514,51 @@ theorem RW_le_RWb (n : ℕ) (hn : N₀ ≤ n) :
     _ ≤ 1 / (1 - uW) := h5
     _ = RWb := rfl
 
+/-! ## Part 13 — `hB_params`: the two-regime ceiling-ladder discharge of the carried `hB` hypothesis.
+
+The concrete corollary `windowedFrontProfile_whp_concrete` carries `hB` (the per-window recurrence
+bad-event bound) as a named hypothesis.  Here we discharge it at the concrete parameters, splitting
+each invariant window-open start `mc₀` on the feeder regime `X₀ := rBeyond T (erase mc₀)`:
+- REGIME 1 (`θn ≤ X₀`, `41·X₀ ≤ 4n`): the full geometric ceiling ladder `a m = ⌈G^m·⌈g·X₀⌉⌉`,
+  `M` rungs up to `aM`, via `per_window_delta` with `floor_discharge`/`slice_discharge`.
+- REGIME 2 (`4n < 41·X₀`, `10·X₀ ≤ n`): the band is thinner than one growth factor, so `M = 0`,
+  a single floor rung `a 0 = aM`; the bad bound is the bare upward-growth floor exponent of
+  `per_window_ladder_up`, bounded `≤ −6·n/10⁶ < 0` by `X₀ > 4n/41`, `a0 = aM ≤ n/10+1`.
+
+The uniform `δ T := regime1Val + regime2Val` (constant in `T`) bounds both branches.  `σ := σw =
+1/250` (so `hsmall` holds via `RW_le_RWb`).  This is the campaign's "last big arithmetic". -/
+
+/-- The provable rational lower bound `47/500 ≤ 1 − e^{−1/10}` (needed for the regime-2 margin; the
+crude `1−e^{−s} ≥ (1−s)s = 9/100` is too weak — regime 2 needs `> 0.0926`).  Via `Real.exp_bound`
+at `n = 3` (cubic Taylor remainder `≤ 1/4000`). -/
+theorem one_sub_exp_neg_tenth : (47/500 : ℝ) ≤ 1 - Real.exp (-(1/10 : ℝ)) := by
+  have hb := Real.exp_bound (x := -(1/10 : ℝ)) (by rw [abs_neg, abs_of_nonneg] <;> norm_num)
+    (n := 3) (by norm_num)
+  have hsum : ∑ m ∈ Finset.range 3, (-(1/10 : ℝ)) ^ m / m.factorial = 1 - 1/10 + 1/200 := by
+    simp [Finset.sum_range_succ, Nat.factorial]; norm_num
+  rw [hsum] at hb
+  have hrem : |(-(1/10 : ℝ))| ^ 3 * ((3:ℕ).succ / ((3:ℕ).factorial * 3)) ≤ 1/4000 := by
+    rw [abs_neg, abs_of_nonneg (by norm_num : (0:ℝ) ≤ 1/10)]
+    norm_num [Nat.factorial]
+  have hupper : Real.exp (-(1/10:ℝ)) ≤ (1 - 1/10 + 1/200) + 1/4000 := by
+    have := abs_le.1 hb
+    nlinarith [this.2, hrem]
+  linarith
+
+/-- The window MGF scale `σw = 1/250` satisfies the `per_window_delta` smallness gate
+`σw·(1+2(1+1/200)/n)^w ≤ (1/200)/(1+1/200)` for `n ≥ N₀` (via `RW_le_RWb`, `RWb ≤ 250/201`). -/
+theorem σw_hsmall (n : ℕ) (hn : N₀ ≤ n) :
+    σw * (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n) ≤ (1/200 : ℝ) / (1 + (1/200 : ℝ)) := by
+  have hRW : (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n) ≤ RWb := RW_le_RWb n hn
+  have hRWb : RWb ≤ 250/201 := by unfold RWb uW; norm_num
+  have hRWle : (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n) ≤ 250/201 := le_trans hRW hRWb
+  have hRW0 : (0 : ℝ) ≤ (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n) := by
+    have := baseW_pos n hn; positivity
+  calc σw * (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n)
+      ≤ σw * (250/201) := by
+        apply mul_le_mul_of_nonneg_left hRWle; unfold σw; norm_num
+    _ ≤ (1/200 : ℝ) / (1 + (1/200 : ℝ)) := by unfold σw; norm_num
+
 end DotyParams
 
 end ExactMajority
