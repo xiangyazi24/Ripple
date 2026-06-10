@@ -554,6 +554,61 @@ theorem phase5_hstep_of_struct_one {L K : ℕ} (n : ℕ) (hn : 2 ≤ n)
   rw [hdone_eq]
   exact phase5_hdrop_of_struct n 1 hn b hInv hb1 P hres hmain
 
+/-! ## Part F — Phase 6 (`highMass l`, `Phase6Win`, per-level ρ₆ rates, LEVELS form a).
+
+Phase 6 already runs on the LEVELS engine (`levels_PhaseConvergenceW`), so the honest
+deliverable is the per-level `hdrop` directly (no crude `m = 1` restriction needed).  The
+carried structural floor (`ReserveSampleGood K₀` / Phase-5 `sampledReserveClassU`, the
+band-top reserve fraction `ρ₆`) supplies, at a witness hour `h` (`l−1 < h ≠ L`), the
+reserve margin `(reserveAtHour6 h).sum count ≥ R` together with `≥ 1` band-`l` biased Main
+(`(mainAt6 σ l).sum count ≥ 1`).  Threaded through `highMass_drop_prob_rect6`, this yields
+the drop floor `ofReal(R/(n(n−1)))`, which `highMass_hdrop_of_floor6` turns into the
+per-level engine `hdrop`. -/
+
+/-- **Phase 6 — structural floor ⟹ concrete per-level drop-probability floor.**  At a
+witness hour `h` (`l−1 < h ≠ L`) with `≥ 1` band-`l` Main and a reserve margin `≥ R`, the
+one-step `highMass l` drop probability is `≥ ofReal(R/(n(n−1)))`. -/
+theorem phase6_drop_floor_of_struct {L K : ℕ} (σ : Sign) (l n : ℕ) (hn : 2 ≤ n)
+    (hl1 : 1 ≤ l) (hlL : l ≤ L) (c : Config (AgentState L K))
+    (hInv : Phase6Convergence.Phase6Win (L := L) (K := K) n c)
+    (h : Fin (L + 1)) (hhgt : l - 1 < h.val) (hhne : h.val ≠ L) (R : ℕ)
+    (hmain : 1 ≤ (Phase6Convergence.mainAt6 (L := L) (K := K) σ l hl1 hlL).sum c.count)
+    (hres : R ≤ (Phase6Convergence.reserveAtHour6 (L := L) (K := K) h).sum c.count) :
+    ENNReal.ofReal ((R : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Phase6Convergence.highMass (L := L) (K := K) l c' + 1
+          ≤ Phase6Convergence.highMass (L := L) (K := K) l c} := by
+  refine le_trans ?_ (Phase6Convergence.highMass_drop_prob_rect6 σ l n hn hl1 hlL c hInv h hhgt hhne)
+  have hprod : (R : ℕ) ≤
+      (Phase6Convergence.reserveAtHour6 (L := L) (K := K) h).sum c.count *
+        (Phase6Convergence.mainAt6 (L := L) (K := K) σ l hl1 hlL).sum c.count := by
+    calc (R : ℕ) ≤ R * 1 := by omega
+      _ ≤ R * (Phase6Convergence.mainAt6 (L := L) (K := K) σ l hl1 hlL).sum c.count :=
+          Nat.mul_le_mul_left _ hmain
+      _ ≤ (Phase6Convergence.reserveAtHour6 (L := L) (K := K) h).sum c.count *
+            (Phase6Convergence.mainAt6 (L := L) (K := K) σ l hl1 hlL).sum c.count :=
+          Nat.mul_le_mul_right _ hres
+  have hnR : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  apply DrainThreading.ofReal_div_le_of_num_le _ (by positivity) (by nlinarith)
+  exact_mod_cast hprod
+
+/-- **Phase 6 — the per-level levels-engine `hdrop` from the structural floor.**  At a level
+`m` with `highMass l b = m` and the carried reserve floor (`≥ R` reserves at witness hour
+`h`, `≥ 1` band-`l` Main), the level-`m` failure mass is `≤ 1 − ofReal(R/(n(n−1)))`. -/
+theorem phase6_hdrop_of_struct {L K : ℕ} (σ : Sign) (l n m : ℕ) (hn : 2 ≤ n)
+    (hl1 : 1 ≤ l) (hlL : l ≤ L) (b : Config (AgentState L K))
+    (hInv : Phase6Convergence.Phase6Win (L := L) (K := K) n b)
+    (hbm : Phase6Convergence.highMass (L := L) (K := K) l b = m)
+    (h : Fin (L + 1)) (hhgt : l - 1 < h.val) (hhne : h.val ≠ L) (R : ℕ)
+    (hmain : 1 ≤ (Phase6Convergence.mainAt6 (L := L) (K := K) σ l hl1 hlL).sum b.count)
+    (hres : R ≤ (Phase6Convergence.reserveAtHour6 (L := L) (K := K) h).sum b.count) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (fun c => Phase6Convergence.highMass (L := L) (K := K) l c) m)ᶜ
+      ≤ 1 - ENNReal.ofReal ((R : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) :=
+  Phase6Convergence.highMass_hdrop_of_floor6 l m
+    (ENNReal.ofReal ((R : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))) b hbm
+    (phase6_drop_floor_of_struct σ l n hn hl1 hlL b hInv h hhgt hhne R hmain hres)
+
 end DrainThreading
 
 end ExactMajority

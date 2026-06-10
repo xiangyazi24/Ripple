@@ -570,6 +570,21 @@ Clock–clock pairs scale by EXACTLY `eˢ` (`clockSummand_pair_clock_clock`, no 
 term, dropped via `eˢ ≥ 1`); non-clock–clock pairs carry source clocks unchanged
 and may create ONE Rule-4 fresh clock (`Phase0Transition_summand_not_both_clock`,
 bumped to `eˢ·sources` via `eˢ ≥ 1`).  Requires `s ≥ 0`. -/
+/-- Any clock summand is `≤ 1` (for `s ≥ 0`): `exp(−s·counter) ≤ exp(0) = 1` since
+`counter ≥ 0`; a non-clock summand is `0 ≤ 1`. -/
+private lemma clockSummand_le_one (s : ℝ) (hs : 0 ≤ s) (a : AgentState L K) :
+    clockSummand (L := L) (K := K) s a ≤ 1 := by
+  unfold clockSummand
+  by_cases hrole : a.role = .clock
+  · rw [if_pos hrole]
+    rw [show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from ENNReal.ofReal_one.symm]
+    apply ENNReal.ofReal_le_ofReal
+    rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
+    apply Real.exp_le_exp.mpr
+    have : (0 : ℝ) ≤ s * (a.counter.val : ℝ) := by positivity
+    linarith
+  · rw [if_neg hrole]; exact zero_le'
+
 theorem clockSummand_pair_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L K)
     (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0)
     (hpos₁ : r₁.role = .clock → r₁.counter.val ≠ 0)
@@ -1495,29 +1510,70 @@ phase-0-exit bridge + the prefix-union lift) is now DISCHARGED above
 hypothesis above (mirroring how `WindowConcentration.windowDrift_tail` itself
 takes its one-step drift as input), so it is stated here with its exact goal.
 
-**Gap 1 — the quantitative one-step drift `hdrift` (the scheduler core).**
-The window engine consumes
-  `∫ Φ_1 dK(c) ≤ ofReal(1 + 2(e−1)/n) · Φ_1(c)`  on an absorbing window `Q`.
-INFRASTRUCTURE NOW BUILT (0-sorry, axiom-clean):
-* `lintegral_transitionKernel_eq_sum` — the one-step lintegral as the explicit
-  `interactionProb`-weighted pair sum `∑_pair Φ(stepOrSelf c pair)·prob(pair)`;
-* `clockCounterPotential_eq_base_add_pair` /
-  `clockCounterPotential_stepOrSelf_eq_base_add_pair` — both `Φ(c)` and
-  `Φ(stepOrSelf c r₁ r₂)` split over the common base `Φ(c − {r₁, r₂})`, so the
-  per-pair change is LOCALIZED to the two interacting agents (no truncated
-  subtraction);
-* `clockSummand_pair_clock_clock` — the DOMINANT per-pair case: a clock–clock
-  phase-0 pair at positive counters scales its two-summand block by EXACTLY `eˢ`
-  (`clockSummand_scale_of_decrement` + `clock_clock_decrement`).
-REMAINING to assemble the affine bound: the per-pair contribution of the
-NON-clock–clock pairs (clock counters untouched ⇒ summand block unchanged, except
-a Rule-4 fresh clock adds the tiny `exp(−s·50(L+1))` summand), plus the counting
-step `#(clock–clock pairs) · prob = 2(clockCount−1)/(n(n−1)) ≤ 2/n`, summed
-against `interactionProb` over the localized ledger above to the affine rate
-`1 + 2(eˢ−1)/n`.  This is the in-house affine-counter pattern (cf.
-`EarlyDripMarked`'s tainted-counter drift); the window `Q` must carry
-`allPhase0`, `noClockAtZero` (positive counters) and a clock-count bound
-(absorbing under `stepDistOrSelf`, e.g. via `RoleSplitGood` / `clockCount ≤ n`).
+**Gap 1 — the quantitative one-step drift `hdrift` (the scheduler core) — the
+AFFINE DRIFT and its TAIL ENGINE are now FULLY PROVEN (C-0w12..18).**
+
+The full affine one-step drift on the phase-0 / positive-counter window is
+`clockCounterPotential_drift_affine`:
+
+  `∫ Φ_s dK(c) ≤ ofReal(1 + 2(eˢ−1)/n) · Φ_s(c) + ofReal(e^{−s·50(L+1)})`,
+
+i.e. multiplicative rate `1 + 2(eˢ−1)/n` PLUS a single additive fresh-clock
+immigration `e^{−s·50(L+1)}` per step.  Built bottom-up, all 0-sorry axiom-clean:
+* `lintegral_transitionKernel_eq_sum` — lintegral = `interactionProb`-weighted pair
+  sum;
+* `clockCounterPotential_{eq_base_add_pair, stepOrSelf_eq_base_add_pair}` — the
+  localized (no-truncated-subtraction) per-pair potential splits;
+* `clockSummand_pair_clock_clock` — clock–clock at positive counters scales by
+  EXACTLY `eˢ`;
+* `Phase0Transition_{left,right}_summand_not_both`,
+  `Phase0Transition_summand_not_both_clock` — the NON-clock–clock per-pair output
+  ledger (Rule 4 adds ONE fresh `e^{−s·50(L+1)}`, all else carried unchanged);
+* `clockSummand_pair_le` — the UNIVERSAL per-pair output bound
+  `summand(δ₁)+summand(δ₂) ≤ eˢ·(sources) + fresh` (clock–clock exact, non-cc bumped
+  via `eˢ ≥ 1`);
+* `sum_fst_interactionProb` / `sum_snd_interactionProb` — the two interaction
+  marginals, each `= Φ_s(c)/card` (the scheduler's exact `1/n`-marginal, giving the
+  `2/n` pair-count factor);
+* `clockCounterPotential_stepOrSelf_le` — the per-pair potential bound
+  `Φ(stepOrSelf) ≤ Φ(c) + (eˢ−1)·(pair-block) + fresh`;
+* `clockCounterPotential_drift_affine` — the CAPSTONE, summing the per-pair bound
+  against the marginals (`2(eˢ−1)/n`) plus one fresh immigration per step
+  (`∑ interactionProb = 1`).
+The AFFINE TAIL ENGINE (the immigration analogue of
+`WindowConcentration.lintegral_decay_on_absorbing`, which only handles the
+multiplicative `b = 0` case) is also built:
+* `lintegral_decay_affine_on_absorbing` — `∫ Φ d(Kᵗ)c₀ ≤ aᵗ·Φ(c₀) + b·∑_{i<t}aⁱ`;
+* `phase0_window_tail_affine` — the Markov tail
+  `(Kᵗ)c₀{¬Post} ≤ (aᵗ·Φ(c₀) + b·∑_{i<t}aⁱ)/θ`.
+The affine `+b` is ESSENTIAL (not absorbable into a multiplicative rate): at a
+clock-free phase-0 start `Φ = 0` while `b > 0`, so no rate `r` with `∫Φ ≤ rΦ`
+exists.  The numerics close with slack: `aᵗ·Φ(c₀) ≤ e^{−45(L+1)}`
+(`phase0_numerics_real`) and `b·∑aⁱ ≤ n(L+1)·e^{−50(L+1)}·e^{2(e−1)(L+1)} ≤
+e^{−44(L+1)}` (using `n(L+1) ≤ e^{2(L+1)}` from `ln n ≤ L+1`), total `≤ 2·e^{−44(L+1)}`.
+
+REMAINING — the ABSORBING-WINDOW BRIDGE (the one structural input still open):
+`clockCounterPotential_drift_affine` holds on `allPhase0 ∧ noClockAtZero` (the
+positive-counter window), but that predicate is NOT `stepDistOrSelf`-absorbing
+(`noClockAtZero` is precisely the exit event — a clock–clock meeting can decrement
+a counter to `0`).  The affine tail engine, like the multiplicative one, needs an
+ABSORBING `Q` on which the drift holds.  Two honest routes to close it:
+  (a) extend `clockSummand_pair_le` to drop the `hpos` (positive-counter) hypotheses
+      — at a counter-`0` clock the source summand is `e^0 = 1`, and the
+      `advancePhaseWithInit` output is either a non-clock (summand `0`) or a clock at
+      some counter `≥ 0` (summand `≤ 1`), so `summand(output) ≤ 1 = summand(source)`
+      still holds; this would make the affine drift hold on `allPhase0` alone — but
+      `allPhase0` is STILL not absorbing (Gap 2: it is preserved only WHILE
+      `noClockAtZero`), so this is necessary but not sufficient;
+  (b) the genuine fix mirrors Gap 2's prefix-union: bound
+      `(Kᵗ)c₀{¬noClockAtZero}` via the affine tail run on the *reachable-and-survived*
+      trace, i.e. compose `phase0_window_tail_affine` (Post = `noClockAtZero`,
+      Q-absorption supplied by the survival filtration) with
+      `allPhase0_window_whp` (Gap 2).  Concretely the downstream relay supplies the
+      absorbing `Q` (e.g. a `RoleSplitGood`-style invariant carrying a clock-count
+      bound) and feeds `clockCounterPotential_drift_affine` (+ route-(a) extension)
+      as its `hdrift`, then `phase0_window_tail_affine` discharges the per-`τ`
+      `hτ` clock-zero bounds that `allPhase0_window_whp` consumes.
 
 **Gap 2 — the deterministic phase-0-exit bridge — DISCHARGED above.**  The
 single-step deterministic fact
