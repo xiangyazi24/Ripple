@@ -90,3 +90,19 @@ one scoping unknown (start its paper-read during C's parallel waits); F is hygie
 - The Θ(n log n)-interactions-vs-parallel-time conversion subtleties beyond what the existing
   parallel-time wrappers already handle.
 - SSEM (Kanaya et al.) — separate, already complete.
+
+## OVERNIGHT COORDINATION (2026-06-10 night; multiple windows live)
+
+Line assignments to avoid file races (each line owns its files exclusively):
+- **family (this line): Phase B** — DotyParams + scale-hypothesis discharge (incl. the hB ladder
+  ceiling facts) in a NEW file `Probability/DotyParams.lean`, then the FrontSync consumer rethread
+  (FrontSyncConc/ClockFrontWidth/ClockEnvMaint/ClockFullJoint edits) — these existing files are
+  family-line-owned tonight.
+- **family2 / family3 (when they come up): Phase C phase instances** — ONE NEW FILE PER PHASE
+  (Phase4Convergence.lean, Phase5Convergence.lean, …), template = Phase2Convergence.lean. Suggested
+  split: family2 takes phases 0/1 (+ the clock-count Θ(n) role-split concentration), family3 takes
+  4/5/6 (read paper §7.1 FIRST for 5/6 Reserve-agent structure). Phases 7/8/10 next. Do NOT touch
+  EarlyDripMarked.lean, ClockFrontProfile.lean, or any family-line file.
+- Commit per lemma, push, sync-ripple-wip.sh, 0-sorry/axiom-clean discipline as per the doctrine.
+- ChatGPT consults run from the family line (the family tab holds the repo connector); other lines
+  request consults by writing questions into /tmp/gpt_requests_<line>.md and pinging family chat.
