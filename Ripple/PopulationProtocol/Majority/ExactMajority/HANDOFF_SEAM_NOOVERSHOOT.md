@@ -609,3 +609,37 @@ Everything else (the affine drift engine, the numerics, the prefix-union tail
 assembly, the union-bound integration fix, the deterministic exact-work bridge) is
 fully proven and consumable.  The integration bug (`seamEpidemicW`'s unused
 `εovershoot`) is FIXED by `seamEpidemicExactW`.
+
+---
+
+## STATUS UPDATE 2026-06-10 — `hpair` protocol-core BUILT in `Probability/SeamPairBound.lean` (0-sorry, axiom-clean)
+
+The protocol-structural core behind the carried `hpair` is now proven (new file only; no edit to
+`SeamNoOvershoot.lean`). All headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`,
+no `native_decide`/`sorry`. See `DOTY_POST63_CAMPAIGN.md §SeamPairBound` for the full lemma list.
+
+**Headline proven:** `seamClockSummand_Transition_left_le_of_ep_at_dest` — the honest per-side output
+bound in the no-advance regime: `summand((Transition a b).1) ≤ eˢ · (summand(a) + freshVal)`, via the full
+chain (finishPhase10-strip → dispatch decrement → epidemic immigration). Supporting: the decrement bound,
+the epidemic immigration summand bound (`runInitsBetween` reset through the fold), the counter-advance
+immigration reset, and the per-phase dispatch left-clock reductions for `{1,5,6,7,8}`.
+
+**TWO FINDINGS (genuine attack — both AMEND this blueprint):**
+
+1. **The carried `hpair` constant `2·freshVal` is FALSE for `s > 0`.** A fresh epidemic-dragged clock
+   enters `p+1` at FULL counter and is DECREMENTED by the same-step dispatch to `full−1`; its summand is
+   `eˢ·freshVal`, not `freshVal`. Honest per-pair immigration ceiling = `2·eˢ·freshVal`. Downstream-benign:
+   `seam_noOvershoot_numerics_real` has `e^{−45}+e^{−43}→e^{−40}` slack, so `b = 2·e·freshVal` still closes.
+   **Action item:** re-state `hpair` (and `seamClockPotential_stepOrSelf_le` / `…_drift_affine` /
+   `seam_atRiskClockZero_tail`) with `2·eˢ·freshVal`.
+
+2. **Phase 5 must be EXCLUDED too (parallels phase 3).** `Phase4Transition` advances clocks via
+   `advancePhase` (NO `phaseInit`, NO counter reset), so a clock counter-advanced from phase 4 into phase 5
+   keeps its old counter (summand up to 1, not `freshVal`), breaking the immigration tail. **The fully-honest
+   counter-reset destination set is `{1,6,7,8}`, NOT `{1,5,6,7,8}`** (blueprint's `CounterTimedPhase`).
+   Phase 5's no-overshoot, like phase 3's, must come from the minute/hour width machinery.
+
+**Residual (precisely isolated):** the phase-ADVANCE-regime per-side bound for `{1,6,7,8}` needs the
+`Phase0Transition` left-clock reduction packaged (Phase{5,6,7} are done; the advance-reset lemma
+`seamClockSummand_stdCounterSubroutine_advance` is proven). The full exact-`hpair` adapter is NOT
+deliverable as stated (findings 1+2); the honest adapter targets `2·eˢ·freshVal` over `{1,6,7,8}`.
