@@ -393,9 +393,9 @@ theorem birthR1Mass_ge_freshMcr
     obtain ⟨ht_role, ht_un, ht_ph⟩ := (isFreshMcr_iff t).mp ht_fresh
     unfold Protocol.scheduledStep Protocol.stepOrSelf
     rw [if_pos happ]
-    have hδ : (NonuniformMajority L K).δ s t = Transition L K s t := rfl
-    rw [show ((NonuniformMajority L K).δ s t).1 = (Transition L K s t).1 from by rw [hδ],
-        show ((NonuniformMajority L K).δ s t).2 = (Transition L K s t).2 from by rw [hδ]]
+    show assignableCount (L := L) (K := K) c + 2 ≤
+      assignableCount (L := L) (K := K)
+        (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2})
     rw [birthR1_config_eq c s t happ hs_role ht_role hs_un ht_un hs_ph ht_ph]
   calc birthR1Mass (L := L) (K := K) c
       = ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
@@ -432,11 +432,13 @@ theorem hbirth_of_freshMcr_floor
     have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn2
     nlinarith
   -- Same denominator, monotone numerator: uMin(uMin−1) ≤ freshMcrCount(freshMcrCount−1).
-  apply div_le_div_of_nonneg_right ?_ hn1
   have hmono : uMin * (uMin - 1) ≤
       freshMcrCount (L := L) (K := K) c * (freshMcrCount (L := L) (K := K) c - 1) :=
     Nat.mul_le_mul hfresh (Nat.sub_le_sub_right hfresh 1)
-  exact_mod_cast hmono
+  have hmonoR : (((uMin * (uMin - 1) : ℕ) : ℝ))
+      ≤ (((freshMcrCount (L := L) (K := K) c *
+          (freshMcrCount (L := L) (K := K) c - 1) : ℕ) : ℝ)) := by exact_mod_cast hmono
+  gcongr
 
 end FloorMasses
 end ExactMajority
