@@ -243,67 +243,47 @@ theorem goodFrontWidth_transport_of_width
     (W W₃ : ℕ)
     (c₀ c₁ : Config (AgentState L K))
     (hcard : c₁.card = c₀.card)
+    (hall₁ : AllClockP3 (L := L) (K := K) c₁)
     (hmono : ∀ T, rBeyond (L := L) (K := K) T c₀ ≤ rBeyond (L := L) (K := K) T c₁)
     (hgood₀ : GoodFrontWidth (L := L) (K := K) W c₀)
     (hcross : CrossEmptyClimbGood (L := L) (K := K) c₀.card W₃ c₀ c₁) :
     GoodFrontWidth (L := L) (K := K) (W + W₃) c₁ := by
   intro i hi
+  -- `rBeyond 0 c₁ = card` (all agents are clocks at level ≥ 0): handles the small-`i` band.
+  have hr0 : rBeyond (L := L) (K := K) 0 c₁ = c₁.card := by
+    unfold rBeyond
+    rw [Multiset.countP_eq_card]
+    intro a ha
+    exact ⟨(hall₁ a ha).1, Nat.zero_le _⟩
   by_cases hiW : i ≤ W + W₃
-  · -- i small: base = 0; rBeyond 0 c₁ = card needs all-clock at c₁, derived from hmono and c₀…
-    -- but we have no all-clock hyp.  Use instead the bulk monotonicity contrapositive directly:
-    -- it suffices to show card ≤ 10 * rBeyond (i - (W+W₃)) c₁.  With i - (W+W₃) = 0 and rBeyond 0
-    -- antitone-dominating every level, rBeyond 0 c₁ ≥ rBeyond i c₁ > 0, but we need the full card.
-    -- Provide it via hmono from rBeyond 0 c₀: rBeyond 0 c₁ ≥ rBeyond 0 c₀.  We still need
-    -- rBeyond 0 c₀ relation to card.  Without all-clock we cannot conclude; so route through the
-    -- contradiction branch uniformly instead.
-    by_contra hcon
-    rw [not_le] at hcon
+  · -- small `i`: base = 0, and `10 * rBeyond 0 c₁ = 10 * card ≥ card`.
     have hzero : i - (W + W₃) = 0 := by omega
-    rw [hzero] at hcon
-    -- rBeyond i c₁ ≤ rBeyond 0 c₁ (antitone), and rBeyond 0 c₁ ≥ rBeyond 0 c₀.
-    -- We need a lower bound on rBeyond 0 c₁; use that 0 < rBeyond i c₁ and antitone gives
-    -- 0 < rBeyond 0 c₁, then GoodFrontWidth at c₀? Not directly.  Instead empty level W at c₀.
-    -- Run the same empty-and-transport argument with base = 0.
-    have hanti0 := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K) 0 i (Nat.zero_le _) c₁
-    have hbulk0 : 10 * rBeyond (L := L) (K := K) 0 c₁ < c₀.card := by rw [hcard] at hcon; omega
-    have hgw0 : rBeyond (L := L) (K := K) W c₀ = 0 := by
-      by_contra hpos
-      have hpos' : 0 < rBeyond (L := L) (K := K) W c₀ := Nat.pos_of_ne_zero hpos
-      have := hgood₀ W hpos'
-      simp only [Nat.sub_self] at this
-      have hm := hmono 0
-      omega
-    have hcrossEmpty : rBeyond (L := L) (K := K) (0 + W + W₃) c₁ = 0 := by
-      have := hcross 0 (by simpa using hgw0) (by simpa using hbulk0)
-      simpa using this
-    have hle : 0 + W + W₃ ≤ i := by omega
-    have hanti := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K) (0 + W + W₃) i hle c₁
+    rw [hzero, hr0]; omega
+  by_contra hcon
+  rw [not_le] at hcon  -- 10 * rBeyond (i - (W+W₃)) c₁ < c₁.card
+  set base := i - (W + W₃) with hbase
+  -- monotonicity pushes the bulk below `base` at the checkpoint.
+  have hbasec₀ : 10 * rBeyond (L := L) (K := K) base c₀ < c₀.card := by
+    have := hmono base; rw [hcard] at hcon; omega
+  -- checkpoint width contrapositive: level base + W is empty at c₀.
+  have hgwEmpty : rBeyond (L := L) (K := K) (base + W) c₀ = 0 := by
+    by_contra hpos
+    have hpos' : 0 < rBeyond (L := L) (K := K) (base + W) c₀ := Nat.pos_of_ne_zero hpos
+    have hw := hgood₀ (base + W) hpos'
+    simp only [Nat.add_sub_cancel] at hw
     omega
-  · by_contra hcon
-    rw [not_le] at hcon  -- 10 * rBeyond (i - (W+W₃)) c₁ < c₁.card
-    set base := i - (W + W₃) with hbase
-    -- monotonicity pushes the bulk below `base` at the checkpoint.
-    have hbasec₀ : 10 * rBeyond (L := L) (K := K) base c₀ < c₀.card := by
-      have := hmono base; rw [hcard] at hcon; omega
-    -- checkpoint width contrapositive: level base + W is empty at c₀.
-    have hgwEmpty : rBeyond (L := L) (K := K) (base + W) c₀ = 0 := by
-      by_contra hpos
-      have hpos' : 0 < rBeyond (L := L) (K := K) (base + W) c₀ := Nat.pos_of_ne_zero hpos
-      have hw := hgood₀ (base + W) hpos'
-      simp only [Nat.add_sub_cancel] at hw
-      omega
-    -- the endpoint bulk test at base + W is below card (antitone from base at c₁).
-    have hbulkc₁ : 10 * rBeyond (L := L) (K := K) (base + W) c₁ < c₀.card := by
-      have hanti := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K)
-        base (base + W) (by omega) c₁
-      rw [hcard] at hcon; omega
-    -- CrossEmptyClimbGood transports the emptiness W₃ levels up at c₁.
-    have hcrossEmpty : rBeyond (L := L) (K := K) (base + W + W₃) c₁ = 0 :=
-      hcross (base + W) hgwEmpty hbulkc₁
-    have hle : base + W + W₃ ≤ i := by omega
+  -- the endpoint bulk test at base + W is below card (antitone from base at c₁).
+  have hbulkc₁ : 10 * rBeyond (L := L) (K := K) (base + W) c₁ < c₀.card := by
     have hanti := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K)
-      (base + W + W₃) i hle c₁
-    omega
+      base (base + W) (by omega) c₁
+    rw [hcard] at hcon; omega
+  -- CrossEmptyClimbGood transports the emptiness W₃ levels up at c₁.
+  have hcrossEmpty : rBeyond (L := L) (K := K) (base + W + W₃) c₁ = 0 :=
+    hcross (base + W) hgwEmpty hbulkc₁
+  have hle : base + W + W₃ ≤ i := by omega
+  have hanti := HabsDischarge.rBeyond_antitone_threshold (L := L) (K := K)
+    (base + W + W₃) i hle c₁
+  omega
 
 end ClockFrontProfile
 
@@ -389,6 +369,105 @@ theorem ae_rBeyond_ge_pow (T : ℕ) (y : Config (AgentState L K))
     exact ⟨rBeyondGE3_ge_monotone (L := L) (K := K) T (rBeyond (L := L) (K := K) T y) a b hga hle hsupp,
       AllClockGE3_absorbing (L := L) (K := K) a b hga hsupp⟩
   filter_upwards [hjoint] with c' hc' using hc'.1
+
+/-! ## Stage 4 — the checkpoint-to-checkpoint assembly: the generic CK reduction.
+
+The endpoint width-failure mass at the free horizon `w·j + r` is bounded, via Chapman–Kolmogorov
+(`CrossHourSide.checkpoint_side_le` at `t := w·j`, `r := r`), by the `δRem`-free checkpoint feeder
+`εWAt_chk` (the checkpoint-BAD part, `CrossHourSide.widthFail_chk_concrete`) plus the within-window
+climb tail (the checkpoint-GOOD part).  We expose this in the exact `checkpoint_side_le` interface the
+side consumers (`hLocal` in `CrossHourSide.hside_concrete_bounded`) already use: the checkpoint-BAD
+obligation `hBad` and the per-checkpoint-good-state tail obligation `hTail` are carried as hypotheses.
+
+This is the honest consumer-facing shape.  **Recorded discrepancy:** the blueprint's flattened RHS
+(climb sum re-based at `erase mc₀` over `r` steps) is NOT provable as written — Chapman–Kolmogorov
+yields the tail integrated against the checkpoint distribution, which does not collapse to a single
+start-config climb sum.  The genuine within-window tail is per-checkpoint-state (the `hTail` shape
+here, matching `hLocal`), discharged by the transport `goodFrontWidth_transport_of_width` + the
+within-window `crossEmptyClimb_whp` at each checkpoint-good state.  See `HANDOFF_WFP_TRANSPORT.md`
+status section for the residual threshold-form bridge (`10·rBeyond < n` cardinality vs `< θn`). -/
+
+/-- **`widthFail_between_checkpoints` (generic CK reduction).**  In the exact `checkpoint_side_le`
+shape: with `Entry` the checkpoint-good set, `εBad` bounding the checkpoint-BAD mass at horizon `w·j`,
+and `εTail` bounding the within-window endpoint width-failure tail from each checkpoint-good state
+over `r` steps, the endpoint width-failure mass at horizon `w·j + r` is `≤ εBad + εTail`.
+
+Discharge `εBad` with `CrossHourSide.widthFail_chk_concrete` (= `εWAt_chk`, taking `Entryᶜ ⊇` its
+event) and `εTail` per checkpoint-good state with `crossEmptyClimb_whp` via the transport. -/
+theorem widthFail_between_checkpoints
+    (n r : ℕ) (j : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (Entry Bad : Set (Config (AgentState L K)))
+    (εBad εTail : ℝ≥0∞)
+    (hBad : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j))
+        (eraseConfig (L := L) (K := K) mc₀) Entryᶜ ≤ εBad)
+    (hTail : ∀ y ∈ Entry,
+      (ClockKilledMinute.realκ L K ^ r) y Bad ≤ εTail) :
+    (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀) Bad
+      ≤ εBad + εTail :=
+  checkpoint_side_le (κ := ClockKilledMinute.realκ L K)
+    Entry Bad (DotyParams.w n * j) r (eraseConfig (L := L) (K := K) mc₀) εBad εTail hBad hTail
+
+open ClockFrontProfile in
+/-- **`widthFail_between_checkpoints_concrete` — consumer demonstration.**  Instantiates the generic
+CK reduction with the checkpoint-good set `Entry := {c | WidthSideP n c → GoodFrontWidth (W₁+W₂) c}`,
+so that `Entryᶜ = {WidthSideP n ∧ ¬GoodFrontWidth (W₁+W₂)}` is EXACTLY the event bounded by
+`CrossHourSide.widthFail_chk_concrete` (= `εWAt_chk`).  The endpoint Bad event is the widened
+`{WidthSideP n ∧ ¬GoodFrontWidth (W₁+W₂+W₃)}`.  The checkpoint-BAD obligation is discharged cleanly by
+`widthFail_chk_concrete`; the within-window tail is carried as `hTail` (the per-checkpoint-good-state
+climb tail, dischargeable by `crossEmptyClimb_whp` via `goodFrontWidth_transport_of_width` — see the
+handoff residual note on the threshold-form bridge).  This is the consumer-facing assembly shape. -/
+theorem widthFail_between_checkpoints_concrete
+    (n : ℕ) (hn : DotyParams.N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hcard : mc₀.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (W₂ W₃ : ℕ) (hW₂ : 2 ≤ W₂)
+    (B' : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (j r : ℕ) (hjKK : j ≤ DotyParams.KK L K - 1)
+    (εTail : ℝ≥0∞)
+    (hTail : ∀ y ∈ {c : Config (AgentState L K) |
+        ClockBudgets.WidthSideP (L := L) (K := K) n c →
+          GoodFrontWidth (L := L) (K := K) (FrontTail.frontWidthBound n + W₂) c},
+      (ClockKilledMinute.realκ L K ^ r) y
+        {c | ClockBudgets.WidthSideP (L := L) (K := K) n c ∧
+          ¬ GoodFrontWidth (L := L) (K := K)
+            (FrontTail.frontWidthBound n + W₂ + W₃) c} ≤ εTail) :
+    (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + r))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | ClockBudgets.WidthSideP (L := L) (K := K) n c ∧
+          ¬ GoodFrontWidth (L := L) (K := K)
+            (FrontTail.frontWidthBound n + W₂ + W₃) c}
+      ≤ εWAt_chk (L := L) (K := K) n mc₀ Tcap W₂ B' s j + εTail := by
+  -- Checkpoint-BAD: `Entryᶜ = {WidthSideP ∧ ¬GoodFrontWidth (W₁+W₂)}` = the `widthFail_chk` event.
+  have hBad : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j))
+      (eraseConfig (L := L) (K := K) mc₀)
+      {c : Config (AgentState L K) |
+        ClockBudgets.WidthSideP (L := L) (K := K) n c →
+          GoodFrontWidth (L := L) (K := K) (FrontTail.frontWidthBound n + W₂) c}ᶜ
+      ≤ εWAt_chk (L := L) (K := K) n mc₀ Tcap W₂ B' s j := by
+    have hset : ({c : Config (AgentState L K) |
+        ClockBudgets.WidthSideP (L := L) (K := K) n c →
+          GoodFrontWidth (L := L) (K := K) (FrontTail.frontWidthBound n + W₂) c}ᶜ)
+        = {c | ClockBudgets.WidthSideP (L := L) (K := K) n c ∧
+            ¬ GoodFrontWidth (L := L) (K := K) (FrontTail.frontWidthBound n + W₂) c} := by
+      ext c
+      simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_imp]
+    rw [hset]
+    have := widthFail_chk_concrete (L := L) (K := K) n hn mc₀ hcard hge3 hnotP3 hclean
+      Tcap hcap W₂ hW₂ B' s hs j hjKK
+    rwa [Nat.add_zero] at this
+  exact checkpoint_side_le (κ := ClockKilledMinute.realκ L K)
+    {c | ClockBudgets.WidthSideP (L := L) (K := K) n c →
+        GoodFrontWidth (L := L) (K := K) (FrontTail.frontWidthBound n + W₂) c}
+    {c | ClockBudgets.WidthSideP (L := L) (K := K) n c ∧
+        ¬ GoodFrontWidth (L := L) (K := K) (FrontTail.frontWidthBound n + W₂ + W₃) c}
+    (DotyParams.w n * j) r (eraseConfig (L := L) (K := K) mc₀)
+    (εWAt_chk (L := L) (K := K) n mc₀ Tcap W₂ B' s j) εTail hBad hTail
 
 end EarlyDripMarked
 
