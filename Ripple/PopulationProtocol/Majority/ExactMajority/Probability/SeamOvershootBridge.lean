@@ -1348,24 +1348,21 @@ theorem Transition_right_phase_le_ep_succ_of_wf (a b : AgentState L K)
     have hn8 : n ≤ 8 := by rw [hphase] at hep18; exact hep18
     have htwf : WfAgent (L := L) (K := K) t' := hep2wf
     have hnt' : t'.phase.val ≤ 8 := hep28
+    -- ep.2.phase ≤ ep.1.phase = n (epidemic outputs share the source max)
+    have ht'le : t'.phase.val ≤ s'.phase.val := by
+      rw [phaseEpidemicUpdate_right_phase_eq_max_of_wf a b hwfa hwfb (by omega) (by omega),
+          ← hepphase]
+    have ht'n : t'.phase.val ≤ n := by rw [hphase] at ht'le; exact ht'le
     match n, hn, hn8 with
     | 0, _, _ => simp only [hphase]
-                 have := Phase0Transition_phase_nondec (L := L) (K := K) s' t'
-                 -- phase 0 dispatch ⟹ ep.1 at 0 ⟹ ep.2 ≤ ep.1 = 0; use phase0 right bound
-                 have hb0 : t'.phase.val = 0 := by
-                   have hge := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) a b
-                   have : t'.phase.val ≤ s'.phase.val := by
-                     have hle2 := phaseEpidemicUpdate_phase_le_Transition_phase -- placeholder
-                     sorry
-                   sorry
+                 have hb0 : t'.phase.val = 0 := by omega
                  have := Phase0Transition_right_phase_le_succ_of_phase0 s' t' hb0; omega
     | 1, _, _ => simp only [hphase]
                  have := Phase1Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
     | 2, _, _ => simp only [hphase]
                  have := Phase2Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
     | 3, _, _ => simp only [hphase]
-                 have hb3 : t'.phase.val = 3 := by sorry
-                 have := Phase3Transition_right_phase_le_succ_of_phase3 s' t' hb3; omega
+                 have := Phase3Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
     | 4, _, _ => simp only [hphase]
                  have := Phase4Transition_right_phase_le_succ s' t'; omega
     | 5, _, _ => simp only [hphase]
@@ -1375,8 +1372,7 @@ theorem Transition_right_phase_le_ep_succ_of_wf (a b : AgentState L K)
     | 7, _, _ => simp only [hphase]
                  have := Phase7Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
     | 8, _, _ => simp only [hphase]
-                 have := Phase8Transition_right_phase_le_succ_of_wf s' t' htwf
-                   (le_of_eq (by omega)); omega
+                 have := Phase8Transition_right_phase_le_succ_of_wf s' t' htwf hnt'; omega
     | n + 9, hn, hn8 => omega
   exact hdisp
 
