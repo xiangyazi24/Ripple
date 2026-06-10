@@ -99,16 +99,16 @@ theorem Phase4Transition_eq_self_of_noBigBias (s t : AgentState L K)
   unfold noBigBias at hs ht
   have hsb : (match s.bias with
       | .zero => false
-      | .dyadic _ i => decide (i.val < L)) = false := by
+      | .dyadic _ i => if i.val < L then true else false) = false := by
     cases hb : s.bias with
     | zero => rfl
-    | dyadic sg i => rw [hb] at hs; simp only [decide_eq_false_iff_not]; exact hs
+    | dyadic sg i => rw [hb] at hs; rw [if_neg hs]
   have htb : (match t.bias with
       | .zero => false
-      | .dyadic _ i => decide (i.val < L)) = false := by
+      | .dyadic _ i => if i.val < L then true else false) = false := by
     cases hb : t.bias with
     | zero => rfl
-    | dyadic sg i => rw [hb] at ht; simp only [decide_eq_false_iff_not]; exact ht
+    | dyadic sg i => rw [hb] at ht; rw [if_neg ht]
   rw [hsb, htb]; rfl
 
 /-- For two phase-4 agents, `phaseEpidemicUpdate` is the identity (max of equal
@@ -126,7 +126,7 @@ theorem phaseEpidemicUpdate_eq_self_of_phase4 (s t : AgentState L K)
   have ht_self : ({t with phase := (⟨4, by decide⟩ : Fin 11)} : AgentState L K) = t := by
     rw [← htp]
   rw [hs_self, ht_self]
-  rw [if_neg (by push_neg; intro _; simp)]
+  rw [if_neg (by push Not; intro _; simp)]
 
 /-- **Per-pair tie preservation.**  Two tie-agents (phase 4, output `T`, no big
 bias) produce two tie-agents under the full `Transition`. -/
