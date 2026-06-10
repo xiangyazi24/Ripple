@@ -286,7 +286,7 @@ theorem phaseInit_role_clock_imp (q : Fin 11) (a : AgentState L K)
     revert h <;>
     cases role <;>
     simp_all [phaseInit, enterPhase10] <;>
-    (try split_ifs) <;> simp_all [enterPhase10]
+    (try split_ifs) <;> simp_all
 
 /-- **No clock creation by `runInitsBetween`.**  If the fold result is a clock,
 the input was already a clock. -/
@@ -310,6 +310,80 @@ theorem runInitsBetween_role_clock_imp (oldP q : ℕ) (a : AgentState L K)
       · rw [dif_neg hk]; exact hc
   exact key _ a hne h
 
+set_option maxHeartbeats 1000000 in
+/-- `phaseInit` changes the phase only to the error phase `10`, else preserves it
+(`enterPhase10` is the unique phase-writing branch). -/
+theorem phaseInit_phase_eq_or_ten (q : Fin 11) (a : AgentState L K) :
+    (phaseInit L K q a).phase.val = a.phase.val
+    ∨ (phaseInit L K q a).phase.val = 10 := by
+  -- `phaseInit q a` writes `phase` only via `enterPhase10` (→ 10); else keeps it.
+  -- Phases 0,3,4,5,6,7,8 never touch phase; phases 1,2,9,10 may error to 10.
+  fin_cases q
+  · left; rfl
+  · -- phase 1
+    unfold phaseInit; simp only [↓reduceDIte]
+    by_cases h1 : a.role = .mcr
+    · rw [if_pos h1]; right; exact enterPhase10_phase_val L K a
+    · rw [if_neg h1]
+      by_cases h2 : a.role = .cr
+      · rw [if_pos h2]; left; rfl
+      · rw [if_neg h2]
+        by_cases h3 : a.role = .clock
+        · rw [if_pos h3]; left; rfl
+        · rw [if_neg h3]; left; rfl
+  · -- phase 2
+    unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+    by_cases h : (a.smallBias.val ≤ 1 || a.smallBias.val ≥ 5) = true
+    · rw [if_pos h]; right; exact enterPhase10_phase_val L K a
+    · rw [if_neg h]; left; rfl
+  · -- phase 3
+    unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+    rcases a with ⟨_, _, _, role, _⟩; cases role <;> (left; rfl)
+  · left; rfl
+  · -- phase 5
+    unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+    split_ifs <;> (left; rfl)
+  · -- phase 6
+    unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+    split_ifs <;> (left; rfl)
+  · -- phase 7
+    unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+    split_ifs <;> (left; rfl)
+  · -- phase 8
+    left; unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+  · -- phase 9
+    unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+    by_cases h : (a.smallBias.val ≤ 1 || a.smallBias.val ≥ 5) = true
+    · rw [if_pos h]; right; exact enterPhase10_phase_val L K a
+    · rw [if_neg h]; left; rfl
+  · -- phase 10
+    unfold phaseInit; simp only [↓reduceDIte, Nat.reduceEqDiff]
+    right; exact enterPhase10_phase_val L K a
+
+/-- `runInitsBetween` preserves the phase unless it errors to `10`. -/
+theorem runInitsBetween_phase_eq_or_ten (oldP q : ℕ) (a : AgentState L K) :
+    (runInitsBetween L K oldP q a).phase.val = a.phase.val
+    ∨ (runInitsBetween L K oldP q a).phase.val = 10 := by
+  unfold runInitsBetween
+  have key : ∀ (l : List ℕ) (c : AgentState L K),
+      (List.foldl (fun acc k => if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc)
+        c l).phase.val = c.phase.val
+      ∨ (List.foldl (fun acc k => if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc)
+        c l).phase.val = 10 := by
+    intro l
+    induction l with
+    | nil => intro c; left; rfl
+    | cons k ks IH =>
+      intro c
+      simp only [List.foldl_cons]
+      by_cases hk : k < 11
+      · rw [dif_pos hk]
+        rcases IH (phaseInit L K ⟨k, hk⟩ c) with h | h
+        · rw [h]; exact phaseInit_phase_eq_or_ten ⟨k, hk⟩ c
+        · right; exact h
+      · rw [dif_neg hk]; exact IH c
+  exact key _ a
+
 /-- **Epidemic immigration counter (left).**  If `ep.1` is a clock at phase
 `q ∈ {1,5,6,7,8}` while the raw `a` was strictly below `q`, then `ep.1` has the
 full counter `50(L+1)` (the epidemic's `runInitsBetween a.phase q` reset it). -/
@@ -319,47 +393,38 @@ theorem phaseEpidemicUpdate_left_immigrant_full (a b : AgentState L K)
     (hep_phase : (phaseEpidemicUpdate L K a b).1.phase.val = q) :
     (phaseEpidemicUpdate L K a b).1.counter.val = 50 * (L + 1) := by
   have hq11 : q < 11 := by rcases hq with h | h | h | h | h <;> omega
-  -- max a.phase b.phase = q : a.phase < q, and ep.1.phase = q ≥ max.
-  have hmaxq : (max a.phase b.phase).val = q := by
-    have hge : (max a.phase b.phase).val ≤ (phaseEpidemicUpdate L K a b).1.phase.val :=
-      phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) a b
-    rw [hep_phase] at hge
-    have hle : a.phase.val ≤ (max a.phase b.phase).val := le_max_left _ _
-    -- a.phase < q ≤ max ≤ q forces max = q (using max ≥ a and the bound)
-    omega
-  -- unfold the epidemic; the non-error branch gives ep.1 = runInitsBetween.
-  rw [show (phaseEpidemicUpdate L K a b).1
-        = if (a.phase.val < 10 ∨ b.phase.val < 10) ∧
-              ((runInitsBetween L K a.phase.val (max a.phase b.phase).val
-                  { a with phase := max a.phase b.phase }).phase.val = 10 ∨
-                (runInitsBetween L K b.phase.val (max a.phase b.phase).val
-                  { b with phase := max a.phase b.phase }).phase.val = 10) then
-            phase10EpidemicEntry L K a
-              (runInitsBetween L K a.phase.val (max a.phase b.phase).val
-                { a with phase := max a.phase b.phase })
-          else
-            runInitsBetween L K a.phase.val (max a.phase b.phase).val
-              { a with phase := max a.phase b.phase }
-      from by unfold phaseEpidemicUpdate; rfl] at hep_role hep_phase ⊢
-  by_cases hcond : (a.phase.val < 10 ∨ b.phase.val < 10) ∧
-        ((runInitsBetween L K a.phase.val (max a.phase b.phase).val
-            { a with phase := max a.phase b.phase }).phase.val = 10 ∨
-          (runInitsBetween L K b.phase.val (max a.phase b.phase).val
-            { b with phase := max a.phase b.phase }).phase.val = 10)
-  · -- error branch: ep.1.phase = 10 (a.phase < q ≤ 8 < 10) ⟹ contradiction with q.
+  have hqle : q ≤ 8 := by rcases hq with h | h | h | h | h <;> omega
+  -- abbreviations for the epidemic internals.
+  set mx := max a.phase b.phase with hmxdef
+  set s0 := runInitsBetween L K a.phase.val mx.val { a with phase := mx } with hs0def
+  set t0 := runInitsBetween L K b.phase.val mx.val { b with phase := mx } with ht0def
+  have hepeq : phaseEpidemicUpdate L K a b
+      = if (a.phase.val < 10 ∨ b.phase.val < 10) ∧ (s0.phase.val = 10 ∨ t0.phase.val = 10)
+          then (phase10EpidemicEntry L K a s0, phase10EpidemicEntry L K b t0)
+          else (s0, t0) := rfl
+  rw [hepeq] at hep_role hep_phase ⊢
+  by_cases hcond : (a.phase.val < 10 ∨ b.phase.val < 10) ∧ (s0.phase.val = 10 ∨ t0.phase.val = 10)
+  · -- error branch: ep.1.phase = 10 (since a.phase < q ≤ 8 < 10) — contradiction.
     rw [if_pos hcond] at hep_phase
     exfalso
     have ha10 : a.phase.val < 10 := by omega
-    rw [phase10EpidemicEntry_phase_val_of_before_lt_10 (L := L) (K := K) a _ ha10] at hep_phase
+    simp only at hep_phase
+    rw [phase10EpidemicEntry_phase_val_of_before_lt_10 (L := L) (K := K) a s0 ha10] at hep_phase
     omega
-  · -- non-error: ep.1 = runInitsBetween a.phase q {a with phase := q}.
+  · -- non-error: ep.1 = s0 = runInitsBetween a.phase mx {a with phase := mx}.
     rw [if_neg hcond] at hep_role hep_phase ⊢
-    have ha_clock : ({ a with phase := max a.phase b.phase } : AgentState L K).role = .clock :=
+    simp only at hep_role hep_phase ⊢
+    -- s0.phase = q; s0.phase = (input phase = mx) or 10; not 10 (= q), so mx = q.
+    have hmxq : mx.val = q := by
+      rcases runInitsBetween_phase_eq_or_ten a.phase.val mx.val
+          { a with phase := mx } with h | h
+      · rw [hs0def, h] at hep_phase; simpa using hep_phase
+      · rw [hs0def, h] at hep_phase; omega
+    have ha_clock : ({ a with phase := mx } : AgentState L K).role = .clock :=
       runInitsBetween_role_clock_imp _ _ _ hep_role
-    rw [hmaxq] at ⊢
-    rw [show (max a.phase b.phase) = (⟨q, hq11⟩ : Fin 11) from by
-      apply Fin.ext; rw [hmaxq]] at ⊢
-    exact runInitsBetween_clock_counter_reset a.phase.val q _ ha_clock halt hq
+    have hreset := runInitsBetween_clock_counter_reset a.phase.val mx.val
+      { a with phase := mx } ha_clock (by rw [hmxq]; exact halt) (by rw [hmxq]; exact hq)
+    rw [hs0def]; exact hreset
 
 /-- **Epidemic summand immigration bound (left).**  When the epidemic-updated
 initiator `ep.1` is a clock at the destination phase `q = p+1 ∈ {1,5,6,7,8}`, its
@@ -379,20 +444,36 @@ theorem seamClockSummand_phaseEpidemicUpdate_left_le (p : ℕ) (s : ℝ)
     · -- immigration: a below q ⟹ ep1 full ⟹ summand(ep1) = freshVal.
       have hfull : ep1.counter.val = 50 * (L + 1) := by
         rw [hep1]
-        -- the epidemic dragged a up to q with a fresh full counter
-        have hq11 : (p + 1) < 11 := by
-          rcases hq with h | h | h | h | h <;> omega
-        revert hrole hphase
-        rw [hep1]
-        intro hrole hphase
-        -- a is a clock (no clock-creation), max = q, non-error branch reset.
-        sorry
+        rw [hep1] at hrole hphase
+        exact phaseEpidemicUpdate_left_immigrant_full a b (p + 1) hq hlt hrole hphase
       have : seamClockSummand (L := L) (K := K) p s ep1 = freshVal (L := L) s := by
         unfold seamClockSummand freshVal
         rw [if_pos ⟨hrole, hphase⟩, hfull]
       rw [this]; exact le_add_left le_rfl
-    · -- a.phase = q: if a clock, epidemic-id gives summand(ep1) = summand(a).
-      sorry
+    · -- a.phase = q: epidemic leaves the clock untouched (b.phase ≤ a.phase, else
+      -- ep1.phase > q); summand(ep1) = summand(a).
+      have hba : b.phase.val ≤ a.phase.val := by
+        by_contra hgt
+        rw [not_le] at hgt
+        -- b.phase > a.phase = q ⟹ ep1.phase ≥ b.phase > q, contradicting hphase.
+        have hge : b.phase.val ≤ ep1.phase.val := by
+          rw [hep1]
+          exact le_trans (le_max_right _ _)
+            (phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) a b)
+        omega
+      obtain ⟨hctr, hrole_a, hphase_or⟩ := phaseEpidemicUpdate_left_id_of_ge a b hba
+      have hsummeq : seamClockSummand (L := L) (K := K) p s ep1
+          = seamClockSummand (L := L) (K := K) p s a := by
+        apply seamClockSummand_congr
+        · rw [hep1]; exact hrole_a
+        · rcases hphase_or with hph | hph
+          · rw [hep1, hph]
+          · -- ep1.phase = 10 contradicts ep1 at p+1 ≤ 8.
+            exfalso
+            have hple : p + 1 ≤ 8 := by rcases hq with h | h | h | h | h <;> omega
+            rw [← hep1] at hph; omega
+        · rw [hep1, hctr]
+      rw [hsummeq]; exact le_self_add
     · -- a.phase > q: ep1.phase ≥ a.phase > q contradicts hphase.
       exfalso
       have hge : a.phase.val ≤ ep1.phase.val := by
