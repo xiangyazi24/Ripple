@@ -536,9 +536,9 @@ theorem freeDiff_eq_Mf_sub_Sf (c : Config (AgentState L K)) :
         Multiset.filter_cons, Multiset.filter_cons]
     by_cases h1 : isUMainB (L := L) (K := K) a = true <;>
       by_cases h2 : isUCRB (L := L) (K := K) a = true <;>
-      simp only [h1, h2, if_true, if_false, Multiset.card_add, Multiset.card_singleton,
-        Multiset.card_zero, Nat.cast_add, Nat.cast_one, Nat.cast_zero, ite_true,
-        ite_false] <;>
+      simp only [h1, h2, Bool.false_eq_true, if_true, if_false, ite_true, ite_false,
+        Multiset.card_add, Multiset.card_singleton, Multiset.card_zero,
+        Nat.cast_add, Nat.cast_one, Nat.cast_zero] <;>
       ring
 
 /-! ## The real connection: `totalPairs · E[ΔX] = ((∑ iCount·pairDeltaZ : ℤ) : ℝ)`. -/
@@ -629,6 +629,47 @@ theorem rectangleResidual_of_allPhase0
       freeDiff_eq_Mf_sub_Sf]
   push_cast
   ring
+
+/-! ## The hypothesis-free top-split tail (rectangle residual discharged).
+
+`topSplitWindow_whp_inward` (TopSplitInward.lean) carried the open hypothesis
+`hQ_rect : ∀ c, Q c → RectangleResidual c`.  With `rectangleResidual_of_allPhase0`
+that hypothesis is now PROVABLE from the absorbing region's own `allPhase0` +
+`card ≥ 2` data, so it is dropped.  The strongest top-split tail now carries only:
+
+  * `Phase0Initial n c₀` — the all-`mcr` balanced start;
+  * the absorbing region `Q` with `allPhase0`, `card ≥ 2`, `LedgerInv`
+    (all provable: `LedgerInv` from `LedgerInv_init`/`LedgerInv_stepOrSelf`);
+  * `NoAssignedMcrConfig` is no longer needed HERE (it threads only through the
+    ledger-propagation construction of `Q`, not through this tail statement).
+
+No `RectangleResidual` hypothesis remains — it is now a THEOREM. -/
+
+/-- **The hypothesis-free top-split tail (rectangle residual discharged).**  Same
+conclusion as `topSplitWindow_whp_inward`, but WITHOUT the `hQ_rect` hypothesis:
+`RectangleResidual` on the region `Q` is supplied internally by
+`rectangleResidual_of_allPhase0` (from `hQ_phase0` + `hQ_card`).  This is the
+strongest top-split balance tail now reachable: every protocol-counting residual
+(`RectangleResidual`) is discharged; only the absorbing/ledger structure of `Q`
+(itself protocol-provable) and the Phase-0 balanced start remain. -/
+theorem topSplitWindow_whp_rectFree
+    {s : ℝ} (hs : 0 ≤ s) {δ : ℝ} {n : ℕ}
+    {c₀ : Config (AgentState L K)} (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c →
+      c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support → Q c')
+    (hQ_phase0 : ∀ c, Q c → Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hQ_card : ∀ c, Q c → 2 ≤ Multiset.card c)
+    (hQ_ledger : ∀ c, Q c → LedgerInv (L := L) (K := K) c)
+    (hQ0 : Q c₀)
+    (T : ℕ) (hδn : 0 < s * (δ * n)) :
+    ((NonuniformMajority L K).transitionKernel ^ T) c₀
+        {c | ¬ TopSplitWindow (L := L) (K := K) δ n c}
+      ≤ ENNReal.ofReal (Real.cosh s) ^ T
+          / ENNReal.ofReal (Real.cosh (s * (δ * n))) :=
+  topSplitWindow_whp_inward hs hinit Q hQ_abs hQ_phase0 hQ_card hQ_ledger
+    (fun c hcQ => rectangleResidual_of_allPhase0 c (hQ_card c hcQ) (hQ_phase0 c hcQ))
+    hQ0 T hδn
 
 end RoleSplitConcentration
 end ExactMajority

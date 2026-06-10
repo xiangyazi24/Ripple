@@ -3002,3 +3002,28 @@ attack: reduces to the JOINT double-marginal `∑_{s₁,s₂} interactionCount·
 (pairDelta ∈ {−1,0,1} is the proven topW-block delta). The repo has only SEPARABLE per-coordinate
 marginal collapse; the joint double-`Multiset.count` rectangle is the precise missing lemma — the
 clean follow-up target. Commits 86f2083e / 666babd4 / 1c7e2fde / e454d342.
+
+## §5.1 RectangleResidual DISCHARGED — `Probability/RectangleResidualProof.lean` (2026-06-10, 0-sorry axiom-clean)
+
+The "precise missing lemma" above (the JOINT double-`Multiset.count` rectangle) is now BUILT, and the
+named residual `RectangleResidual` is a THEOREM. The top-split inward drift (§5.1) is hypothesis-free
+modulo the absorbing-region structure of `Q`. Headlines `#print axioms ⊆ [propext,Classical.choice,Quot.sound]`.
+
+- **JOINT marginal `sum_iCount_rectangle_disjoint`** (the missing lemma): for DISJOINT Bool classes P,Q,
+  `∑_{s₁,s₂} [P s₁][Q s₂]·interactionCount = (∑_P count)(∑_Q count)`. Joint generalization of the separable
+  `sum_fst/snd_interactionProb` and of `sum_interactionCount_mcr_assign`.
+- **pairDelta table** (`pairDeltaZ_eq_table`): the role-determined `topW`-block delta = `indR3 − indR2`
+  (`−1` on R2 mcr↔uMain, `+1` on R3 mcr↔uCR, both orientations; `0` else). Finite 5×5×2×2 check.
+- **ORIENTATION:** R2/R3 dispatch in FROZEN `Phase0Transition` is a two-branch (s=mcr / t=mcr) table, both
+  branches same delta ⟹ pairDelta symmetric ⟹ the ordered-pair sum counts BOTH orientations ⟹ the factor 2.
+- **DIAGONAL:** R2/R3 blocks are mcr×non-mcr (disjoint classes, proven), so `s₁≠s₂` always — `interactionCount`
+  self-pair `−1` correction vanishes, each rectangle is the clean product `mcr·Mf` / `mcr·Sf`.
+- **Integer rectangle** `sum_iCount_pairDeltaZ`: `∑ iCount·pairDeltaZ = 2·mcr·(Sf−Mf)`.
+- **Real connection** `totalPairs_expectedDeltaX_eq`: `totalPairs·E[ΔX] = ((∑ iCount·pairDeltaZ:ℤ):ℝ)`
+  (positive-count ⟹ applicable ⟹ phase-0 ⟹ `topSplitStepDelta = (pairDeltaZ:ℝ)`; zero-count vanishes).
+- **`freeDiff_eq_Mf_sub_Sf`**: `freeDiff = Mf − Sf`.
+- **HEADLINE `rectangleResidual_of_allPhase0`**: `card≥2 ∧ allPhase0 ⟹ RectangleResidual`.
+- **`topSplitWindow_whp_rectFree`**: `topSplitWindow_whp_inward` with `hQ_rect` DROPPED. Final hypothesis
+  surface = `Phase0Initial` + absorbing `Q` (allPhase0/card≥2/LedgerInv), all protocol-provable.
+
+NO protocol-counting residual remains in the §5.1 top-split chain.

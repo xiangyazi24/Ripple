@@ -17,29 +17,6 @@ namespace SeamNoOvershoot
 
 variable {L K : ℕ}
 
-/-- A clock summand at counter `c` equals `ofReal(exp(-s·c))` (clock + phase=p+1). -/
-example (p : ℕ) (s : ℝ) (a : AgentState L K)
-    (hrole : a.role = .clock) (hphase : a.phase.val = p + 1) :
-    seamClockSummand (L := L) (K := K) p s a
-      = ENNReal.ofReal (Real.exp (-(s * (a.counter.val : ℝ)))) := by
-  unfold seamClockSummand
-  rw [if_pos ⟨hrole, hphase⟩]
-
-/-- A non-(clock-at-p+1) summand is 0. -/
-example (p : ℕ) (s : ℝ) (a : AgentState L K)
-    (h : ¬ (a.role = .clock ∧ a.phase.val = p + 1)) :
-    seamClockSummand (L := L) (K := K) p s a = 0 := by
-  unfold seamClockSummand
-  rw [if_neg h]
-
-/-- freshVal = clock summand at full counter. -/
-example (p : ℕ) (s : ℝ) (a : AgentState L K)
-    (hrole : a.role = .clock) (hphase : a.phase.val = p + 1)
-    (hctr : a.counter.val = 50 * (L + 1)) :
-    seamClockSummand (L := L) (K := K) p s a = freshVal (L := L) s := by
-  unfold seamClockSummand freshVal
-  rw [if_pos ⟨hrole, hphase⟩, hctr]
-
 /-- `seamClockSummand` reads only `role`, `phase.val`, `counter.val`. -/
 theorem seamClockSummand_congr (p : ℕ) (s : ℝ) (a a' : AgentState L K)
     (hrole : a.role = a'.role) (hphase : a.phase.val = a'.phase.val)
@@ -528,6 +505,52 @@ theorem seamClockSummand_phaseEpidemicUpdate_left_le (p : ℕ) (s : ℝ)
     have : seamClockSummand (L := L) (K := K) p s ep1 = 0 := by
       unfold seamClockSummand; rw [if_neg hcond]
     rw [this]; exact zero_le'
+
+/-! ### Per-side bound (left), no-advance regime.
+
+When the epidemic-updated initiator `ep.1` is ALREADY at the destination phase
+`p+1 ∈ {1,5,6,7,8}` (no phase-advance into `p+1` this step), the full Transition's
+LEFT output is `stdCounterSubroutine`/`clockCounterStep` of `ep.1` (the phase-`(p+1)`
+dispatch leaves the clock pre-step untouched), so its seam summand contracts by `eˢ`:
+
+  `summand((Transition a b).1) ≤ eˢ · summand(ep.1) ≤ eˢ · (summand(a) + freshVal)`.
+
+The HONEST per-side immigration ceiling is therefore `eˢ · freshVal` (NOT `freshVal`):
+an epidemic-dragged fresh clock enters `p+1` with the FULL counter and is then
+DECREMENTED by the same-step dispatch to `full − 1`, summand `= eˢ · freshVal`. -/
+
+/-- The phase-`(p+1)` dispatch's LEFT output, for a clock initiator `c` at phase
+`p+1 ∈ {1,5,6,7,8}`, equals `stdCounterSubroutine`/`clockCounterStep c` and so
+its seam summand contracts by `eˢ` (here at `s = 1`).  This routes the FROZEN
+dispatcher through the proven per-phase `…_left_clock` lemmas + the decrement
+bound, packaging the no-advance per-side contraction. -/
+theorem seamClockSummand_dispatch_left_decrement_le (p : ℕ)
+    (hq : CounterTimedPhase (p + 1)) (s : ℝ) (hs : 0 ≤ s)
+    (c t : AgentState L K) (hc : c.role = .clock) (hcp : c.phase.val = p + 1) :
+    seamClockSummand (L := L) (K := K) p s
+        (if c.phase.val = p + 1 then
+          (if (p + 1) = 1 then Phase1Transition L K c t
+            else if (p + 1) = 5 then Phase5Transition L K c t
+            else if (p + 1) = 6 then Phase6Transition L K c t
+            else if (p + 1) = 7 then Phase7Transition L K c t
+            else Phase8Transition L K c t).1
+        else c)
+      ≤ ENNReal.ofReal (Real.exp s) * seamClockSummand (L := L) (K := K) p s c := by
+  rw [if_pos hcp]
+  rcases hq with h | h | h | h | h <;> rw [h]
+  · rw [if_pos (by rfl : (1 : ℕ) = 1), Phase1Transition_left_clock c t hc]
+    exact seamClockSummand_clockCounterStep_le p s hs c hc hcp
+  · rw [if_neg (by decide), if_pos (by rfl : (5 : ℕ) = 5), Phase5Transition_left_clock c t hc]
+    exact seamClockSummand_stdCounterSubroutine_le p s hs c hc hcp
+  · rw [if_neg (by decide), if_neg (by decide), if_pos (by rfl : (6 : ℕ) = 6),
+        Phase6Transition_left_clock c t hc]
+    exact seamClockSummand_stdCounterSubroutine_le p s hs c hc hcp
+  · rw [if_neg (by decide), if_neg (by decide), if_neg (by decide),
+        if_pos (by rfl : (7 : ℕ) = 7), Phase7Transition_left_clock c t hc]
+    exact seamClockSummand_stdCounterSubroutine_le p s hs c hc hcp
+  · rw [if_neg (by decide), if_neg (by decide), if_neg (by decide), if_neg (by decide),
+        Phase8Transition_left_clock c t hc]
+    exact seamClockSummand_stdCounterSubroutine_le p s hs c hc hcp
 
 end SeamNoOvershoot
 

@@ -222,3 +222,37 @@ marginal collapse (`sum_fst/snd_interactionProb`, e.g. `clockCounterPotential_dr
 double-`Multiset.count` rectangle is the precise missing lemma. Isolated as the named residual; everything
 consuming it (the inward sign + the full cosh tail) is discharged.
 Commits 86f2083e / 666babd4 / 1c7e2fde / e454d342.
+
+## RectangleResidual DISCHARGED — `Probability/RectangleResidualProof.lean` (2026-06-10, 0-sorry axiom-clean)
+
+The LAST named protocol residual of `TopSplitInward.lean` is now a THEOREM. The joint double-marginal
+`∑_{s₁,s₂} interactionCount·pairDelta = 2·mcr·(Sf−Mf)` is proven; `rectangleResidual_of_allPhase0` supplies
+`RectangleResidual c` from `allPhase0 c ∧ card ≥ 2` alone. All headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.
+
+- **`pairDeltaZ s₁ s₂`** = role-determined `topW`-block delta of `Phase0Transition`. `pairDeltaZ_eq_table`
+  (finite 5×5×2×2 check, R5 clock–clock split off): `pairDeltaZ = indR3 − indR2`, i.e. `−1` on R2 pairs
+  (mcr ↔ unassigned-Main, EITHER orientation), `+1` on R3 pairs (mcr ↔ unassigned-CR-side), `0` else.
+- **ORIENTATION accounting (verified vs FROZEN Transition):** `Phase0Transition` dispatches R2/R3 with an
+  explicit TWO-branch table — `(s=mcr,t=target)` AND mirror `(t=mcr,s=target)` — both giving the SAME block
+  delta, so `pairDelta` is symmetric. The ordered-pair sum therefore counts both `(mcr,uMain)` and
+  `(uMain,mcr)`: R2 = `−2·mcr·Mf`, R3 = `+2·mcr·Sf`. The FACTOR 2 in `2·mcr·(Sf−Mf)` IS the two orientations.
+- **DIAGONAL accounting:** R2/R3 pairs are `mcr × non-mcr` (different roles), so `s₁ ≠ s₂` always — proven
+  explicitly (`mcr_uMain_disjoint`, `mcr_uCR_disjoint`); `interactionCount` never hits its self-pair `−1`
+  correction on these blocks, so each oriented rectangle collapses to the CLEAN product `count·count`.
+- **Joint disjoint-class rectangle** (`sum_iCount_rectangle_disjoint`): the missing JOINT marginal — for
+  disjoint Bool classes P,Q, `∑_{s₁,s₂} [P s₁][Q s₂]·interactionCount = (∑_P count)(∑_Q count)`. This is the
+  joint generalization of `sum_interactionCount_mcr_assign`; the earlier gap note (separable-only) is closed.
+- **`sum_iCount_pairDeltaZ`** = the integer rectangle identity `∑ iCount·pairDeltaZ = 2·mcr·(Sf−Mf)`.
+- **Real connection** (`totalPairs_expectedDeltaX_eq`): `totalPairs·E[ΔX] = ((∑ iCount·pairDeltaZ : ℤ):ℝ)`;
+  on positive-count pairs (⟹ applicable ⟹ phase 0 under allPhase0) `topSplitStepDelta = (pairDeltaZ:ℝ)`
+  via `topSplitStepDeltaZ_eq_pairDeltaZ_of_applicable` (the `topSplitXZ` localization), zero-count pairs vanish.
+- **`freeDiff_eq_Mf_sub_Sf`**: `freeDiff = Mf − Sf` (`freeW = [uMain] − [uCR]`, multiset induction).
+- **HEADLINE `rectangleResidual_of_allPhase0`** (`card≥2 ∧ allPhase0 ⟹ RectangleResidual`): assembles
+  real-connection + integer-rectangle + `freeDiff=Mf−Sf` ⟹ `totalPairs·E[ΔX] = −2·mcr·freeDiff`.
+- **`topSplitWindow_whp_rectFree`**: `topSplitWindow_whp_inward` with `hQ_rect` DROPPED (supplied internally).
+  Final hypothesis surface: `Phase0Initial` + absorbing region `Q` carrying `allPhase0`/`card≥2`/`LedgerInv`
+  (all protocol-provable: `LedgerInv` via `LedgerInv_init`/`LedgerInv_stepOrSelf`). NO counting residual left.
+
+STATUS: the top-split balance (Doty §5.1 inward drift) is now hypothesis-free modulo the absorbing-region
+construction of `Q` (which is itself protocol-provable from `Phase0Initial` + `NoAssignedMcrConfig`).
