@@ -317,3 +317,42 @@ scale hypotheses, or a coarse uniform δRem for partial windows).
   WindowConcentration.windowDrift_PhaseConvergence and the seed/bulk drift lemmas are
   kernel-parametric (instantiable at κQ) or hard-code the real kernel (→ minimal generalization
   needed).
+
+## Phase B step 4 — ASSEMBLY DESIGN (self-derived 2026-06-10 morning; family2 letter lost to the
+bridge truncation bug — this section is the design of record)
+
+The central mismatch: clock_real_step_gatedW's hesc_all is ∀-start, but escape budgets are
+start-dependent and the width family is global-start. Resolution — two observations:
+
+1. **The killed-phase part (εseed+εbulk) IS start-uniform** (clock_killed_stepW holds from any
+   alive Pre-config) — no mismatch there. Only the ESCAPE part is start-dependent.
+2. **Escape telescopes globally.** Per-leg escape from leg-start configs, INTEGRATED over the
+   time-t_i distribution (which is all the composition ever uses — compose_two_phases only
+   consumes convergence inside ∫⁻ y in {Post_i}, ... ∂((K^t_i) c₀)), re-expands via
+   Chapman-Kolmogorov into GLOBAL-time per-step terms:
+     ∫ P(escape during leg i | start y) d((K^{t_i}) c₀)(y)
+       ≤ ∑_{τ ∈ [t_i, t_i+M_i)} (K^τ) c₀ {¬S} + M_i·q
+   (same proof pattern as kill_escape_le_prefix_union, with the prefix now from the GLOBAL start).
+   Summing legs: total escape ≤ H·q + ∑_{τ<H} (K^τ) c₀ {¬S} — ONE global prefix sum, fed by
+   goodFrontWidth_whp_at (WidthPrefix) + the endpoint bridges + neg_params.
+
+Implementation pieces (one new file, ClockWeakAssembly.lean-style):
+A. **Averaged composition** `composeW_legs_avg`: like composeW_n_phases but each leg's convergence
+   hypothesis is the AVERAGED form
+     ∫⁻ y in {Pre_i}, (K^{M_i}) y {¬Post_i} ∂((K^{t_i}) c₀) ≤ ε_i
+   (the existing compose proof already only uses this — re-cut the proof to expose it), OR
+   equivalently keep composeW_n_phases and define leg phases with ε_i := εseed+εbulk+εesc_i where
+   εesc_i is the leg's global-window escape budget; then the only new lemma is:
+B. **Global-start leg escape** `leg_escape_global`: for x₀ with the run measure, leg window
+   [t, t+M): ∫⁻ y, [(killK_now κ G_T)^M (some y) {none}] ∂((K^t) x₀) ≤ M·q + ∑_{τ∈[t,t+M)} (K^τ) x₀ {¬S}
+   — proof: integrate kill_now_escape_le_prefix_union's per-start statement and collapse
+   ∫ (K^σ) y Sᶜ d((K^t) x₀)(y) = (K^{t+σ}) x₀ Sᶜ (Chapman-Kolmogorov), plus ∫ M·q ≤ M·q.
+C. The minute-T gate varies per leg (G_T = Q_mix n mC T) — handled naturally since each leg does
+   its OWN real_le_killed_now transfer inside the averaged convergence; no time-varying killed
+   kernel needed.
+D. Cross-minute chain: Q_mix_succ_of_post unchanged (deterministic).
+E. Side gates (HabsDischarge phase/counter): fold into S (the side event of the escape accounting)
+   or discharge deterministically where the existing theorems already do; audit at implementation.
+Endpoint: clock_real_faithful_all_minutes_W with budget L₀·(εseed+εbulk) + H·q + ∑_{τ<H} global
+side-failure prefixes; then the O(log n) wrapper. Retire the habs_mix_all consumers per the
+letter-1 dead-code list.

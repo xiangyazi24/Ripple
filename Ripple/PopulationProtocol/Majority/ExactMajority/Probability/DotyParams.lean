@@ -628,12 +628,14 @@ theorem G_pow_n_reach (n : ℕ) (hn : N₀ ≤ n) :
 `κ = 1 + 1/10000`.  The κ slack (`√κ ≈ 1+5e-5`) absorbs the two `+1` ceiling roundings
 (`a_succ ≤ Gp·g·X₀·(1 + 2/(g·X₀)) ≤ Gp·g·X₀·(1+2/30000)`, and `(1+2/30000)² < κ`). -/
 theorem rung_sq_cap (a_succ a0 Gp g X₀ : ℝ)
-    (hGp : 1 ≤ Gp) (hg : 1 ≤ g) (hX₀ : 30000 ≤ g * X₀)
+    (hGp : 1 ≤ Gp) (hg : 1 ≤ g) (hX₀ : (10:ℝ) ^ (23:ℕ) ≤ g * X₀)
     (ha0 : a0 ≤ g * X₀ + 1) (hsucc : a_succ ≤ Gp * a0 + 1)
     (hasucc0 : 0 ≤ a_succ) :
     a_succ ^ 2 ≤ (1 + 1/10000 : ℝ) * Gp ^ 2 * g ^ 2 * X₀ ^ 2 := by
-  have hX₀0 : (0 : ℝ) < X₀ := by nlinarith [hg, hX₀]
-  have hgX0 : (0 : ℝ) < g * X₀ := by linarith
+  have hgX0 : (0 : ℝ) < g * X₀ := by
+    have : (0:ℝ) < (10:ℝ) ^ (23:ℕ) := by positivity
+    linarith
+  have hX₀0 : (0 : ℝ) < X₀ := by nlinarith [hg, hgX0]
   -- a_succ ≤ Gp·(g·X₀+1)+1 = Gp·g·X₀ + Gp + 1 ≤ Gp·g·X₀ + 2·Gp = Gp·g·X₀·(1 + 2/(g·X₀)).
   have hub : a_succ ≤ Gp * (g * X₀) * (1 + 2 / (g * X₀)) := by
     have h1 : a_succ ≤ Gp * (g * X₀ + 1) + 1 := by
@@ -642,14 +644,18 @@ theorem rung_sq_cap (a_succ a0 Gp g X₀ : ℝ)
       linarith
     have h2 : Gp * (g * X₀ + 1) + 1 ≤ Gp * (g * X₀) + 2 * Gp := by nlinarith [hGp]
     have h3 : Gp * (g * X₀) + 2 * Gp = Gp * (g * X₀) * (1 + 2 / (g * X₀)) := by
-      field_simp; ring
+      field_simp
     linarith [h1, h2, h3.symm.le, h3.le]
-  -- (1 + 2/(g·X₀))² ≤ (1 + 2/30000)² ≤ 1 + 1/10000 = κ.
-  have hfrac : 2 / (g * X₀) ≤ 2 / 30000 := by
-    apply div_le_div_of_nonneg_left (by norm_num) (by norm_num) hX₀
+  -- (1 + 2/(g·X₀))² ≤ (1 + 2·10⁻²³)² ≤ 1 + 1/10000 = κ.
+  have hfrac : 2 / (g * X₀) ≤ 2 / (10:ℝ) ^ (23:ℕ) := by
+    apply div_le_div_of_nonneg_left (by norm_num) (by positivity) hX₀
+  have hfrac2 : 2 / (10:ℝ) ^ (23:ℕ) ≤ (1:ℝ) / 100000 := by
+    have hval : (10:ℝ) ^ (23:ℕ) = 100000000000000000000000 := by norm_num
+    rw [hval]; norm_num
   have hinfl : (1 + 2 / (g * X₀)) ^ 2 ≤ (1 + 1/10000 : ℝ) := by
     have hbase : (0:ℝ) ≤ 2 / (g * X₀) := by positivity
-    nlinarith [hfrac, hbase]
+    have hle : 2 / (g * X₀) ≤ (1:ℝ) / 100000 := le_trans hfrac hfrac2
+    nlinarith [hle, hbase]
   -- square the upper bound.
   have hub0 : (0:ℝ) ≤ Gp * (g * X₀) * (1 + 2 / (g * X₀)) := by positivity
   have hsq : a_succ ^ 2 ≤ (Gp * (g * X₀) * (1 + 2 / (g * X₀))) ^ 2 := by
@@ -659,6 +665,124 @@ theorem rung_sq_cap (a_succ a0 Gp g X₀ : ℝ)
     _ ≤ Gp ^ 2 * g ^ 2 * X₀ ^ 2 * (1 + 1/10000 : ℝ) := by
         apply mul_le_mul_of_nonneg_left hinfl; positivity
     _ = (1 + 1/10000 : ℝ) * Gp ^ 2 * g ^ 2 * X₀ ^ 2 := by ring
+
+/-- **The drip-cap bridge**: from the rung square cap `a_succ² ≤ Gm·Geff²·g²·X₀²` (the
+`slice_exp_le.hdrip` reduces to this after the `RW≤RWb`, `w≤wp·n` cancellations), with
+`drip = (a_succ/n)²·w`, `Q = X₀²/n`, derive `slice_exp_le`'s exact drip hypothesis
+`drip·(1+ε)·RW ≤ Gm·Geff²·g²·(1+ε)·RWb·wp·Q`.  All factors `≥ 0`; `w ≤ wp·n`, `RW ≤ RWb`. -/
+theorem rung_drip_cap (a_succ Gm Geff2 g X₀ ε RW RWb wp Q n w : ℝ)
+    (hn : 0 < n) (hwp : 0 < wp) (hε : 0 ≤ ε)
+    (hRW0 : 0 ≤ RW) (hRW : RW ≤ RWb)
+    (hw0 : 0 ≤ w) (hw : w ≤ wp * n) (hQ : Q = X₀ ^ 2 / n)
+    (hGm0 : 0 ≤ Gm) (hGeff0 : 0 ≤ Geff2) (hg0 : 0 ≤ g) (hX0 : 0 ≤ X₀)
+    (hcap : a_succ ^ 2 ≤ Gm * Geff2 * g ^ 2 * X₀ ^ 2) :
+    (a_succ / n) ^ 2 * w * (1 + ε) * RW
+      ≤ Gm * Geff2 * g ^ 2 * (1 + ε) * RWb * wp * Q := by
+  have hRWb0 : 0 ≤ RWb := le_trans hRW0 hRW
+  have hε1 : (0:ℝ) ≤ 1 + ε := by linarith
+  have hbase : (0:ℝ) ≤ (a_succ / n) ^ 2 := sq_nonneg _
+  -- LHS ≤ (a_succ/n)²·(wp·n)·(1+ε)·RWb (bound w by wp·n and RW by RWb).
+  have hstep1 : (a_succ / n) ^ 2 * w * (1 + ε) * RW
+      ≤ (a_succ / n) ^ 2 * (wp * n) * (1 + ε) * RWb := by
+    have hw' : (a_succ / n) ^ 2 * w ≤ (a_succ / n) ^ 2 * (wp * n) :=
+      mul_le_mul_of_nonneg_left hw hbase
+    have hRWmul : (a_succ / n) ^ 2 * w * (1 + ε) * RW
+        ≤ (a_succ / n) ^ 2 * w * (1 + ε) * RWb := by
+      apply mul_le_mul_of_nonneg_left hRW
+      have : (0:ℝ) ≤ (a_succ / n) ^ 2 * w * (1 + ε) :=
+        mul_nonneg (mul_nonneg hbase hw0) hε1
+      exact this
+    have hwmul : (a_succ / n) ^ 2 * w * (1 + ε) * RWb
+        ≤ (a_succ / n) ^ 2 * (wp * n) * (1 + ε) * RWb := by
+      apply mul_le_mul_of_nonneg_right ?_ hRWb0
+      apply mul_le_mul_of_nonneg_right hw' hε1
+    linarith [hRWmul, hwmul]
+  have heq : (a_succ / n) ^ 2 * (wp * n) * (1 + ε) * RWb
+      = a_succ ^ 2 * wp * (1 + ε) * RWb / n := by
+    field_simp
+  have hstep2 : a_succ ^ 2 * wp * (1 + ε) * RWb / n
+      ≤ Gm * Geff2 * g ^ 2 * X₀ ^ 2 * wp * (1 + ε) * RWb / n := by
+    have hc : (0:ℝ) ≤ wp * (1 + ε) * RWb := by positivity
+    have hnum : a_succ ^ 2 * wp * (1 + ε) * RWb
+        ≤ Gm * Geff2 * g ^ 2 * X₀ ^ 2 * wp * (1 + ε) * RWb := by
+      nlinarith [hcap, hc]
+    gcongr
+  have hRHS : Gm * Geff2 * g ^ 2 * X₀ ^ 2 * wp * (1 + ε) * RWb / n
+      = Gm * Geff2 * g ^ 2 * (1 + ε) * RWb * wp * Q := by
+    rw [hQ]; field_simp
+  calc (a_succ / n) ^ 2 * w * (1 + ε) * RW
+      ≤ (a_succ / n) ^ 2 * (wp * n) * (1 + ε) * RWb := hstep1
+    _ = a_succ ^ 2 * wp * (1 + ε) * RWb / n := heq
+    _ ≤ Gm * Geff2 * g ^ 2 * X₀ ^ 2 * wp * (1 + ε) * RWb / n := hstep2
+    _ = Gm * Geff2 * g ^ 2 * (1 + ε) * RWb * wp * Q := hRHS
+
+/-! ### Part 13c — the concrete ceiling ladder and the inflated base `Geff`.
+
+`Geff := √κ · G` (`κ = 1+1/10000`, `G = 201/200`) so `Geff² = κ·G²` decouples the drip cap (inner
+`G²` carries κ) from the threshold (bare `Gm = G^{2m}`).  The ladder `ladderA X₀ m := ⌈G^m·⌈g·X₀⌉⌉`
+(regime-1) feeds `per_window_delta` with `G := Geff`. -/
+
+/-- The inflated base `Geff = √(1+1/10000)·(201/200)`. -/
+noncomputable def Geff : ℝ := Real.sqrt (1 + 1/10000) * (201/200)
+
+/-- `Geff² = (1+1/10000)·(201/200)²` (the κ-inflated G²). -/
+theorem Geff_sq : Geff ^ 2 = (1 + 1/10000 : ℝ) * (201/200 : ℝ) ^ 2 := by
+  unfold Geff
+  rw [mul_pow, Real.sq_sqrt (by norm_num : (0:ℝ) ≤ 1 + 1/10000)]
+
+/-- `1 ≤ Geff` (so `Geff > 0`, needed for the bracket positivity). -/
+theorem one_le_Geff : (1 : ℝ) ≤ Geff := by
+  unfold Geff
+  have h1 : (1 : ℝ) ≤ Real.sqrt (1 + 1/10000) := by
+    rw [show (1:ℝ) = Real.sqrt 1 by rw [Real.sqrt_one]]
+    apply Real.sqrt_le_sqrt; norm_num
+  nlinarith [h1]
+
+/-- The `g` constant `g = 5123/5000` (≈ 1.0246). -/
+noncomputable def gC : ℝ := 5123/5000
+
+theorem one_le_gC : (1 : ℝ) ≤ gC := by unfold gC; norm_num
+
+/-- The regime-1 ladder base `a0 := ⌈g·X₀⌉₊` and rungs `ladderA X₀ m := ⌈G^m·a0⌉₊`. -/
+noncomputable def ladderA (X₀ : ℕ) (m : ℕ) : ℕ :=
+  ⌈(201/200 : ℝ) ^ m * (⌈gC * (X₀ : ℝ)⌉₊ : ℝ)⌉₊
+
+/-- The base rung `ladderA X₀ 0 = ⌈g·X₀⌉₊`. -/
+theorem ladderA_zero (X₀ : ℕ) : ladderA X₀ 0 = ⌈gC * (X₀ : ℝ)⌉₊ := by
+  unfold ladderA; simp
+
+/-- **Lower bound**: `G^m·g·X₀ ≤ ladderA X₀ m` (via `g·X₀ ≤ ⌈g·X₀⌉₊ ≤ G^m·⌈g·X₀⌉₊ ≤ ⌈·⌉₊`). -/
+theorem ladderA_ge (X₀ : ℕ) (m : ℕ) :
+    (201/200 : ℝ) ^ m * (gC * (X₀ : ℝ)) ≤ (ladderA X₀ m : ℝ) := by
+  unfold ladderA
+  have hg0 : (0:ℝ) ≤ gC * (X₀ : ℝ) := by
+    have := one_le_gC; positivity
+  have hceil : gC * (X₀ : ℝ) ≤ (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) := Nat.le_ceil _
+  have hGm0 : (0:ℝ) ≤ (201/200 : ℝ) ^ m := by positivity
+  have h1 : (201/200 : ℝ) ^ m * (gC * (X₀ : ℝ))
+      ≤ (201/200 : ℝ) ^ m * (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) :=
+    mul_le_mul_of_nonneg_left hceil hGm0
+  exact le_trans h1 (Nat.le_ceil _)
+
+/-- **Upper bound**: `ladderA X₀ (m+1) ≤ G^{m+1}·g·X₀ + (G^{m+1} + 1)` (≤ `G^{m+1}·(g·X₀+1)+1`),
+the `⌈⌉` inflation the κ slack absorbs.  Concretely `ladderA X₀ (m+1) ≤ G^{m+1}·a0 + 1` with
+`a0 ≤ g·X₀+1`. -/
+theorem ladderA_succ_le (X₀ : ℕ) (m : ℕ) :
+    (ladderA X₀ (m + 1) : ℝ)
+      ≤ (201/200 : ℝ) ^ (m + 1) * (gC * (X₀ : ℝ) + 1) + 1 := by
+  unfold ladderA
+  have hG0 : (0:ℝ) ≤ (201/200 : ℝ) ^ (m + 1) := by positivity
+  have ha0le : (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) ≤ gC * (X₀ : ℝ) + 1 := by
+    have hg0 : (0:ℝ) ≤ gC * (X₀ : ℝ) := by have := one_le_gC; positivity
+    exact le_of_lt (Nat.ceil_lt_add_one hg0)
+  have hceil_lt : (⌈(201/200 : ℝ) ^ (m + 1) * (⌈gC * (X₀ : ℝ)⌉₊ : ℝ)⌉₊ : ℝ)
+      < (201/200 : ℝ) ^ (m + 1) * (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) + 1 := by
+    apply Nat.ceil_lt_add_one
+    positivity
+  have hmono : (201/200 : ℝ) ^ (m + 1) * (⌈gC * (X₀ : ℝ)⌉₊ : ℝ)
+      ≤ (201/200 : ℝ) ^ (m + 1) * (gC * (X₀ : ℝ) + 1) :=
+    mul_le_mul_of_nonneg_left ha0le hG0
+  linarith [hceil_lt, hmono]
 
 /-! ### Part 13b — the INFLATED slice discharger (the fix for the ceiling-ladder drip↔threshold gap).
 

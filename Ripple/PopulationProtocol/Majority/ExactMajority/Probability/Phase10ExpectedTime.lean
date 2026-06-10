@@ -58,6 +58,10 @@ as the remaining blocker at the end of this file (see `phase10_progress_blocker`
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ExpectedHitting
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MarkovChain
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase10Backup
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase0Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealMixed
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourCouplingV2
 
 namespace ExactMajority
 
@@ -968,4 +972,168 @@ instantiation; the probability/coupon engine carries no further obligation. -/
 
 end Coupon
 
+/-! ## Phase-10 per-level drop probability (Brick B2)
+
+We instantiate the per-level drop hypothesis of the invariant-relative engine for
+the real kernel `K = (NonuniformMajority L K).transitionKernel` and `Φ =
+activeBCount` on the all-phase-10 invariant `Inv = Phase10EpidemicPost`.
+
+The route is the one used by `Invariants.phase10_descent_prob`: the public helper
+`Phase0Convergence.stepDistOrSelf_toMeasure_ge` reduces a kernel-mass lower bound on
+a target set to the `interactionPMF` mass of a `good` Finset of ordered pairs that
+land in the target.  Each ordered pair `(a, b)` with `a` active-A and `b` active-B
+fires the Phase-10 cancel reaction, which strictly lowers `activeBCount` (so it
+lands in the drop target).  Aggregating over the `m` distinct active-B agents
+(paired with one fixed active-A) gives mass `≥ m / (n(n−1))`. -/
+
+namespace Phase10Drop
+
+open MeasureTheory ProbabilityTheory
+
+variable {L K : ℕ}
+
+/-- The drop target set for a potential `Φ` at a base configuration `c`:
+configurations whose `Φ`-value is strictly smaller than `Φ c`. -/
+def dropTarget (Φ : Config (AgentState L K) → ℕ) (c : Config (AgentState L K)) :
+    Set (Config (AgentState L K)) :=
+  {c' | Φ c' < Φ c}
+
+/-- Re-derivation of applicability from membership + distinctness (the public
+analogue of the `Analysis`-private `applicable_of_mem_ne'`). -/
+theorem applicable_of_mem_ne {c : Config (AgentState L K)} {a b : AgentState L K}
+    (ha : a ∈ c) (hb : b ∈ c) (hne : a ≠ b) :
+    Protocol.Applicable c a b := by
+  have hnot : a ∉ ({b} : Multiset (AgentState L K)) := by simp [hne]
+  change a ::ₘ ({b} : Multiset (AgentState L K)) ≤ c
+  rw [Multiset.cons_le_of_notMem hnot]
+  exact ⟨ha, Multiset.singleton_le.2 hb⟩
+
+/-- The `activeBCount` of the post-cancel configuration is strictly below the base
+`activeBCount`, for an active-A / active-B ordered pair on an all-phase-10 config.
+Re-derived in-file from the public output characterization
+`Phase10Transition_activeA_activeB_outputs_T`. -/
+theorem activeBCount_post_cancel_lt
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveA a) (hb : IsActiveB b) :
+    activeBCount
+        (c - ({a, b} : Multiset (AgentState L K)) +
+          ({(Transition L K a b).1, (Transition L K a b).2} :
+            Multiset (AgentState L K))) <
+      activeBCount c := by
+  have hne : a ≠ b := by
+    intro h; subst h
+    have : a.output = .B := hb.2
+    rw [ha.2] at this; exact absurd this (by decide)
+  have happ : ({a, b} : Multiset (AgentState L K)) ≤ c :=
+    applicable_of_mem_ne ha_mem hb_mem hne
+  have htransition : Transition L K a b = Phase10Transition L K a b :=
+    Transition_eq_Phase10Transition_of_phase10
+      (L := L) (K := K) a b (hphase a ha_mem) (hphase b hb_mem)
+  -- activeBCount {a,b} = 1 (only b is active-B).
+  have hpair_before :
+      Multiset.countP IsActiveB ({a, b} : Multiset (AgentState L K)) = 1 := by
+    change Multiset.countP IsActiveB (a ::ₘ ({b} : Multiset (AgentState L K))) = 1
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP IsActiveB (b ::ₘ (0 : Multiset (AgentState L K))) = 1
+      rw [Multiset.countP_cons_of_pos]
+      · simp
+      · exact hb
+    · intro hbad
+      have : a.output = .B := hbad.2
+      rw [ha.2] at this; exact absurd this (by decide)
+  -- both outputs become T after cancel, so activeBCount of the pair becomes 0.
+  have hlocal :=
+    Phase10Transition_activeA_activeB_outputs_T
+      (L := L) (K := K) a b ha.1 hb.1 ha.2 hb.2
+  have hpair_after :
+      Multiset.countP IsActiveB
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K)) = 0 := by
+    rw [htransition]
+    rcases hlocal with ⟨h1out, h2out, _h1full, _h2full⟩
+    change Multiset.countP IsActiveB
+      ((Phase10Transition L K a b).1 ::ₘ
+        ({(Phase10Transition L K a b).2} : Multiset (AgentState L K))) = 0
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP IsActiveB
+        ((Phase10Transition L K a b).2 ::ₘ (0 : Multiset (AgentState L K))) = 0
+      rw [Multiset.countP_cons_of_neg]
+      · simp
+      · intro hbad
+        have : (Phase10Transition L K a b).2.output = .B := hbad.2
+        rw [h2out] at this; exact absurd this (by decide)
+    · intro hbad
+      have : (Phase10Transition L K a b).1.output = .B := hbad.2
+      rw [h1out] at this; exact absurd this (by decide)
+  have hres :
+      Multiset.countP IsActiveB (c - ({a, b} : Multiset (AgentState L K))) =
+        Multiset.countP IsActiveB c - 1 := by
+    have hsub := Multiset.countP_sub
+      (s := c) (t := ({a, b} : Multiset (AgentState L K))) happ IsActiveB
+    rw [hsub, hpair_before]
+  have hpos_old : 0 < Multiset.countP IsActiveB c :=
+    Multiset.countP_pos_of_mem (s := c) hb_mem hb
+  unfold activeBCount
+  rw [Multiset.countP_add, hpair_after, hres]
+  omega
+
+/-- A single active-A / active-B ordered pair, scheduled on an all-phase-10
+configuration, lands in the `activeBCount`-drop target. -/
+theorem scheduledStep_activeA_activeB_in_drop
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveA a) (hb : IsActiveB b) :
+    (NonuniformMajority L K).scheduledStep c (a, b) ∈
+      dropTarget (activeBCount (L := L) (K := K)) c := by
+  have hne : a ≠ b := by
+    intro h; subst h
+    have : a.output = .B := hb.2
+    rw [ha.2] at this; exact absurd this (by decide)
+  have happ : Protocol.Applicable c a b := applicable_of_mem_ne ha_mem hb_mem hne
+  simp only [dropTarget, Set.mem_setOf_eq, Protocol.scheduledStep]
+  have hstep : Protocol.stepOrSelf (NonuniformMajority L K) c a b =
+      c - {a, b} + {(Transition L K a b).1, (Transition L K a b).2} := by
+    unfold Protocol.stepOrSelf NonuniformMajority
+    simp only [if_pos happ]
+  rw [hstep]
+  exact activeBCount_post_cancel_lt c hphase ha_mem hb_mem ha hb
+
+/-- The active-A × active-B rectangle of ordered pairs. -/
+def activeABPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (Finset.univ.filter (fun a : AgentState L K => IsActiveA a)) ×ˢ
+    (Finset.univ.filter (fun a : AgentState L K => IsActiveB a))
+
+/-- The total `interactionCount` over the active-A × active-B rectangle equals
+`activeACount c · activeBCount c`.  Active-A and active-B states are disjoint
+classes, so the cross-rectangle identity `sum_interactionCount_cross_disjoint`
+applies, and each row/column sum of `count` is the respective `countP`. -/
+theorem sum_interactionCount_activeAB (c : Config (AgentState L K)) :
+    (∑ p ∈ activeABPairs (L := L) (K := K) c, c.interactionCount p.1 p.2)
+      = activeACount c * activeBCount c := by
+  classical
+  have hdisj : ∀ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveA a),
+      ∀ b ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveB a), a ≠ b := by
+    intro a ha b hb hab
+    rw [Finset.mem_filter] at ha hb
+    subst hab
+    have : a.output = .B := hb.2.2
+    rw [ha.2.2] at this; exact absurd this (by decide)
+  rw [activeABPairs,
+    ClockRealMixed.sum_interactionCount_cross_disjoint c _ _ hdisj]
+  rw [show (∑ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveA a), c.count a)
+      = Multiset.countP IsActiveA c from
+    (HourCouplingV2.countP_eq_sum_count IsActiveA c).symm]
+  rw [show (∑ b ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveB a), c.count b)
+      = Multiset.countP IsActiveB c from
+    (HourCouplingV2.countP_eq_sum_count IsActiveB c).symm]
+  rfl
+
+end Phase10Drop
+
 end ExactMajority
+
+#print axioms ExactMajority.Phase10Drop.sum_interactionCount_activeAB
