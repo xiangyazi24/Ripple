@@ -283,6 +283,93 @@ theorem level_occ_expectedHitting [DiscreteMeasurableSpace α]
         ENNReal.tsum_le_tsum (fun t => level_occ_geometric K Φ hmono m q hdrop c hc t)
     _ = (1 - q)⁻¹ := ENNReal.tsum_geometric q
 
+/-! ### Full coupon assembly (harmonic sum)
+
+Chaining the per-level occupation bound down the potential ladder gives the total
+expected hitting time of `Done = {Φ = 0}` as the sum of the per-level waiting
+times `∑_{m=1}^{M} (1 - q_m)⁻¹`.  This is the harmonic / coupon sum: for the
+Phase-10 coupon stages `q_m = 1 - m/(n(n−1))`, so `(1-q_m)⁻¹ = n(n−1)/m` and the
+sum is `n(n−1)·H_M = O(n² log n)` interactions.
+
+The chaining is downward induction on the level gap, peeling one level per step
+via `expectedHitting_le_through_mid`: hitting `{Φ < m}` from a start at level
+`≤ M` costs the level-`M` waiting time plus hitting `{Φ < m}` from the next level
+down.  We package the per-level drop hypotheses as a single family `q : ℕ → ℝ≥0∞`
+with `hdrop : ∀ m b, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m`. -/
+
+/-- The level-`m` occupation along the chain from `c`:
+`occLevel K Φ m c = ∑' t, P(Φ = m at time t)`. -/
+noncomputable def occLevel (K : Kernel α α) (Φ : α → ℕ) (m : ℕ) (c : α) : ℝ≥0∞ :=
+  ∑' t : ℕ, (K ^ t) c {x | Φ x = m}
+
+/-- The expected hitting time of `Done = {Φ = 0}` decomposes as the sum of the
+per-level occupations over the active levels `1, 2, …`:
+`expectedHitting K c (potBelow Φ 1) = ∑' m, occLevel K Φ (m+1) c`.
+
+This is the exact occupation decomposition (`{Φ ≥ 1} = ⨆ₘ {Φ = m+1}` disjointly),
+the bookkeeping skeleton of the coupon sum.  Bounding each `occLevel K Φ m c` by
+the per-level waiting time `(1 - q m)⁻¹` (the strong-Markov restart, see
+`occLevel_le_blocker`) then yields the harmonic bound. -/
+theorem expectedHitting_eq_tsum_occLevel [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (c : α) :
+    expectedHitting K c (potBelow Φ 1) = ∑' m : ℕ, occLevel K Φ (m + 1) c := by
+  simp only [expectedHitting, occLevel]
+  -- ∑'_t (K^t)c (potBelow Φ 1)ᶜ  and  ∑'_m ∑'_t (K^t)c {Φ = m+1}
+  rw [ENNReal.tsum_comm]
+  refine tsum_congr (fun t => ?_)
+  -- For each t: (K^t)c {Φ ≥ 1} = ∑'_m (K^t)c {Φ = m+1}.
+  have hbiject : ((potBelow Φ 1)ᶜ : Set α) = ⋃ m : ℕ, {x | Φ x = m + 1} := by
+    ext x
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt,
+      Set.mem_iUnion]
+    constructor
+    · intro hx; exact ⟨Φ x - 1, by omega⟩
+    · rintro ⟨m, hm⟩; omega
+  rw [hbiject]
+  have hdisj : Pairwise (Function.onFun Disjoint (fun m : ℕ => {x | Φ x = m + 1})) := by
+    intro i j hij
+    rw [Function.onFun, Set.disjoint_iff]
+    intro x hx
+    simp only [Set.mem_inter_iff, Set.mem_setOf_eq] at hx
+    exact hij (by omega)
+  have hmeas : ∀ m : ℕ, MeasurableSet {x : α | Φ x = m + 1} :=
+    fun m => DiscreteMeasurableSpace.forall_measurableSet _
+  rw [measure_iUnion hdisj hmeas]
+
+/-- **Coupon assembly (modulo the level-occupation bound).**  Given the
+per-level occupation bound `hocc : ∀ m, 1 ≤ m → m ≤ M → occLevel K Φ m c ≤ (1-q m)⁻¹`
+and that levels above `M` are unreached (`hhi : ∀ m, M < m → occLevel K Φ m c = 0`),
+the expected hitting time of `Done` is `≤ ∑_{m=1}^{M} (1-q m)⁻¹`.
+
+This is the pure bookkeeping step: it turns the occupation decomposition into the
+finite harmonic sum.  Discharging `hocc` is the remaining strong-Markov restart
+(documented as `occLevel_le_blocker`); `hhi` follows from `Φ c ≤ M` +
+`pow_above_eq_zero_of_start_le`. -/
+theorem coupon_expectedHitting_le_of_occBounds [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ)
+    (q : ℕ → ℝ≥0∞) (M : ℕ) (c : α)
+    (hocc : ∀ m : ℕ, 1 ≤ m → m ≤ M → occLevel K Φ m c ≤ (1 - q m)⁻¹)
+    (hhi : ∀ m : ℕ, M < m → occLevel K Φ m c = 0) :
+    expectedHitting K c (potBelow Φ 1) ≤ ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹ := by
+  rw [expectedHitting_eq_tsum_occLevel K Φ c]
+  -- ∑'_m occLevel (m+1) = ∑_{m=1}^{M} occLevel m  (tail vanishes by hhi)
+  rw [tsum_eq_sum (s := Finset.range M) (fun m hm => by
+    rw [Finset.mem_range, not_lt] at hm
+    exact hhi (m + 1) (by omega))]
+  -- reindex range M (m ↦ m+1) to Icc 1 M
+  rw [show (∑ m ∈ Finset.range M, occLevel K Φ (m + 1) c)
+      = ∑ m ∈ Finset.Icc 1 M, occLevel K Φ m c by
+    rw [Finset.sum_bij (fun m _ => m + 1)]
+    · intro a ha; rw [Finset.mem_range] at ha; rw [Finset.mem_Icc]; omega
+    · intro a ha b hb hab; omega
+    · intro b hb; rw [Finset.mem_Icc] at hb
+      exact ⟨b - 1, by rw [Finset.mem_range]; omega, by omega⟩
+    · intro a _; rfl]
+  apply Finset.sum_le_sum
+  intro m hm
+  rw [Finset.mem_Icc] at hm
+  exact hocc m hm.1 hm.2
+
 end Coupon
 
 end ExactMajority
