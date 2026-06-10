@@ -156,3 +156,30 @@ Insertion point: `phase0_roleSplit_whp_assembled_stage2` already takes
       `{¬RoleSplitWindows (1/25) n} ⊆ {¬TopSplitWindow (1/100)} ∪ ({RestLedgerBad} ∪ {card≠n})`
       (contrapositive of B), union bound εtop (Stage-C) + εrest (named Stage-2 drain/balance/mcr0
       slice). Commit 39bb769a. All 4 headlines `#print axioms ⊆ [propext,Classical.choice,Quot.sound]`.
+
+## Residual discharge — `Probability/TopSplitDrift.lean` (2026-06-10, 0-sorry axiom-clean)
+
+Stage C carried `hjump`/`hdrift` as named hypotheses. `TopSplitDrift.lean` discharges them HONESTLY,
+finding and fixing TWO faithfulness traps in the Stage-C interface:
+
+- **Stage 1 (ledger).** TRUE invariant = the existing `mainCount + topCRMass = n`. The paper's
+  `sf + 2·st = mf + 2·mt` does NOT map literally onto the Lean encoding — computing ΔX per rule shows
+  X = mainCount−topCRMass moves ONLY by R2 (−1: mcr+unassigned-Main→cr) and R3 (+1: mcr+unassigned-
+  (cr/clock/reserve)→Main); R1/R4/R5 give ΔX=0. Honest ledger = per-agent weight
+  `topW = [main] − [cr∨clock∨reserve]` with `topSplitXZ = Config.sumOf topW`. The free pools driving
+  drift are `#unassigned-Main` (R2 targets) vs `#unassigned-(cr/clock/reserve)` (R3 targets).
+- **Stage 2 (hjump).** `topW_pair_delta_abs_le_one_of_phase0`: |ΔX|≤1 FULLY PROVEN (finite role/assigned
+  case check; R5 clock–clock split off via `stdCounterSubroutine_clock_role_eq`). The true bound is 1.
+- **Stage 3 (hdrift) — TRAP FOUND + FIXED.** The Stage-C `hdrift : ∫|X|dK ≤ |X|` is **FALSE at X=0**
+  (from a balanced config |X|=0 but R2/R3 push to ±1, so ∫|X|dK > 0 = |X|). Feeding it would be a
+  VACUOUS-conditional theorem (unsatisfiable premise; `#print axioms` cannot detect this). HONEST FIX =
+  the cosh MGF: `InwardResidual s c := sinh(sX)·E[sinh(sΔ)] ≤ 0`, which is BOUNDARY-FREE (sinh 0 = 0 at
+  X=0). `coshExpVal_drift_real` proves `∫cosh(sX')dK ≤ cosh(s)·cosh(sX)` (multiplicative, no
+  immigration). `coshPot_drift` lifts to ℝ≥0∞.
+- **Stage 4 (tail + wire-up).** `topSplitWindow_whp_cosh[_clean]` feeds `WindowConcentration.
+  windowDrift_tail` on absorbing `Q` (carrying allPhase0 + InwardResidual), threshold cosh(s·δn):
+  `(K^T)c₀{¬TopSplitWindow δ n} ≤ (cosh s)^T/cosh(s·δn)` at the balanced start (`coshPot_init_one`).
+  This RESTATES the Stage-C conclusion shape (TopSplit.lean unedited). The two genuine protocol residuals
+  carried (both boundary-free): `Q` absorbing (the documented `Q ⊆ allPhase0` witness, also the
+  Phase0Window gap) + `InwardResidual` on `Q` (the honest Lemma-5.1 symmetric pair-count comparison).
+  Commits f475aedd / 87271ca4 / 7760b01 / 7e9e3a6d (opus-wip mirror).

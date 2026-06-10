@@ -664,6 +664,211 @@ theorem seam_atRiskClockZero_tail (p n tseam : ℕ)
   apply ENNReal.ofReal_le_ofReal
   exact seam_noOvershoot_numerics_real n L tseam hn hlog ht
 
+/-! ## Stage 5 — the terminal no-overshoot tail, the per-seam budget, and the
+integration-fixing strengthened seam instance.
+
+The terminal `{¬ NoOvershoot}` tail comes from `Phase0Window.prefix_union_first_exit`
+(the generic first-exit prefix-union, `A := NoOvershoot p`, `G := ¬ AtRiskClockZero p`)
+plus the kernel-form Stage-2 bridge (a `NoOvershoot ∧ ¬ AtRiskClockZero` config cannot
+leave `NoOvershoot` in one step).  Each prefix term is bounded by the Stage-4 tail.
+
+Then `seamEpidemicExactW` strengthens `SeamEpidemics.seamEpidemicW`'s `Post` with
+`NoOvershoot`, consuming `εovershoot` by a union bound — this FIXES the integration
+bug where `seamEpidemicW`'s `εovershoot` is budgeted but never used. -/
+
+/-- **Kernel-form Stage-2 bridge.**  Given the deterministic bridge, a
+`NoOvershoot ∧ ¬ AtRiskClockZero` configuration keeps `NoOvershoot` after one kernel
+step with probability 1 (the `¬ NoOvershoot` mass is `0`).  Mirrors
+`Phase0Window.transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero`. -/
+theorem transitionKernel_not_noOvershoot_eq_zero (p : ℕ)
+    (hdet : DetSeamOvershootBridge (L := L) (K := K) p)
+    (c : Config (AgentState L K))
+    (hno : NoOvershoot (L := L) (K := K) p c)
+    (hsafe : ¬ AtRiskClockZero (L := L) (K := K) p c) :
+    (NonuniformMajority L K).transitionKernel c
+      {c' | ¬ NoOvershoot (L := L) (K := K) p c'} = 0 := by
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+      {c' | ¬ NoOvershoot (L := L) (K := K) p c'} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro c' hsupp hbad
+  unfold Protocol.stepDistOrSelf at hsupp
+  by_cases hc2 : 2 ≤ c.card
+  · rw [dif_pos hc2] at hsupp
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support _ c hc2 c' hsupp
+    have hexit : ¬ NoOvershoot (L := L) (K := K) p
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+      rw [show Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+            = Protocol.scheduledStep (NonuniformMajority L K) c (r₁, r₂) from rfl, hr]
+      exact hbad
+    exact hsafe (hdet c r₁ r₂ hno hexit)
+  · rw [dif_neg hc2, PMF.mem_support_pure_iff] at hsupp
+    subst hsupp
+    exact hbad hno
+
+/-- **`NoOvershoot` window via prefix-union.**  Starting from a `NoOvershoot` config,
+the probability of overshooting within `t` steps is at most the prefix sum of the
+per-step at-risk probabilities. -/
+theorem noOvershoot_window_le_prefix_sum (p : ℕ)
+    (hdet : DetSeamOvershootBridge (L := L) (K := K) p)
+    (t : ℕ) (c₀ : Config (AgentState L K))
+    (h0 : NoOvershoot (L := L) (K := K) p c₀) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {c | ¬ NoOvershoot (L := L) (K := K) p c}
+      ≤ ∑ τ ∈ Finset.range t,
+          ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+            {c | ¬ ¬ AtRiskClockZero (L := L) (K := K) p c} :=
+  Phase0Window.prefix_union_first_exit (NonuniformMajority L K).transitionKernel
+    (NoOvershoot (L := L) (K := K) p)
+    (fun c => ¬ AtRiskClockZero (L := L) (K := K) p c)
+    (fun x hA hG => transitionKernel_not_noOvershoot_eq_zero p hdet x hA hG)
+    t c₀ h0
+
+/-- **The terminal no-overshoot tail (one seam).**  Composing the prefix-union with the
+Stage-4 per-`τ` at-risk tail (each `≤ e^{−40(L+1)}`, supplied as `hτ` since each prefix
+config must satisfy the Stage-4 start hypotheses) gives the overshoot probability
+`≤ t · e^{−40(L+1)}`. -/
+theorem seam_noOvershoot_tail (p tseam : ℕ)
+    (hdet : DetSeamOvershootBridge (L := L) (K := K) p)
+    (c₀ : Config (AgentState L K))
+    (h0 : NoOvershoot (L := L) (K := K) p c₀)
+    (hτ : ∀ τ ∈ Finset.range tseam,
+      ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+          {c | AtRiskClockZero (L := L) (K := K) p c}
+        ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ)))) :
+    ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+        {c | ¬ NoOvershoot (L := L) (K := K) p c}
+      ≤ (tseam : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) := by
+  refine (noOvershoot_window_le_prefix_sum p hdet tseam c₀ h0).trans ?_
+  have hτ' : ∀ τ ∈ Finset.range tseam,
+      ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+          {c | ¬ ¬ AtRiskClockZero (L := L) (K := K) p c}
+        ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) := by
+    intro τ hτmem
+    rw [show {c : Config (AgentState L K) | ¬ ¬ AtRiskClockZero (L := L) (K := K) p c}
+          = {c | AtRiskClockZero (L := L) (K := K) p c} from by ext c; simp]
+    exact hτ τ hτmem
+  calc ∑ τ ∈ Finset.range tseam,
+          ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+            {c | ¬ ¬ AtRiskClockZero (L := L) (K := K) p c}
+      ≤ ∑ _τ ∈ Finset.range tseam, ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) :=
+        Finset.sum_le_sum hτ'
+    _ = (tseam : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) := by
+        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+
+/-- **Per-seam no-overshoot budget wrapper.**  If the terminal overshoot tail is `≤
+εovershoot`, the per-seam no-overshoot budget is met: from any `NoOvershoot` start the
+`tseam`-step overshoot probability is `≤ εovershoot`.  This is the shape
+`seamEpidemicExactW` consumes as `hNoOvershoot`. -/
+theorem hNoOvershoot_one_seam (p tseam : ℕ) (εovershoot : ℝ≥0)
+    (hbound : ∀ c₀ : Config (AgentState L K),
+      NoOvershoot (L := L) (K := K) p c₀ →
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+          {c | ¬ NoOvershoot (L := L) (K := K) p c}
+        ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))))
+    (hε : ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) ≤ (εovershoot : ℝ≥0∞)) :
+    ∀ c₀ : Config (AgentState L K),
+      NoOvershoot (L := L) (K := K) p c₀ →
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+          {c | ¬ NoOvershoot (L := L) (K := K) p c}
+        ≤ (εovershoot : ℝ≥0∞) :=
+  fun c₀ hno => le_trans (hbound c₀ hno) hε
+
+/-! ## The strengthened seam instance (the integration fix). -/
+
+instance instMeasurableSpaceConfigSeamNO :
+    MeasurableSpace (Config (AgentState L K)) := ⊤
+instance instDiscreteMeasurableSpaceConfigSeamNO :
+    DiscreteMeasurableSpace (Config (AgentState L K)) where
+  forall_measurableSet _ := trivial
+
+/-- **The strengthened advance-epidemic seam** `seamEpidemicExactW`.
+
+Identical to `SeamEpidemics.seamEpidemicW` except its `Post` is STRENGTHENED with
+`NoOvershoot p`, and its `convergence` ACTUALLY consumes both the epidemic drift
+budget `εepidemic` AND the no-overshoot budget `εovershoot` via a union bound
+(`measure_union_le` on `{¬(A ∧ B)} ⊆ {¬A} ∪ {¬B}`).  This FIXES the integration bug in
+`seamEpidemicW`, whose `εovershoot` is declared but never used (it is added by
+`le_self_add` only).  Downstream, `seamExact_into_exact_work` recovers the EXACT
+`(p+1)`-window pointwise from this `Post`. -/
+noncomputable def seamEpidemicExactW
+    (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+    (hDrift : ∀ c : Config (AgentState L K),
+        (SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+          SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c) →
+        ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c'}
+          ≤ (εepidemic : ℝ≥0∞))
+    (hNoOvershoot : ∀ c : Config (AgentState L K),
+        (SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+          SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c) →
+        ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ NoOvershoot (L := L) (K := K) p c'}
+          ≤ (εovershoot : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel where
+  Pre := fun c =>
+    SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+      SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c
+  Post := fun c =>
+    SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c ∧
+      NoOvershoot (L := L) (K := K) p c
+  t := tseam
+  ε := εepidemic + εovershoot
+  convergence := by
+    intro c hPre
+    have hA := hDrift c hPre
+    have hB := hNoOvershoot c hPre
+    have hsub : {c' : Config (AgentState L K) |
+          ¬ (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c' ∧
+              NoOvershoot (L := L) (K := K) p c')}
+        ⊆ {c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c'}
+          ∪ {c' | ¬ NoOvershoot (L := L) (K := K) p c'} := by
+      intro c' hc'
+      simp only [Set.mem_setOf_eq, Set.mem_union, not_and_or] at hc' ⊢
+      exact hc'
+    calc ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c' ∧
+                     NoOvershoot (L := L) (K := K) p c')}
+        ≤ ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            ({c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c'}
+              ∪ {c' | ¬ NoOvershoot (L := L) (K := K) p c'}) := measure_mono hsub
+      _ ≤ ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c'}
+          + ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ NoOvershoot (L := L) (K := K) p c'} := measure_union_le _ _
+      _ ≤ (εepidemic : ℝ≥0∞) + (εovershoot : ℝ≥0∞) := add_le_add hA hB
+      _ = ((εepidemic + εovershoot : ℝ≥0) : ℝ≥0∞) := by push_cast; rfl
+
+@[simp] theorem seamEpidemicExactW_Post
+    (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0) (hDrift) (hNoOvershoot)
+    (c : Config (AgentState L K)) :
+    (seamEpidemicExactW (L := L) (K := K) p n tseam εepidemic εovershoot
+        hDrift hNoOvershoot).Post c
+      = (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c ∧
+          NoOvershoot (L := L) (K := K) p c) := rfl
+
+@[simp] theorem seamEpidemicExactW_t
+    (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0) (hDrift) (hNoOvershoot) :
+    (seamEpidemicExactW (L := L) (K := K) p n tseam εepidemic εovershoot
+        hDrift hNoOvershoot).t = tseam := rfl
+
+@[simp] theorem seamEpidemicExactW_eps
+    (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0) (hDrift) (hNoOvershoot) :
+    (seamEpidemicExactW (L := L) (K := K) p n tseam εepidemic εovershoot
+        hDrift hNoOvershoot).ε = εepidemic + εovershoot := rfl
+
+/-- **Seam-exact → exact-work bridge (deterministic, pointwise).**  The strengthened
+`Post` (`allPhaseGe (p+1) ∧ NoOvershoot p`) yields the EXACT `(p+1)`-window pointwise,
+with NO further per-seam timing input — `NoOvershoot p c` is exactly the no-overshoot
+hypothesis of `SeamEpidemics.allPhaseEq_of_ge_and_no_overshoot`.  This replaces the
+`seam_into_exact_work` map (which still took the timing input as a side hypothesis). -/
+theorem seamExact_into_exact_work {p n : ℕ} :
+    ∀ c : Config (AgentState L K),
+      (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c ∧
+        NoOvershoot (L := L) (K := K) p c) →
+      SeamEpidemics.allPhaseEq (L := L) (K := K) (p + 1) n c :=
+  fun c h => SeamEpidemics.allPhaseEq_of_ge_and_no_overshoot h.1 (fun a ha => h.2 a ha)
+
 end SeamNoOvershoot
 
 end ExactMajority

@@ -184,23 +184,27 @@ theorem birthR1_config_eq
       ({(Transition L K s t).1, (Transition L K s t).2} : Config (AgentState L K)) = 2 := by
     rw [htr, assignableCount_pair',
       (isAssignableBool_iff _).mpr hout1, (isAssignableBool_iff _).mpr hout2]
+    simp
   have hpair_in : assignableCount (L := L) (K := K)
       ({s, t} : Config (AgentState L K)) = 0 := by
     rw [assignableCount_pair',
       not_isAssignable_of_mcr (L := L) (K := K) hs_role,
       not_isAssignable_of_mcr (L := L) (K := K) ht_role]
+    simp
+  -- `assignableCount` is additive over multiset `+`.
+  have hadd : ∀ x y : Config (AgentState L K),
+      assignableCount (L := L) (K := K) (x + y)
+        = assignableCount (L := L) (K := K) x + assignableCount (L := L) (K := K) y :=
+    fun x y => Multiset.countP_add _ _ _
   calc assignableCount (L := L) (K := K)
           (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2})
       = assignableCount (L := L) (K := K) (c - {s, t}) + 2 := by
-        rw [assignableCount, assignableCount, Multiset.countP_add]
-        rw [show Multiset.countP (fun a => isAssignableBool (L := L) (K := K) a)
-            ({(Transition L K s t).1, (Transition L K s t).2} : Config (AgentState L K))
-          = assignableCount (L := L) (K := K) _ from rfl, hpair_out]
+        rw [hadd, hpair_out]
     _ = assignableCount (L := L) (K := K) (c - {s, t})
           + assignableCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) + 2 := by
         rw [hpair_in]
     _ = assignableCount (L := L) (K := K) (c - {s, t} + {s, t}) + 2 := by
-        rw [assignableCount, assignableCount, assignableCount, Multiset.countP_add]
+        rw [hadd]
     _ = assignableCount (L := L) (K := K) c + 2 := by rw [h_restore]
 
 end FloorMasses

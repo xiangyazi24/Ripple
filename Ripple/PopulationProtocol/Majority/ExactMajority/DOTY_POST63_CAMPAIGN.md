@@ -2837,3 +2837,43 @@ Blueprint corrections recorded: s=1/2 too large (→ s=1/10); windowDrift_tail n
 absorbing window (warm/mid band is not — use gated_real_tail_full); gated engines need
 1≤r (escape-form tail, not decaying rᵗ); Rules 2&3 are pool-conserving so the birth mass
 is carried entirely by Rule-1 (matches the proven assignable_rule accounting).
+
+## TopSplitDrift — discharge of TopSplit's `hjump`/`hdrift` residuals (2026-06-10)
+
+New file `Probability/TopSplitDrift.lean` (append-only; TopSplit.lean unedited), 0-sorry /
+axiom-clean [propext, Classical.choice, Quot.sound]. Discharges the two named protocol
+residuals carried by `TopSplit.topSplitWindow_whp` for `X = mainCount − topCRMass`, and in
+doing so found + fixed two faithfulness traps in the Stage-C interface (playbook §3.3).
+
+TRUE invariant (vs paper's `sf+2st=mf+2mt`): the paper's literal ledger does NOT map onto the
+Lean encoding. Computing ΔX for every Phase-0 rule (`Phase0Transition` body): R1 (mcr,mcr→main,cr)
+ΔX=0; R2 (mcr+unassigned-main→cr) ΔX=−1; R3 (mcr+unassigned-(cr/clock/reserve)→main) ΔX=+1;
+R4 (cr,cr→clock,reserve) ΔX=0; R5 (clock,clock) ΔX=0. So X moves only by R2/R3, and the honest
+preserved equation is the EXISTING `mainCount + topCRMass = n` (mcr=0). Honest ledger weight
+`topW a = [main] − [cr∨clock∨reserve]`, `topSplitXZ = Config.sumOf topW`. Free pools = #unassigned-Main
+(R2 targets) vs #unassigned-(cr/clock/reserve) (R3 targets).
+
+- Stage 1: `topW`, `topSplitXZ`, `topSplitXZ_eq_counts`, `topSplitX_eq_cast` (bridge to TopSplit).
+- Stage 2 (hjump): `topW_Phase0_pair_delta_abs_le_one` (finite case bash; R5 split via
+  `stdCounterSubroutine_clock_role_eq`) → `topW_pair_delta_abs_le_one_of_phase0` →
+  `topSplitXZ_step_delta_abs_le_one` (config-level |ΔX|≤1 on Phase-0 region). True bound = 1.
+- Stage 3 (hdrift) — TRAP FIXED: Stage-C's `∫|X|dK≤|X|` is FALSE at X=0 (from balanced |X|=0, R2/R3
+  push to ±1, so ∫|X|dK>0=|X|) — a VACUOUS conditional (unsatisfiable premise, undetectable by
+  #print axioms). Honest fix = cosh MGF. `InwardResidual s c := sinh(sX)·E[sinh(sΔ)]≤0` is BOUNDARY-FREE
+  (sinh 0=0 at X=0). `coshExpVal_drift_real`: ∫cosh(sX')dK ≤ cosh(s)·cosh(sX) via cosh_add
+  (cosh part ≤cosh(s)cosh(sX) by |Δ|≤1+∑prob=1; sinh part ≤0 by inward). `coshPot_drift` (ℝ≥0∞,
+  multiplicative r=ofReal(cosh s), no immigration term). cosh facts derived from cosh_eq/sinh_eq/exp
+  (DerivHyp not in single-file closure). Local `integral_transitionKernel_eq_pairSum` +
+  `lintegral_coshPot_eq_ofReal_integral` (termwise pair-sum bridge, no integrability goal).
+- Stage 4 (tail/wire-up): `coshPot_ge_thresh_of_not_window` (threshold link: cosh even+monotone) +
+  `windowDrift_tail` on absorbing Q ⟹ `topSplitWindow_whp_cosh`:
+  `(K^T)c₀{¬TopSplitWindow δ n} ≤ (cosh s)^T·coshPot(c₀)/cosh(sδn)`. `coshPot_init_one` (X c₀=0 ⟹
+  coshPot=1) ⟹ `topSplitWindow_whp_cosh_clean` = `(cosh s)^T/cosh(sδn)` (restates TopSplit's
+  conclusion shape; TopSplit.lean unedited). Optimizing s=δn/T, cosh s≤exp(s²/2),
+  cosh(sδn)≥exp(sδn)/2 recovers the consumer's 2·exp(−(δn)²/(2T)) shape.
+
+Two genuine protocol residuals remain, BOTH boundary-free, both honest Lemma-5.1 content:
+(1) absorbing `Q ⊆ allPhase0` witness (also the Phase0Window gap); (2) `InwardResidual` on `Q`
+(the symmetric pair-count comparison #R2-pairs ≥ #R3-pairs on {X>0} + mirror, from the free-pool
+ledger). The X=0 boundary — the mathematical crux — is SOLVED by cosh (no exception at 0).
+Commits f475aedd / 87271ca4 / 7760b01 / 7e9e3a6d.

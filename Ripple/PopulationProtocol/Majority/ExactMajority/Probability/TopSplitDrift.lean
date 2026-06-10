@@ -646,7 +646,7 @@ are the absorbing window `hQ_abs` and the inward residual `hinw` on it — both
 boundary-free, both the honest Lemma-5.1 content. -/
 theorem topSplitWindow_whp_cosh
     {s : ℝ} (hs : 0 ≤ s) {δ : ℝ} {n : ℕ}
-    {c₀ : Config (AgentState L K)} (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    {c₀ : Config (AgentState L K)} (_hinit : Phase0Initial (L := L) (K := K) n c₀)
     (Q : Config (AgentState L K) → Prop)
     (hQ_abs : ∀ c c', Q c →
       c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support → Q c')
