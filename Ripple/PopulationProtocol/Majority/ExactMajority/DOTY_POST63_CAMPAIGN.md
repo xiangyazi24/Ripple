@@ -1018,6 +1018,89 @@ through the phase-3 timed instance. Everything ABOVE `hside` (the final-minute d
 is FULLY PROVEN and axiom-clean. The phase-3 instance is ready for `compose_n_phases` (Phase D step 2)
 once the other ten instances + the uniform `hside` discharge land.
 
+## PHASE D-3 — the eleven-phase composition headline `doty_time_headline_W` DELIVERED (2026-06-10, 0-sorry axiom-clean)
+
+NEW file `Probability/DotyTimeHeadline.lean` (namespace `ExactMajority`; imports
+`PhaseConvergenceWeak` + `NonuniformMarkovChain` + `Analysis/StableEndpoints` — the minimal
+closure, 23 transitive Ripple-local oleans). All four theorems `#print axioms ⊆ [propext,
+Classical.choice, Quot.sound]`; single-file `lake env lean` EXIT_0; zero sorry / zero
+native_decide / zero new axiom. SHA on main: cd24a347.
+
+### What landed.
+- `total_time_le_W` / `total_error_le_W` — the per-phase scaling arithmetic (`∑ t_i ≤
+  (∑ Cphase)·n·(L+1)`; union budget `∑ ε ≤ ∑ δ`), independent of per-phase content.
+- **`doty_time_composition_W`** — the WEAK-structure assembly contract over `composeW_n_phases`
+  (`m = 11`). Given eleven `PhaseConvergenceW (NonuniformMajority L K).transitionKernel`
+  instances + per-phase time/error bounds + chain maps `h_chain : Post_i ⟹ Pre_{i+1}` + start
+  `hx₀` + closing map `h_post : Post_10 ⟹ majorityStableEndpoint init`, concludes the
+  composed `(K^(∑t_i)) c₀ {¬ majorityStableEndpoint init} ≤ ∑ ε_i` together with
+  `∑ t_i ≤ (∑ Cphase)·n·(L+1)` and `∑ ε ≤ ∑ δ`. Pure C-K assembly; no per-phase content used.
+- **`doty_time_headline_W`** — the capstone. Specialising `Cphase i ≤ C0`, `∑ δ ≤ 1/n`:
+  from `(phases 0).Pre c₀`, within `T ≤ 11·C0·n·(L+1) = O(n log n)` interactions
+  (`O(L+1) = O(log n)` parallel time), the run reaches `majorityStableEndpoint init` with
+  failure `≤ 1/n`. The final `Post` is `majorityStableEndpoint = phase2Consensus ∨ phase4Tie
+  ∨ phase9Consensus ∨ phase10MajorityWitness` (stabilized at 2 ∨ at 4 ∨ at 9 ∨ reached 10's
+  unanimity) — the stabilize-early branches threaded as disjuncts per the paper's structure.
+
+### Design — why the weak-structure opaque-instance form is the honest Phase-D single theorem.
+The campaign's Phase-B rewire retired the strong structure's `post_absorbing` (it forced the
+FALSE `habs_mix` on the faithful clock minutes). Every real phase instance is therefore a
+`PhaseConvergenceW`; the strong Phase-2/9 instance lifts via `PhaseConvergence.toW`. The
+eleven instances all live on the SAME kernel family `(NonuniformMajority L K).transitionKernel`
+(verified: `phase1Convergence`, `phase2Convergence.toW`, `phase3Convergence`,
+`phase4Convergence`, `phase5Convergence`, `phase6Convergence'`, `phase7Convergence''`,
+`phase8Convergence`, `phase10Convergence`, RoleSplit's 3-stage Phase-0). So `composeW_n_phases`
+over the `Fin 11` family applies directly. This is the genuine Phase-D deliverable: the single
+theorem with the COMPLETE named-input surface, distinct from `TimeComposition.doty_time_headline`
+(which is the same shape but over the STRONG structure that the rewire retired).
+
+### THE SURVIVING-INPUT INVENTORY (the honest Phase-D surface).
+`doty_time_headline_W` is UNCONDITIONAL beyond exactly these named hypotheses (no axiom beyond
+[propext, Classical.choice, Quot.sound], no sorry, no native_decide):
+1. **The eleven instances** `phases : Fin 11 → PhaseConvergenceW K` — each a proven
+   `PhaseConvergenceW` in its file. Per-instance Pre/Post (verified):
+   - 0: RoleSplit (3-stage), Post `RoleSplitStage2Good` (`roleMCR=0 ∧ crCount≤1`). NB: the
+     Phase-0 instance is itself a sub-composition (`phase0_roleSplit_whp_two_stage`,
+     `composeW_n_phases` at m=3) — packaging it as a single `PhaseConvergenceW` with the
+     role-count Post is the one instance still assembled FROM its stages; carried here as the
+     family member `phases 0`. `Phase0Window.phase0_window_whp` supplies the clock-floor tail
+     `{¬ noClockAtZero}` feeder (the Lemma-5.2 clock floor), not a standalone instance.
+   - 1: `Phase1AllMain n ∧ extremeU ≤ M₀` → `Phase1AllMain n ∧ NoExtreme`.
+   - 2: `Qwin U v n` → `Qwin U v n ∧ oFinished U n` (strong, `.toW`).
+   - 3: `{c = c₀}` (clock-entry) → `HourComplete n mC`.
+   - 4: `StableTie4 ∨ Qwin4 n` → `StableTie4 ∨ advFinished n` (the tie / non-tie disjunction).
+   - 5: `Phase5AllWin n ∧ unsampledReserveU ≤ M₀` → `Phase5AllWin n ∧ ReserveSampleGood i K₀`.
+   - 6: `Phase6Win n ∧ highMass l ≤ M₀` → `Phase6Win n ∧ highMass l = 0`.
+   - 7: `Inv7Sum n ∧ classMassN σ ≤ M₀` → `Inv7Sum n ∧ classMassN σ = 0`.
+   - 8: `Phase8AllMain n ∧ minorityU σ ≤ M₀` → `Phase8AllMain n ∧ minorityU σ = 0`.
+   - 9: `Qwin U' v' n` → `Qwin U' v' n ∧ oFinished U' n` (second opinion union, `.toW`).
+   - 10: `S1 n ∨ Tie1plus n` → `Phase10Post` (unanimous output).
+2. **The chain maps** `h_chain : Post_i ⟹ Pre_{i+1}` — the ten deterministic structural
+   bridges (phase-advance + carried floors: Phase 0's role counts → 1's window; Theorem-6.2
+   structure from Phase 3 → 4/5/6's Pres; `ReserveSampleGood` from 5 → 6; the tie/non-tie
+   disjunction threaded through 4→5). Carried as named input — each bridge is a
+   deterministic-reachable `Analysis/` invariant; supplying all ten IS the honest Phase-D
+   surface (NOT find-replace: the Posts as defined carry their own structural fact, and the
+   cross-phase advance facts are the named deterministic bridges).
+3. **The start** `hx₀ : (phases 0).Pre c₀` — validInitial → role-split-entry.
+4. **The closing map** `h_post : Post_10 ⟹ majorityStableEndpoint init`.
+5. **The per-phase carried drains** (folded into each instance, hence into `phases`): the
+   `q`/`hstep` drain rates for 0/1/5/6/7/8 (the `OneSidedCancel` rectangle floors, [45]/Lemma
+   7.x atoms); Phase 3's `hside` (τ-uniform `Sgood(T)ᶜ ≤ sideEps`, §6 nine named feeders, width
+   slice via `εWAt`); Phase 5's `hConc`; the Lemma-5.2 clock floor. The consolidated
+   B-12/B-13/D-1/D-2 residuals, threaded not re-opened.
+6. **The scaling** `ht : t_i ≤ Cphase_i·n·(L+1)`, `hC0 : Cphase i ≤ C0`, `hδ : ∑ δ ≤ 1/n`.
+
+### LARGEST CLOSED SUBSET / precise gaps.
+CLOSED (proven, axiom-clean): the entire composition arithmetic + the C-K assembly +
+the headline scaling — i.e. given the eleven instances + chain maps + h_post, the O(log n)
+parallel-time whp stabilization is FULLY PROVEN. PRECISE GAP: the eleven instances and the ten
+chain maps and h_post are the named-input surface (items 1–4 above). The single non-find-replace
+work remaining to make this CLOSED-with-no-hypotheses is (a) packaging Phase 0's 3-stage into one
+`PhaseConvergenceW` with role-count Post, and (b) discharging the ten deterministic chain maps
+from the `Analysis/` invariants — both deterministic-reachable, both deferred to a follow-up
+(Phase F) per the campaign's "carry the gap as a named side hypothesis, documented" doctrine.
+
 ## Phase C-1 — RoleSplitConcentration witness (Lemma 5.2 progress field) — STATUS
 
 `RoleSplitConcentration.lean` `roleSplitTail_le` (Phase0Initial + RoleSplitMilestone ⟹

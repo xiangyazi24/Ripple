@@ -106,4 +106,117 @@ theorem total_error_le_W
     (∑ i, (ε i : ℝ≥0∞)) ≤ ∑ i, (δ i : ℝ≥0∞) :=
   Finset.sum_le_sum (fun i _ => hε i)
 
+/-! ## The compose-all-phases contract (weak structure) -/
+
+/-- **Doty time composition (weak-structure assembly contract).**
+
+Given eleven `PhaseConvergenceW` instances for the `NonuniformMajority L K` transition
+kernel, with per-phase time/error bounds, the chaining hypothesis `h_chain` (phase `i`'s
+`Post` implies phase `i+1`'s `Pre`), the start hypothesis `hx₀`, and the closing map
+`h_post` (the last phase's `Post` implies `majorityStableEndpoint init`), the composed chain
+reaches `majorityStableEndpoint init` within `T := ∑ (phases i).t` interactions with failure
+probability at most `∑ (phases i).ε`, and moreover `T ≤ (∑ Cphase)·n·(L+1)` and
+`∑ (phases i).ε ≤ ∑ δ`.
+
+This is purely the assembly arithmetic over `composeW_n_phases`; it uses no per-phase
+content beyond each instance's `convergence` field. -/
+theorem doty_time_composition_W
+    {L K n : ℕ}
+    (init c₀ : Config (AgentState L K))
+    (Cphase : Fin 11 → ℕ) (δ : Fin 11 → ℝ≥0)
+    (phases : Fin 11 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel)
+    (ht : ∀ i, (phases i).t ≤ Cphase i * n * (L + 1))
+    (hε : ∀ i, ((phases i).ε : ℝ≥0∞) ≤ (δ i : ℝ≥0∞))
+    (h_chain : ∀ (i : Fin 11) (hi : i.val + 1 < 11),
+        ∀ x, (phases i).Post x → (phases ⟨i.val + 1, hi⟩).Pre x)
+    (hx₀ : (phases ⟨0, by omega⟩).Pre c₀)
+    (h_post : ∀ c, (phases lastPhaseW).Post c →
+        majorityStableEndpoint (L := L) (K := K) init c) :
+    ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+        {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+      ≤ (∑ i, ((phases i).ε : ℝ≥0∞))
+    ∧ (∑ i, (phases i).t) ≤ (∑ i, Cphase i) * n * (L + 1)
+    ∧ (∑ i, ((phases i).ε : ℝ≥0∞)) ≤ ∑ i, (δ i : ℝ≥0∞) := by
+  refine ⟨?_, ?_, ?_⟩
+  · have h_compose :=
+      composeW_n_phases (K := (NonuniformMajority L K).transitionKernel)
+        (m := 11) (by omega) phases h_chain c₀ hx₀
+    have h_subset :
+        {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+          ⊆ {c | ¬ (phases ⟨11 - 1, by omega⟩).Post c} := by
+      intro c hc
+      simp only [Set.mem_setOf_eq] at hc ⊢
+      intro hPost
+      exact hc (h_post c hPost)
+    calc ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+            {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+        ≤ ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+            {c | ¬ (phases ⟨11 - 1, by omega⟩).Post c} := measure_mono h_subset
+      _ ≤ (∑ i, ((phases i).ε : ℝ≥0∞)) := h_compose
+  · exact total_time_le_W (fun i => (phases i).t) Cphase ht
+  · exact total_error_le_W (fun i => (phases i).ε) δ hε
+
+/-! ## Headline corollary: O(log n)-parallel whp stabilization (weak structure)
+
+The Phase-D deliverable.  See the file header for the complete surviving-input inventory.
+-/
+
+/-- **`doty_time_headline_W` — the eleven-phase composition headline (UNCONDITIONAL beyond
+the named-input surface).**
+
+Specialising the constants: if every per-phase constant satisfies `Cphase i ≤ C0` and the
+total error budget is `∑ δ ≤ 1/n`, then the composed eleven-phase weak chain reaches
+`majorityStableEndpoint init` within `T ≤ 11·C0·n·(L+1)` interactions with failure
+probability at most `1/n`.
+
+`T ≤ 11·C0·n·(L+1)` means `O(n·(L+1)) = O(n log n)` interactions, i.e. `O(L+1) = O(log n)`
+parallel time; failure `≤ 1/n` is the with-high-probability guarantee.  The final `Post` is
+`majorityStableEndpoint = phase2Consensus ∨ phase4Tie ∨ phase9Consensus ∨
+phase10MajorityWitness` (stabilized at 2 ∨ at 4 ∨ at 9 ∨ reached 10's unanimity), the
+stabilize-early branches threaded as disjuncts per the paper's structure.
+
+**Surviving inputs** (all named hypotheses; zero axiom beyond
+`[propext, Classical.choice, Quot.sound]`, zero `sorry`, zero `native_decide`):
+the eleven `PhaseConvergenceW` instances `phases` (each proven in its file, carrying its own
+per-phase drains — the `q`/`hstep` rates for 0/1/5/6/7/8, Phase 3's `hside` τ-uniform side
+budget, Phase 5's `hConc`, the Lemma-5.2 clock floor); the chain maps `h_chain`
+(`Post_i ⟹ Pre_{i+1}`, the deterministic structural bridges); the start `hx₀`; the closing
+map `h_post` (`Post_10 ⟹ majorityStableEndpoint`); the scaling `ht`/`hC0`/`hδ`.  This is the
+honest single-theorem statement of the campaign's Phase-D goal. -/
+theorem doty_time_headline_W
+    {L K n C0 : ℕ}
+    (init c₀ : Config (AgentState L K))
+    (Cphase : Fin 11 → ℕ) (δ : Fin 11 → ℝ≥0)
+    (phases : Fin 11 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel)
+    (ht : ∀ i, (phases i).t ≤ Cphase i * n * (L + 1))
+    (hε : ∀ i, ((phases i).ε : ℝ≥0∞) ≤ (δ i : ℝ≥0∞))
+    (h_chain : ∀ (i : Fin 11) (hi : i.val + 1 < 11),
+        ∀ x, (phases i).Post x → (phases ⟨i.val + 1, hi⟩).Pre x)
+    (hx₀ : (phases ⟨0, by omega⟩).Pre c₀)
+    (h_post : ∀ c, (phases lastPhaseW).Post c →
+        majorityStableEndpoint (L := L) (K := K) init c)
+    (hC0 : ∀ i, Cphase i ≤ C0)
+    (hδ : (∑ i, (δ i : ℝ≥0∞)) ≤ (1 / n : ℝ≥0∞)) :
+    ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+        {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+      ≤ (1 / n : ℝ≥0∞)
+    ∧ (∑ i, (phases i).t) ≤ 11 * C0 * n * (L + 1) := by
+  obtain ⟨h_bound, h_time, h_err⟩ :=
+    doty_time_composition_W init c₀ Cphase δ phases ht hε h_chain hx₀ h_post
+  refine ⟨?_, ?_⟩
+  · calc ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+            {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+        ≤ (∑ i, ((phases i).ε : ℝ≥0∞)) := h_bound
+      _ ≤ ∑ i, (δ i : ℝ≥0∞) := h_err
+      _ ≤ (1 / n : ℝ≥0∞) := hδ
+  · calc (∑ i, (phases i).t)
+        ≤ (∑ i, Cphase i) * n * (L + 1) := h_time
+      _ ≤ (11 * C0) * n * (L + 1) := by
+          have hsum : (∑ i, Cphase i) ≤ 11 * C0 := by
+            calc (∑ i : Fin 11, Cphase i)
+                ≤ ∑ _i : Fin 11, C0 := Finset.sum_le_sum (fun i _ => hC0 i)
+              _ = 11 * C0 := by simp [Finset.sum_const, Finset.card_univ, mul_comm]
+          gcongr
+      _ = 11 * C0 * n * (L + 1) := by ring
+
 end ExactMajority
