@@ -179,4 +179,152 @@ theorem topSplitWindow_whp_killed
 
 end RoleSplitConcentration
 
+/-! ## Deliverable 2 — Gap-2 assembly attempt (Phase-0 clock-zero / allPhase0 window).
+
+`Phase0Window.allPhase0_window_whp` consumes a UNIFORM per-τ bound `hτ`:
+
+  `∀ τ < t, (K^τ) c₀ {¬noClockAtZero} ≤ ε`   (the clean `ofReal(e^{-45(L+1)})` window bound).
+
+`KilledAffineTail.phase0_clock_zero_killed_affine` gives the per-τ REAL bound but with a
+SELF-REFERENTIAL threshold prefix `+ ∑_{σ<τ} (K^σ) c₀ {1 ≤ Φ_clock}` (the escape).  We attack
+the named missing reachability/gate-membership piece by asking whether the killed-kernel
+formalism makes it unnecessary — whether `allPhase0_window_whp`'s assembly can be re-derived
+directly against killed objects + escape.
+
+### The honest decomposition (PROVEN here).
+
+The killed object `phase0_killed_clock_zero_tail` gives the CLEAN decaying budget for the
+killed (surviving) clock-zero mass — NO self-reference, NO absorbing `Q`.  The real per-τ
+clock-zero mass splits as `killed-clean + escape` (Consumer-1
+`real_le_killed_affine_tail_add_escape` at the clock threshold), which we package as
+`gap2_real_clock_zero_le_killed_clean_add_escape` below.  This is the strongest CLEAN
+decomposition: the killed term genuinely decays, isolating the escape as the SOLE residual.
+
+### What genuinely resists (the precise reachability lemma).
+
+The escape term is `escape(τ) := (killK_now K (phase0Gate n) ^ τ) (some c₀) {none}`.  The ONLY
+engine bound for it is `escape_le_threshold_prefix` (via the deterministic exit bridge,
+`q = 0`):
+
+  `escape(τ) ≤ ∑_{σ<τ} (K^σ) c₀ {1 ≤ Φ_clock}`   (REAL threshold masses).
+
+This is STRUCTURALLY against the REAL chain (see `GatedKillNow.kill_now_escape_le_prefix_union`:
+the escape accounting `M·q + ∑_τ (K^τ) x₀ Sᶜ` bounds the cemetery mass by the REAL chain's
+side-event masses — there is no killed-chain reformulation of the escape; the killed chain's
+alive successors are EXACTLY the real chain's gated successors, so the cemetery mass IS the
+real probability of having left the gate).  And `{¬noClockAtZero} ⊆ {1 ≤ Φ_clock}` (the
+threshold link), so each real prefix term DOMINATES the very quantity being bounded — the
+recursion does NOT contract.  Hence the killed formalism does NOT remove the reachability
+need: it relocates it to "the REAL chain stays in the gate `allPhase0 ∩ {card=n}` along the
+surviving trajectory", i.e. the real per-σ clock-zero masses `(K^σ) c₀ {1 ≤ Φ_clock}` are
+INDIVIDUALLY small — which is EXACTLY the uniform `hτ` that `allPhase0_window_whp` already
+takes as input, and which `phase0_window_whp` supplies per-τ GIVEN the surviving-trajectory
+reachability of the absorbing clock-counter drift region.
+
+So **Gap-2 does NOT close via the killed engine alone.**  The precise lemma whose proof would
+close it is the genuine reachability/maintenance object stated below as
+`Gap2_reachability_target` (a `Prop`-level statement, not proven — it is the role-split /
+absorbing-drift-region maintenance layer, NOT an engine gap).  We deliver the proven partial
+chain (the clean decomposition) and identify the target precisely. -/
+
+namespace Phase0Window
+
+open GatedDrift
+
+variable {L K : ℕ}
+
+/-- **Gap-2 partial chain (PROVEN): `real ≤ killed-clean + escape` at the clock threshold.**
+
+The real per-τ clock-zero mass `(K^τ) c₀ {¬noClockAtZero}` is bounded by the CLEAN decaying
+killed budget `aᵗ·Φ_clock(c₀) + b·∑_{i<τ} aⁱ` (`a = ofReal(1+2(eˢ−1)/n)`, `b =
+ofReal(e^{−s·50(L+1)})`, NO `1≤a`, NO absorbing `Q`) PLUS the escape (cemetery) mass.  This is
+`real_le_killed_affine_tail_add_escape` at `Φ = Φ_clock`, `θ = θ' = 1`, gate `phase0Gate n`,
+composed with the threshold link `{¬noClockAtZero} ⊆ {1 ≤ Φ_clock}`.  The killed term is the
+clean `phase0_killed_clock_zero_tail`; the escape is the sole residual (see the section doc). -/
+theorem gap2_real_clock_zero_le_killed_clean_add_escape
+    (s : ℝ) (hs : 0 ≤ s) (n : ℕ) (hn2 : 2 ≤ n)
+    (τ : ℕ) (c₀ : Config (AgentState L K))
+    (hc₀ : c₀ ∈ phase0Gate (L := L) (K := K) n) :
+    (((NonuniformMajority L K).transitionKernel) ^ τ) c₀
+        {c | ¬ noClockAtZero (L := L) (K := K) c}
+      ≤ (ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ)) ^ τ
+            * clockCounterPotential (L := L) (K := K) s c₀
+          + ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ))))
+              * ∑ i ∈ Finset.range τ,
+                  ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ)) ^ i)
+        + (GatedDrift.killK_now (NonuniformMajority L K).transitionKernel
+              (phase0Gate (L := L) (K := K) n) ^ τ) (some c₀)
+            {(none : Option (Config (AgentState L K)))} := by
+  classical
+  set Kk := (NonuniformMajority L K).transitionKernel with hKk
+  set Φ := clockCounterPotential (L := L) (K := K) s with hΦdef
+  set G := phase0Gate (L := L) (K := K) n with hGdef
+  set a := ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ)) with ha
+  set b := ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) with hb
+  -- the affine drift on G.
+  have hdrift_G : ∀ x ∈ G, ∫⁻ y, Φ y ∂(Kk x) ≤ a * Φ x + b := by
+    intro x hx
+    obtain ⟨hall, hcard⟩ := hx
+    exact clockCounterPotential_drift_affine s hs n x hcard (hcard ▸ hn2) hall
+  -- threshold link: ¬noClockAtZero ⟹ 1 ≤ Φ.
+  have hlink : {c | ¬ noClockAtZero (L := L) (K := K) c} ⊆ {c | (1 : ℝ≥0∞) ≤ Φ c} := by
+    intro c hc
+    exact clockCounterPotential_ge_one_of_not_noClockAtZero s c hc
+  refine le_trans (measure_mono hlink) ?_
+  -- the killed-clean + escape decomposition at θ = 1.
+  have h := real_le_killed_affine_tail_add_escape (K := Kk) (G := G) Φ a b hdrift_G τ c₀ 1
+    (by norm_num) (by norm_num)
+  rwa [ENNReal.div_one] at h
+
+/-- **The Gap-2 reachability TARGET (statement only — NOT proven; see the section doc).**
+
+The precise object whose proof would close Gap-2: a UNIFORM per-τ bound on the REAL
+clock-zero / gate-exit prefix masses along the surviving trajectory.  This is the
+role-split / absorbing-drift-region MAINTENANCE layer — that the real chain, started from a
+gate config, keeps each per-σ clock-zero mass under the clean window budget `ε` — NOT an
+engine gap (the killed AFFINE-TAIL engine itself is delivered 0-sorry axiom-clean).  Given
+this, `allPhase0_window_whp`'s `hτ` is discharged directly (its `hτ` IS this `∀ τ` with
+`{¬noClockAtZero} ⊆ {1 ≤ Φ_clock}`), and the `gap2_real_clock_zero_le_killed_clean_add_escape`
+decomposition above becomes the clean route (killed term decays, escape bounded by the now-
+uniform prefix).  We state it as a `Prop` so downstream relays have the exact target. -/
+def Gap2_reachability_target (s : ℝ) (t : ℕ)
+    (c₀ : Config (AgentState L K)) (ε : ℝ≥0∞) : Prop :=
+  ∀ σ ∈ Finset.range t,
+    (((NonuniformMajority L K).transitionKernel) ^ σ) c₀
+        {c | (1 : ℝ≥0∞) ≤ clockCounterPotential (L := L) (K := K) s c}
+      ≤ ε
+
+/-- **Gap-2 conditional close (PROVEN given the reachability target).**  IF the reachability
+target `Gap2_reachability_target` holds (the uniform per-σ real clock-zero bound `ε` along the
+surviving trajectory), THEN `allPhase0_window_whp`'s conclusion follows at budget `t·ε`.  This
+isolates the EXACT residual: the only missing input is `Gap2_reachability_target` (the
+absorbing-drift-region maintenance), which is consumed here as a hypothesis exactly as
+`allPhase0_window_whp` consumes `hτ` — confirming Gap-2 reduces to that single reachability
+object and nothing else.  (The `{¬noClockAtZero} ⊆ {1 ≤ Φ_clock}` threshold link bridges the
+target's `{1 ≤ Φ_clock}` shape to `allPhase0_window_whp`'s `{¬noClockAtZero}` shape.) -/
+theorem gap2_allPhase0_window_whp_of_reachability
+    (s : ℝ) (t : ℕ) (c₀ : Config (AgentState L K))
+    (h0 : allPhase0 (L := L) (K := K) c₀)
+    (ε : ℝ≥0∞)
+    (hreach : Gap2_reachability_target (L := L) (K := K) s t c₀ ε) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {c | ¬ allPhase0 (L := L) (K := K) c}
+      ≤ (t : ℝ≥0∞) * ε := by
+  classical
+  refine (allPhase0_window_le_prefix_sum t c₀ h0).trans ?_
+  have hτ : ∀ σ ∈ Finset.range t,
+      (((NonuniformMajority L K).transitionKernel) ^ σ) c₀
+          {c | ¬ noClockAtZero (L := L) (K := K) c} ≤ ε := by
+    intro σ hσ
+    refine le_trans (measure_mono ?_) (hreach σ hσ)
+    intro c hc
+    exact clockCounterPotential_ge_one_of_not_noClockAtZero s c hc
+  calc ∑ σ ∈ Finset.range t,
+        (((NonuniformMajority L K).transitionKernel) ^ σ) c₀
+          {c | ¬ noClockAtZero (L := L) (K := K) c}
+      ≤ ∑ _σ ∈ Finset.range t, ε := Finset.sum_le_sum hτ
+    _ = (t : ℝ≥0∞) * ε := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+
+end Phase0Window
+
 end ExactMajority

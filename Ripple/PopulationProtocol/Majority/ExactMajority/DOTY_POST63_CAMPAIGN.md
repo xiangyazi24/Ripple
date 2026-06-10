@@ -3197,3 +3197,10 @@ WS path SOLVED end-to-end (see chatgpt-bridge-pr3/UNDERSTANDING.md 06-10
 section). Ask letters with scripts/ask-gpt.py <channel> — banner + runs.log
 ledger discipline in .claude/skills/chatgpt/SKILL.md. Ripple letters ONLY on
 family/family2/family3.
+
+### WidthTransport completion record (post-cutoff bookkeeping, 2026-06-10)
+Probability/WidthTransport.lean stages 1–4 landed (a95dff31 + 498dfec0): deterministic
+scalar climb transport on AllClockP3 (DRIP-only +1/step), CrossEmptyClimbGood width glue,
+crossEmptyClimb_whp finite union, widthFail_between_checkpoints_concrete CK assembly.
+Cut before its own doc commit; axiom sweep deferred to Phase F. Resumed agents:
+SeamPairAdapter stages 2–4 + KilledTailConsumers deliverables 2–3 re-dispatched.

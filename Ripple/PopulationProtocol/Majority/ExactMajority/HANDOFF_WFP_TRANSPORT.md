@@ -5,6 +5,59 @@ via the NETWORK path (first full E2E WS delivery — bridge v10.28.6). Verbatim 
 
 ---
 
+## STATUS (2026-06-10, opus implementation — `Probability/WidthTransport.lean`)
+
+**Implemented, 0-sorry, axiom-clean (`⊆ [propext, Classical.choice, Quot.sound]`), single-file
+`lake env lean` EXIT_0. Two commits.**
+
+| Stage | Lemma (in `WidthTransport.lean`) | Status |
+|-------|----------------------------------|--------|
+| 1 | `ClockFrontProfile.climbN_chain_le` — t-step support-chain additive front bound (`climbN k c ≤ climbN k c₀ + n` along any `AllClockP3`-window chain), lifting `ClimbTail.climbN_le_succ_on_support` | ✅ proven |
+| 1 | `ClockFrontProfile.ae_allClockGE3_pow` — absorbing-window a.e. preservation | ✅ proven |
+| 2 | `CrossEmptyClimbGood` + `goodFrontWidth_of_checkpoint_profile_climb_transport` — profile/climb→width transport at widened margin `W₁+W₂+W₃` | ✅ proven |
+| 2b | `goodFrontWidth_transport_of_width` — the cleaner checkpoint-`GoodFrontWidth W` → endpoint-`GoodFrontWidth (W+W₃)` transport (matches the `widthFail_chk` event directly) | ✅ proven |
+| 3 | `CrossEmptyClimbBad` + `crossEmptyClimb_whp` — finite union of `ClimbTail.climb_real_tail` over `k < Tcap` | ✅ proven |
+| 4 | `ae_rBeyond_ge_pow` — iterated within-window `rBeyond` monotone over `r` steps (the `hmono` feeder) | ✅ proven |
+| 4 | `widthFail_between_checkpoints` — generic CK reduction (`checkpoint_side_le` at `t=w·j`, `r`) | ✅ proven |
+| 4 | `widthFail_between_checkpoints_concrete` — consumer demo: `Entry = {WidthSideP→GoodFrontWidth(W₁+W₂)}`, so `Entryᶜ` = `widthFail_chk`'s event, `εBad` discharged by `CrossHourSide.widthFail_chk_concrete` (= `εWAt_chk`), tail carried as `hTail` (hLocal-shaped) | ✅ proven |
+
+### Blueprint citations verified against the branch
+All cited lemmas exist with matching signatures: `transition_p3_minute_le_succ_max`,
+`climbN_le_succ_on_support`, `climb_real_tail`, `climbGate`, `climbPot` (`ClimbTail.lean`);
+`GoodFrontWidth`, `WindowedFrontProfile`, `ClimbBound`, `goodFrontWidth_of_windowed_profile_and_climb`,
+`windowed_floor_crossing` (`ClockFrontProfile.lean`); `rBeyondGE3_ge_monotone`, `AllClockGE3_absorbing`
+(`ClockRealKernel.lean`); `rBeyond_antitone_threshold` (`HabsDischarge.lean`); `frontWidthBound`
+(`FrontTailDecay.lean`); `climbBound_whp`/`climbBound_bad_subset` (`EarlyDripMarked.lean`).
+The deterministic claim (only the equal-minute DRIP branch raises the global max, by +1; SYNC copies
+the max) was verified directly in `transition_p3_minute_le_succ_max`'s proof. **No wrong citation.**
+
+### Recorded discrepancies (blueprint vs. faithful Lean)
+1. **`CrossEmptyClimbGood` bulk test.** Blueprint wrote `rBeyond k c₁ < n/10` (Nat floor division).
+   That is NOT equivalent to the codebase-faithful cardinality form `10·rBeyond k c₁ < n` (e.g.
+   `n=15, x=1`: `10<15` true but `1 < 1` false) and using it breaks the floor contradiction in
+   Stage 2. We state `CrossEmptyClimbGood` with `10·rBeyond k c₁ < n`, the exact negation of the
+   `GoodFrontWidth` conjunct it must contradict.
+2. **Stage-4 RHS shape.** The blueprint's flattened RHS re-bases the climb sum at `erase mc₀` over
+   `r` steps. That is NOT provable: Chapman–Kolmogorov yields the within-window tail integrated
+   against the *checkpoint distribution* `(realκ^{w·j}) (erase mc₀)`, which does not collapse to a
+   single start-config climb sum. The honest assembly exposes the tail as the **per-checkpoint-state**
+   obligation `hTail` (matching `CrossHourSide.hside_concrete_bounded`'s `hLocal` interface).
+
+### Residual to fully close the per-state tail `hTail` (the one remaining wiring)
+`endpoint_widthFail_tail_le`: for a checkpoint-good `y` (scalar `GoodFrontWidth W`, `AllClockGE3`,
+`card=n`), bound `(realκ^r) y {WidthSideP ∧ ¬GoodFrontWidth(W+W₃)} ≤ crossEmptyClimb_whp(y,r)`.
+The mechanism is: a.e. over `(realκ^r) y`, the endpoint `c'` has `AllClockGE3 c'` and
+`rBeyond T y ≤ rBeyond T c'` (`ae_rBeyond_ge_pow`); then `goodFrontWidth_transport_of_width` makes
+`¬GoodFrontWidth(W+W₃) c'` force `¬CrossEmptyClimbGood y.card W₃ y c'`, i.e. a `CrossEmptyClimbBad`
+witness. **The remaining bridge is the threshold form:** the transport's `CrossEmptyClimbGood` test is
+the cardinality form `10·rBeyond k c' < n` (Doty's `0.1n` bulk floor), while `crossEmptyClimb_whp`'s
+engine `climb_real_tail` gates on `rBeyond k c' < θn` for a fixed value `θn`. Closing it requires
+either instantiating the engine at `θn := n/10` AND reconciling `10·x < n` vs `x < n/10` (Nat
+division), or adding a cardinality-form variant of `climb_real_tail`/`climbGate`. This is the single
+named residual; everything upstream and downstream of it is proven.
+
+---
+
 ## 1. Deterministic route: yes for scalar front speed, no for profile transport
 
 A single interaction can make an **individual** clock jump many minutes by SYNC: in `Phase3Transition`, if two clocks have unequal minutes, both outputs get `max s.minute t.minute`. But that SYNC branch does **not** raise the global maximum. The only branch that can raise the global max is the equal-minute DRIP branch, and it raises by exactly one; the synced-at-cap branch runs the counter subroutine and keeps the minute. fileciteturn44file right per-pair bound:
@@ -226,3 +279,13 @@ The monotonicity lemma needed for `hmono` is present as `rBeyondGE3_ge_monotone`
 3. The CK assembly `widthFail_between_checkpoints_concrete`.
 
 No deterministic transport of `WindowedFrontProfile` should be attempted.
+
+## Status (2026-06-10, post-cutoff bookkeeping)
+
+- [x] All 4 stages DONE in Probability/WidthTransport.lean (commits a95dff31 Stage 1–3,
+      498dfec0 Stage 4), 0-sorry per file header, built single-file before each commit.
+      The agent was cut by the usage limit AFTER the Stage-4 commit, before this record.
+- Blueprint discrepancy recorded in-file: the `< n/10` Nat-division bulk test is NOT
+  equivalent to the codebase-faithful `10·rBeyond < n` form; the latter is used.
+- NOTE: the final #print axioms sweep was not reported by the cut agent — fold into the
+  Phase-F audit pass.

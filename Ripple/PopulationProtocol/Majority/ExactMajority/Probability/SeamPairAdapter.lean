@@ -570,6 +570,133 @@ theorem seamClockSummand_Transition_right_le_of_ep_advance (p : ℕ)
       exact seamClockSummand_stdCounterSubroutine_advance_le p s ep2 hepclock2 hqT hlt2
   exact hdisp_summ.trans (freshVal_le_exp_mul_add s hs _)
 
+/-! ## Stage 2 — the HONEST two-sided per-pair bound with constant `2·eˢ·freshVal`.
+
+The per-side bounds proved above (no-advance: `…_le_of_ep_at_dest`; advance:
+`…_le_of_ep_advance`) each deliver `summand(side) ≤ eˢ·(summand(source) + freshVal)`
+under the side's regime hypothesis.  Adding the two sides gives the HONEST pair ceiling
+`eˢ·(summand a + summand b) + 2·eˢ·freshVal` — the `2·eˢ` (NOT `2`) immigration
+constant, because each immigrant clock enters `p+1` at the FULL counter (summand
+`freshVal`) and is then DECREMENTED by the same dispatch (the `eˢ` factor multiplies the
+`freshVal` immigration, not just the source summand).
+
+The regime that fires per side is determined by `ep.side.phase` relative to `p+1`: the
+epidemic output phase is `≥ max(a.phase, b.phase)` and a clock entering or staying in
+`p+1` ∈ {1,6,7,8} either was already there (no-advance, `ep.side.phase = p+1`) or got
+counter-advanced from `p` (advance, `ep.side.phase = p`).  We package the regime facts a
+caller must supply as `SeamRegimeDispatch`; the drift consumer (Stage 3) threads it. -/
+
+/-- **Universal LEFT per-side bound** (both regimes packaged).  Supplied the regime fact
+for the LEFT output — either `ep.1` is a clock at the destination `p+1` (no-advance), or
+`ep.1` is a clock at `p` (advance), or the LEFT output is simply not a clock at `p+1`
+(summand `0`) — the LEFT output summand satisfies the honest per-side ceiling
+`≤ eˢ·(summand a + freshVal)`. -/
+theorem seamClockSummand_Transition_left_le_univ (p : ℕ)
+    (hq : CounterResetDest (p + 1)) (s : ℝ) (hs : 0 ≤ s) (a b : AgentState L K)
+    (hregime :
+      ((phaseEpidemicUpdate L K a b).1.role = .clock
+          ∧ (phaseEpidemicUpdate L K a b).1.phase.val = p + 1)
+      ∨ ((phaseEpidemicUpdate L K a b).1.role = .clock
+          ∧ (phaseEpidemicUpdate L K a b).1.phase.val = p)
+      ∨ ¬ ((Transition L K a b).1.role = .clock
+          ∧ (Transition L K a b).1.phase.val = p + 1)) :
+    seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+      ≤ ENNReal.ofReal (Real.exp s)
+          * (seamClockSummand (L := L) (K := K) p s a + freshVal (L := L) s) := by
+  have hqT : CounterTimedPhase (p + 1) := CounterTimedPhase_of_CounterResetDest hq
+  rcases hregime with ⟨hrole, hdest⟩ | ⟨hrole, hsrc⟩ | hnot
+  · exact seamClockSummand_Transition_left_le_of_ep_at_dest p hqT s hs a b hdest hrole
+  · exact seamClockSummand_Transition_left_le_of_ep_advance p hq s hs a b hrole hsrc
+  · have h0 : seamClockSummand (L := L) (K := K) p s (Transition L K a b).1 = 0 := by
+      unfold seamClockSummand; rw [if_neg hnot]
+    rw [h0]; exact zero_le'
+
+/-- **Universal RIGHT per-side bound** (both regimes packaged).  Symmetric to the LEFT
+universal bound.  The no-advance regime additionally needs `ep.1.phase = p+1` (the
+`Transition` dispatcher selects `Phase(p+1)Transition` by the LEFT phase), supplied in
+the no-advance branch of `hregime`. -/
+theorem seamClockSummand_Transition_right_le_univ (p : ℕ)
+    (hq : CounterResetDest (p + 1)) (s : ℝ) (hs : 0 ≤ s) (a b : AgentState L K)
+    (hregime :
+      ((phaseEpidemicUpdate L K a b).1.phase.val = p + 1
+          ∧ (phaseEpidemicUpdate L K a b).2.phase.val = p + 1
+          ∧ (phaseEpidemicUpdate L K a b).2.role = .clock)
+      ∨ ((phaseEpidemicUpdate L K a b).1.phase.val = p
+          ∧ (phaseEpidemicUpdate L K a b).2.role = .clock
+          ∧ (phaseEpidemicUpdate L K a b).2.phase.val = p)
+      ∨ ¬ ((Transition L K a b).2.role = .clock
+          ∧ (Transition L K a b).2.phase.val = p + 1)) :
+    seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+      ≤ ENNReal.ofReal (Real.exp s)
+          * (seamClockSummand (L := L) (K := K) p s b + freshVal (L := L) s) := by
+  have hqT : CounterTimedPhase (p + 1) := CounterTimedPhase_of_CounterResetDest hq
+  rcases hregime with ⟨hd1, hd2, hr2⟩ | ⟨hs1, hr2, hs2⟩ | hnot
+  · exact seamClockSummand_Transition_right_le_of_ep_at_dest p hqT s hs a b hd1 hd2 hr2
+  · exact seamClockSummand_Transition_right_le_of_ep_advance p hq s hs a b hs1 hr2 hs2
+  · have h0 : seamClockSummand (L := L) (K := K) p s (Transition L K a b).2 = 0 := by
+      unfold seamClockSummand; rw [if_neg hnot]
+    rw [h0]; exact zero_le'
+
+/-- **The seam regime dispatch predicate.**  For a counter-reset destination `p+1 ∈
+{1,6,7,8}`, every interacting pair `(a,b)` falls, on each side, into one of the three
+exhaustive regimes (no-advance / advance / not-a-clock-at-`p+1`) that the universal
+per-side bounds consume.  This is the protocol-structural input the drift needs
+unconditionally; it is the seam analogue of the FROZEN dispatcher case analysis behind
+`Phase0Window.clockSummand_pair_le`, restricted to a counter-reset destination phase,
+and is discharged per-seam from the kernel's phase-monotonicity (an output clock at
+`p+1` came from a source clock at `p` or `p+1`) — the same magnitude as the carried
+`DetSeamOvershootBridge`. -/
+def SeamRegimeDispatch (p : ℕ) : Prop :=
+  ∀ a b : AgentState L K,
+    (((phaseEpidemicUpdate L K a b).1.role = .clock
+        ∧ (phaseEpidemicUpdate L K a b).1.phase.val = p + 1)
+      ∨ ((phaseEpidemicUpdate L K a b).1.role = .clock
+          ∧ (phaseEpidemicUpdate L K a b).1.phase.val = p)
+      ∨ ¬ ((Transition L K a b).1.role = .clock
+          ∧ (Transition L K a b).1.phase.val = p + 1))
+    ∧ (((phaseEpidemicUpdate L K a b).1.phase.val = p + 1
+        ∧ (phaseEpidemicUpdate L K a b).2.phase.val = p + 1
+        ∧ (phaseEpidemicUpdate L K a b).2.role = .clock)
+      ∨ ((phaseEpidemicUpdate L K a b).1.phase.val = p
+          ∧ (phaseEpidemicUpdate L K a b).2.role = .clock
+          ∧ (phaseEpidemicUpdate L K a b).2.phase.val = p)
+      ∨ ¬ ((Transition L K a b).2.role = .clock
+          ∧ (Transition L K a b).2.phase.val = p + 1))
+
+/-- **The HONEST two-sided per-pair bound** (the Stage-2 capstone).  Summing the two
+universal per-side bounds gives the honest pair ceiling with immigration `2·eˢ·freshVal`:
+
+  `summand((Transition a b).1) + summand((Transition a b).2)
+      ≤ eˢ·(summand a + summand b) + 2·eˢ·freshVal`.
+
+This is the corrected `hpair` (the consumer chain's `2·freshVal` is FALSE for `s > 0`;
+see `SeamPairBound`'s finding 1).  Requires the regime dispatch `SeamRegimeDispatch p`
+for the pair. -/
+theorem seamClockSummand_Transition_pair_le (p : ℕ)
+    (hq : CounterResetDest (p + 1)) (s : ℝ) (hs : 0 ≤ s)
+    (hdisp : SeamRegimeDispatch (L := L) (K := K) p) (a b : AgentState L K) :
+    seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+      + seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+      ≤ ENNReal.ofReal (Real.exp s)
+          * (seamClockSummand (L := L) (K := K) p s a
+             + seamClockSummand (L := L) (K := K) p s b)
+        + 2 * (ENNReal.ofReal (Real.exp s) * freshVal (L := L) s) := by
+  obtain ⟨hregL, hregR⟩ := hdisp a b
+  have hL := seamClockSummand_Transition_left_le_univ p hq s hs a b hregL
+  have hR := seamClockSummand_Transition_right_le_univ p hq s hs a b hregR
+  calc seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+        + seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+      ≤ ENNReal.ofReal (Real.exp s)
+            * (seamClockSummand (L := L) (K := K) p s a + freshVal (L := L) s)
+          + ENNReal.ofReal (Real.exp s)
+            * (seamClockSummand (L := L) (K := K) p s b + freshVal (L := L) s) :=
+        add_le_add hL hR
+    _ = ENNReal.ofReal (Real.exp s)
+            * (seamClockSummand (L := L) (K := K) p s a
+               + seamClockSummand (L := L) (K := K) p s b)
+          + 2 * (ENNReal.ofReal (Real.exp s) * freshVal (L := L) s) := by
+        rw [mul_add, mul_add]; ring
+
 end SeamNoOvershoot
 
 end ExactMajority
