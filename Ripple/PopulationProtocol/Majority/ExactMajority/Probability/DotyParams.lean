@@ -545,6 +545,26 @@ theorem one_sub_exp_neg_tenth : (47/500 : ℝ) ≤ 1 - Real.exp (-(1/10 : ℝ)) 
     nlinarith [this.2, hrem]
   linarith
 
+/-- The TIGHTER bound `1903/20000 ≤ 1 − e^{−1/10}` (= 0.09515 ≤ 0.0951626) needed for the floor
+margin `δgLocked ≤ w·1.8(1−e^{−1/10})/n − (1/10)(g−1)`: the crude `47/500 = 0.094` is too weak
+(margin deficit ~0.171/n), `19/200 = 0.095` is exactly on the floor-loss boundary, but `1903/20000`
+clears it with a comfortable slack at `n ≥ N₀`.  Via `Real.exp_bound` at `n = 4` (quartic Taylor,
+remainder ≤ 5/960000). -/
+theorem one_sub_exp_neg_tenth_tight : (1903/20000 : ℝ) ≤ 1 - Real.exp (-(1/10 : ℝ)) := by
+  have hb := Real.exp_bound (x := -(1/10 : ℝ)) (by rw [abs_neg, abs_of_nonneg] <;> norm_num)
+    (n := 4) (by norm_num)
+  have hsum : ∑ m ∈ Finset.range 4, (-(1/10 : ℝ)) ^ m / m.factorial
+      = 1 - 1/10 + 1/200 - 1/6000 := by
+    simp [Finset.sum_range_succ, Nat.factorial]; norm_num
+  rw [hsum] at hb
+  have hrem : |(-(1/10 : ℝ))| ^ 4 * ((4:ℕ).succ / ((4:ℕ).factorial * 4)) ≤ 1/100000 := by
+    rw [abs_neg, abs_of_nonneg (by norm_num : (0:ℝ) ≤ 1/10)]
+    norm_num [Nat.factorial]
+  have hupper : Real.exp (-(1/10:ℝ)) ≤ (1 - 1/10 + 1/200 - 1/6000) + 1/100000 := by
+    have := abs_le.1 hb
+    nlinarith [this.2, hrem]
+  linarith
+
 /-- The window MGF scale `σw = 1/250` satisfies the `per_window_delta` smallness gate
 `σw·(1+2(1+1/200)/n)^w ≤ (1/200)/(1+1/200)` for `n ≥ N₀` (via `RW_le_RWb`, `RWb ≤ 250/201`). -/
 theorem σw_hsmall (n : ℕ) (hn : N₀ ≤ n) :

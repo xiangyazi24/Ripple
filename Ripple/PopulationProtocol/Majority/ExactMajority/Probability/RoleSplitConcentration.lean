@@ -186,6 +186,3 @@ theorem phase0_roleSplit_whp
 
 end RoleSplitConcentration
 end ExactMajority
-
-#print axioms ExactMajority.RoleSplitConcentration.clockCount_ge_two_of_RoleSplitGood
-#print axioms ExactMajority.RoleSplitConcentration.phase0_roleSplit_whp

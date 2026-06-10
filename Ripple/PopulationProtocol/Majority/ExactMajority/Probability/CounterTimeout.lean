@@ -145,7 +145,36 @@ noncomputable def counterTimeout_PhaseConvergenceW (K : Kernel Ω Ω) [IsMarkovK
           counterTimeout_tail K hDone hAbs' s q hblock' x₀ numBlocks
       _ ≤ (ε : ℝ≥0∞) := hε
 
-end Weak
+/-! ## Part 3 — From a per-single-step finish probability
+
+The most phase-friendly atom is the **per-step** finish-failure probability: "from
+every not-yet-finished config, a single interaction fails to finish the phase with
+probability at most `q₁`".  This is the direct image of the deterministic
+PhaseProgress decrement plus the pair-meeting probability `≥ (cFrac·n)²-shape / n²`.
+
+Iterating that single step over a block of `s` interactions multiplies the
+failure: `s` steps fail with probability `≤ q₁ ^ s` (block contraction with block
+length `s` and per-block failure `q₁ ^ s`... but here we instead read the whole
+horizon as `t` single steps).  Concretely, with per-step failure `≤ q₁`, after `t`
+interactions the phase is unfinished with probability `≤ q₁ ^ t`. -/
+
+/-- **Per-step finish probability ⇒ whp finish tail.**  If `Done` is absorbing and
+from every not-yet-done configuration a single interaction fails to finish with
+probability at most `q₁`, then after `t` interactions the phase is unfinished with
+probability at most `q₁ ^ t`.
+
+This is `counterTimeout_tail` at block length `s = 1` (so `t = t * 1` blocks). -/
+theorem counterTimeout_tail_perStep (K : Kernel Ω Ω) [IsMarkovKernel K]
+    {Done : Set Ω} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (q₁ : ℝ≥0∞)
+    (hstep : ∀ b ∈ (Doneᶜ : Set Ω), K b Doneᶜ ≤ q₁)
+    (c₀ : Ω) (t : ℕ) :
+    (K ^ t) c₀ Doneᶜ ≤ q₁ ^ t := by
+  have hblock : ∀ b ∈ (Doneᶜ : Set Ω), (K ^ 1) b Doneᶜ ≤ q₁ := by
+    intro b hb; rw [pow_one]; exact hstep b hb
+  have h := counterTimeout_tail K hDone hAbs 1 q₁ hblock c₀ t
+  simpa using h
 
 end CounterTimeout
 
