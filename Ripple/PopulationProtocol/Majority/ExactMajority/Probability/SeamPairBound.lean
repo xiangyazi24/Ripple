@@ -384,6 +384,49 @@ theorem runInitsBetween_phase_eq_or_ten (oldP q : ℕ) (a : AgentState L K) :
       · rw [dif_neg hk]; exact IH c
   exact key _ a
 
+/-- **Counter-advance immigration.**  When `stdCounterSubroutine` on a clock at
+phase `< q` ADVANCES it into a reset-destination phase `q ∈ {1,5,6,7,8}` (i.e. the
+counter was `0`), the resulting clock at `q` has the full counter `50(L+1)`
+(`advancePhaseWithInit` runs `phaseInit q`, resetting it).  Hence its seam summand
+at destination `p+1 = q` is exactly `freshVal`. -/
+theorem seamClockSummand_stdCounterSubroutine_advance (p : ℕ) (s : ℝ)
+    (c : AgentState L K) (hrole : c.role = .clock)
+    (hadv : (stdCounterSubroutine L K c).phase.val = p + 1)
+    (hq : CounterTimedPhase (p + 1)) (hlt : c.phase.val < p + 1) :
+    seamClockSummand (L := L) (K := K) p s (stdCounterSubroutine L K c)
+      = freshVal (L := L) s := by
+  -- counter ≠ 0 would keep phase = c.phase < p+1, contradicting hadv; so advance branch.
+  have hctr : c.counter.val = 0 := by
+    by_contra hne
+    rw [stdCounterSubroutine, dif_neg hne] at hadv
+    have : ({ c with counter := ⟨c.counter.val - 1, by omega⟩ } : AgentState L K).phase.val
+        = c.phase.val := rfl
+    rw [this] at hadv; omega
+  rw [stdCounterSubroutine, dif_pos hctr] at hadv ⊢
+  -- advancePhaseWithInit lands in p+1 (reset phase), clock role preserved → full counter.
+  have hrole' : (advancePhaseWithInit L K c).role = .clock :=
+    advancePhaseWithInit_clock_role_eq L K c hrole
+  have hclock2 : (advancePhase L K c).role = .clock := by
+    unfold advancePhase; split <;> simpa using hrole
+  have hadv2 : (phaseInit L K (advancePhase L K c).phase (advancePhase L K c)).phase.val = p + 1 := by
+    have : advancePhaseWithInit L K c
+        = phaseInit L K (advancePhase L K c).phase (advancePhase L K c) := rfl
+    rw [this] at hadv; exact hadv
+  have hple : p + 1 ≤ 8 := by rcases hq with h | h | h | h | h <;> omega
+  have hpphase : (advancePhase L K c).phase.val = p + 1 := by
+    rcases phaseInit_phase_eq_or_ten (advancePhase L K c).phase (advancePhase L K c) with h | h
+    · rw [← h]; exact hadv2
+    · rw [h] at hadv2; omega
+  have hfin : (advancePhase L K c).phase = (⟨p + 1, by
+      have := (advancePhase L K c).phase.2; omega⟩ : Fin 11) := Fin.ext hpphase
+  have hfull : (advancePhaseWithInit L K c).counter.val = 50 * (L + 1) := by
+    have hrw : advancePhaseWithInit L K c
+        = phaseInit L K (advancePhase L K c).phase (advancePhase L K c) := rfl
+    rw [hrw, hfin]
+    exact phaseInit_clock_counter_reset _ _ hclock2 (by simpa using hq)
+  unfold seamClockSummand freshVal
+  rw [if_pos ⟨hrole', hadv⟩, hfull]
+
 /-- **Epidemic immigration counter (left).**  If `ep.1` is a clock at phase
 `q ∈ {1,5,6,7,8}` while the raw `a` was strictly below `q`, then `ep.1` has the
 full counter `50(L+1)` (the epidemic's `runInitsBetween a.phase q` reset it). -/

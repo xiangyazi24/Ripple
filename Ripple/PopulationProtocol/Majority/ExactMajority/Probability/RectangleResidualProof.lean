@@ -508,5 +508,127 @@ theorem sum_iCount_pairDeltaZ
   push_cast
   ring
 
+/-! ## `freeDiff = Mf − Sf` (the ledger free-pool difference as class counts). -/
+
+/-- The per-agent `freeW` weight is the signed class indicator `[uMain] − [uCR]`. -/
+private lemma freeW_eq_indicator (a : AgentState L K) :
+    freeW (L := L) (K := K) a
+      = (if isUMainB (L := L) (K := K) a = true then (1:ℤ) else 0)
+        - (if isUCRB (L := L) (K := K) a = true then (1:ℤ) else 0) := by
+  unfold freeW isUMainB isUCRB
+  by_cases hr : a.role = .main <;> by_cases hr2 : a.role = .cr <;>
+    by_cases hr3 : a.role = .clock <;> by_cases hr4 : a.role = .reserve <;>
+    by_cases ha : a.assigned <;>
+    simp_all [Bool.and_eq_true, decide_eq_true_eq]
+
+/-- **`freeDiff = Mf − Sf`.**  The integer free-pool difference is exactly
+`#unassigned-Main − #unassigned-CR-side`. -/
+theorem freeDiff_eq_Mf_sub_Sf (c : Config (AgentState L K)) :
+    freeDiff (L := L) (K := K) c
+      = (MfCount (L := L) (K := K) c : ℤ) - (SfCount (L := L) (K := K) c : ℤ) := by
+  classical
+  unfold freeDiff MfCount SfCount Config.sumOf
+  rw [Multiset.countP_eq_card_filter, Multiset.countP_eq_card_filter]
+  induction c using Multiset.induction with
+  | empty => simp
+  | cons a s ih =>
+    rw [Multiset.map_cons, Multiset.sum_cons, ih, freeW_eq_indicator,
+        Multiset.filter_cons, Multiset.filter_cons]
+    by_cases h1 : isUMainB (L := L) (K := K) a = true <;>
+      by_cases h2 : isUCRB (L := L) (K := K) a = true <;>
+      simp only [h1, h2, if_true, if_false, Multiset.card_add, Multiset.card_singleton,
+        Multiset.card_zero, Nat.cast_add, Nat.cast_one, Nat.cast_zero, ite_true,
+        ite_false] <;>
+      ring
+
+/-! ## The real connection: `totalPairs · E[ΔX] = ((∑ iCount·pairDeltaZ : ℤ) : ℝ)`. -/
+
+/-- On the Phase-0 window, the per-pair real step delta equals the cast of the
+role-determined `pairDeltaZ` whenever the pair's `interactionCount` is positive
+(positive count ⟹ applicable ⟹ both agents are at phase 0). -/
+private lemma topSplitStepDelta_eq_pairDeltaZ_cast_of_pos
+    (c : Config (AgentState L K)) (s₁ s₂ : AgentState L K)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hpos : 0 < c.interactionCount s₁ s₂) :
+    topSplitStepDelta (L := L) (K := K) c s₁ s₂
+      = (pairDeltaZ (L := L) (K := K) s₁ s₂ : ℝ) := by
+  have happ : Protocol.Applicable c s₁ s₂ := applicable_of_pos_iCount'' c s₁ s₂ hpos
+  have hle : ({s₁, s₂} : Config (AgentState L K)) ≤ c := happ
+  have hm₁ : s₁ ∈ c := Multiset.mem_of_le hle (by simp)
+  have hm₂ : s₂ ∈ c := Multiset.mem_of_le hle (by simp)
+  have h₁ : s₁.phase.val = 0 := by have := hall s₁ hm₁; simp [this]
+  have h₂ : s₂.phase.val = 0 := by have := hall s₂ hm₂; simp [this]
+  rw [topSplitStepDelta_eq_cast]
+  congr 1
+  exact topSplitStepDeltaZ_eq_pairDeltaZ_of_applicable c s₁ s₂ happ h₁ h₂
+
+/-- **`totalPairs · E[ΔX]` as the integer rectangle sum (real cast).**  On the
+Phase-0 window, `totalPairs · E[ΔX] = ((∑_{s₁,s₂} iCount·pairDeltaZ : ℤ) : ℝ)`. -/
+theorem totalPairs_expectedDeltaX_eq
+    (c : Config (AgentState L K)) (hc2 : 2 ≤ Multiset.card c)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c) :
+    (Config.totalPairs c : ℝ) * expectedDeltaX (L := L) (K := K) c
+      = ((∑ s₁ : AgentState L K, ∑ s₂ : AgentState L K,
+          (pairDeltaZ (L := L) (K := K) s₁ s₂ * c.interactionCount s₁ s₂) : ℤ) : ℝ) := by
+  classical
+  have hPpos : (0 : ℝ) < (c.totalPairs : ℝ) := by
+    have := Config.totalPairs_pos hc2; exact_mod_cast this
+  have hPne : (c.totalPairs : ℝ) ≠ 0 := ne_of_gt hPpos
+  unfold expectedDeltaX
+  rw [Finset.mul_sum]
+  -- per-pair: totalPairs · (interactionProb.toReal · delta) = iCount · delta.
+  have hterm : ∀ pair : AgentState L K × AgentState L K,
+      (Config.totalPairs c : ℝ)
+          * ((Config.interactionProb c pair.1 pair.2).toReal
+              * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)
+        = (c.interactionCount pair.1 pair.2 : ℝ)
+            * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2 := by
+    intro pair
+    have hprobR : (Config.interactionProb c pair.1 pair.2).toReal
+        = (c.interactionCount pair.1 pair.2 : ℝ) / (c.totalPairs : ℝ) := by
+      unfold Config.interactionProb
+      rw [ENNReal.toReal_div]
+      simp only [ENNReal.toReal_natCast]
+    rw [hprobR]
+    field_simp
+  rw [Finset.sum_congr rfl (fun pair _ => hterm pair)]
+  -- replace the real delta with the cast of pairDeltaZ on positive-count pairs.
+  have hreplace : ∀ pair : AgentState L K × AgentState L K,
+      (c.interactionCount pair.1 pair.2 : ℝ)
+          * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2
+        = (((pairDeltaZ (L := L) (K := K) pair.1 pair.2
+              * c.interactionCount pair.1 pair.2 : ℤ)) : ℝ) := by
+    intro pair
+    by_cases hpos : 0 < c.interactionCount pair.1 pair.2
+    · rw [topSplitStepDelta_eq_pairDeltaZ_cast_of_pos c pair.1 pair.2 hall hpos]
+      push_cast; ring
+    · have hz : c.interactionCount pair.1 pair.2 = 0 := by omega
+      rw [hz]; push_cast; simp
+  rw [Finset.sum_congr rfl (fun pair _ => hreplace pair)]
+  -- the univ-sum over pairs is the double sum; cast out.
+  rw [← Int.cast_sum, Fintype.sum_prod_type]
+
+/-! ## `RectangleResidual` — the headline. -/
+
+/-- **`RectangleResidual` discharged on the Phase-0 window.**  Assembling the
+real connection, the integer rectangle identity, and `freeDiff = Mf − Sf`:
+
+    totalPairs · E[ΔX]
+      = ((∑ iCount·pairDeltaZ : ℤ) : ℝ)        (real connection)
+      = (2·mcrCount·(Sf − Mf) : ℝ)              (integer rectangle)
+      = −2·mcrCount·freeDiff.                   (freeDiff = Mf − Sf)
+
+This is the last named protocol-counting residual of TopSplitInward; everything
+consuming it is now hypothesis-free (modulo the absorbing region structure). -/
+theorem rectangleResidual_of_allPhase0
+    (c : Config (AgentState L K)) (hc2 : 2 ≤ Multiset.card c)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c) :
+    RectangleResidual (L := L) (K := K) c := by
+  unfold RectangleResidual
+  rw [totalPairs_expectedDeltaX_eq c hc2 hall, sum_iCount_pairDeltaZ,
+      freeDiff_eq_Mf_sub_Sf]
+  push_cast
+  ring
+
 end RoleSplitConcentration
 end ExactMajority
