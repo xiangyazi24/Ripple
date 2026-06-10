@@ -2,9 +2,58 @@
 Copyright (c) 2026. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-# Doty §6 — the SEAM per-pair output bound (`hpair`)
+# Doty §6 — the SEAM per-pair output bound machinery (`hpair`)
 
-PROBE FILE — discharging `SeamNoOvershoot`'s carried `hpair`.
+Discharges the protocol-structural core behind `SeamNoOvershoot`'s carried `hpair`
+(the seam analogue of `Phase0Window.clockSummand_pair_le`, restricted to the
+counter-timed destination phases `q = p+1 ∈ {1,5,6,7,8}`).  Every theorem here is
+0-sorry / axiom-clean (`[propext, Classical.choice, Quot.sound]`), no `native_decide`.
+
+## What is proven (the per-pair output decomposition, side `.1`)
+
+The full Transition LEFT output `(Transition a b).1 = finishPhase10Entry s' out.1`
+reads only `role`/`phase`/`counter` for the seam summand (`finishPhase10Entry`
+preserves all three), so `seamClockSummand` of it equals that of the dispatcher
+output `out.1`.  The summand of `out.1` (a clock at the destination phase `p+1`) is
+controlled by:
+
+* `seamClockSummand_stdCounterSubroutine_le` / `…_clockCounterStep_le` — the
+  **decrement bound**: a clock at `p+1` whose counter is ticked scales its summand
+  by exactly `eˢ` (positive counter) or advances out of `p+1` (counter `0`, summand `0`).
+* `seamClockSummand_phaseEpidemicUpdate_left_le` — the **epidemic immigration
+  summand bound**: `summand(ep.1) ≤ summand(a) + freshVal`.  A clock dragged up into
+  `p+1` by the epidemic enters with the FULL counter (`runInitsBetween … phaseInit q`
+  resets it; `runInitsBetween_clock_counter_reset` + `phaseEpidemicUpdate_left_immigrant_full`).
+* `seamClockSummand_stdCounterSubroutine_advance` — the **counter-advance
+  immigration**: a clock advanced INTO `p+1` by the dispatch enters with the FULL
+  counter (`advancePhaseWithInit … phaseInit q` resets it), summand `= freshVal`.
+* `seamClockSummand_dispatch_left_decrement_le` — routes the FROZEN dispatcher (for
+  `p+1 ∈ {1,5,6,7,8}`) through the proven per-phase `Phase{1,5,6,7,8}Transition_left_clock`
+  reductions to deliver the no-advance per-side contraction `≤ eˢ · summand(ep.1)`.
+
+## TWO FINDINGS (after genuine attack; see `HANDOFF_SEAM_NOOVERSHOOT.md`)
+
+1. **The consumer's `hpair` immigration constant `2·freshVal` is TOO TIGHT for
+   `s > 0`.**  A fresh epidemic-dragged clock enters `p+1` at the FULL counter and is
+   DECREMENTED by the SAME-step dispatch to `full − 1`, so its summand is `eˢ·freshVal`,
+   not `freshVal`.  The HONEST per-side immigration ceiling is `eˢ·freshVal`; the
+   honest per-pair ceiling is `2·eˢ·freshVal` (at `s = 1`, `2e·freshVal`, exceeding
+   `2·freshVal`).  Downstream this is benign — `seam_noOvershoot_numerics_real` closes
+   `e^{−40}` from `e^{−45}+e^{−43}` with large slack, so `b = 2·e·freshVal` still closes.
+
+2. **Phase 5 must ALSO be excluded from the counter-reset set** (like phase 3).  The
+   predecessor `Phase4Transition` advances clocks via `advancePhase` (big-bias gate),
+   which does NOT run `phaseInit` / reset the counter.  So a clock counter-advanced
+   from phase 4 into phase 5 keeps its OLD (possibly small) counter — summand up to `1`,
+   NOT `freshVal` — breaking the affine immigration tail for phase 5.  Phases
+   `{1,6,7,8}` are clean: their predecessors (`Phase0` Rule-5 / `Phase{5,6,7}`) all
+   advance clocks via `stdCounterSubroutine → advancePhaseWithInit → phaseInit q`,
+   which DOES reset.  The fully-honest counter-reset destination set for the seam
+   no-overshoot clock-counter tail is therefore `{1,6,7,8}` (epidemic-drag set
+   `{1,5,6,7,8}` ∩ counter-advance-reset set `{1,6,7,8}`).
+
+Reference: Doty et al. §6; consumer = `Probability/SeamNoOvershoot.lean`; pattern =
+`Probability/Phase0Window.lean`; blueprint = `HANDOFF_SEAM_NOOVERSHOOT.md`.
 -/
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamNoOvershoot
