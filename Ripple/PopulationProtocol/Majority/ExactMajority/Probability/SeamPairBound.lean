@@ -601,6 +601,69 @@ theorem seamClockSummand_dispatch_left_decrement_le (p : ℕ)
         Phase8Transition_left_clock c t hc]
     exact seamClockSummand_stdCounterSubroutine_le p s hs c hc hcp
 
+/-! ### Per-side capstone (left), no-advance regime.
+
+Combining the finishPhase10 strip, the dispatch decrement reduction, and the
+epidemic summand bound: when the epidemic-updated initiator `ep.1` is already at
+the destination phase `p+1 ∈ {1,5,6,7,8}`, the per-side output summand contracts as
+
+  `summand((Transition a b).1) ≤ eˢ · (summand(a) + freshVal)`.
+
+This is the honest per-side bound in the no-advance regime; the residual is the
+phase-advance regime (`ep.1.phase < p+1`), where the per-side immigration is
+`freshVal` for `p+1 ∈ {1,6,7,8}` (via `seamClockSummand_stdCounterSubroutine_advance`)
+but FAILS for `p+1 = 5` (predecessor `Phase4` `advancePhase` does not reset). -/
+theorem seamClockSummand_Transition_left_le_of_ep_at_dest (p : ℕ)
+    (hq : CounterTimedPhase (p + 1)) (s : ℝ) (hs : 0 ≤ s) (a b : AgentState L K)
+    (hepdest : (phaseEpidemicUpdate L K a b).1.phase.val = p + 1)
+    (hepclock : (phaseEpidemicUpdate L K a b).1.role = .clock) :
+    seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+      ≤ ENNReal.ofReal (Real.exp s)
+          * (seamClockSummand (L := L) (K := K) p s a + freshVal (L := L) s) := by
+  -- Step 1: strip finishPhase10Entry; the dispatch is Phase(p+1)Transition on ep.
+  set ep1 := (phaseEpidemicUpdate L K a b).1 with hep1
+  set ep2 := (phaseEpidemicUpdate L K a b).2 with hep2
+  have hstrip : seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+      = seamClockSummand (L := L) (K := K) p s
+          ((if (p + 1) = 1 then Phase1Transition L K ep1 ep2
+            else if (p + 1) = 5 then Phase5Transition L K ep1 ep2
+            else if (p + 1) = 6 then Phase6Transition L K ep1 ep2
+            else if (p + 1) = 7 then Phase7Transition L K ep1 ep2
+            else Phase8Transition L K ep1 ep2).1) := by
+    rw [Transition, seamClockSummand_finishPhase10Entry]
+    -- the dispatcher match selects Phase(p+1) since ep1.phase = p+1.
+    rcases hq with h | h | h | h | h
+    · have hp : (phaseEpidemicUpdate L K a b).1.phase = (⟨1, by decide⟩ : Fin 11) :=
+        Fin.ext (hepdest.trans h)
+      simp only [hp, h]; rfl
+    · have hp : (phaseEpidemicUpdate L K a b).1.phase = (⟨5, by decide⟩ : Fin 11) :=
+        Fin.ext (hepdest.trans h)
+      simp only [hp, h]; rfl
+    · have hp : (phaseEpidemicUpdate L K a b).1.phase = (⟨6, by decide⟩ : Fin 11) :=
+        Fin.ext (hepdest.trans h)
+      simp only [hp, h]; rfl
+    · have hp : (phaseEpidemicUpdate L K a b).1.phase = (⟨7, by decide⟩ : Fin 11) :=
+        Fin.ext (hepdest.trans h)
+      simp only [hp, h]; rfl
+    · have hp : (phaseEpidemicUpdate L K a b).1.phase = (⟨8, by decide⟩ : Fin 11) :=
+        Fin.ext (hepdest.trans h)
+      simp only [hp, h]; rfl
+  rw [hstrip]
+  -- Step 2: dispatch decrement bound → ≤ eˢ · summand(ep1).
+  have hdec : seamClockSummand (L := L) (K := K) p s
+      ((if (p + 1) = 1 then Phase1Transition L K ep1 ep2
+        else if (p + 1) = 5 then Phase5Transition L K ep1 ep2
+        else if (p + 1) = 6 then Phase6Transition L K ep1 ep2
+        else if (p + 1) = 7 then Phase7Transition L K ep1 ep2
+        else Phase8Transition L K ep1 ep2).1)
+      ≤ ENNReal.ofReal (Real.exp s) * seamClockSummand (L := L) (K := K) p s ep1 := by
+    have := seamClockSummand_dispatch_left_decrement_le p hq s hs ep1 ep2 hepclock hepdest
+    rwa [if_pos hepdest] at this
+  refine hdec.trans ?_
+  -- Step 3: epidemic summand bound → summand(ep1) ≤ summand(a) + freshVal.
+  gcongr
+  exact seamClockSummand_phaseEpidemicUpdate_left_le p s hq a b
+
 end SeamNoOvershoot
 
 end ExactMajority
