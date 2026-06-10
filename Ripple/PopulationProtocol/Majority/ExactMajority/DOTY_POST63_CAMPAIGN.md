@@ -3223,3 +3223,29 @@ or SeamPairBound.lean). Single-file `lake env lean … SeamPairAdapter.lean` EXI
 Honest two-sided constant: `2·eˢ·freshVal`. Numerics landed: `e^{−40(L+1)}`. Excluded destinations
 `{2,4,9}` (untimed) and `{3,5}` (no counter reset on entry) handled by named per-phase guards
 (CounterResetDest excludes them; width/work-phase machinery owns their no-overshoot), not faked.
+
+### KilledTailConsumers Deliverables 2 & 3 completion record (2026-06-10, resumed line)
+`Probability/KilledTailConsumers.lean` Deliverables 2 (Gap-2 / Phase-0 window) and 3 (εmid) landed
+(commits d09a2b74, bd3b8e96), append-only on top of predecessor's Deliverable 1 (top-split tail,
+b94a951d). Single-file `lake env lean … KilledTailConsumers.lean` EXIT 0; every headline
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide.
+
+- **Deliverable 3 (εmid FINAL form):** `FloorPrefix.midBand_floorFail_prefix_floorMasses` — the
+  mid-band floor-failure prefix ≤ aggregate GENUINELY-DECAYING contractive killed tail (`rᵗ`,
+  `r = floorMassesRate < 1`) + aggregate gate-exit escape. Wires `FloorMasses.
+  pool_expNeg_one_step_drift_floorMasses` (s=1/10, b=0, proven-`<1` favorability) through
+  `KilledAffineTail.midBand_real_contractive_tail` per step (threshold link
+  `floorFail_subset_poolExpNeg_thresh`: `{pool<a₀} ⊆ {exp(-s·a₀) ≤ poolExpNeg s}`). FINDING 3
+  (the `1 ≤ r` blocker) fully discharged into an εmid headline. FloorMasses region hypotheses
+  (`uMin ≤ freshMcrCount`, drain-block `Sblk`/`hSstep`/`hblock`) kept EXPLICIT where protocol-open.
+
+- **Deliverable 2 (Gap-2 / Phase-0 window):** `phase0_killed_window_unconditional` — the strongest
+  UNCONDITIONAL killed-side window. The leading drift term VANISHES at `Phase0Initial` because every
+  agent is RoleMCR ⟹ `Φ_clock(c₀)=0` (`clockCounterPotential_eq_zero_of_allMcr`), so the killed
+  surviving-trajectory clock-zero mass is governed PURELY by fresh-clock immigration
+  `b·∑aⁱ` — no absorbing Q, no hτ, no escape reachability. Numerically-closed form
+  `phase0_killed_window_unconditional_closed`. The genuine Gap-2 residual is precisely isolated:
+  `gap2_allPhase0_window_whp_of_reachability` shows Gap-2 reduces to `Gap2_reachability_target`
+  (the absorbing-drift-region maintenance in the role-split layer), NOT an engine gap — the killed
+  formalism relocates the reachability need (escape = real side masses, non-contracting recursion
+  since `{¬noClockAtZero} ⊆ {1≤Φ_clock}`), it does not remove it.

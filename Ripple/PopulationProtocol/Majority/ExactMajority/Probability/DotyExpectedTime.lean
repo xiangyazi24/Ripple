@@ -243,6 +243,7 @@ Assembles `doty_time_headline_W2` (whp horizon + good time bound) with the recov
 cap `hRecover` through the E1 builder `expected_time_from_whp_and_recovery`, then
 closes with the explicit arithmetic hypothesis `harith`. -/
 
+set_option maxHeartbeats 1000000 in
 /-- **`doty_expected_time` (§4.3).** The expected interaction count of the
 exact-majority protocol is `≤ Cexp · n · (L+1)`, given:
 
@@ -288,29 +289,30 @@ theorem doty_expected_time
       (StableDone L K init)
       ≤ ((Cexp * n * (L + 1) : ℕ) : ℝ≥0∞) := by
   classical
-  set K0 := (NonuniformMajority L K).transitionKernel with hK0
-  set Tgood : ℕ := ∑ i, (phases i).t with hTgood
+  -- Compute the whp headline FIRST (before introducing any abbreviation that would
+  -- rewrite inside `phases`'s kernel-indexed type).
   have hhead := doty_time_headline_W2
     (L := L) (K := K) (n := n) (C0 := C0)
     init c₀ Cphase δ phases ht hε h_chain hx₀ h_post hC0 hδ
-  -- whp failure mass at the good horizon.
+  -- whp failure mass at the good horizon (the headline's bad set is `StableDoneᶜ`).
   have hfail :
-      (K0 ^ Tgood) c₀ (StableDone L K init)ᶜ ≤ (1 / n : ℝ≥0∞) := by
-    rw [compl_StableDone]
-    exact hhead.1
+      ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+          (StableDone L K init)ᶜ ≤ (1 / n : ℝ≥0∞) := by
+    rw [compl_StableDone]; exact hhead.1
   -- good time bound.
   have hT :
-      (Tgood : ℝ≥0∞) ≤ ((21 * C0 * n * (L + 1) : ℕ) : ℝ≥0∞) := by
+      ((∑ i, (phases i).t : ℕ) : ℝ≥0∞) ≤ ((21 * C0 * n * (L + 1) : ℕ) : ℝ≥0∞) := by
     exact_mod_cast hhead.2
   -- E1 split-geometric assembly.
   have hsplit :=
     expected_time_from_whp_and_recovery
-      K0 c₀ hDone hDoneAbs Tgood sRecover
+      (NonuniformMajority L K).transitionKernel c₀ hDone hDoneAbs
+      (∑ i, (phases i).t) sRecover
       (by omega : sRecover ≠ 0)
       (1 / n : ℝ≥0∞) Brecover hBfin hsRecover_pos hsRecover
       hfail hRecover
-  calc expectedHitting K0 c₀ (StableDone L K init)
-      ≤ (Tgood : ℝ≥0∞)
+  calc expectedHitting (NonuniformMajority L K).transitionKernel c₀ (StableDone L K init)
+      ≤ ((∑ i, (phases i).t : ℕ) : ℝ≥0∞)
           + (1 / n : ℝ≥0∞) * sRecover * (1 - (1 / 2 : ℝ≥0∞))⁻¹ := hsplit
     _ ≤ ((21 * C0 * n * (L + 1) : ℕ) : ℝ≥0∞)
           + (1 / n : ℝ≥0∞) * sRecover * (1 - (1 / 2 : ℝ≥0∞))⁻¹ := by gcongr
@@ -362,8 +364,8 @@ theorem doty_harith_concrete
     ring
   rw [hsplit]
   gcongr
-  exact hrecmass
 
+set_option maxHeartbeats 1000000 in
 /-- **Concrete-constant Doty expected-time corollary.**
 
 Specializes `doty_expected_time` to `sRecover = 2·Brecover` and

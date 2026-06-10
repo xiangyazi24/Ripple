@@ -244,7 +244,7 @@ clean `phase0_killed_clock_zero_tail`; the escape is the sole residual (see the 
 theorem gap2_real_clock_zero_le_killed_clean_add_escape
     (s : ℝ) (hs : 0 ≤ s) (n : ℕ) (hn2 : 2 ≤ n)
     (τ : ℕ) (c₀ : Config (AgentState L K))
-    (hc₀ : c₀ ∈ phase0Gate (L := L) (K := K) n) :
+    (_hc₀ : c₀ ∈ phase0Gate (L := L) (K := K) n) :
     (((NonuniformMajority L K).transitionKernel) ^ τ) c₀
         {c | ¬ noClockAtZero (L := L) (K := K) c}
       ≤ (ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ)) ^ τ
@@ -559,10 +559,10 @@ theorem midBand_floorFail_prefix_floorMasses
               + (0 : ℝ≥0∞) * ∑ i ∈ Finset.range τ, floorMassesRate n uMin Ahi ^ i)
             / ENNReal.ofReal (Real.exp (-(1 / 10) * (a₀ : ℝ)))
           + (killK_now (NonuniformMajority L K).transitionKernel
-                (PoolDriftRegion (L := L) (K := K) n uMin Ahi) ^ τ) (some c₀)
+                (poolDriftRegionSet (L := L) (K := K) n uMin Ahi) ^ τ) (some c₀)
               {(none : Option (Config (AgentState L K)))}) := by
   -- the discharged one-step drift on the region G (immigration b = 0).
-  have hdrift_G : ∀ x ∈ (PoolDriftRegion (L := L) (K := K) n uMin Ahi),
+  have hdrift_G : ∀ x ∈ poolDriftRegionSet (L := L) (K := K) n uMin Ahi,
       ∫⁻ c', poolExpNeg (L := L) (K := K) (1 / 10) c'
           ∂((NonuniformMajority L K).transitionKernel x)
         ≤ floorMassesRate n uMin Ahi * poolExpNeg (L := L) (K := K) (1 / 10) x + 0 := by
@@ -573,7 +573,7 @@ theorem midBand_floorFail_prefix_floorMasses
   apply Finset.sum_le_sum
   intro τ _
   exact midBand_floorFail_step_contractive (L := L) (K := K) (1 / 10)
-    (by norm_num) a₀ (PoolDriftRegion (L := L) (K := K) n uMin Ahi)
+    (by norm_num) a₀ (poolDriftRegionSet (L := L) (K := K) n uMin Ahi)
     (floorMassesRate n uMin Ahi) 0 hdrift_G τ c₀
 
 end FloorPrefix

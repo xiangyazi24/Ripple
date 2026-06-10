@@ -180,6 +180,129 @@ theorem runInitsBetween_preserves_wf (oldP q : ℕ) (a : AgentState L K)
       · rw [dif_neg hk]; exact hc
   exact key _ a hwf
 
+/-! ## Stage 2 — the epidemic no-error phase identity and the per-side overshoot
+case analysis.
+
+Under `Wf`, the epidemic does NOT error to phase `10` on the seam region (`runInitsBetween`
+only runs `phaseInit q` for `q ≤ max source phase ≤ 9`, and a well-formed agent's
+`phaseInit q` preserves the phase for `q ≤ 9`).  Hence the epidemic output phase equals
+the source max, and the dispatcher's per-side overshoot is forced into the clock-counter
+advance branch. -/
+
+/-- `runInitsBetween oldP newP` preserves the phase of a well-formed agent when the
+destination `newP ≤ 9` (every `phaseInit q` in the fold runs at `q ≤ newP ≤ 9`, none of
+which error under `WfAgent`; and `WfAgent` is fold-invariant). -/
+theorem runInitsBetween_phase_eq_of_wf (oldP newP : ℕ) (a : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) a) (hnew : newP ≤ 9) :
+    (runInitsBetween L K oldP newP a).phase.val = a.phase.val := by
+  unfold runInitsBetween
+  -- every k in the filter list has k ≤ newP ≤ 9
+  have key : ∀ (l : List ℕ), (∀ x ∈ l, x ≤ 9) →
+      ∀ (c : AgentState L K), WfAgent (L := L) (K := K) c →
+      (List.foldl (fun acc k => if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc)
+        c l).phase.val = c.phase.val := by
+    intro l
+    induction l with
+    | nil => intro _ c _; rfl
+    | cons k ks IH =>
+      intro hbound c hc
+      simp only [List.foldl_cons]
+      by_cases hk : k < 11
+      · rw [dif_pos hk]
+        have hk9 : (⟨k, hk⟩ : Fin 11).val ≤ 9 := hbound k (List.mem_cons_self ..)
+        rw [IH (fun x hx => hbound x (List.mem_cons_of_mem k hx))
+              (phaseInit L K ⟨k, hk⟩ c) (phaseInit_preserves_wf ⟨k, hk⟩ c hc)]
+        exact phaseInit_phase_eq_of_wf ⟨k, hk⟩ c hc hk9
+      · rw [dif_neg hk]
+        exact IH (fun x hx => hbound x (List.mem_cons_of_mem k hx)) c hc
+  apply key
+  · intro x hx
+    rw [List.mem_filter] at hx
+    have := hx.2
+    simp only [decide_eq_true_eq] at this
+    omega
+  · exact hwf
+
+/-- **The epidemic no-error phase identity (left).**  Under `WfAgent a` and `WfAgent b`,
+if both source phases are `≤ 9`, the left epidemic output phase equals the source max
+(no error to `10` from either side). -/
+theorem phaseEpidemicUpdate_left_phase_eq_max_of_wf (a b : AgentState L K)
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha9 : a.phase.val ≤ 9) (hb9 : b.phase.val ≤ 9) :
+    (phaseEpidemicUpdate L K a b).1.phase.val = max a.phase.val b.phase.val := by
+  unfold phaseEpidemicUpdate
+  set p := max a.phase b.phase with hp
+  have hpval : p.val = max a.phase.val b.phase.val := by rw [hp]; rfl
+  have hp9 : p.val ≤ 9 := by rw [hpval]; omega
+  have hwfa' : WfAgent (L := L) (K := K) ({ a with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfa; exact ⟨h1, h2, h3⟩
+  have hwfb' : WfAgent (L := L) (K := K) ({ b with phase := p } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwfb; exact ⟨h1, h2, h3⟩
+  have hs' : (runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val
+      = p.val :=
+    runInitsBetween_phase_eq_of_wf a.phase.val p.val _ hwfa' hp9
+  have ht' : (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val
+      = p.val :=
+    runInitsBetween_phase_eq_of_wf b.phase.val p.val _ hwfb' hp9
+  -- the error branch needs s'.phase = 10 ∨ t'.phase = 10; both are p.val ≤ 9 — false.
+  have herr_false :
+      ¬ ((a.phase.val < 10 ∨ b.phase.val < 10) ∧
+        ((runInitsBetween L K a.phase.val p.val ({ a with phase := p })).phase.val = 10 ∨
+          (runInitsBetween L K b.phase.val p.val ({ b with phase := p })).phase.val = 10)) := by
+    rintro ⟨-, hor⟩
+    rcases hor with h | h
+    · rw [hs'] at h; omega
+    · rw [ht'] at h; omega
+  simp only [herr_false, if_false]
+  exact hs'
+
+/-! ### The phase-advancing primitives advance by at most `+1` (under `Wf` for the
+`phaseInit` step). -/
+
+/-- `advancePhase` advances the phase by at most `+1`. -/
+theorem advancePhase_phase_le_succ (a : AgentState L K) :
+    (advancePhase L K a).phase.val ≤ a.phase.val + 1 := by
+  unfold advancePhase
+  split
+  · simp
+  · omega
+
+/-- `advancePhaseWithInit` advances a well-formed agent's phase by at most `+1` when the
+result phase is `≤ 9` (so `phaseInit` does not error): `advancePhase` adds at most `1`,
+then `phaseInit` preserves it. -/
+theorem advancePhaseWithInit_phase_le_succ_of_wf (a : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) a) (hle : a.phase.val ≤ 8) :
+    (advancePhaseWithInit L K a).phase.val ≤ a.phase.val + 1 := by
+  unfold advancePhaseWithInit
+  -- WfAgent is preserved by advancePhase (role/smallBias untouched)
+  have hwf' : WfAgent (L := L) (K := K) (advancePhase L K a) := by
+    obtain ⟨h1, h2, h3⟩ := hwf
+    refine ⟨?_, ?_, ?_⟩ <;> (unfold advancePhase; split <;> simp_all)
+  have hadv : (advancePhase L K a).phase.val ≤ a.phase.val + 1 := advancePhase_phase_le_succ a
+  have hadv9 : (advancePhase L K a).phase.val ≤ 9 := by omega
+  rw [phaseInit_phase_eq_of_wf (advancePhase L K a).phase (advancePhase L K a) hwf' hadv9]
+  exact hadv
+
+/-- `stdCounterSubroutine` advances a well-formed agent's phase by at most `+1` (when
+`phase ≤ 8`): decrement keeps the phase; counter-`0` advance is `advancePhaseWithInit`,
+`≤ +1`. -/
+theorem stdCounterSubroutine_phase_le_succ_of_wf (a : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) a) (hle : a.phase.val ≤ 8) :
+    (stdCounterSubroutine L K a).phase.val ≤ a.phase.val + 1 := by
+  unfold stdCounterSubroutine
+  split_ifs with h
+  · exact advancePhaseWithInit_phase_le_succ_of_wf a hwf hle
+  · simp
+
+/-- `clockCounterStep` advances a well-formed agent's phase by at most `+1`. -/
+theorem clockCounterStep_phase_le_succ_of_wf (a : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) a) (hle : a.phase.val ≤ 8) :
+    (clockCounterStep L K a).phase.val ≤ a.phase.val + 1 := by
+  unfold clockCounterStep
+  split_ifs
+  · exact stdCounterSubroutine_phase_le_succ_of_wf a hwf hle
+  · simp
+
 end SeamNoOvershoot
 
 end ExactMajority

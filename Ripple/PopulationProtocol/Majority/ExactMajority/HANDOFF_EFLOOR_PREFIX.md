@@ -785,3 +785,62 @@ s`, `a := r` (the Stage-2 contraction rate, `< 1`), `b := 0` (pool drift is pure
 escape bridge.  STATUS: contractive engine lemma DELIVERED 0-sorry axiom-clean; the `εmid`/`εlate`
 named-hypothesis discharge is now an instantiation (escape via the deterministic floor-exit bridge),
 no longer blocked on `1 ≤ r`.
+
+---
+
+## KilledTailConsumers Deliverables 2 & 3 LANDED (2026-06-10, resumed opus line)
+
+`Probability/KilledTailConsumers.lean` (581 lines, append-only) — predecessor's Deliverable 1
+(top-split tail, b94a951d) + this line's Deliverables 2 & 3. Single-file `lake env lean … EXIT 0`;
+every headline `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/
+native_decide. Two commits (d09a2b74 D2, bd3b8e96 D3).
+
+### Deliverable 3 — εmid FINAL SHAPE (the contractive route, no `1 ≤ r`)
+
+`FloorPrefix.midBand_floorFail_prefix_floorMasses` is the εmid final form:
+
+```
+∑ τ ∈ range t, (Kᵗ) c₀ {assignableCount < a₀}
+  ≤ ∑ τ ∈ range t,
+      ( (floorMassesRate n uMin Ahi ^ τ * poolExpNeg (1/10) c₀ + 0·∑ rⁱ)
+          / ofReal(exp(-(1/10)·a₀))
+        + (killK_now K (poolDriftRegionSet n uMin Ahi) ^ τ)(some c₀){none} )
+```
+
+The leading term DECAYS as `rᵗ` (`r = floorMassesRate < 1`, the proven favorability multiplier),
+which the old `gated_real_tail_full` route (`midBand_gated_tail`, `1 ≤ r`) could not give. Wiring:
+`FloorMasses.pool_expNeg_one_step_drift_floorMasses` (s=1/10, immigration b=0) → the affine drift
+on `poolDriftRegionSet n uMin Ahi` → `KilledAffineTail.midBand_real_contractive_tail` per step
+(threshold link `{pool<a₀} ⊆ {ofReal(exp(-s·a₀)) ≤ poolExpNeg s}` =
+`floorFail_subset_poolExpNeg_thresh`) → `Finset.sum_le_sum`. The FloorMasses region hypotheses stay
+EXPLICIT named args: `hfresh : ∀ c ∈ region, uMin ≤ freshMcrCount c` (Rule-1 birth feeder) and the
+drain-block `Sblk`/`hSstep`/`hblock`/`hAn` (the hdeath containment) — exactly where they are
+protocol-open. This is the εmid feeder `floor_prefix_le`'s `hmid` slot consumes (the per-prefix
+mid-band floor-failure mass), with a decaying leading term. **FINDING 3 fully discharged into an
+εmid headline, no longer blocked on `1 ≤ r`.**
+
+### Deliverable 2 — Gap-2 status (UNCONDITIONAL killed window delivered; reachability residual precise)
+
+The killed engine RELOCATES but does not REMOVE the Gap-2 reachability need (see the file's own
+section doc + `gap2_allPhase0_window_whp_of_reachability` / `Gap2_reachability_target`): the escape
+prefix `escape ≤ ∑_σ (Kˢ)c₀{1≤Φ_clock}` is structurally the REAL chain's side masses, and
+`{¬noClockAtZero} ⊆ {1≤Φ_clock}` makes the recursion non-contracting — so closing it still needs
+the absorbing-drift-region maintenance (`Gap2_reachability_target`), which lives in the role-split
+layer, NOT in the engine.
+
+NEW headline this line: `phase0_killed_window_unconditional` — the strongest UNCONDITIONAL killed-
+side statement. KEY OBSERVATION the predecessor's residual note missed: at `Phase0Initial n c₀`
+EVERY agent is RoleMCR, so `Φ_clock(c₀) = 0` (no clock summands), hence in the clean killed budget
+`aᵗ·Φ_clock(c₀) + b·∑aⁱ` the LEADING TERM VANISHES — the killed (surviving-trajectory) clock-zero
+mass is governed purely by fresh-clock immigration `b = ofReal(e^{−s·50(L+1)})`:
+
+```
+(killK_now^τ)(some c₀){1 ≤ killΦ Φ_s} ≤ ofReal(e^{−s·50(L+1)}) · ∑_{i<τ} ofReal(1+2(eˢ−1)/n)ⁱ
+```
+
+Hypothesis surface = `Phase0Initial n c₀` + arithmetic (`2 ≤ n`, `0 ≤ s`); NO absorbing Q, NO hτ,
+NO escape reachability (the killed kernel makes the surviving trajectory gate-confined by
+construction). `phase0_killed_window_unconditional_closed` (s=1) takes the immigration numeric
+`b·∑aⁱ ≤ B` as an explicit hypothesis (the geometric-sum closure to `e^{−44(L+1)}`-scale, same
+arithmetic as `phase0_numerics_real` applied to the immigration tail). Supporting lemmas:
+`clockCounterPotential_eq_zero_of_allMcr`, `phase0Initial_mem_phase0Gate`.
