@@ -114,6 +114,63 @@ instance (σ : Sign) (a : AgentState L K) : Decidable (minoritySt σ a) :=
 def minorityU (σ : Sign) (c : Config (AgentState L K)) : ℕ :=
   Multiset.countP (fun a => minoritySt σ a) c
 
+/-! ## Part B — the per-pair reduction to `cancelSplit` for two phase-7 Mains. -/
+
+/-- For two phase-7 agents, `phaseEpidemicUpdate` is the identity (max of equal
+phases, no init to run, no phase-10 entry).  Mirror of Phase 4's
+`phaseEpidemicUpdate_eq_self_of_phase4` at threshold 7. -/
+theorem phaseEpidemicUpdate_eq_self_of_phase7 (s t : AgentState L K)
+    (hs : s.phase.val = 7) (ht : t.phase.val = 7) :
+    phaseEpidemicUpdate L K s t = (s, t) := by
+  have hsp : s.phase = ⟨7, by decide⟩ := Fin.ext hs
+  have htp : t.phase = ⟨7, by decide⟩ := Fin.ext ht
+  unfold phaseEpidemicUpdate
+  rw [hsp, htp, max_self]
+  simp only [runInitsBetween_self_api]
+  have hs_self : ({s with phase := (⟨7, by decide⟩ : Fin 11)} : AgentState L K) = s := by
+    rw [← hsp]
+  have ht_self : ({t with phase := (⟨7, by decide⟩ : Fin 11)} : AgentState L K) = t := by
+    rw [← htp]
+  rw [hs_self, ht_self]
+  rw [if_neg (by push Not; intro _; simp)]
+
+/-- `cancelSplit` never changes an agent's phase (it only rewrites `.bias`). -/
+theorem cancelSplit_phase (s t : AgentState L K) :
+    (cancelSplit L K s t).1.phase = s.phase ∧ (cancelSplit L K s t).2.phase = t.phase := by
+  unfold cancelSplit
+  match s.bias, t.bias with
+  | .zero, _ => simp
+  | .dyadic _ _, .zero => simp
+  | .dyadic sgn_s i, .dyadic sgn_t j => simp; split_ifs <;> simp
+
+/-- **Per-pair reduction.**  Two phase-7 Main agents interact via `cancelSplit`
+under the full `Transition` (epidemic = id, dispatch = `Phase7Transition`, no
+phase-10 finish since phase stays 7, and neither is a clock so the counter branch
+is skipped). -/
+theorem Transition_eq_cancelSplit_of_phase7_main (s t : AgentState L K)
+    (hs7 : s.phase.val = 7) (ht7 : t.phase.val = 7)
+    (hsM : s.role = Role.main) (htM : t.role = Role.main) :
+    Transition L K s t = cancelSplit L K s t := by
+  have hepi := phaseEpidemicUpdate_eq_self_of_phase7 (L := L) (K := K) s t hs7 ht7
+  have hsp : s.phase = ⟨7, by decide⟩ := Fin.ext hs7
+  -- Phase7Transition with both Main, neither clock = cancelSplit.
+  have hnsclk : s.role ≠ Role.clock := by rw [hsM]; decide
+  have hntclk : t.role ≠ Role.clock := by rw [htM]; decide
+  have hp7 : Phase7Transition L K s t = cancelSplit L K s t := by
+    unfold Phase7Transition
+    simp only [if_pos (show s.role = Role.main ∧ t.role = Role.main from ⟨hsM, htM⟩),
+      cancelSplit_role_fst, cancelSplit_role_snd,
+      if_neg hnsclk, if_neg hntclk]
+  obtain ⟨hcs1, hcs2⟩ := cancelSplit_phase (L := L) (K := K) s t
+  unfold Transition
+  rw [hepi]
+  simp only [hsp]
+  rw [show (Phase7Transition L K s t) = cancelSplit L K s t from hp7]
+  rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) s _ (by rw [hcs1, hs7]; omega),
+      finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) t _ (by rw [hcs2, ht7]; omega)]
+
 end Phase7Convergence
 
 end ExactMajority
+
+#print axioms ExactMajority.Phase7Convergence.Transition_eq_cancelSplit_of_phase7_main

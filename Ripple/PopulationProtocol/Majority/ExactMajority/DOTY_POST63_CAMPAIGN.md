@@ -277,11 +277,44 @@ Lean bricks:
     add `expectedHitting_restart_le : Done absorbing ⇒ ∑ₜ (K^t) c (Done ∩ Eᶜ) ≤ sup_{y∈Done∩closure}
     expectedHitting K y E` to `ExpectedHitting.lean`, then chain stage2 (E := Done₂, on S2) + stage3
     (E := Done₃, on S3) off the `Done₁`-entry config. This is ~3-5 generic lemmas, no new protocol content.
-  - **TIE CASE** (`backupSignal = 0`, i.e. `phase10ActiveSignedSum = 0`): NOT yet delivered. Same engine,
-    but `1 ≤ activeACount` fails (signed sum 0 ⟹ activeACount = activeBCount, possibly both 0). The cancel
-    stage still drives activeBCount→0 (drop prob ≥ activeBCount/n² still holds while activeBCount>0, paired
-    with the EQUAL number of active-A), then all-T spreads (Φ = wrongTCount under the all-T invariant). The
-    majority-case deliverables (above) are the requested "majority-case capstone + document" fallback.
+  - **E2-25/26 SHAs 165ee8c5 / 3137ff97.  CROSS-TERM CLOSED — BOTH REMAINDERS DONE.**
+    * **E2-25 (`ExpectedHitting.lean`, append-only generic):** `occupation_mid_le` and the
+      invariant-relative `occupation_mid_le_on` (the strong-Markov restart, in fully generic kernel
+      form).  Shape: `(∀ y, J y → y ∈ Mid → expectedHitting K y Done ≤ B) → J c → ∑ₜ (K^t) c (Mid ∩
+      Doneᶜ) ≤ B`, with `J` one-step-closed (`∀ b, J b → K b {¬J} = 0`).  **ABSORPTION-FREE** —
+      `expectedHitting` from a `Mid`-state already counts ALL future not-Done time, so re-entry cannot
+      double-count.  Proof = truncated-induction mirror of `occLevelUpTo_le_on` (split on `c ∈ Mid`:
+      truncated band-sum ≤ Doneᶜ-tail = `expectedHitting ≤ B`; vs `c ∉ Mid`: i=0 vanishes, one CK step,
+      IH on J-successors a.e.).  The doctrine's predicted `occupation_le_of_absorbing_mid` — but no
+      absorbing hypothesis needed.
+    * **E2-26 (`Phase10ExpectedTime.lean`):** `phase10_expected_stabilization` (majority, **unconditional
+      `S1` start**, NO residual hypothesis): `E[hit {wrongACount=0}] ≤ 3·(n(n−1))²`.  Both chaining
+      cross-terms (`Done₁∩Done₃ᶜ` and inner `Done₂∩Done₃ᶜ`) closed by `occupation_mid_le_on` (J=S1 / S2).
+      Helpers: `stage23_expectedHitting_le` (S2-start chain), `countP_le_n` / `wrongACount_le_nn` /
+      `activeTCount_le_nn` (uniform caps `≤ card = n ≤ n(n−1)`).
+  - **E2-27/28 SHAs bf866e8d / 95192589.  TIE CASE COMPLETE (`backupSignal = 0`).**
+    The doctrine's prediction confirmed: `activeBCount_drop_prob` applies VERBATIM under tie
+    (`activeACount = activeBCount = m ≥ 1` when `activeBCount = m`), so the cancel stage transfers
+    unchanged.  After cancel, signed-sum-0 forces `activeACount = activeBCount = 0`, so every remaining
+    active agent is active-`T` (`active_of_no_activeA_no_activeB_is_activeT`).
+    * **E2-27:** tie cancel stage — `Tie1`/`Tie2` invariants, `invClosed_Tie1/2`, `hdrop_Tie1` (with
+      `m=0` vacuous branch), `tie_stage1_expectedHitting_le`; `activeACount_eq_activeBCount_of_tie`.
+    * **E2-28:** NEW T-spread drop family + combined tie headline.  `WrongNotBiased` responder class
+      (output ≠ T ∧ not active-A/B); `Transition_wrongTCount_le` (per-pair, no-A/no-B brute force);
+      `wrongTCount_post_convert_lt`; `activeTWrongPairs` aggregation (`sum_interactionCount/Prob_*`);
+      `wrongTCount_drop_prob` (active-T × wrong-not-biased, mass ≥ wrongTCount/(n(n−1)), mirrors
+      `wrongACount_drop_prob`).  `potNonincrOn_wrongTCount` on `Tie2`.  **Liveness invariants**
+      `Tie2plus`/`Tie1plus` = `Tieᵢ ∧ hasActiveAgent` (closure via
+      `phase10_hasActiveAgent_preserved_by_step`); under them `hasActiveAgent + no-A/B ⟹ 1 ≤
+      activeTCount`, supplying the drop-prob's driver hypothesis.  `tie_stage2_expectedHitting_le`,
+      then `phase10_expected_stabilization_tie` (**unconditional `Tie1plus` start**): `E[hit
+      {wrongTCount=0}] ≤ 2·(n(n−1))²`, cross-term via `occupation_mid_le_on` (J=Tie1plus),
+      `doneT_subset_done1` nesting.  Side-effect: `countP_scheduledStep_le` /
+      `potNonincrOn_of_countP_step` un-`private`d (generic, reused for the tie potential).
+    All four headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`, 0-sorry, 0
+    native_decide.  **PHASE E2 CORRECTNESS-SIDE FULLY CLOSED** (majority + tie, both unconditional from
+    an all-phase-10 start; the crude `O(n⁴)` bound, sharp `O(n² log n)` is the orthogonal harmonic
+    refinement of the same Icc coupon sum).
 - **E3** Conditional progress: from any config with |C| ≥ 2 (post-Phase-0), each timed phase ends
   within expected O(n/|C| · log n)-shape time (counter always ticks); gives both the bad-event
   O(log n) (|C| ≥ 0.24n) and the tiny-clock poly(n) bound from ONE parameterized lemma.
