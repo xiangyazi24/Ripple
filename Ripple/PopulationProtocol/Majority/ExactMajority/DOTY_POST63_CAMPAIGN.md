@@ -1968,3 +1968,58 @@ quantities, now sharply pinned:
       `RoleSplitWindows` (the genuinely-random R1-vs-onesided split fraction).
 The deterministic skeleton is complete and 0-sorry axiom-clean; (b)/(c) are the precise remaining
 work, honestly named.
+
+### Phase C-P1 (relay 11) — THE PHASE-1 AVERAGING CONVERGENCE INSTANCE (new file, 0-sorry, axiom-clean)
+
+`Probability/Phase1Convergence.lean` (new).  This is the Phase-1 *averaging* instance — the
+discrete bias-averaging on the real kernel — distinct from the earlier C-1 relays (those built
+the Phase-0 RoleSplit precursor that feeds Phase 1's Pre).  Single-file `lake env lean` EXIT_0;
+every headline theorem `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.
+
+**Paper Lemma 5.3, actual technique (quoted, /tmp/doty_paper.txt:2433).**  "Let µ = ⌊g/|M|⌉ …
+By [45] we will converge to have all bias ∈ {µ−1,µ,µ+1} in O(log n) time whp … We use Corollary 1
+of [45] … If |g| ≤ 0.5|M|, µ = 0, so all bias ∈ {−1,0,+1}.  We will use Lemma 4.6 [one-sided
+cancel] …"  So Lemma 5.3 is NOT a self-contained per-step potential argument: the quantitative
+{µ−1,µ,µ+1} collapse is imported wholesale from reference [45] (Mocquard et al., discrete
+averaging, Corollary 1); the minority-elimination tail reuses Lemma 4.6 = the `OneSidedCancel`
+engine.  Phase 1 is counter-timed; Lemma 5.3 is what is TRUE at the timeout.
+
+**The honest per-step potential.**  The rule `Phase1Transition` (Transition.lean:447) averages two
+Mains' `smallBias` via `avgFin7 x y = (⌊(x+y)/2⌋, ⌈(x+y)/2⌉)` on the `Fin 7` encoding (v ↦ v−3 ∈
+{−3,…,+3}).  The FULL {−1,0,+1} window-collapse is NOT per-step monotone (exhaustively: a −3
+averaged with a −1 yields two −2s, raising the "outside {−1,0,+1}" count).  What IS unconditionally
+non-increasing under `avgFin7` is the count of Mains pinned at the **saturated extremes** `val=0`
+(−3) / `val=6` (+3) — averaging only moves an extreme inward, never creating a new one (checked over
+all 49 pairs by `decide`).  This is the honest Phase-1 analogue of Phase 8's `minorityU`.
+
+**Delivered (all 0-sorry, axiom-clean):**
+- `avgFin7_preserves_sum`, `avgFin7_spread_le_one` — per-pair averaging arithmetic (gap conserved;
+  ⌈⌉−⌊⌋ ≤ 1).
+- `extremeVal`/`extremeSt`/`extremeU` — the saturated-extreme predicate + ℕ-potential Φ;
+  `avgFin7_extremeVal_pair_le` — the exhaustive per-pair non-creation (`decide`).
+- `Transition_eq_avg_of_phase1_main` — per-pair reduction (epidemic=id, dispatch=Phase1Transition,
+  both-Main so `clockCounterStep`=id, phase 1≠10 so finishPhase10Entry=id); the clean Phase-1
+  analogue of Phase 7/8's `Transition_eq_cancelSplit/absorbConsume`.
+- `Transition_extremeU_pair_le_of_both_main` — per-pair Φ non-increase.
+- `Phase1AllMain` window; `extremeU_stepOrSelf_le`, `extremeU_le_on_support`,
+  `extremeU_kernel_noincr`, `potNonincrOn_extremeU` (the engine `hmono`);
+  `Phase1AllMain_stepOrSelf`, `Phase1AllMain_support_closed`, `invClosed_phase1AllMain` (the FULL
+  engine `hClosed` — phase/role preserved DEFINITIONALLY by the `{with smallBias:=…}` update, no
+  auxiliary invariant unlike Phase 7).
+- `phase1Convergence : PhaseConvergenceW (NonuniformMajority L K).transitionKernel` via
+  `OneSidedCancel.crude_PhaseConvergenceW` — Pre = `Phase1AllMain n ∧ extremeU ≤ M₀`, Post =
+  `Phase1AllMain n ∧ extremeU = 0` (`= NoExtreme`); `phase1Convergence_Post` characterizes Post;
+  `potDone_extremeU_eq`.
+
+**Single carried input (the carried `hstep`/`q`-rate).**  The averaging-drain rectangle: an
+extreme-holding Main meets an inward-moving partner with prob `≥ extreme·other/(n(n−1))`-shape, so
+the per-step failure `≤ q`.  The Phase-8 `minorityU_drop_prob_rect`/`drop_prob_of_rect` analogue
+(same `interactionCount`/`totalPairs` pair-counting) — exposed as a hypothesis exactly as Phase
+7/8 expose theirs.  This is the [45]/Lemma-4.6 quantitative content.
+
+**Precise remaining gap.**  (i) the averaging-drain rectangle `hstep` derivation (the rate `q`),
+mechanical clone of Phase-8's rectangle layer.  (ii) the FULL small-gap Post (all bias ∈ {−1,0,+1},
+≤ 0.03|M| biased) is the inner-level [45] variance-decay collapse + Lemma-4.6 tail — out of scope
+for the per-step potential engine; `Post = NoExtreme` is the honest fully-closable sub-event.
+(iii) the large-gap branch (|g| ≥ 0.025|M| ⇒ Phase-2 stabilization) defers to the Phase-2 instance,
+as in the paper.  SHAs: 68dd72e5 (P1a), e44593a8 (P1b/c), 96cf002f (P1d/e).

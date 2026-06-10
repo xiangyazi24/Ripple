@@ -457,3 +457,40 @@ theorem phase1Convergence_Post (n : ℕ) (q : ℝ≥0∞)
     (c : Config (AgentState L K)) :
     (phase1Convergence n q hstep M₀ t ε hε).Post c
       ↔ (Phase1AllMain n c ∧ NoExtreme c) := Iff.rfl
+
+/-! ## Remaining quantitative atom (the carried `hstep`) and the scope of `Post`.
+
+What is FULLY proved here (0-sorry, axiom-clean):
+
+* the per-pair averaging arithmetic (`avgFin7_preserves_sum`, `avgFin7_spread_le_one`)
+  and the exhaustive non-creation of saturated extremes (`avgFin7_extremeVal_pair_le`);
+* the per-pair reduction `Transition = avg` for two phase-1 Mains
+  (`Transition_eq_avg_of_phase1_main`) and the per-pair `extremeU` non-increase;
+* the config-kernel `PotNonincrOn` (`potNonincrOn_extremeU`) and the FULL `InvClosed`
+  (`invClosed_phase1AllMain`) for the all-Main phase-1 window;
+* the packaged instance `phase1Convergence : PhaseConvergenceW` and its `Post`
+  characterization (`phase1Convergence_Post`).
+
+The SINGLE carried input is the engine's per-step drain bound `hstep` (the
+`q`-rate).  Its honest derivation is the **averaging-drain rectangle**: on a
+`Phase1AllMain` config with `≥ 1` saturated-extreme Main, the per-interaction
+probability that the extreme Main meets a partner with which `avgFin7` moves the
+extreme value strictly inward is `≥ extreme·other/(n(n−1))`-shape, so the failure is
+`≤ q = 1 − …`.  This is the Phase-8 `minorityU_drop_prob_rect`/`drop_prob_of_rect`
+analogue (the same `interactionCount`/`totalPairs` rectangle pair-counting), and is
+the quantitative content the paper imports from reference [45] (Mocquard et al.,
+discrete averaging, Corollary 1) in the proof of Lemma 5.3.  It is exposed as a
+hypothesis exactly as Phase 7/8 expose theirs.
+
+SCOPE of `Post = NoExtreme` vs the full Lemma 5.3:  `Post` is the honest,
+per-step-monotone sub-event "no Main pinned at the saturated ends `±3`".  The
+*full* Lemma-5.3 small-gap conclusion — all biases in the three consecutive values
+`{µ−1,µ,µ+1}` and `≤ 0.03|M|` biased — is the inner-level window collapse, which is
+NOT per-step monotone (a `−3` averaged with a `−1` yields two `−2`s, raising the
+"outside `{−1,0,+1}`" count — checked exhaustively in `avgFin7_extremeVal_pair_le`'s
+sibling probe).  That collapse is the external [45] convergence theorem plus the
+Lemma-4.6 (`OneSidedCancel`) minority-elimination tail; instantiating it inside this
+file would require formalizing [45]'s variance-decay argument, which is out of scope
+for the per-step potential engine and is the genuine remaining gap for the full
+small-gap Post.  The large-gap branch (`|g| ≥ 0.025|M|` ⇒ stabilize in Phase 2) is
+deferred to the Phase-2 instance, as in the paper. -/

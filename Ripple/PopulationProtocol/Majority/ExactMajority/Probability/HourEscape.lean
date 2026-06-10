@@ -209,6 +209,25 @@ theorem heB_params (n T θn M : ℕ) (mc₀ : Config (MarkedAgent L K))
   refine Finset.sum_le_sum (fun τ _ => ?_)
   exact le_of_eq (markedK_pow_hourSide_compl (L := L) (K := K) T θn τ mc₀)
 
+/-- **`heB_of_sideB` — the consumable feeder form** (the heB hypothesis the §6 chain carries,
+discharged to a single side-budget `sideB`).  From a GATED start `mc₀ ∈ taintedGate n` and a
+uniform bound `sideB` on the REAL-kernel `FrontSync`-failure prefix sum
+`∑_{τ < M} (realκ^τ) (erase mc₀) {¬ FrontSync}`, the hour-escape mass is `≤ sideB`.
+
+This is exactly the `(q = 0, sideB)`-input shape the blueprint mandates for the §6 `_final2`
+wiring: `heB_params` kills the `M·q` budget (the marked closure closes at `q = 0`), so the ENTIRE
+escape is the one uniform side-budget family — the SAME `FrontSync`-concentration feeder the clock
+chain (`ClockUnconditional`) consumes via `frontSync_concentration_remaining_proven`. -/
+theorem heB_of_sideB (n T θn M : ℕ) (mc₀ : Config (MarkedAgent L K))
+    (hx₀ : mc₀ ∈ taintedGate (L := L) (K := K) n)
+    (sideB : ℝ≥0∞)
+    (hside : ∑ τ ∈ Finset.range M,
+        ((NonuniformMajority L K).transitionKernel ^ τ)
+          (eraseConfig (L := L) (K := K) mc₀) (HourSideBad (L := L) (K := K)) ≤ sideB) :
+    (GatedDrift.killK (markedK (L := L) (K := K) T θn)
+        (taintedGate (L := L) (K := K) n) ^ M) (some mc₀) {(none : Option _)} ≤ sideB :=
+  le_trans (heB_params (L := L) (K := K) n T θn M mc₀ hx₀) hside
+
 end EarlyDripMarked
 
 end ExactMajority

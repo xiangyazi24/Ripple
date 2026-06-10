@@ -20,6 +20,7 @@ it at the genuine crossover `N₀`.
 -/
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EarlyDripMarked
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourEscape
 
 namespace ExactMajority
 
