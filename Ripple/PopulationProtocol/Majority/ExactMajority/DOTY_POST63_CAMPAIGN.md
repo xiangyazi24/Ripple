@@ -2023,3 +2023,60 @@ mechanical clone of Phase-8's rectangle layer.  (ii) the FULL small-gap Post (al
 for the per-step potential engine; `Post = NoExtreme` is the honest fully-closable sub-event.
 (iii) the large-gap branch (|g| ≥ 0.025|M| ⇒ Phase-2 stabilization) defers to the Phase-2 instance,
 as in the paper.  SHAs: 68dd72e5 (P1a), e44593a8 (P1b/c), 96cf002f (P1d/e).
+
+### Phase C-1 (relay 11) — Stage-2 absorbing gate + escape-zero + diagonal rate + 3-phase C-K composition
+
+Built the Stage-2 half of Lemma 5.2: the absorbing no-MCR gate (escape ≡ 0, NO εfloor), the R4
+`crCount`-diagonal probabilistic rate, and the three-phase Chapman–Kolmogorov composition wiring.
+All single-file EXIT_0; each new public theorem `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.
+SHAs: C-11a `a7ac2e36`, C-11b `9a1fa99f`, C-11c `58ce1df8`, C-11d `27976f61`, C-11e `67a50d04`, C-11f `2c5d5c06`.
+
+**The escape-zero result (the design centerpiece, fully proved).**  The Stage-2 gate
+`noMCRShell n = {card = n ∧ roleMCRCount = 0}` is GENUINELY ABSORBING under the real kernel — and
+this is now a theorem, not a hope:
+- `Transition_roleMCRCount_noMCR_pair` (C-11a/b): from a no-MCR input pair, NEITHER `Transition`
+  output is MCR (via the protocol-wide `Transition_first/second_no_mcr` — ALL phases, no phase
+  restriction).  The only MCR-producers are R1/R2, both needing an MCR input.
+- `roleMCRCount_config_zero_of_noMCR` → `roleMCRCount_zero_of_stepRel` → `_of_reachable`
+  → `noMCRShell_support_preserved` → `noMCRShell_pow_compl_eq_zero` (C-11b/c): the gate is closed
+  along `StepRel`/`Reachable`, hence `(K^t) c₀ (noMCRShellᶜ) = 0` via the generic
+  `transitionKernel_pow_not_pred_eq_zero_of_stepDistOrSelf_support_preserved`.
+- `noMCRShell_killedEscape_eq_zero` (C-11c): plugging `S := noMCRShell`, `q := 0` into
+  `kill_now_escape_le_prefix_union` gives `(killK_now K G ^ M)(some c₀){none} = 0`.  **Stage-2 pays
+  NO floor MGF** — the εfloor Stage-1 pays for is STRUCTURALLY ABSENT once `mcrCount = 0`.
+
+**The Stage-2 diagonal rate (deliverable #1, fully proved).**  `phase0_crCount_decrease_prob`
+(C-11d): on `card = n` with all `RoleCR` at phase 0, the step drops `crCount` with mass
+`≥ crCount·(crCount−1)/(n(n−1))` — the pure R4 diagonal, NO floor/cross-term (clone of the MCR×MCR
+route: `crF` rectangle, `sum_interactionCount_cr_cr`, `interactionPMF_toMeasure_cr_cr_ge`).
+
+**Stage-1.5 design chosen (the honest last-MCR bridge).**  Stage-1's milestone family stops at
+`mcrCount ≤ 1`; the Stage-2 no-MCR monotonicity license genuinely needs `= 0` (at `mcrCount = 1`,
+R2 fires — single MCR meets an assignable — and creates a fresh `RoleCR`, +1 `crCount`).  Honest
+fix = ONE more floor-driven milestone at threshold `0`: the one-sided MCR→non-MCR conversion at
+rate `1·a₀/(n(n−1)) = floorRate n a₀ 1` (the SAME `floorGate` machinery, terminal frontier).
+Encoded as a separate `PhaseConvergenceW` phase between Stages 1 and 2 in the composition (NOT a
+weaken-the-license shortcut).
+
+**The composition (deliverable, fully proved).**  `phase0_roleSplit_whp_two_stage` (C-11e):
+three-phase C-K union via `composeW_n_phases` (m = 3) — `(K^(t₁+t₁·₅+t₂)) c₀ {¬ stage2.Post}
+≤ ε₁ + ε₁·₅ + ε₂`, stages chained `Post₁ → Pre₁·₅`, `Post₁·₅ → Pre₂`.  Final Post packaged as
+`RoleSplitStage2Good = (roleMCRCount = 0 ∧ crCount ≤ 1)`.  `phase0_roleSplit_whp_assembled_stage2`
+(C-11f): consumes `RoleSplitStage2Good`, **DISCHARGING the `roleMCRCount = 0` named input** (it now
+comes from the Stage-2 `Post`, not a hypothesis); only `RoleSplitWindows` remains probabilistic.
+
+**The precise remaining gap (honest, the single engine-scale piece).**  The Stage-2 `KernelMilestone`
+INSTANCE is NOT built this relay.  Blocker (structural, documented): the progress rate
+`phase0_crCount_decrease_prob` requires the interacting `RoleCR` pair at **phase 0**
+(`crCount_config_decrease_of_phase0_cr_pair` needs `Transition_roles_eq_phase0_of_both_phase0`).
+The absorbing gate `noMCRShell` does NOT carry "all CR phase 0", and that predicate is NOT a
+deterministic kernel invariant (a phase-0 CR advances its phase via the epidemic/counter
+machinery — `_no_mcr` infra preserves ROLE but not PHASE).  So the Stage-2 milestone needs the
+gate to ALSO track a phase-0-CR shell, whose escape is the genuinely-probabilistic
+"a CR advanced past phase 0" event (Doty handles this via the Phase-0 TIME WINDOW, beyond the
+count-only gate in this file).  Concretely, to close: define `crPhase0Shell` lift lemmas
+(`liftMilestone_progress`/`_monotone` clones at `noMCRShell ∩ crPhase0Shell`, rate
+`phase0_crCount_decrease_prob`), give the `KernelMilestone (killK_now K (noMCRShell ∩ crPhase0Shell))`
+witness, and supply the three `PhaseConvergenceW` ε-tails to `phase0_roleSplit_whp_two_stage`.  The
+escape-zero result above covers the `roleMCRCount` HALF of that gate for free; only the phase-window
+half remains.  EVERYTHING built this relay is 0-sorry axiom-clean and load-bearing for that instance.

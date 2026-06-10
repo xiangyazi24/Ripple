@@ -4264,5 +4264,92 @@ theorem noMCRShell_killedEscape_eq_zero {n : ℕ}
   refine Finset.sum_eq_zero (fun τ _ => ?_)
   exact noMCRShell_pow_compl_eq_zero (L := L) (K := K) c₀ hc₀ τ
 
+/-! ### The Stage-2 final postcondition and the three-phase Chapman–Kolmogorov composition.
+
+Doty's Lemma 5.2 is reached by composing three whp phases at C-K checkpoints (`composeW_n_phases`):
+
+  * **Stage 1** drives `mcrCount` down to `≤ 1` (the diagonal `floorGate` milestone family,
+    `phase0_stage1_whp_final`; `Post₁ = roleSplitGoodMile`).
+  * **Stage 1.5** converts the *last* `RoleMCR` (one more floor-driven milestone at threshold `0`:
+    the one-sided MCR→non-MCR conversion at rate `1·a₀/(n(n−1)) = floorRate n a₀ 1`, the SAME
+    `floorGate` machinery as Stage 1, just the terminal milestone; `Post₁·₅ = roleMCRCount = 0`).
+    This is genuinely needed: at `mcrCount = 1`, Rule 2 (the single MCR meets an assignable) can
+    fire and create a fresh `RoleCR` (+1 `crCount`), so the Stage-2 no-MCR monotonicity license
+    requires `mcrCount = 0`, NOT `≤ 1` — the honest one-step extension of the milestone frontier.
+  * **Stage 2** drains `crCount` to `≤ 1` via the pure R4 diagonal (`phase0_crCount_decrease_prob`)
+    on the absorbing gate `noMCRShell` (escape `≡ 0`, `noMCRShell_killedEscape_eq_zero` — NO floor
+    MGF); `Post₂ = RoleSplitStage2Good`.
+
+The composition is the generic three-phase union bound; each phase's `convergence` field is the
+whp tail its `KernelMilestone` produces.  The budget is the SUM `ε₁ + ε₁·₅ + ε₂`. -/
+
+/-- **Stage-2 final postcondition** — the deterministic content of Lemma 5.2 modulo the random
+windows: no `RoleMCR` and at most one residual `RoleCR`.  Combined with `ClockReserveBalanced`
+and `RoleSplitWindows` (the named probabilistic inputs), this yields `RoleSplitGood`. -/
+def RoleSplitStage2Good (c : Config (AgentState L K)) : Prop :=
+  roleMCRCount (L := L) (K := K) c = 0 ∧ crCount (L := L) (K := K) c ≤ 1
+
+/-- **`phase0_roleSplit_whp_two_stage` — the three-phase Chapman–Kolmogorov composition.**
+Given the three whp phases as `PhaseConvergenceW` over the real kernel `K`
+(`stage1.Post → stage15.Pre`, `stage15.Post → stage2.Pre`, started in `stage1.Pre`), the composed
+`(K^(t₁+t₁·₅+t₂))`-step mass on the final bad event `¬ stage2.Post` is at most the SUM of the three
+phase budgets `ε₁ + ε₁·₅ + ε₂`.  This is the honest assembly of Doty's two role-split sub-processes
+(plus the last-MCR bridge): the milestone INSTANCES supply each `convergence` tail; this lemma
+discharges the C-K composition.  (`composeW_n_phases` at `m = 3`.) -/
+theorem phase0_roleSplit_whp_two_stage
+    (K' : Kernel (Config (AgentState L K)) (Config (AgentState L K))) [IsMarkovKernel K']
+    (stage1 stage15 stage2 : PhaseConvergenceW K')
+    (h_chain1 : ∀ x, stage1.Post x → stage15.Pre x)
+    (h_chain2 : ∀ x, stage15.Post x → stage2.Pre x)
+    (c₀ : Config (AgentState L K)) (hc₀ : stage1.Pre c₀) :
+    (K' ^ (stage1.t + stage15.t + stage2.t)) c₀ {y | ¬ stage2.Post y} ≤
+      ((stage1.ε : ℝ≥0∞) + stage15.ε + stage2.ε) := by
+  classical
+  -- Package the three phases as a `Fin 3` family.
+  set phases : Fin 3 → PhaseConvergenceW K' := ![stage1, stage15, stage2] with hphases
+  have hm : (3 : ℕ) > 0 := by norm_num
+  have h_chain : ∀ (i : Fin 3) (hi : i.val + 1 < 3),
+      ∀ x, (phases i).Post x → (phases ⟨i.val + 1, hi⟩).Pre x := by
+    intro i hi x hx
+    match i, hi with
+    | ⟨0, _⟩, _ => exact h_chain1 x hx
+    | ⟨1, _⟩, _ => exact h_chain2 x hx
+  have hcompose := composeW_n_phases (K := K') hm phases h_chain c₀ (by
+    show (phases ⟨0, hm⟩).Pre c₀; exact hc₀)
+  -- ∑ t_i = t₁ + t₁·₅ + t₂; ∑ ε_i = ε₁ + ε₁·₅ + ε₂; final Post = stage2.Post.
+  have ht_sum : (∑ i : Fin 3, (phases i).t) = stage1.t + stage15.t + stage2.t := by
+    rw [Fin.sum_univ_three]; simp [hphases]
+  have hε_sum : (∑ i : Fin 3, ((phases i).ε : ℝ≥0∞)) =
+      (stage1.ε : ℝ≥0∞) + stage15.ε + stage2.ε := by
+    rw [Fin.sum_univ_three]; simp [hphases]
+  have hlast : (phases ⟨3 - 1, by omega⟩).Post = stage2.Post := by
+    show (phases ⟨2, by omega⟩).Post = stage2.Post; simp [hphases]
+  rw [ht_sum, hε_sum] at hcompose
+  rw [hlast] at hcompose
+  exact hcompose
+
+/-- **`phase0_roleSplit_whp_assembled_stage2` — the full assembly consuming the Stage-2 `Post`.**
+Identical to `phase0_roleSplit_whp_assembled` except the `roleMCRCount = 0` named input is now
+**DISCHARGED** from the Stage-2 conclusion `RoleSplitStage2Good` (which packages
+`roleMCRCount = 0 ∧ crCount ≤ 1`).  After the three-phase C-K composition
+`phase0_roleSplit_whp_two_stage` lands whp at a config with `RoleSplitStage2Good`, this is the
+deterministic ledger turning it into `RoleSplitGood` given the carried balance and the
+genuinely-random `RoleSplitWindows`.  The ONLY remaining probabilistic input is now
+`RoleSplitWindows` (the R1-vs-onesided split *fraction*); both the `RoleMCR`-elimination
+(Stages 1 + 1.5) AND the `RoleCR`-drain (Stage 2) are now discharged by the composition. -/
+theorem phase0_roleSplit_whp_assembled_stage2 {η : ℝ} {n : ℕ}
+    (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n)
+    (hstage2 : RoleSplitStage2Good (L := L) (K := K) c)
+    (hbal : ClockReserveBalanced (L := L) (K := K) c)
+    (hwin : RoleSplitWindows (L := L) (K := K) η n c) :
+    RoleSplitGood (L := L) (K := K) η n c ∧
+      clockCount (L := L) (K := K) c = reserveCount (L := L) (K := K) c ∧
+      mainCount (L := L) (K := K) c + 2 * clockCount (L := L) (K := K) c +
+        crCount (L := L) (K := K) c + roleMCRCount (L := L) (K := K) c = n :=
+  ⟨roleSplitGood_of_windows (L := L) (K := K) c hstage2.1 hwin,
+   hbal,
+   balanced_conservation (L := L) (K := K) c hcard hbal⟩
+
 end RoleSplitConcentration
 end ExactMajority
