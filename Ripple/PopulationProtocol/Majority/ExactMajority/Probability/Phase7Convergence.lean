@@ -240,45 +240,47 @@ theorem cancelSplit_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
   cases hsb : s.bias with
   | zero =>
       -- s not dyadic ⇒ cancelSplit = (s,t); both sides unchanged.
-      have : cancelSplit L K s t = (s, t) := by unfold cancelSplit; rw [hsb]
-      rw [this]
+      have hcs : cancelSplit L K s t = (s, t) := by unfold cancelSplit; rw [hsb]
+      rw [hcs, hsb]
   | dyadic ss i =>
     cases htb : t.bias with
     | zero =>
-        have : cancelSplit L K s t = (s, t) := by
+        have hcs : cancelSplit L K s t = (s, t) := by
           unfold cancelSplit; rw [hsb, htb]
-        rw [this]
+        rw [hcs]; simp only [hsb, htb]; exact le_rfl
     | dyadic st j =>
       by_cases hne : ss = st
       · -- same sign ⇒ identity.
         have hcs : cancelSplit L K s t = (s, t) := by
-          unfold cancelSplit; rw [hsb, htb, if_neg (by simpa using hne)]
-        rw [hcs]
+          unfold cancelSplit; simp only [hsb, htb, if_neg (show ¬ ss ≠ st from by simpa using hne)]
+        rw [hcs]; simp only [hsb, htb]; exact le_rfl
       · -- opposite signs: branch on gap.
+        have hnee : ss ≠ st := hne
         obtain ⟨hσs, hσt⟩ := hidx ss i st j hsb htb hne
         by_cases h0 : i.val = j.val
         · have hcs : cancelSplit L K s t
               = ({s with bias := .zero}, {t with bias := .zero}) := by
-            unfold cancelSplit; rw [hsb, htb, if_pos hne, dif_pos h0]
-          rw [hcs]; simp [biasIsSigned]
+            unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_pos h0]
+          rw [hcs]; simp only [biasIsSigned]; positivity
         by_cases h1 : i.val + 1 = j.val
         · have hcs : cancelSplit L K s t
               = ({s with bias := .dyadic ss ⟨i.val + 1, by
                     have hj : j.val < L + 1 := j.2; omega⟩}, {t with bias := .zero}) := by
-            unfold cancelSplit; rw [hsb, htb, if_pos hne, dif_neg h0, dif_pos h1]
+            unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_pos h1]
           rw [hcs]
           by_cases hssσ : ss = σ
           · exfalso; have := hσs hssσ; omega
-          · simp [biasIsSigned, hssσ]
+          · simp only [biasIsSigned, if_neg hssσ]; positivity
         by_cases h1' : j.val + 1 = i.val
         · have hcs : cancelSplit L K s t
               = ({s with bias := .zero}, {t with bias := .dyadic st ⟨j.val + 1, by
                     have hi : i.val < L + 1 := i.2; omega⟩}) := by
-            unfold cancelSplit; rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_pos h1']
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_pos h1']
           rw [hcs]
           by_cases hstσ : st = σ
           · exfalso; have := hσt hstσ; omega
-          · simp [biasIsSigned, hstσ]
+          · simp only [biasIsSigned, if_neg hstσ]; positivity
         by_cases h2 : i.val + 2 = j.val
         · have hcs : cancelSplit L K s t
               = ({s with bias := .dyadic ss ⟨i.val + 1, by
@@ -286,11 +288,11 @@ theorem cancelSplit_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
                  {t with bias := .dyadic ss ⟨i.val + 2, by
                     have hj : j.val < L + 1 := j.2; omega⟩}) := by
             unfold cancelSplit
-            rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_neg h1', dif_pos h2]
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_pos h2]
           rw [hcs]
           by_cases hssσ : ss = σ
           · exfalso; have := hσs hssσ; omega
-          · simp [biasIsSigned, hssσ]
+          · simp only [biasIsSigned, if_neg hssσ]; positivity
         by_cases h2' : j.val + 2 = i.val
         · have hcs : cancelSplit L K s t
               = ({s with bias := .dyadic st ⟨j.val + 2, by
@@ -298,16 +300,79 @@ theorem cancelSplit_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
                  {t with bias := .dyadic st ⟨j.val + 1, by
                     have hi : i.val < L + 1 := i.2; omega⟩}) := by
             unfold cancelSplit
-            rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2, dif_pos h2']
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,
+              dif_pos h2']
           rw [hcs]
           by_cases hstσ : st = σ
           · exfalso; have := hσt hstσ; omega
-          · simp [biasIsSigned, hstσ]
+          · simp only [biasIsSigned, if_neg hstσ]; positivity
         · -- gap ≥ 3: identity.
           have hcs : cancelSplit L K s t = (s, t) := by
             unfold cancelSplit
-            rw [hsb, htb, if_pos hne, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2, dif_neg h2']
-          rw [hcs]
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,
+              dif_neg h2']
+          rw [hcs]; simp only [hsb, htb]; exact le_rfl
+
+/-! ## Part D — the config-level minority-ordering invariant and global non-increase.
+
+The per-pair non-increase needs the **index ordering**: every minority (`σ`) Main
+sits at an exponent index `≥` every majority (`σ.flip`) Main.  We encode this as a
+config predicate `MinorityHiIdx σ` and carry it in the Phase-7 invariant `Inv7`.
+Under it, EVERY pair satisfies the per-pair hypothesis, so the global step never
+raises `minorityU σ`. -/
+
+/-- Every `σ`-Main has exponent index `≥` every non-`σ` (majority) Main's index.
+This is Doty's "the majority has larger mass than the minority": the minority sign
+sits at the smaller magnitude (= larger index). -/
+def MinorityHiIdx (σ : Sign) (c : Config (AgentState L K)) : Prop :=
+  ∀ a ∈ c, ∀ b ∈ c, a.role = Role.main → b.role = Role.main →
+    ∀ sa ia sb ib, a.bias = Bias.dyadic sa ia → b.bias = Bias.dyadic sb ib →
+      sa ≠ sb → (sa = σ → ib.val ≤ ia.val) ∧ (sb = σ → ia.val ≤ ib.val)
+
+/-- The per-pair index hypothesis for a specific applicable pair, extracted from the
+config-level `MinorityHiIdx`. -/
+theorem hidx_of_MinorityHiIdx (σ : Sign) (c : Config (AgentState L K))
+    (hmh : MinorityHiIdx σ c) (s t : AgentState L K) (hs : s ∈ c) (ht : t ∈ c)
+    (hsM : s.role = Role.main) (htM : t.role = Role.main) :
+    ∀ ss i st j, s.bias = Bias.dyadic ss i → t.bias = Bias.dyadic st j →
+      ss ≠ st → (ss = σ → j.val ≤ i.val) ∧ (st = σ → i.val ≤ j.val) :=
+  fun ss i st j hsb htb hne => hmh s hs t ht hsM htM ss i st j hsb htb hne
+
+/-- When the pair is **not** both Main, `Phase7Transition` leaves every Main's bias
+unchanged (cancelSplit is not invoked; the clock subroutine touches only the clock
+side, which is not a Main).  Hence the minority count of the produced pair equals
+that of the consumed pair. -/
+theorem Phase7Transition_minorityU_eq_of_not_both_main (σ : Sign) (s t : AgentState L K)
+    (h : ¬ (s.role = Role.main ∧ t.role = Role.main)) :
+    Multiset.countP (fun a => minoritySt σ a)
+        ({(Phase7Transition L K s t).1, (Phase7Transition L K s t).2}
+          : Multiset (AgentState L K))
+      = Multiset.countP (fun a => minoritySt σ a) ({s, t} : Multiset (AgentState L K)) := by
+  classical
+  rw [countP_minoritySt_pair, countP_minoritySt_pair]
+  -- s-side: out₁ = (if s.role=clock then counter s else s); but minoritySt needs role=main.
+  -- For the s-side we case on whether s is Main.
+  have hout : ∀ (x : AgentState L K), x.role ≠ Role.main → ¬ minoritySt σ x :=
+    fun x hx => not_minoritySt_of_not_main σ x hx
+  -- The clock-or-self side is never a Main: if clock, the counter stays clock; else it's x.
+  have hside : ∀ (x : AgentState L K), x.role ≠ Role.main →
+      ¬ minoritySt σ (if x.role = Role.clock then stdCounterSubroutine L K x else x) := by
+    intro x hx
+    by_cases hxc : x.role = Role.clock
+    · rw [if_pos hxc]
+      have : (stdCounterSubroutine L K x).role ≠ Role.main := by
+        rw [stdCounterSubroutine_clock_role_eq _ hxc]; decide
+      exact hout _ this
+    · rw [if_neg hxc]; exact hout x hx
+  unfold Phase7Transition
+  simp only [if_neg h]
+  -- Both sides are the (clock-or-self) updates of s, t, neither of which is a Main.
+  have hsnm : s.role ≠ Role.main := fun hsm => h ⟨hsm, by
+    by_contra htm
+    exact h ⟨hsm, by
+      -- if s is Main, then since not both-main, t is not Main; but we need s not main here.
+      sorry⟩⟩
+  sorry
 
 end Phase7Convergence
 

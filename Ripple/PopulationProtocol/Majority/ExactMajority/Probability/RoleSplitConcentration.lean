@@ -954,5 +954,251 @@ private lemma sum_interactionCount_mcr_assign (c : Config (AgentState L K)) :
       (Finset.mem_filter.mp (show s₁ ∈ Finset.univ.filter _ from hs₁)).2
   rw [Finset.sum_congr rfl hstep, ← Finset.sum_mul, sum_count_mcrF]
 
+/-- Positive `interactionCount` implies `Applicable` (re-derived locally; the
+upstream `applicable_of_pos_iCount` is `private`). -/
+private lemma applicable_of_pos_iCount' (c : Config (AgentState L K))
+    (s₁ s₂ : AgentState L K) (h : 0 < c.interactionCount s₁ s₂) :
+    Protocol.Applicable c s₁ s₂ := by
+  show {s₁, s₂} ≤ c; rw [Multiset.le_iff_count]; intro a
+  simp only [Config.interactionCount, Config.count] at h
+  simp only [Multiset.insert_eq_cons, Multiset.count_cons, Multiset.count_singleton]
+  by_cases heq : s₁ = s₂
+  · subst heq; simp only [ite_true] at h
+    have : 2 ≤ Multiset.count s₁ c := by
+      by_contra h_lt
+      have hle : Multiset.count s₁ c ≤ 1 := by omega
+      have : Multiset.count s₁ c * (Multiset.count s₁ c - 1) = 0 := by
+        rcases Nat.eq_zero_or_pos (Multiset.count s₁ c) with h0 | h0
+        · simp [h0]
+        · have : Multiset.count s₁ c = 1 := by omega
+          simp [this]
+      omega
+    by_cases ha : a = s₁ <;> simp_all
+  · simp only [heq, ite_false] at h
+    have hc1 : 0 < Multiset.count s₁ c := pos_of_mul_pos_left h (Nat.zero_le _)
+    have hc2 : 0 < Multiset.count s₂ c := pos_of_mul_pos_right h (Nat.zero_le _)
+    by_cases ha1 : a = s₁ <;> by_cases ha2 : a = s₂ <;> simp_all <;> omega
+
+/-- **One-sided interactionPMF mass bound (MCR initiator × assignable responder).**
+The PMF mass of the good set "`p.1` is a phase-0 MCR, `p.2` is assignable, and
+`(p.1,p.2)` is applicable" is at least `mcrCount·assignableCount/(card(card-1))`.
+Clone of `interactionPMF_toMeasure_mcr_phase0_ge`; uses the clean cross-class
+product `sum_interactionCount_mcr_assign`. -/
+private lemma interactionPMF_toMeasure_mcr_assign_ge
+    (c : Config (AgentState L K)) (hc : 2 ≤ c.card)
+    (h_phase0 : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0) :
+    (c.interactionPMF hc).toMeasure
+      {p : AgentState L K × AgentState L K |
+        p.1.role = .mcr ∧ p.1.phase.val = 0 ∧ IsAssignable p.2 ∧
+        Protocol.Applicable c p.1 p.2} ≥
+    ENNReal.ofReal
+      (((ExactMajority.mcrCount (L := L) (K := K) c *
+          assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+        (c.card * (c.card - 1) : ℝ)) := by
+  set target := {p : AgentState L K × AgentState L K |
+    p.1.role = .mcr ∧ p.1.phase.val = 0 ∧ IsAssignable p.2 ∧
+    Protocol.Applicable c p.1 p.2}
+  set F := mcrF (L := L) (K := K) with hFdef
+  set G := assignF (L := L) (K := K) with hGdef
+  have h_sub : (↑(F ×ˢ G) : Set _) ∩ (c.interactionPMF hc).support ⊆ target := by
+    intro ⟨s₁, s₂⟩ ⟨h_mem, h_supp⟩
+    have hs₁_mcr : s₁.role = .mcr :=
+      (Finset.mem_filter.mp (Finset.mem_product.mp h_mem).1).2
+    have hs₂_a : isAssignableBool (L := L) (K := K) s₂ = true :=
+      (Finset.mem_filter.mp (Finset.mem_product.mp h_mem).2).2
+    have hs₂_assign : IsAssignable s₂ :=
+      (assignableCount_pred_iff (L := L) (K := K) s₂).mp hs₂_a
+    rw [PMF.mem_support_iff] at h_supp
+    have h_app : Protocol.Applicable c s₁ s₂ := by
+      apply applicable_of_pos_iCount'
+      by_contra h0; exact h_supp (show c.interactionProb s₁ s₂ = 0 by
+        simp [Config.interactionProb, show c.interactionCount s₁ s₂ = 0 by omega])
+    exact ⟨hs₁_mcr,
+      h_phase0 s₁ (Multiset.mem_of_le h_app (Multiset.mem_cons_self _ _)) hs₁_mcr,
+      hs₂_assign, h_app⟩
+  have h_le := (c.interactionPMF hc).toMeasure_mono
+    (DiscreteMeasurableSpace.forall_measurableSet _) h_sub
+  suffices h_val : (c.interactionPMF hc).toMeasure (↑(F ×ˢ G)) ≥
+      ENNReal.ofReal
+        (((ExactMajority.mcrCount (L := L) (K := K) c *
+            assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+          (c.card * (c.card - 1) : ℝ)) from le_trans h_val h_le
+  rw [PMF.toMeasure_apply_finset]
+  simp_rw [show ∀ p : AgentState L K × AgentState L K,
+    (c.interactionPMF hc) p = (c.interactionCount p.1 p.2 : ENNReal) / c.totalPairs
+    from fun _ => rfl, div_eq_mul_inv, ← Finset.sum_mul]
+  conv_lhs => arg 1; rw [Finset.sum_product' F G
+    (fun s₁ s₂ => (c.interactionCount s₁ s₂ : ENNReal))]
+  have h_comb := sum_interactionCount_mcr_assign (L := L) (K := K) c
+  set MM := ExactMajority.mcrCount (L := L) (K := K) c *
+    assignableCount (L := L) (K := K) c with hMM
+  rw [show (∑ s₁ ∈ F, ∑ s₂ ∈ G, (c.interactionCount s₁ s₂ : ENNReal)) =
+      ((MM : ℕ) : ENNReal) from by exact_mod_cast h_comb, ← div_eq_mul_inv]
+  have h1 : 1 ≤ c.card := by omega
+  have hprod_pos : (0 : ℝ) < ↑c.card * (↑c.card - 1) := by
+    apply mul_pos
+    · exact Nat.cast_pos.mpr (by omega)
+    · exact sub_pos.mpr (by exact_mod_cast (show 1 < c.card by omega))
+  show ↑MM / ↑c.totalPairs ≥
+    ENNReal.ofReal (((MM : ℕ) : ℝ) / (↑c.card * (↑c.card - 1)))
+  have hcard_cast : ↑c.card * (↑c.card - 1 : ℝ) = ((c.card * (c.card - 1) : ℕ) : ℝ) := by
+    push_cast [Nat.cast_sub h1]; ring
+  rw [ENNReal.ofReal_div_of_pos hprod_pos, hcard_cast,
+    ENNReal.ofReal_natCast, ENNReal.ofReal_natCast,
+    show (c.card * (c.card - 1) : ℕ) = c.totalPairs from rfl]
+
+/-! ### The strengthened one-sided decrease probability.
+
+Chaining the mass bound through `stepDistOrSelf_toMeasure_ge` and the inherited
+config-level one-sided decrement lemmas gives the `Θ(M·assignable/n²)` per-step
+probability that the scheduled step strictly drops `mcrCount`.  We use the SINGLE
+(MCR initiator × assignable responder) direction; the mirror direction would only
+sharpen the constant by a factor of 2 and is not needed to reach the `Θ(M/n)`
+rate once `assignableCount = Θ(n)`. -/
+
+/-- **Strengthened one-sided decrease probability (Phase C-1 gap atom #3).** On a
+config `c` with `card = n`, all MCR agents at phase 0, the scheduled-step
+distribution puts mass at least `mcrCount·assignableCount/(n(n−1))` on the event
+`{mcrCount decreases}`.  This is the one-sided analogue of
+`phase0_mcrCount_decrease_prob` — the rate that, with `assignableCount = Θ(n)`,
+gives `Θ(M/n)` and hence `pMin = Θ(1/n)`. -/
+theorem phase0_mcrCount_decrease_prob_oneSided
+    (c : Config (AgentState L K)) (n : ℕ)
+    (h_card : c.card = n) (hn2 : 2 ≤ n)
+    (h_phase0 : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0) :
+    ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+          ExactMajority.mcrCount (L := L) (K := K) c} ≥
+      ENNReal.ofReal
+        (((ExactMajority.mcrCount (L := L) (K := K) c *
+            assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+          (n * (n - 1) : ℝ)) := by
+  have hc2 : 2 ≤ c.card := by omega
+  set good : Set (AgentState L K × AgentState L K) :=
+    {p | p.1.role = .mcr ∧ p.1.phase.val = 0 ∧ IsAssignable p.2 ∧
+         Protocol.Applicable c p.1 p.2} with hgooddef
+  have hgood : ∀ pair ∈ good, (NonuniformMajority L K).scheduledStep c pair ∈
+      {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+        ExactMajority.mcrCount (L := L) (K := K) c} := by
+    intro ⟨s, t⟩ ⟨hs_mcr, hs_phase, ht_assign, happ⟩
+    simp only [Set.mem_setOf_eq]
+    unfold Protocol.scheduledStep Protocol.stepOrSelf
+    rw [if_pos happ]
+    exact mcrCount_config_decrease_of_mcr_assignable c s t happ hs_mcr hs_phase ht_assign
+  calc ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+          {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+            ExactMajority.mcrCount (L := L) (K := K) c}
+      ≥ (c.interactionPMF hc2).toMeasure good :=
+        stepDistOrSelf_toMeasure_ge c hc2 _ good hgood
+    _ ≥ ENNReal.ofReal
+          (((ExactMajority.mcrCount (L := L) (K := K) c *
+              assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+            (c.card * (c.card - 1) : ℝ)) :=
+        interactionPMF_toMeasure_mcr_assign_ge c hc2 h_phase0
+    _ = ENNReal.ofReal
+          (((ExactMajority.mcrCount (L := L) (K := K) c *
+              assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+            (n * (n - 1) : ℝ)) := by rw [h_card]
+
+/-! ### Combined decrease rate (MCR×MCR ∪ MCR×assignable).
+
+The paper's `p = 2u/(5n)` rate comes from combining Rule-1 (MCR×MCR, the
+`u(u−1)/n²` diagonal) with Rules 2,3 (MCR×assignable, the `u·assignable/n²`
+cross term).  Both good sets land in `{mcrCount decreases}` and are **disjoint**
+(a responder is either MCR or assignable, never both, since `mcr ≠ main, cr`).
+Aggregating the two rectangles gives the combined mass `[M(M−1) +
+M·assignable]/(n(n−1))`.
+
+NOTE on the structural blocker (documented for the milestone-family gap): this
+combined per-step rate is the consumable a *floor-carrying* milestone phase
+needs, but `MilestonePhase.progress` (JansonHitting.lean) requires the rate to
+hold UNCONDITIONALLY at every config with milestones `<i` reached and `i` not.
+At a config where `assignableCount = 0` and `mcrCount = M` is small, neither term
+reaches `Θ(M/n)` — so the combined rate `≥ Θ(M/n)` needs the Chernoff floor
+`assignableCount ≥ n/5`, which the plain `MilestonePhase` cannot carry.  See the
+campaign note's Phase-C-1 gap atom #4.  This lemma delivers the combined rate;
+the floor + a floor-carrying milestone variant remain the genuine open gap. -/
+
+/-- For a fixed MCR initiator `s₁`, the sum of `interactionCount s₁ s₂` over MCR
+responders is `count s₁ · (mcrCount c − 1)` (re-derived locally; upstream is
+`private`).  The diagonal `s₁ = s₂` subtracts one. -/
+private lemma sum_interactionCount_mcrF_right (c : Config (AgentState L K))
+    (s₁ : AgentState L K) (hs₁ : s₁.role = .mcr) :
+    ∑ s₂ ∈ mcrF (L := L) (K := K), c.interactionCount s₁ s₂ =
+      c.count s₁ * (ExactMajority.mcrCount (L := L) (K := K) c - 1) := by
+  set F := mcrF (L := L) (K := K) with hF
+  by_cases hzero : c.count s₁ = 0
+  · have hall : ∀ s₂ ∈ F, c.interactionCount s₁ s₂ = 0 := fun s₂ _ => by
+      unfold Config.interactionCount Config.count
+      unfold Config.count at hzero
+      split_ifs with h
+      · subst h; simp [hzero]
+      · simp [hzero]
+    rw [Finset.sum_eq_zero hall]; simp [hzero]
+  · have hfactor : ∀ s₂ ∈ F, c.interactionCount s₁ s₂ =
+        c.count s₁ * if s₁ = s₂ then c.count s₁ - 1 else c.count s₂ := by
+      intro s₂ _; unfold Config.interactionCount
+      by_cases h : s₁ = s₂ <;> simp [h]
+    rw [Finset.sum_congr rfl hfactor, ← Finset.mul_sum]; congr 1
+    have hs₁F : s₁ ∈ F := Finset.mem_filter.mpr ⟨Finset.mem_univ s₁, hs₁⟩
+    set f : AgentState L K → ℕ :=
+      fun s₂ => if s₁ = s₂ then c.count s₁ - 1 else c.count s₂ with hfdef
+    have hf_s₁ : f s₁ = c.count s₁ - 1 := if_pos rfl
+    have hf_ne : ∀ s₂ ∈ F.erase s₁, f s₂ = c.count s₂ :=
+      fun s₂ hs₂ => if_neg (Finset.ne_of_mem_erase hs₂).symm
+    calc ∑ s₂ ∈ F, f s₂
+        = f s₁ + ∑ s₂ ∈ F.erase s₁, f s₂ := (Finset.add_sum_erase F f hs₁F).symm
+      _ = (c.count s₁ - 1) + ∑ s₂ ∈ F.erase s₁, c.count s₂ := by
+          rw [hf_s₁, Finset.sum_congr rfl hf_ne]
+      _ = ExactMajority.mcrCount (L := L) (K := K) c - 1 := by
+          have hse : c.count s₁ + ∑ s₂ ∈ F.erase s₁, c.count s₂ =
+              ExactMajority.mcrCount (L := L) (K := K) c := by
+            rw [Finset.add_sum_erase F (fun s => c.count s) hs₁F]
+            exact sum_count_mcrF c
+          have hcount_pos : 0 < c.count s₁ := Nat.pos_of_ne_zero hzero
+          omega
+
+/-- The MCR×MCR rectangle sum `= mcrCount·(mcrCount−1)` (re-derived locally). -/
+private lemma sum_interactionCount_mcr_mcr (c : Config (AgentState L K)) :
+    ∑ s₁ ∈ mcrF (L := L) (K := K), ∑ s₂ ∈ mcrF (L := L) (K := K),
+        c.interactionCount s₁ s₂ =
+      ExactMajority.mcrCount (L := L) (K := K) c *
+        (ExactMajority.mcrCount (L := L) (K := K) c - 1) := by
+  have hstep : ∀ s₁ ∈ mcrF (L := L) (K := K),
+      ∑ s₂ ∈ mcrF (L := L) (K := K), c.interactionCount s₁ s₂ =
+        c.count s₁ * (ExactMajority.mcrCount (L := L) (K := K) c - 1) := fun s₁ hs₁ =>
+    sum_interactionCount_mcrF_right c s₁ (Finset.mem_filter.mp hs₁).2
+  rw [Finset.sum_congr rfl hstep, ← Finset.sum_mul, sum_count_mcrF]
+
+/-- `mcrF` and `assignF` are disjoint: an MCR agent is never assignable. -/
+private lemma mcrF_disjoint_assignF :
+    Disjoint (mcrF (L := L) (K := K)) (assignF (L := L) (K := K)) := by
+  rw [Finset.disjoint_left]
+  intro a ha ha'
+  have h_mcr : a.role = .mcr := (Finset.mem_filter.mp ha).2
+  have h_a : isAssignableBool (L := L) (K := K) a = true := (Finset.mem_filter.mp ha').2
+  obtain ⟨_, _, hrole⟩ := (assignableCount_pred_iff (L := L) (K := K) a).mp h_a
+  rcases hrole with h | h <;> rw [h_mcr] at h <;> exact absurd h (by decide)
+
+/-- **Combined rectangle sum** over `mcrF ×ˢ (mcrF ∪ assignF)`:
+`mcrCount·(mcrCount−1) + mcrCount·assignableCount`. -/
+private lemma sum_interactionCount_mcr_combined (c : Config (AgentState L K)) :
+    ∑ s₁ ∈ mcrF (L := L) (K := K),
+      ∑ s₂ ∈ mcrF (L := L) (K := K) ∪ assignF (L := L) (K := K),
+        c.interactionCount s₁ s₂ =
+      ExactMajority.mcrCount (L := L) (K := K) c *
+          (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+        ExactMajority.mcrCount (L := L) (K := K) c *
+          assignableCount (L := L) (K := K) c := by
+  have hsplit : ∀ s₁ ∈ mcrF (L := L) (K := K),
+      ∑ s₂ ∈ mcrF (L := L) (K := K) ∪ assignF (L := L) (K := K),
+          c.interactionCount s₁ s₂ =
+        (∑ s₂ ∈ mcrF (L := L) (K := K), c.interactionCount s₁ s₂) +
+          (∑ s₂ ∈ assignF (L := L) (K := K), c.interactionCount s₁ s₂) := by
+    intro s₁ _
+    exact Finset.sum_union (mcrF_disjoint_assignF (L := L) (K := K))
+  rw [Finset.sum_congr rfl hsplit, Finset.sum_add_distrib,
+    sum_interactionCount_mcr_mcr, sum_interactionCount_mcr_assign]
+
 end RoleSplitConcentration
 end ExactMajority

@@ -62,6 +62,8 @@ import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase10Backup
 import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase0Convergence
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealMixed
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourCouplingV2
+import Mathlib.Analysis.PSeries
+import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 
 namespace ExactMajority
 
@@ -2221,17 +2223,64 @@ theorem qLevel_inv_eq (n m : ℕ) (hm1 : 1 ≤ m) (hmTP : m ≤ n * (n - 1)) :
     unfold qLevel; rw [hTPdef, ENNReal.sub_sub_cancel ENNReal.one_ne_top hmle1]
   rw [hsub, ENNReal.inv_div (Or.inl hTPtop) (Or.inr hm0)]
 
-/-- **Harmonic (linear-rate) coupon sum, real form.** The sum of inverse
-naturals over `[1,M]` is bounded by `1 + log M`.  Bridges Mathlib's rational
-`harmonic` (`= ∑_{i∈Icc 1 M} (i)⁻¹`) and `harmonic_le_one_add_log`. -/
+/-- **Telescope of `log m − log(m−1)` over `[2,M]`.** Standalone (clean
+induction with no captured hypotheses). -/
+theorem sum_log_diff_telescope (M : ℕ) (hM : 2 ≤ M) :
+    ∑ m ∈ Finset.Icc 2 M, (Real.log (m : ℝ) - Real.log ((m : ℝ) - 1))
+      = Real.log (M : ℝ) := by
+  induction M, hM using Nat.le_induction with
+  | base =>
+    rw [show Finset.Icc 2 2 = {2} from rfl, Finset.sum_singleton]
+    norm_num
+  | succ k hk ih =>
+    rw [Finset.sum_Icc_succ_top (by omega : 2 ≤ k + 1), ih]
+    push_cast
+    have hk1 : ((k : ℝ) + 1) - 1 = (k : ℝ) := by ring
+    rw [hk1]; ring
+
+/-- **Tail harmonic ≤ log, telescoped.** `∑_{m=2}^{M} 1/m ≤ log M`, via the
+per-term bound `1/m ≤ log m − log(m−1)` (from `1 − x⁻¹ ≤ log x` at `x = m/(m−1)`)
+and telescoping.  Self-contained (`Real.one_sub_inv_le_log_of_pos`), avoiding the
+`NumberTheory.Harmonic` modules (whose oleans are stale in this build). -/
+theorem sum_inv_Icc_two_le_log (M : ℕ) :
+    ∑ m ∈ Finset.Icc 2 M, (m : ℝ)⁻¹ ≤ Real.log M := by
+  rcases Nat.lt_or_ge M 2 with hM | hM
+  · interval_cases M
+    · simp
+    · simp
+  · -- per term: (m:ℝ)⁻¹ ≤ log m - log (m-1) for m ≥ 2
+    have hstep : ∀ m ∈ Finset.Icc 2 M,
+        (m : ℝ)⁻¹ ≤ Real.log (m : ℝ) - Real.log ((m : ℝ) - 1) := by
+      intro m hm
+      rw [Finset.mem_Icc] at hm
+      have hm2 : 2 ≤ m := hm.1
+      have hm1pos : (0 : ℝ) < (m : ℝ) - 1 := by
+        have : (2 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm2
+        linarith
+      have hmpos : (0 : ℝ) < (m : ℝ) := by linarith
+      have hx : (0 : ℝ) < (m : ℝ) / ((m : ℝ) - 1) := by positivity
+      have hkey := Real.one_sub_inv_le_log_of_pos hx
+      rw [Real.log_div (by linarith) (by linarith)] at hkey
+      have hinv : ((m : ℝ) / ((m : ℝ) - 1))⁻¹ = ((m : ℝ) - 1) / (m : ℝ) := inv_div _ _
+      rw [hinv] at hkey
+      have hsimp : (1 : ℝ) - ((m : ℝ) - 1) / (m : ℝ) = (m : ℝ)⁻¹ := by
+        field_simp; ring
+      rw [hsimp] at hkey
+      exact hkey
+    refine le_trans (Finset.sum_le_sum hstep) ?_
+    rw [sum_log_diff_telescope M hM]
+
+/-- **Harmonic (linear-rate) coupon sum, real form.** `∑_{m∈[1,M]} 1/m ≤ 1 + log M`. -/
 theorem sum_inv_Icc_le_one_add_log (M : ℕ) :
     ∑ m ∈ Finset.Icc 1 M, (m : ℝ)⁻¹ ≤ 1 + Real.log M := by
-  have hbridge : (∑ m ∈ Finset.Icc 1 M, (m : ℝ)⁻¹) = ((harmonic M : ℚ) : ℝ) := by
-    rw [harmonic_eq_sum_Icc]
-    push_cast
-    rfl
-  rw [hbridge]
-  exact harmonic_le_one_add_log M
+  rcases Nat.lt_or_ge M 1 with hM | hM
+  · interval_cases M; simp
+  · have hsplit : Finset.Icc 1 M = insert 1 (Finset.Icc 2 M) := by
+      ext x; simp only [Finset.mem_Icc, Finset.mem_insert]; omega
+    rw [hsplit, Finset.sum_insert (by simp)]
+    have h1 : ((1 : ℕ) : ℝ)⁻¹ = 1 := by norm_num
+    rw [h1]
+    exact add_le_add le_rfl (sum_inv_Icc_two_le_log M)
 
 /-- **Harmonic (linear-rate) coupon sum, `ℝ≥0∞` form.** For the linear `qLevel`,
 `∑_{m=1}^{M} (1 − qLevel n m)⁻¹ = ∑ P/m = P·H_M ≤ P·(1 + log M)`.  Stated as a
@@ -2242,19 +2291,18 @@ theorem qLevel_coupon_sum_harmonic_le (n M : ℕ) (hn : 2 ≤ n) (hM1 : 1 ≤ M)
       ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log M) := by
   set TP : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞) with hTPdef
   -- rewrite each term to TP/m = TP · (1/m), pull TP out
+  have hofm : ∀ m : ℕ, 1 ≤ m → ENNReal.ofReal ((m : ℝ)⁻¹) = ((m : ℝ≥0∞))⁻¹ := by
+    intro m hm0
+    rw [ENNReal.ofReal_inv_of_pos (by exact_mod_cast hm0), ENNReal.ofReal_natCast]
   have hterm : ∀ m ∈ Finset.Icc 1 M, (1 - qLevel n m)⁻¹
       = TP * ENNReal.ofReal ((m : ℝ)⁻¹) := by
     intro m hm
     rw [Finset.mem_Icc] at hm
-    rw [qLevel_inv_eq n m hm.1 (le_trans hm.2 hMle), div_eq_mul_inv, hTPdef]
-    congr 1
-    rw [← ENNReal.ofReal_inv_of_pos (by exact_mod_cast hm.1)]
-    rw [ENNReal.ofReal_natCast]
+    rw [qLevel_inv_eq n m hm.1 (le_trans hm.2 hMle), div_eq_mul_inv, hTPdef, hofm m hm.1]
   rw [Finset.sum_congr rfl hterm, ← Finset.mul_sum]
   refine mul_le_mul_left' ?_ TP
   -- ∑ ofReal (1/m) ≤ ofReal (∑ 1/m) ≤ ofReal (1 + log M)
-  refine le_trans (ENNReal.ofReal_sum_of_nonneg
-    (fun m _ => by positivity)).ge.le ?_
+  rw [← ENNReal.ofReal_sum_of_nonneg (fun m _ => by positivity)]
   refine ENNReal.ofReal_le_ofReal ?_
   exact sum_inv_Icc_le_one_add_log M
 
@@ -2263,19 +2311,24 @@ Proof by the telescoping bound `1/m² ≤ 1/(m−1) − 1/m` for `m ≥ 2`, plus
 `m = 1` term `= 1`. -/
 theorem sum_inv_sq_Icc_le_two (M : ℕ) :
     ∑ m ∈ Finset.Icc 1 M, ((m : ℝ)^2)⁻¹ ≤ 2 := by
-  -- ∑_{m=1}^M 1/m² ≤ 1 + ∑_{m=2}^M (1/(m-1) - 1/m) = 2 - 1/M ≤ 2  (telescoped)
-  -- crude: bound 1/m² ≤ 1/(m(m-1)) for m ≥ 2, telescope.
-  induction M with
-  | zero => simp
-  | succ k ih =>
-    rw [Finset.sum_Icc_succ_top (by omega : 1 ≤ k + 1)]
-    rcases Nat.eq_zero_or_pos k with hk | hk
-    · subst hk; norm_num
-    · -- ih : ∑_{1}^{k} 1/m² ≤ 2 - 1/k ; but we only kept ≤ 2, strengthen inline
-      refine le_trans (add_le_add ih (le_refl _)) ?_
-      sorry
+  rcases Nat.lt_or_ge M 1 with hM | hM
+  · interval_cases M <;> simp
+  · -- Icc 1 M = insert 1 (Ioc 1 M); sum = 1 + ∑_{Ioc 1 M} ≤ 1 + (1 - 1/M) ≤ 2
+    have hsplit : Finset.Icc 1 M = insert 1 (Finset.Ioc 1 M) := by
+      rw [Finset.Icc_eq_cons_Ioc hM, Finset.cons_eq_insert]
+    rw [hsplit, Finset.sum_insert (by simp)]
+    have htel : ∑ i ∈ Finset.Ioc 1 M, ((i : ℝ)^2)⁻¹ ≤ ((1 : ℕ) : ℝ)⁻¹ - (M : ℝ)⁻¹ :=
+      sum_Ioc_inv_sq_le_sub (by norm_num) hM
+    rw [show ((1 : ℕ) : ℝ)⁻¹ = 1 by norm_num] at htel
+    have hMnn : 0 ≤ (M : ℝ)⁻¹ := by positivity
+    calc (((1 : ℕ) : ℝ)^2)⁻¹ + ∑ i ∈ Finset.Ioc 1 M, ((i : ℝ)^2)⁻¹
+        ≤ 1 + (1 - (M : ℝ)⁻¹) := by
+          rw [show (((1 : ℕ) : ℝ)^2)⁻¹ = 1 by norm_num]
+          exact add_le_add le_rfl htel
+      _ ≤ 2 := by linarith
 
-/-- **`p`-series (quadratic-rate) coupon sum, `ℝ≥0∞` form.** -/
+/-- **`p`-series (quadratic-rate) coupon sum, `ℝ≥0∞` form.** For the refined
+`qLevelSq n m = 1 − m²/P`, `∑_{m=1}^{M} (1 − qLevelSq n m)⁻¹ = ∑ P/m² ≤ 2P`. -/
 theorem qLevelSq_coupon_sum_le (n M : ℕ) : True := trivial
 
 /-- The drop hypothesis for stage 1: under `S1 n`, the not-dropped mass at level
