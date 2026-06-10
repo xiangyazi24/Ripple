@@ -550,6 +550,28 @@ theorem absorbConsume_phase_fst (a b : AgentState L K) :
   | .dyadic .pos _, .dyadic .pos _ => simp
   | .dyadic .neg _, .dyadic .neg _ => simp
 
+/-- `cancelSplit` preserves the RIGHT phase. -/
+theorem cancelSplit_phase_snd (a b : AgentState L K) :
+    (cancelSplit L K a b).2.phase.val = b.phase.val := by
+  unfold cancelSplit
+  match a.bias, b.bias with
+  | .zero, _ => simp
+  | .dyadic _ _, .zero => simp
+  | .dyadic _ _, .dyadic _ _ => simp; split_ifs <;> simp
+
+/-- `absorbConsume` preserves the RIGHT phase. -/
+theorem absorbConsume_phase_snd (a b : AgentState L K) :
+    (absorbConsume L K a b).2.phase.val = b.phase.val := by
+  unfold absorbConsume
+  match a.bias, b.bias with
+  | .zero, _ => simp
+  | .dyadic .pos _, .zero => simp
+  | .dyadic .neg _, .zero => simp
+  | .dyadic .pos i, .dyadic .neg j => simp; split_ifs <;> simp
+  | .dyadic .neg i, .dyadic .pos j => simp; split_ifs <;> simp
+  | .dyadic .pos _, .dyadic .pos _ => simp
+  | .dyadic .neg _, .dyadic .neg _ => simp
+
 /-- Phase 6 left output advances by `≤ +1` (`stdCounterSubroutine` for a clock; the
 `doSplit` pre-step sets a non-clock role, so the counter `if` is identity otherwise). -/
 theorem Phase6Transition_left_phase_le_succ_of_wf (a b : AgentState L K)
@@ -951,6 +973,147 @@ theorem ep_left_clock_zero_imp_source (a b : AgentState L K) (p : ℕ)
       exact le_trans (le_max_left _ _)
         (phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) a b)
     rw [hphase] at hge; omega
+
+/-! ## Stage 3 (right side) — the mirror per-phase `+1` bounds, not-clock phase
+preservation, and the right dispatch/advance/source-trace.  Structure identical to the
+left; the right-clock reductions live in `SeamPairAdapter`. -/
+
+/-- Phase 1 RIGHT output advances by `≤ +1` (`clockCounterStep` of the averaged
+responder). -/
+theorem Phase1Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) b) (hle : b.phase.val ≤ 8) :
+    (Phase1Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  by_cases hmain : a.role = .main ∧ b.role = .main
+  · obtain ⟨ha, hb⟩ := hmain
+    have hval : (Phase1Transition L K a b).2.phase.val = b.phase.val := by
+      simp [Phase1Transition, ha, hb, clockCounterStep]
+    omega
+  · have hval : (Phase1Transition L K a b).2 = clockCounterStep L K b := by
+      unfold Phase1Transition; rw [if_neg hmain]
+    rw [hval]
+    exact clockCounterStep_phase_le_succ_of_wf b hwf hle
+
+theorem Phase1Transition_right_phase_eq_of_not_clock (a b : AgentState L K)
+    (hc : b.role ≠ .clock) :
+    (Phase1Transition L K a b).2.phase.val = b.phase.val := by
+  by_cases hmain : a.role = .main ∧ b.role = .main
+  · simp [Phase1Transition, hmain.1, hmain.2, clockCounterStep]
+  · have : (Phase1Transition L K a b).2 = clockCounterStep L K b := by
+      unfold Phase1Transition; rw [if_neg hmain]
+    rw [this]; unfold clockCounterStep; rw [if_neg hc]
+
+/-- Phase 2 RIGHT output advances by `≤ +1`. -/
+theorem Phase2Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) b) (hle : b.phase.val ≤ 8) :
+    (Phase2Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  have hwf' : WfAgent (L := L) (K := K)
+      ({ b with opinions := opinionsUnion a.opinions b.opinions } : AgentState L K) := by
+    obtain ⟨h1, h2, h3⟩ := hwf; exact ⟨h1, h2, h3⟩
+  have hle' : ({ b with opinions := opinionsUnion a.opinions b.opinions }
+      : AgentState L K).phase.val ≤ 8 := hle
+  unfold Phase2Transition
+  dsimp only
+  split_ifs
+  · exact advancePhaseWithInit_phase_le_succ_of_wf _ hwf' hle'
+  · exact Nat.le_succ _
+  · exact Nat.le_succ _
+  · exact Nat.le_succ _
+  · exact Nat.le_succ _
+
+/-- Phase 4 RIGHT output advances by `≤ +1`. -/
+theorem Phase4Transition_right_phase_le_succ (a b : AgentState L K) :
+    (Phase4Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  unfold Phase4Transition; dsimp
+  split_ifs
+  · exact advancePhase_phase_le_succ b
+  · exact Nat.le_succ _
+
+/-- Phase 5 RIGHT output advances by `≤ +1`. -/
+theorem Phase5Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) b) (hle : b.phase.val ≤ 8) :
+    (Phase5Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  by_cases hc : b.role = .clock
+  · rw [Phase5Transition_right_clock a b hc]
+    exact stdCounterSubroutine_phase_le_succ_of_wf b hwf hle
+  · have hval : (Phase5Transition L K a b).2.phase.val = b.phase.val := by
+      simp only [Phase5Transition]
+      split_ifs with h1 h2 <;> simp_all
+    omega
+
+/-- Phase 6 RIGHT output advances by `≤ +1`. -/
+theorem Phase6Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) b) (hle : b.phase.val ≤ 8) :
+    (Phase6Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  by_cases hc : b.role = .clock
+  · rw [Phase6Transition_right_clock a b hc]
+    exact stdCounterSubroutine_phase_le_succ_of_wf b hwf hle
+  · have hval : (Phase6Transition L K a b).2.phase.val = b.phase.val := by
+      simp only [Phase6Transition]
+      have hs1role : (if a.role = .reserve ∧ b.role = .main ∧ (b.bias ≠ .zero) then
+            (doSplit L K a b).2
+          else if b.role = .reserve ∧ a.role = .main ∧ (a.bias ≠ .zero) then
+            (doSplit L K b a).1 else b).role ≠ .clock := by
+        split_ifs
+        · rw [doSplit_role_snd]; exact hc
+        · exact doSplit_role_fst_ne_clock b a hc
+        · exact hc
+      have hs1phase : (if a.role = .reserve ∧ b.role = .main ∧ (b.bias ≠ .zero) then
+            (doSplit L K a b).2
+          else if b.role = .reserve ∧ a.role = .main ∧ (a.bias ≠ .zero) then
+            (doSplit L K b a).1 else b).phase.val = b.phase.val := by
+        split_ifs
+        · exact doSplit_phase_snd a b
+        · exact doSplit_phase_fst b a
+        · rfl
+      show (if _ then stdCounterSubroutine L K _ else _).phase.val = b.phase.val
+      rw [if_neg hs1role, hs1phase]
+    omega
+
+/-- Phase 7 RIGHT output advances by `≤ +1`. -/
+theorem Phase7Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) b) (hle : b.phase.val ≤ 8) :
+    (Phase7Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  by_cases hc : b.role = .clock
+  · rw [Phase7Transition_right_clock a b hc]
+    exact stdCounterSubroutine_phase_le_succ_of_wf b hwf hle
+  · have hval : (Phase7Transition L K a b).2.phase.val = b.phase.val := by
+      simp only [Phase7Transition]
+      have hs1role : (if a.role = .main ∧ b.role = .main then
+            (cancelSplit L K a b).2 else b).role ≠ .clock := by
+        split_ifs
+        · rw [cancelSplit_role_snd]; exact hc
+        · exact hc
+      have hs1phase : (if a.role = .main ∧ b.role = .main then
+            (cancelSplit L K a b).2 else b).phase.val = b.phase.val := by
+        split_ifs
+        · exact cancelSplit_phase_snd a b
+        · rfl
+      show (if _ then stdCounterSubroutine L K _ else _).phase.val = b.phase.val
+      rw [if_neg hs1role, hs1phase]
+    omega
+
+/-- Phase 8 RIGHT output advances by `≤ +1`. -/
+theorem Phase8Transition_right_phase_le_succ_of_wf (a b : AgentState L K)
+    (hwf : WfAgent (L := L) (K := K) b) (hle : b.phase.val ≤ 8) :
+    (Phase8Transition L K a b).2.phase.val ≤ b.phase.val + 1 := by
+  by_cases hc : b.role = .clock
+  · rw [Phase8Transition_right_clock a b hc]
+    exact stdCounterSubroutine_phase_le_succ_of_wf b hwf hle
+  · have hval : (Phase8Transition L K a b).2.phase.val = b.phase.val := by
+      simp only [Phase8Transition]
+      have hs1role : (if a.role = .main ∧ b.role = .main then
+            (absorbConsume L K a b).2 else b).role ≠ .clock := by
+        split_ifs
+        · rw [absorbConsume_role_snd]; exact hc
+        · exact hc
+      have hs1phase : (if a.role = .main ∧ b.role = .main then
+            (absorbConsume L K a b).2 else b).phase.val = b.phase.val := by
+        split_ifs
+        · exact absorbConsume_phase_snd a b
+        · rfl
+      show (if _ then stdCounterSubroutine L K _ else _).phase.val = b.phase.val
+      rw [if_neg hs1role, hs1phase]
+    omega
 
 end SeamNoOvershoot
 

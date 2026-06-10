@@ -166,4 +166,64 @@ theorem expectedHitting_seqcomp_on_of_uniform [DiscreteMeasurableSpace α]
         expectedHitting_seqcomp_on K J hClosed hMid hDone B hB c hJc
     _ ≤ A + B := by gcongr
 
+/-! ## Stage 2 — clock-role preservation (the honest fact)
+
+### What "clock-role preservation" actually is, honestly
+
+The paper's "clocks are never destroyed" reads, in this formalization, as the
+preservation of the engine invariant
+
+    `AllClockGEpCard p n c  :=  (∀ a ∈ c, a.role = .clock ∧ p ≤ a.phase.val) ∧ c.card = n`
+
+— **every** agent is a clock at phase `≥ p`, with fixed population `n`.  This is the
+*post-role-split* regime (after Phase 0 turns the working population into clocks); it
+is NOT a property of an arbitrary reachable not-done state (which may still hold
+main/reserve roles).  The honest preservation fact is therefore:
+
+> From a state satisfying `AllClockGEpCard p n`, the role+phase-floor invariant
+> persists under the kernel for all time (`3 ≤ p`).
+
+The campaign already proves the engine atom:
+
+* `ConditionalPhaseProgress.AllClockGEp_absorbing` — `AllClockGEp p` is **one-step
+  support closed** (`3 ≤ p`): the clock-clock per-pair fact `Transition_clock_pair`
+  (a clock-clock interaction produces two clocks) plus the phase-`max` floor.
+* `ConditionalPhaseProgress.AllClockGEpCard_InvClosed` — the kernel `InvClosed` form
+  (support closure + card conservation `stepDistOrSelf_support_card_eq`).
+
+`AllClockGEpCard_InvClosed` is *exactly* the `Engine.InvClosed` hypothesis the
+invariant-relative telescope engine (`expectedHitting_seqcomp_on`, E1's `_on` ladder)
+consumes — so for the per-phase telescope (Stage 3) the clock-role preservation we
+need is already in hand.  Below we additionally package the **all-time** kernel-power
+form (every `(K^t)`-reachable state a.e. satisfies the invariant), the form a future
+`hClassify` derivation would consume, built from the same support closure via the
+generic `transitionKernel_pow_not_pred_eq_zero_of_stepDistOrSelf_support_preserved`. -/
+
+open ConditionalPhaseProgress in
+/-- **`AllClockGEpCard p n` is one-step support closed** (re-export of the engine atom
+as a plain support-step predicate, the shape the generic kernel-power preservation
+template consumes).  `3 ≤ p`. -/
+theorem allClockGEpCard_support_step_closed {L K : ℕ} (p n : ℕ) (hp : 3 ≤ p)
+    (c c' : Config (AgentState L K))
+    (hc : AllClockGEpCard (L := L) (K := K) p n c)
+    (hsupp : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    AllClockGEpCard (L := L) (K := K) p n c' :=
+  ⟨AllClockGEp_absorbing (L := L) (K := K) p hp c c' hc.1 hsupp,
+    by rw [Protocol.stepDistOrSelf_support_card_eq (NonuniformMajority L K) c c' hsupp]; exact hc.2⟩
+
+open ConditionalPhaseProgress in
+/-- **All-time clock-role preservation.** From an `AllClockGEpCard p n` start `c`
+(`3 ≤ p`), the not-invariant mass under every kernel power vanishes: the trajectory
+stays a.e. on `AllClockGEpCard p n` for all `t`.  Honest statement of "clocks are
+never destroyed after Phase 0", at the kernel level.  Built from the support closure
+`allClockGEpCard_support_step_closed` and the generic preservation template. -/
+theorem allClockGEpCard_pow_preserved {L K : ℕ} (p n : ℕ) (hp : 3 ≤ p)
+    (c : Config (AgentState L K))
+    (hc : AllClockGEpCard (L := L) (K := K) p n c) (t : ℕ) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c
+        {x | ¬ AllClockGEpCard (L := L) (K := K) p n x} = 0 :=
+  Protocol.transitionKernel_pow_not_pred_eq_zero_of_stepDistOrSelf_support_preserved
+    (NonuniformMajority L K) (AllClockGEpCard (L := L) (K := K) p n)
+    (fun a b ha hb => allClockGEpCard_support_step_closed p n hp a b ha hb) c hc t
+
 end ExactMajority
