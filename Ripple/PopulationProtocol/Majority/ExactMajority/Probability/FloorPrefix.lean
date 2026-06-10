@@ -196,5 +196,297 @@ def floorOrDoneGate (n a₀ : ℕ) (hn2 : 2 ≤ n) :
   floorGate (L := L) (K := K) n a₀ ∪
     {c | roleSplitGoodMile (L := L) (K := K) n hn2 c}
 
+/-! ## §3 — the one-step pool MGF drift.
+
+We isolate the analytic content (the exponential-tilt mass bookkeeping) into an
+abstract scalar drift lemma, then state the protocol-rate masses and the
+one-step drift specialised to the real kernel.
+
+### The honest mass model (corrected against the real `Phase0Transition`)
+
+The per-step assignable-pool change is in `[-2, +2]` (each interaction touches two
+agents; each contributes `±1` to the assignable count `IsAssignable`).  Splitting
+the one-step successor measure into the three bands
+
+* **birth**  `B = {c' | pool c + 2 ≤ pool c'}`   (Rule-1 `MCR,MCR → Main,CR` with both
+  outputs unassigned-at-phase-0, `assignable_rule…`, mass `≥ b`);
+* **death**  `D = {c' | pool c' < pool c}`       (a genuine pool drop, e.g. fresh-CR
+  pairs draining via Rule 4, mass `≤ d`);
+* **neutral** `N = {c' | pool c ≤ pool c' ∧ pool c' < pool c + 2}`,
+
+and tilting `poolExpNeg` by `e^{-2s}` on `B`, `1` on `N`, `e^{2s}` on `D` (using the
+a.e. lower bound `pool c - 2 ≤ pool c'`), gives the multiplier
+`1 - b(1 - e^{-2s}) + d(e^{2s} - 1)`.  This is the `ScalarPoolFav` value. -/
+
+/-- **`birthR1Mass c`** — the real-kernel one-step mass of the pool-birth band
+`{c' | assignableCount c + 2 ≤ assignableCount c'}`.  Lower-bounded by Rule-1
+`MCR,MCR` interactions among unassigned phase-0 agents (`hbirth`). -/
+noncomputable def birthR1Mass (c : Config (AgentState L K)) : ℝ≥0∞ :=
+  ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {c' | assignableCount (L := L) (K := K) c + 2 ≤ assignableCount (L := L) (K := K) c'}
+
+/-- **`r4FreshCRDrainMass c`** — the real-kernel one-step mass of the pool-drain band
+`{c' | assignableCount c' < assignableCount c}`.  Upper-bounded by the fresh-CR pair
+count squared, hence by `pool²/(n(n-1))` (`hdeath`). -/
+noncomputable def r4FreshCRDrainMass (c : Config (AgentState L K)) : ℝ≥0∞ :=
+  ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {c' | assignableCount (L := L) (K := K) c' < assignableCount (L := L) (K := K) c}
+
+/-- **Abstract scalar one-step pool drift.**  The analytic core, kernel-local and
+parametric in the masses `b, d` and the contraction value.  Given:
+* `hstep` — the per-step pool lower bound `pool c - 2 ≤ pool c'` a.e. on the successor
+  measure (the `±2` interaction range — a protocol fact, supplied as a hypothesis);
+* `hb` — the birth mass is at least `b`;
+* `hd` — the drain mass is at most `d`;
+* `hbd` — the masses are real-valued (`≠ ⊤`, automatic for a probability measure) and
+  the favorability value `rVal = 1 - b·(1-e^{-2s}) + d·(e^{2s}-1)` is `≤ r`,
+the tilted one-step expectation contracts:
+`∫ poolExpNeg s ∂(K c) ≤ r · poolExpNeg s c`. -/
+theorem pool_expNeg_one_step_drift_abstract
+    (s : ℝ) (hs : 0 < s) (c : Config (AgentState L K))
+    (b d : ℝ) (hb0 : 0 ≤ b) (hd0 : 0 ≤ d) (_hb1 : b ≤ 1) (_hbd1 : b + d ≤ 1)
+    (hstep : ∀ᵐ c' ∂((NonuniformMajority L K).transitionKernel c),
+      (assignableCount (L := L) (K := K) c : ℤ) - 2
+        ≤ (assignableCount (L := L) (K := K) c' : ℤ))
+    (hb : ENNReal.ofReal b ≤ birthR1Mass (L := L) (K := K) c)
+    (hd : r4FreshCRDrainMass (L := L) (K := K) c ≤ ENNReal.ofReal d)
+    (r : ℝ≥0∞)
+    (hfav : ENNReal.ofReal
+      (1 - b * (1 - Real.exp (-2 * s)) + d * (Real.exp (2 * s) - 1)) ≤ r) :
+    ∫⁻ c', poolExpNeg (L := L) (K := K) s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ r * poolExpNeg (L := L) (K := K) s c := by
+  classical
+  set μ := (NonuniformMajority L K).transitionKernel c with hμ
+  haveI : IsProbabilityMeasure μ := by rw [hμ]; infer_instance
+  set p := assignableCount (L := L) (K := K) c with hp
+  set β := Real.exp (-s * (p : ℝ)) with hβ
+  have hβpos : 0 < β := Real.exp_pos _
+  -- The three bands.
+  set B : Set (Config (AgentState L K)) :=
+    {c' | p + 2 ≤ assignableCount (L := L) (K := K) c'} with hBdef
+  set D : Set (Config (AgentState L K)) :=
+    {c' | assignableCount (L := L) (K := K) c' < p} with hDdef
+  -- Pointwise upper bound on the integrand by an `if`-cascade times β.
+  have hpw : ∀ᵐ c' ∂μ,
+      poolExpNeg (L := L) (K := K) s c'
+        ≤ ENNReal.ofReal
+            ((if c' ∈ B then Real.exp (-2 * s)
+              else if c' ∈ D then Real.exp (2 * s) else 1) * β) := by
+    filter_upwards [hstep] with c' hc'
+    unfold poolExpNeg
+    apply ENNReal.ofReal_le_ofReal
+    set p' := assignableCount (L := L) (K := K) c' with hp'
+    by_cases hB : c' ∈ B
+    · simp only [hB, if_true]
+      have hle : (p : ℝ) + 2 ≤ (p' : ℝ) := by
+        have : p + 2 ≤ p' := hB; exact_mod_cast this
+      have : Real.exp (-s * (p' : ℝ)) ≤ Real.exp (-2 * s) * β := by
+        rw [hβ, ← Real.exp_add]; apply Real.exp_le_exp.mpr; nlinarith [hle, hs]
+      linarith [this]
+    · simp only [hB, if_false]
+      by_cases hD : c' ∈ D
+      · simp only [hD, if_true]
+        -- death band: pool c' ≥ pool c - 2 (from hstep), factor e^{2s}
+        have hle : (p : ℝ) ≤ (p' : ℝ) + 2 := by
+          have : (p : ℤ) - 2 ≤ (p' : ℤ) := hc'
+          have : (p : ℝ) - 2 ≤ (p' : ℝ) := by exact_mod_cast this
+          linarith
+        have : Real.exp (-s * (p' : ℝ)) ≤ Real.exp (2 * s) * β := by
+          rw [hβ, ← Real.exp_add]; apply Real.exp_le_exp.mpr; nlinarith [hle, hs]
+        linarith [this]
+      · simp only [hD, if_false, one_mul]
+        -- neutral band: pool c ≤ pool c' (¬D), factor 1
+        have hge : p ≤ p' := by
+          simp only [hDdef, Set.mem_setOf_eq, not_lt] at hD; exact hD
+        have hle : (p : ℝ) ≤ (p' : ℝ) := by exact_mod_cast hge
+        have : Real.exp (-s * (p' : ℝ)) ≤ β := by
+          rw [hβ]; apply Real.exp_le_exp.mpr; nlinarith [hle, hs]
+        linarith [this]
+  -- Integrate the if-cascade.
+  have hBmeas : MeasurableSet B := DiscreteMeasurableSpace.forall_measurableSet _
+  have hDmeas : MeasurableSet D := DiscreteMeasurableSpace.forall_measurableSet _
+  have hgmeas : Measurable (fun c' : Config (AgentState L K) =>
+      ENNReal.ofReal
+        ((if c' ∈ B then Real.exp (-2 * s)
+          else if c' ∈ D then Real.exp (2 * s) else 1) * β)) := Measurable.of_discrete
+  -- `B` and `D` are disjoint (`pool' ≥ pool+2` vs `pool' < pool`).
+  have hBD_disj : Disjoint B D := by
+    rw [Set.disjoint_left]; intro x hxB hxD
+    simp only [hBdef, Set.mem_setOf_eq] at hxB
+    simp only [hDdef, Set.mem_setOf_eq] at hxD; omega
+  set qB := μ B with hqB
+  set qD := μ D with hqD
+  have hqB_le : ENNReal.ofReal b ≤ qB := by rw [hqB, hμ]; exact hb
+  have hqD_le : qD ≤ ENNReal.ofReal d := by rw [hqD, hμ]; exact hd
+  have hqB_top : qB ≠ ⊤ := measure_ne_top _ _
+  have hqD_top : qD ≠ ⊤ := measure_ne_top _ _
+  -- Compute `∫ g`.  Split B / Bᶜ; on Bᶜ split D / (Bᶜ ∩ Dᶜ).
+  have hint_le : ∫⁻ c', ENNReal.ofReal
+      ((if c' ∈ B then Real.exp (-2 * s)
+        else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂μ
+      ≤ ENNReal.ofReal (Real.exp (-2 * s) * β) * qB
+        + ENNReal.ofReal (Real.exp (2 * s) * β) * qD
+        + ENNReal.ofReal (1 * β) * (1 - qB - qD) := by
+    rw [← lintegral_add_compl _ hBmeas]
+    have hI_B : ∫⁻ c' in B, ENNReal.ofReal
+        ((if c' ∈ B then Real.exp (-2 * s)
+          else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂μ
+        = ENNReal.ofReal (Real.exp (-2 * s) * β) * qB := by
+      rw [show (∫⁻ c' in B, ENNReal.ofReal
+          ((if c' ∈ B then Real.exp (-2 * s)
+            else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂μ)
+          = ∫⁻ _ in B, ENNReal.ofReal (Real.exp (-2 * s) * β) ∂μ from ?_,
+        lintegral_const, Measure.restrict_apply_univ, hqB]
+      apply lintegral_congr_ae
+      filter_upwards [ae_restrict_mem hBmeas] with c' hc'
+      simp only [hc', if_true]
+    have hI_Bc : ∫⁻ c' in Bᶜ, ENNReal.ofReal
+        ((if c' ∈ B then Real.exp (-2 * s)
+          else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂μ
+        ≤ ENNReal.ofReal (Real.exp (2 * s) * β) * qD
+          + ENNReal.ofReal (1 * β) * (1 - qB - qD) := by
+      -- On Bᶜ the integrand is `if D then e^{2s}β else β`.  Split D / Dᶜ within Bᶜ.
+      have hDsubBc : D ⊆ Bᶜ := by
+        rw [Set.subset_compl_iff_disjoint_left]; exact hBD_disj
+      rw [← lintegral_add_compl (μ := μ.restrict Bᶜ) _ hDmeas]
+      have hI_D : ∫⁻ c' in D, ENNReal.ofReal
+          ((if c' ∈ B then Real.exp (-2 * s)
+            else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂(μ.restrict Bᶜ)
+          = ENNReal.ofReal (Real.exp (2 * s) * β) * qD := by
+        rw [Measure.restrict_restrict hDmeas, Set.inter_eq_left.mpr hDsubBc]
+        rw [show (∫⁻ c' in D, ENNReal.ofReal
+            ((if c' ∈ B then Real.exp (-2 * s)
+              else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂μ)
+            = ∫⁻ _ in D, ENNReal.ofReal (Real.exp (2 * s) * β) ∂μ from ?_,
+          lintegral_const, Measure.restrict_apply_univ, hqD]
+        apply lintegral_congr_ae
+        filter_upwards [ae_restrict_mem hDmeas] with c' hc'
+        have hcB : c' ∉ B := fun h => (Set.disjoint_left.mp hBD_disj h hc')
+        simp only [hcB, if_false, hc', if_true]
+      have hI_DcN : ∫⁻ c' in Dᶜ, ENNReal.ofReal
+          ((if c' ∈ B then Real.exp (-2 * s)
+            else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂(μ.restrict Bᶜ)
+          ≤ ENNReal.ofReal (1 * β) * (1 - qB - qD) := by
+        rw [Measure.restrict_restrict hDmeas.compl]
+        calc ∫⁻ c' in Dᶜ ∩ Bᶜ, _ ∂μ
+            = ∫⁻ _ in Dᶜ ∩ Bᶜ, ENNReal.ofReal (1 * β) ∂μ := by
+              apply lintegral_congr_ae
+              filter_upwards [ae_restrict_mem (hDmeas.compl.inter hBmeas.compl)] with c' hc'
+              obtain ⟨hcD, hcB⟩ := hc'
+              simp only [Set.mem_compl_iff] at hcD hcB
+              simp only [hcB, if_false, hcD, if_false]
+          _ = ENNReal.ofReal (1 * β) * μ (Dᶜ ∩ Bᶜ) := by
+              rw [lintegral_const, Measure.restrict_apply_univ]
+          _ ≤ ENNReal.ofReal (1 * β) * (1 - qB - qD) := by
+              refine mul_le_mul' (le_refl _) ?_
+              have hsub : Dᶜ ∩ Bᶜ ⊆ (B ∪ D)ᶜ := by
+                intro x ⟨hxD, hxB⟩
+                simp only [Set.mem_compl_iff, Set.mem_union] at hxD hxB ⊢
+                tauto
+              calc μ (Dᶜ ∩ Bᶜ) ≤ μ (B ∪ D)ᶜ := measure_mono hsub
+                _ = 1 - μ (B ∪ D) := by
+                    rw [measure_compl (hBmeas.union hDmeas) (measure_ne_top _ _), measure_univ]
+                _ = 1 - (qB + qD) := by
+                    rw [measure_union hBD_disj hDmeas]
+                _ = 1 - qB - qD := by rw [tsub_add_eq_tsub_tsub]
+      rw [hI_D]
+      exact add_le_add le_rfl hI_DcN
+    rw [hI_B]
+    calc ENNReal.ofReal (Real.exp (-2 * s) * β) * qB
+          + ∫⁻ c' in Bᶜ, ENNReal.ofReal
+            ((if c' ∈ B then Real.exp (-2 * s)
+              else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂μ
+        ≤ ENNReal.ofReal (Real.exp (-2 * s) * β) * qB
+            + (ENNReal.ofReal (Real.exp (2 * s) * β) * qD
+              + ENNReal.ofReal (1 * β) * (1 - qB - qD)) :=
+          add_le_add le_rfl hI_Bc
+      _ = _ := by rw [add_assoc]
+  -- The scalar mass bound `e^{-2s}·qB + e^{2s}·qD + (1-qB-qD) ≤ rVal` times β.
+  -- Reduce everything to `toReal` and finish by `nlinarith`.
+  set qBr := qB.toReal with hqBr
+  set qDr := qD.toReal with hqDr
+  have hqBr0 : 0 ≤ qBr := ENNReal.toReal_nonneg
+  have hqDr0 : 0 ≤ qDr := ENNReal.toReal_nonneg
+  have hqB_eq : qB = ENNReal.ofReal qBr := (ENNReal.ofReal_toReal hqB_top).symm
+  have hqD_eq : qD = ENNReal.ofReal qDr := (ENNReal.ofReal_toReal hqD_top).symm
+  have hb_le_qBr : b ≤ qBr := by
+    have h := ENNReal.toReal_mono hqB_top hqB_le
+    rwa [ENNReal.toReal_ofReal hb0] at h
+  have hqDr_le_d : qDr ≤ d := by
+    have h := ENNReal.toReal_mono (b := ENNReal.ofReal d) ENNReal.ofReal_ne_top hqD_le
+    rwa [ENNReal.toReal_ofReal hd0] at h
+  -- `qB + qD ≤ 1` so `1 - qB - qD = ofReal (1 - qBr - qDr)`.
+  have hsum_le : qB + qD ≤ 1 := by
+    rw [hqB, hqD, ← measure_union hBD_disj hDmeas]
+    calc μ (B ∪ D) ≤ μ Set.univ := measure_mono (Set.subset_univ _)
+      _ = 1 := measure_univ
+  have hsumr_le : qBr + qDr ≤ 1 := by
+    have h := ENNReal.toReal_mono ENNReal.one_ne_top hsum_le
+    rwa [ENNReal.toReal_add hqB_top hqD_top, ENNReal.toReal_one] at h
+  have hcompl_eq : (1 : ℝ≥0∞) - qB - qD = ENNReal.ofReal (1 - qBr - qDr) := by
+    rw [hqB_eq, hqD_eq, ← ENNReal.ofReal_one,
+      ← ENNReal.ofReal_sub _ hqBr0, ← ENNReal.ofReal_sub _ hqDr0]
+  -- Collapse the three `ofReal _ * ofReal _` products into a single `ofReal`.
+  have hβ0 : (0 : ℝ) ≤ β := hβpos.le
+  have he2 : (0 : ℝ) ≤ Real.exp (2 * s) := (Real.exp_pos _).le
+  have hen2 : (0 : ℝ) ≤ Real.exp (-2 * s) := (Real.exp_pos _).le
+  have hbound_real :
+      Real.exp (-2 * s) * β * qBr + Real.exp (2 * s) * β * qDr
+          + 1 * β * (1 - qBr - qDr)
+        ≤ (1 - b * (1 - Real.exp (-2 * s)) + d * (Real.exp (2 * s) - 1)) * β := by
+    have hkey : Real.exp (-2 * s) * qBr + Real.exp (2 * s) * qDr + (1 - qBr - qDr)
+        ≤ 1 - b * (1 - Real.exp (-2 * s)) + d * (Real.exp (2 * s) - 1) := by
+      have h1 : (1 - Real.exp (-2 * s)) * (qBr - b) ≥ 0 := by
+        apply mul_nonneg
+        · have : Real.exp (-2 * s) ≤ 1 := by
+            rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
+            exact Real.exp_le_exp.mpr (by nlinarith [hs])
+          linarith
+        · linarith [hb_le_qBr]
+      have h2 : (Real.exp (2 * s) - 1) * (d - qDr) ≥ 0 := by
+        apply mul_nonneg
+        · have : (1 : ℝ) ≤ Real.exp (2 * s) := by
+            rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
+            exact Real.exp_le_exp.mpr (by nlinarith [hs])
+          linarith
+        · linarith [hqDr_le_d]
+      nlinarith [h1, h2]
+    nlinarith [hkey, hβpos]
+  -- Chain everything.
+  calc ∫⁻ c', poolExpNeg (L := L) (K := K) s c' ∂μ
+      ≤ ∫⁻ c', ENNReal.ofReal
+          ((if c' ∈ B then Real.exp (-2 * s)
+            else if c' ∈ D then Real.exp (2 * s) else 1) * β) ∂μ :=
+        lintegral_mono_ae hpw
+    _ ≤ ENNReal.ofReal (Real.exp (-2 * s) * β) * qB
+          + ENNReal.ofReal (Real.exp (2 * s) * β) * qD
+          + ENNReal.ofReal (1 * β) * (1 - qB - qD) := hint_le
+    _ = ENNReal.ofReal
+          (Real.exp (-2 * s) * β * qBr + Real.exp (2 * s) * β * qDr
+            + 1 * β * (1 - qBr - qDr)) := by
+        have hcompl0 : (0 : ℝ) ≤ 1 - qBr - qDr := by linarith [hsumr_le]
+        have ht1 : (0 : ℝ) ≤ Real.exp (-2 * s) * β * qBr :=
+          mul_nonneg (mul_nonneg hen2 hβ0) hqBr0
+        have ht2 : (0 : ℝ) ≤ Real.exp (2 * s) * β * qDr :=
+          mul_nonneg (mul_nonneg he2 hβ0) hqDr0
+        have ht3 : (0 : ℝ) ≤ 1 * β * (1 - qBr - qDr) :=
+          mul_nonneg (mul_nonneg (by norm_num) hβ0) hcompl0
+        rw [hcompl_eq, hqB_eq, hqD_eq,
+          ← ENNReal.ofReal_mul (by positivity),
+          ← ENNReal.ofReal_mul (by positivity),
+          ← ENNReal.ofReal_mul (by positivity),
+          ← ENNReal.ofReal_add ht1 ht2,
+          ← ENNReal.ofReal_add (add_nonneg ht1 ht2) ht3]
+    _ ≤ ENNReal.ofReal
+          ((1 - b * (1 - Real.exp (-2 * s)) + d * (Real.exp (2 * s) - 1)) * β) :=
+        ENNReal.ofReal_le_ofReal hbound_real
+    _ = ENNReal.ofReal
+          (1 - b * (1 - Real.exp (-2 * s)) + d * (Real.exp (2 * s) - 1))
+          * ENNReal.ofReal β := by rw [ENNReal.ofReal_mul' hβ0]
+    _ ≤ r * poolExpNeg (L := L) (K := K) s c := by
+        apply mul_le_mul' hfav
+        unfold poolExpNeg; rw [hβ, hp]
+
 end FloorPrefix
 end ExactMajority
