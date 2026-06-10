@@ -440,5 +440,229 @@ theorem hbirth_of_freshMcr_floor
           (freshMcrCount (L := L) (K := K) c - 1) : ℕ) : ℝ)) := by exact_mod_cast hmono
   gcongr
 
+/-! ## Stage 3 — `hdeath`: the Rule-4 fresh-CR drain rectangle (upper bound).
+
+This is the upper-bound dual of Stage 2.  The drain band `{c' | pool c' < pool c}` is the
+image of the `{drop}` preimage under `scheduledStep`; by the kernel→preimage *equality* on
+the `interactionPMF`, its mass equals the PMF mass of the preimage.  The preimage is
+contained in a *block square* of agents `S` (the agents whose deletion can lower the pool),
+so the block bound `block_pair_prob_le_sq` caps it by `(∑_{a∈S} count a / n)²`.
+
+### The honest protocol containment (and the FloorPrefix-definition mismatch)
+
+The genuinely-new protocol fact is *which* ordered pairs can strictly lower the pool.  Two
+subtleties make the blueprint's "drain ≤ pool²/(n(n−1))" NOT a verbatim consequence of
+`PoolDriftRegion`:
+
+(a) **The only first-level / second-level drain is Rule 4** (`RoleCR,RoleCR → Clock,Reserve`,
+   `assignableCount_pair_rule4_drop`).  A strict pool drop therefore deletes assignable
+   agents that become non-assignable — but R4 fires on *any* two `RoleCR`, and an
+   assignable CR can be deleted alongside a **non-assignable** CR (assigned or non-phase-0),
+   dropping the pool by `1`.  So the drop preimage is contained in the `RoleCR×RoleCR`
+   block, giving `(crCount/n)²`, with `crCount` the **total** CR count — *not* the pool.
+
+(b) The kernel is the full multi-phase `Transition`, whose `phaseEpidemicUpdate` prefix can
+   advance a phase-0 assignable agent out of phase 0 (another drain path), unless the
+   interacting pair is phase-synchronised.  `cardPhaseShell` only pins `role = mcr → phase 0`,
+   not the phases of the assignable Main/CR agents.
+
+Hence the honest, provable upper bound is `r4FreshCRDrainMass c ≤ (∑_{a∈S} count a / n)²`
+for the block `S` of agents whose deletion can drop the pool, and the FloorPrefix target
+`r4FreshCRDrainMass c ≤ Ahi²/(n(n−1))` follows **only under the extra region fact**
+`drainBlockCount c ≤ Ahi` (the block count is within the buffer).  We deliver the reusable
+infrastructure (`stepDist_toMeasure_eq_preimage`, `block_pair_prob_le_sq`,
+`pair_block_sq_le_buffer`) and the `hdeath` adapter conditioned on that block-count fact;
+the containment `drainPreimage ⊆ blockSquare` and the block-count bound are the residual
+protocol facts (see `drainPreimage_subset_block` below, carried as a hypothesis). -/
+
+/-- **Upper-bound dual of `stepDistOrSelf_toMeasure_ge`.**  When `2 ≤ c.card`, the
+one-step mass of a config event equals the `interactionPMF` mass of its `scheduledStep`
+preimage.  (Pure `PMF.map`/`Measure.map_apply` rewriting; the lower-bound lemma uses the
+`≥` half of the same identity.) -/
+theorem stepDist_toMeasure_eq_preimage
+    (c : Config (AgentState L K)) (hc : 2 ≤ c.card)
+    (target : Set (Config (AgentState L K))) :
+    ((NonuniformMajority L K).stepDistOrSelf c).toMeasure target =
+      (c.interactionPMF hc).toMeasure
+        ((NonuniformMajority L K).scheduledStep c ⁻¹' target) := by
+  have h_meas : MeasurableSet target := DiscreteMeasurableSpace.forall_measurableSet _
+  unfold Protocol.stepDistOrSelf
+  rw [dif_pos hc]
+  unfold Protocol.stepDist
+  have h_map := PMF.toMeasure_map ((NonuniformMajority L K).scheduledStep c)
+    (c.interactionPMF hc) Measurable.of_discrete
+  calc (PMF.map ((NonuniformMajority L K).scheduledStep c)
+        (c.interactionPMF hc)).toMeasure target
+      = ((c.interactionPMF hc).toMeasure.map
+          ((NonuniformMajority L K).scheduledStep c)) target := by rw [← h_map]
+    _ = (c.interactionPMF hc).toMeasure
+          ((NonuniformMajority L K).scheduledStep c ⁻¹' target) :=
+        MeasureTheory.Measure.map_apply Measurable.of_discrete h_meas
+
+/-- A finite-type PMF `toMeasure` value bounded by the sum over a covering Finset. -/
+private theorem toMeasure_le_sum_event (p : PMF (AgentState L K × AgentState L K))
+    (E : Finset (AgentState L K × AgentState L K))
+    (Eset : Set (AgentState L K × AgentState L K)) (hsub : Eset ⊆ ↑E) :
+    p.toMeasure Eset ≤ ∑ pr ∈ E, p pr := by
+  calc p.toMeasure Eset ≤ p.toMeasure ↑E := measure_mono hsub
+    _ = ∑ pr ∈ E, p pr := PMF.toMeasure_apply_finset _ _
+
+/-- The block rectangle sum `∑_{s₁∈S}∑_{s₂∈S} icount = X(X−1)`, `X = ∑_{s∈S} count`. -/
+private theorem sum_block_interactionCount (c : Config (AgentState L K))
+    (S : Finset (AgentState L K)) :
+    (∑ s₁ ∈ S, ∑ s₂ ∈ S, c.interactionCount s₁ s₂)
+      = (∑ s ∈ S, c.count s) * ((∑ s ∈ S, c.count s) - 1) := by
+  classical
+  set X := ∑ s ∈ S, c.count s with hX
+  have hrow : ∀ s₁ ∈ S, (∑ s₂ ∈ S, c.interactionCount s₁ s₂) = c.count s₁ * (X - 1) := by
+    intro s₁ hs₁
+    have hc₁X : c.count s₁ ≤ X := Finset.single_le_sum (fun m _ => Nat.zero_le _) hs₁
+    rw [← Finset.add_sum_erase S _ hs₁]
+    have hdiag : c.interactionCount s₁ s₁ = c.count s₁ * (c.count s₁ - 1) := by
+      unfold Config.interactionCount; rw [if_pos rfl]
+    have hoff : (∑ s₂ ∈ S.erase s₁, c.interactionCount s₁ s₂)
+        = c.count s₁ * (X - c.count s₁) := by
+      have hsum0 : c.count s₁ + (∑ s₂ ∈ S.erase s₁, c.count s₂) = X := by
+        rw [hX]; exact Finset.add_sum_erase S (fun m => c.count m) hs₁
+      have hsum : (∑ s₂ ∈ S.erase s₁, c.count s₂) = X - c.count s₁ := by omega
+      rw [← hsum, Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro s₂ hs₂
+      unfold Config.interactionCount
+      rw [if_neg (fun hc => (Finset.mem_erase.mp hs₂).1 hc.symm)]
+    rw [hdiag, hoff]
+    cases hc₁ : c.count s₁ with
+    | zero => simp
+    | succ k =>
+        have h1X : 1 ≤ X := by omega
+        zify [show 1 ≤ k + 1 from by omega, show k + 1 ≤ X from by omega, h1X]
+        ring
+  rw [Finset.sum_congr rfl hrow, ← Finset.sum_mul]
+
+/-- **The same-block pair bound (AgentState clone of `EarlyDripMarked.pair_block_prob_le_sq`).**
+The scheduler picks an ordered pair with BOTH states in a block `S` with probability at most
+`(X/n)²`, `X = ∑_{s∈S} count s`. -/
+theorem block_pair_prob_le_sq (c : Config (AgentState L K)) (h : 2 ≤ c.card)
+    (S : Finset (AgentState L K)) :
+    (c.interactionPMF h).toMeasure {pr | pr.1 ∈ S ∧ pr.2 ∈ S}
+      ≤ ENNReal.ofReal ((((∑ m ∈ S, c.count m : ℕ) : ℝ) / (c.card : ℝ)) ^ 2) := by
+  classical
+  set X := ∑ m ∈ S, c.count m with hX
+  have hXn : X ≤ c.card := by
+    calc X ≤ ∑ m : AgentState L K, c.count m :=
+          Finset.sum_le_sum_of_subset (Finset.subset_univ S)
+      _ = c.card := Multiset.sum_count_eq_card (fun a _ => Finset.mem_univ a)
+  have hsub : {pr : AgentState L K × AgentState L K | pr.1 ∈ S ∧ pr.2 ∈ S} ⊆ ↑(S ×ˢ S) := by
+    rintro pr ⟨h1, h2⟩; rw [Finset.coe_product]; exact ⟨h1, h2⟩
+  refine le_trans (toMeasure_le_sum_event (c.interactionPMF h) (S ×ˢ S) _ hsub) ?_
+  have hval : (∑ pr ∈ S ×ˢ S, (c.interactionPMF h) pr)
+      = ((X * (X - 1) : ℕ) : ℝ≥0∞) / ((c.totalPairs : ℕ) : ℝ≥0∞) := by
+    rw [Finset.sum_product]
+    calc (∑ m₁ ∈ S, ∑ m₂ ∈ S, (c.interactionPMF h) (m₁, m₂))
+        = ∑ m₁ ∈ S, ∑ m₂ ∈ S,
+            ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          refine Finset.sum_congr rfl (fun m₁ _ => Finset.sum_congr rfl (fun m₂ _ => ?_))
+          show c.interactionProb m₁ m₂ = _
+          unfold Config.interactionProb; rw [div_eq_mul_inv]
+      _ = (∑ m₁ ∈ S, ∑ m₂ ∈ S, ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞))
+            * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          rw [Finset.sum_mul]; exact Finset.sum_congr rfl (fun m₁ _ => (Finset.sum_mul ..).symm)
+      _ = ((X * (X - 1) : ℕ) : ℝ≥0∞) * ((c.totalPairs : ℕ) : ℝ≥0∞)⁻¹ := by
+          congr 1
+          calc (∑ m₁ ∈ S, ∑ m₂ ∈ S, ((c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞))
+              = ∑ m₁ ∈ S, ((∑ m₂ ∈ S, c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                Finset.sum_congr rfl (fun m₁ _ => (Nat.cast_sum _ _).symm)
+            _ = ((∑ m₁ ∈ S, ∑ m₂ ∈ S, c.interactionCount m₁ m₂ : ℕ) : ℝ≥0∞) :=
+                (Nat.cast_sum _ _).symm
+            _ = ((X * (X - 1) : ℕ) : ℝ≥0∞) := by rw [sum_block_interactionCount c S]
+      _ = ((X * (X - 1) : ℕ) : ℝ≥0∞) / ((c.totalPairs : ℕ) : ℝ≥0∞) := (div_eq_mul_inv _ _).symm
+  rw [hval]
+  have htp : c.totalPairs = c.card * (c.card - 1) := rfl
+  rw [htp,
+    show ((X * (X - 1) : ℕ) : ℝ≥0∞) = ENNReal.ofReal ((X * (X - 1) : ℕ) : ℝ) from
+      (ENNReal.ofReal_natCast _).symm,
+    show ((c.card * (c.card - 1) : ℕ) : ℝ≥0∞)
+      = ENNReal.ofReal ((c.card * (c.card - 1) : ℕ) : ℝ) from (ENNReal.ofReal_natCast _).symm]
+  rw [← ENNReal.ofReal_div_of_pos (by
+    have : 0 < c.card * (c.card - 1) := by apply Nat.mul_pos <;> omega
+    exact_mod_cast this)]
+  apply ENNReal.ofReal_le_ofReal
+  have hXr : ((X : ℕ) : ℝ) ≤ (c.card : ℝ) := by exact_mod_cast hXn
+  by_cases hX0 : X = 0
+  · rw [hX0]; simp
+  · have h1X : 1 ≤ X := by omega
+    have hdenom : (0 : ℝ) < ((c.card * (c.card - 1) : ℕ) : ℝ) := by
+      have : 0 < c.card * (c.card - 1) := by apply Nat.mul_pos <;> omega
+      exact_mod_cast this
+    have hXnn : (0 : ℝ) ≤ ((X : ℕ) : ℝ) := by positivity
+    have hnnn : (0 : ℝ) ≤ (c.card : ℝ) := by positivity
+    rw [div_pow, div_le_div_iff₀ hdenom (by positivity)]
+    push_cast [Nat.cast_sub (show 1 ≤ c.card from by omega), Nat.cast_sub h1X]
+    nlinarith [mul_nonneg (mul_nonneg hXnn hnnn) (sub_nonneg.mpr hXr)]
+
+/-- Arithmetic: `(X/n)² ≤ Ahi²/(n(n−1))` whenever `X ≤ Ahi ≤ n` and `2 ≤ n`.  (Pushes the
+block-square bound to the FloorPrefix `Ahi²/(n(n−1))` shape; uses `n(n−1) ≤ n²` and
+`X ≤ Ahi`.) -/
+theorem pair_block_sq_le_buffer (X Ahi n : ℕ) (hXA : X ≤ Ahi) (_hAn : Ahi ≤ n) (hn2 : 2 ≤ n) :
+    (((X : ℝ) / (n : ℝ)) ^ 2) ≤ ((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ) := by
+  have hn0 : (0 : ℝ) < (n : ℝ) := by positivity
+  have hn2r : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn2
+  have hnm1 : (1 : ℝ) ≤ (n : ℝ) - 1 := by linarith
+  have hden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by positivity
+  have hXr : (X : ℝ) ≤ (Ahi : ℝ) := by exact_mod_cast hXA
+  have hX0 : (0 : ℝ) ≤ (X : ℝ) := by positivity
+  have hA0 : (0 : ℝ) ≤ (Ahi : ℝ) := by positivity
+  rw [div_pow, show ((Ahi * Ahi : ℕ) : ℝ) = (Ahi : ℝ) * (Ahi : ℝ) from by push_cast; ring,
+    div_le_div_iff₀ (by positivity) hden]
+  -- X² · n(n−1) ≤ Ahi² · n²
+  have hXsq : (X : ℝ) ^ 2 ≤ (Ahi : ℝ) ^ 2 := by nlinarith [hXr, hX0, hA0]
+  have hnn : (n : ℝ) * ((n : ℝ) - 1) ≤ (n : ℝ) ^ 2 := by nlinarith [hn0]
+  nlinarith [hXsq, hnn, sq_nonneg ((X : ℝ)), mul_nonneg hX0 hX0, sq_nonneg ((Ahi : ℝ)),
+    mul_nonneg (mul_nonneg hA0 hA0) (le_of_lt hn0)]
+
+/-! ### The `hdeath` adapter (block-containment form).
+
+We package the upper-bound route into a single adapter `hdeath_of_block`.  It takes:
+* a *drain block* Finset `S` (the agents whose deletion can lower the pool);
+* the **containment fact** `hcontain`: every ordered pair that strictly drops the pool lies
+  in the block square `S ×ˢ S` (this is the residual protocol fact — see the Stage-3 note:
+  honestly `S` is the `RoleCR` block, and the containment is "a strict drop fires Rule 4 on
+  two CR" together with "phaseEpidemicUpdate does not drop a phase-0 assignable on this
+  pair"; both are genuine `Transition`-level statements not implied by `cardPhaseShell`);
+* the **block-count bound** `hblock`: `∑_{a∈S} count a ≤ Ahi` (the block stays within the
+  buffer — for the `RoleCR` block this is `crCount ≤ Ahi`).
+and concludes the FloorPrefix `hdeath` shape. -/
+
+/-- **`hdeath` via a drain block.**  Given a drain block `S` containing every pool-dropping
+ordered pair (`hcontain`) and bounded by the buffer (`hblock`, `hAn`), the drain mass is at
+most `Ahi²/(n(n−1))`.  Chains `stepDist_toMeasure_eq_preimage` → `block_pair_prob_le_sq` →
+`pair_block_sq_le_buffer`. -/
+theorem hdeath_of_block
+    (n Ahi : ℕ) (hn2 : 2 ≤ n) (c : Config (AgentState L K)) (h_card : c.card = n)
+    (S : Finset (AgentState L K))
+    (hcontain : (NonuniformMajority L K).scheduledStep c ⁻¹'
+        {c' | assignableCount (L := L) (K := K) c' < assignableCount (L := L) (K := K) c}
+      ⊆ {pr | pr.1 ∈ S ∧ pr.2 ∈ S})
+    (hblock : ∑ a ∈ S, c.count a ≤ Ahi) (hAn : Ahi ≤ n) :
+    r4FreshCRDrainMass (L := L) (K := K) c
+      ≤ ENNReal.ofReal (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) := by
+  have hc2 : 2 ≤ c.card := by omega
+  set X := ∑ a ∈ S, c.count a with hXdef
+  calc r4FreshCRDrainMass (L := L) (K := K) c
+      = ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+          {c' | assignableCount (L := L) (K := K) c' < assignableCount (L := L) (K := K) c} := rfl
+    _ = (c.interactionPMF hc2).toMeasure
+          ((NonuniformMajority L K).scheduledStep c ⁻¹'
+            {c' | assignableCount (L := L) (K := K) c'
+              < assignableCount (L := L) (K := K) c}) :=
+        stepDist_toMeasure_eq_preimage c hc2 _
+    _ ≤ (c.interactionPMF hc2).toMeasure {pr | pr.1 ∈ S ∧ pr.2 ∈ S} :=
+        measure_mono hcontain
+    _ ≤ ENNReal.ofReal (((X : ℝ) / (c.card : ℝ)) ^ 2) :=
+        block_pair_prob_le_sq c hc2 S
+    _ ≤ ENNReal.ofReal (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) := by
+        rw [h_card]
+        exact ENNReal.ofReal_le_ofReal (pair_block_sq_le_buffer X Ahi n hblock hAn hn2)
+
 end FloorMasses
 end ExactMajority
