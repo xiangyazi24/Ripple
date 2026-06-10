@@ -867,7 +867,7 @@ theorem seamExact_into_exact_work {p n : ℕ} :
       (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c ∧
         NoOvershoot (L := L) (K := K) p c) →
       SeamEpidemics.allPhaseEq (L := L) (K := K) (p + 1) n c :=
-  fun c h => SeamEpidemics.allPhaseEq_of_ge_and_no_overshoot h.1 (fun a ha => h.2 a ha)
+  fun _c h => SeamEpidemics.allPhaseEq_of_ge_and_no_overshoot h.1 (fun a ha => h.2 a ha)
 
 end SeamNoOvershoot
 

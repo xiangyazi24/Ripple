@@ -207,5 +207,81 @@ theorem birthR1_config_eq
         rw [hadd]
     _ = assignableCount (L := L) (K := K) c + 2 := by rw [h_restore]
 
+/-! ### The fresh-MCR rectangle (`freshMcrF ×ˢ freshMcrF`). -/
+
+/-- The fresh-MCR initiator/responder Finset. -/
+def freshMcrF : Finset (AgentState L K) :=
+  Finset.univ.filter (fun s : AgentState L K => isFreshMcr (L := L) (K := K) s = true)
+
+/-- `∑_{s ∈ freshMcrF} count s = freshMcrCount`. -/
+theorem sum_count_freshMcrF (c : Config (AgentState L K)) :
+    ∑ s ∈ freshMcrF (L := L) (K := K), c.count s =
+      freshMcrCount (L := L) (K := K) c := by
+  set F := freshMcrF (L := L) (K := K) with hF
+  set cm := Multiset.filter (fun a : AgentState L K =>
+    isFreshMcr (L := L) (K := K) a = true) c with hcm
+  have hcount : ∀ s ∈ F, c.count s = Multiset.count s cm := fun s hs => by
+    show Multiset.count s c = Multiset.count s cm
+    have hs_fresh : isFreshMcr (L := L) (K := K) s = true := (Finset.mem_filter.mp hs).2
+    simp only [cm, Multiset.count_filter, hs_fresh, ite_true]
+  calc ∑ s ∈ F, c.count s
+      = ∑ s ∈ F, Multiset.count s cm := Finset.sum_congr rfl hcount
+    _ = Multiset.card cm :=
+        Multiset.sum_count_eq_card (s := F) (m := cm)
+          (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a,
+            (Multiset.mem_filter.mp ha).2⟩)
+    _ = freshMcrCount (L := L) (K := K) c := by
+        rw [freshMcrCount, hcm, ← Multiset.countP_eq_card_filter]
+
+/-- For a fixed fresh-MCR initiator `s₁`, the row sum of `interactionCount s₁ s₂` over
+fresh-MCR responders is `count s₁ · (freshMcrCount − 1)`.  (Diagonal `s₁ = s₂` subtracts
+one; mirror of `sum_interactionCount_mcrF_right`.) -/
+theorem sum_interactionCount_freshMcrF_right (c : Config (AgentState L K))
+    (s₁ : AgentState L K) (hs₁ : isFreshMcr (L := L) (K := K) s₁ = true) :
+    ∑ s₂ ∈ freshMcrF (L := L) (K := K), c.interactionCount s₁ s₂ =
+      c.count s₁ * (freshMcrCount (L := L) (K := K) c - 1) := by
+  set F := freshMcrF (L := L) (K := K) with hF
+  by_cases hzero : c.count s₁ = 0
+  · have hall : ∀ s₂ ∈ F, c.interactionCount s₁ s₂ = 0 := fun s₂ _ => by
+      unfold Config.interactionCount Config.count
+      unfold Config.count at hzero
+      split_ifs with h
+      · subst h; simp [hzero]
+      · simp [hzero]
+    rw [Finset.sum_eq_zero hall]; simp [hzero]
+  · have hfactor : ∀ s₂ ∈ F, c.interactionCount s₁ s₂ =
+        c.count s₁ * if s₁ = s₂ then c.count s₁ - 1 else c.count s₂ := by
+      intro s₂ _; unfold Config.interactionCount
+      by_cases h : s₁ = s₂ <;> simp [h]
+    rw [Finset.sum_congr rfl hfactor, ← Finset.mul_sum]; congr 1
+    have hs₁F : s₁ ∈ F := Finset.mem_filter.mpr ⟨Finset.mem_univ s₁, hs₁⟩
+    set f : AgentState L K → ℕ :=
+      fun s₂ => if s₁ = s₂ then c.count s₁ - 1 else c.count s₂ with hfdef
+    have hf_s₁ : f s₁ = c.count s₁ - 1 := if_pos rfl
+    have hf_ne : ∀ s₂ ∈ F.erase s₁, f s₂ = c.count s₂ :=
+      fun s₂ hs₂ => if_neg (Finset.ne_of_mem_erase hs₂).symm
+    calc ∑ s₂ ∈ F, f s₂
+        = f s₁ + ∑ s₂ ∈ F.erase s₁, f s₂ := (Finset.add_sum_erase F f hs₁F).symm
+      _ = (c.count s₁ - 1) + ∑ s₂ ∈ F.erase s₁, c.count s₂ := by
+          rw [hf_s₁, Finset.sum_congr rfl hf_ne]
+      _ = freshMcrCount (L := L) (K := K) c - 1 := by
+          have hse : c.count s₁ + ∑ s₂ ∈ F.erase s₁, c.count s₂ =
+              freshMcrCount (L := L) (K := K) c := by
+            rw [Finset.add_sum_erase F (fun s => c.count s) hs₁F]
+            exact sum_count_freshMcrF c
+          have hcount_pos : 0 < c.count s₁ := Nat.pos_of_ne_zero hzero
+          omega
+
+/-- The fresh-MCR×fresh-MCR rectangle sum `= freshMcrCount·(freshMcrCount−1)`. -/
+theorem sum_interactionCount_freshMcr (c : Config (AgentState L K)) :
+    ∑ s₁ ∈ freshMcrF (L := L) (K := K), ∑ s₂ ∈ freshMcrF (L := L) (K := K),
+        c.interactionCount s₁ s₂ =
+      freshMcrCount (L := L) (K := K) c * (freshMcrCount (L := L) (K := K) c - 1) := by
+  have hstep : ∀ s₁ ∈ freshMcrF (L := L) (K := K),
+      ∑ s₂ ∈ freshMcrF (L := L) (K := K), c.interactionCount s₁ s₂ =
+        c.count s₁ * (freshMcrCount (L := L) (K := K) c - 1) := fun s₁ hs₁ =>
+    sum_interactionCount_freshMcrF_right c s₁ (Finset.mem_filter.mp hs₁).2
+  rw [Finset.sum_congr rfl hstep, ← Finset.sum_mul, sum_count_freshMcrF]
+
 end FloorMasses
 end ExactMajority
