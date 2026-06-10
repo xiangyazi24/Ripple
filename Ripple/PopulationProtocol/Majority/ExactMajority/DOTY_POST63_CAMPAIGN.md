@@ -2389,3 +2389,57 @@ every seam EXCEPT the one feeding Phase 4 needs the `≥`→`=` reconciliation
 from `_W` (`11→21` constant only).  UNCONDITIONAL beyond: the 11 work instances (with per-work
 trigger strengthening), the 10 seam instances (each with `hDrift` + `εovershoot`/`hNoOvershoot`),
 the 21-term `h_chain` (TRUE pointwise via the D-4c bridges), `hx₀`, `h_post`, scaling.
+
+## Phase D-4d — `hDrift(p)` DISCHARGED (2026-06-10, the first named D-4 gap closed)
+
+The generic-`p` advance-epidemic drift (`hDrift`, named-gap #1) is now PROVEN, not carried.
+Cloned the entire `Phase4Convergence` non-tie engine at an abstract phase parameter `p` in
+`Probability/SeamEpidemics.lean` (append-only; touches only this file + an append-only doc note
+in `DotyTimeHeadline.lean`).  All theorems 0-sorry, 0-native_decide, `#print axioms ⊆ [propext,
+Classical.choice, Quot.sound]` (verified per-theorem). Single-file `lake env lean` EXIT_0.
+
+**Generalisation map** (Phase 4 `p=4` → abstract `p`): `advancedP a = 5 ≤ phase` → `geP q a =
+q ≤ phase` (informed at threshold `q := p+1`); `advancedU` → `geCount q = countP (geP q)`; the
+window `Q4 = allPhaseGe 4 n` → `allPhaseGe p n` (the seam Pre window); `susceptibleP (phase=4)`
+→ `susP p (phase=p)`; "finished" `advFinished (advancedU≥n)` → `geFinished (geCount(p+1)≥n)`.
+
+**Delivered** (in `SeamEpidemics`, namespace `ExactMajority.SeamEpidemics`):
+- Per-pair: `countP_geP_pair`, `geP_pair_mono` (phase-monotone), `geP_pair_advances` (a mixed
+  informed×in-window pair → both outputs informed via the public
+  `Transition_{left,right}_phase_ge_pair_max`); kernel lift `geCount_stepOrSelf_ge`,
+  `geCount_ge_monotone`, `geCount_stepOrSelf_advance`.
+- Rectangle prob: `advance_prob_of_rect` (generic `N/(n(n−1))` floor) +
+  `sum_interactionCount_cross_disjoint_seam`, `sum_count_geP`, `sum_count_susP`, `susP_count_eq`
+  (`#susP = n − geCount(p+1)` on the window), `sum_interactionCount_syncRect_seam`
+  (rectangle mass `= m·(n−m)`), `ge_advance_prob` (SYNC advance prob `≥ m(n−m)/(n(n−1))`).
+- Window closure: `allPhaseGe_stepOrSelf`, `allPhaseGe_absorbing`; the count↔set bridge
+  `allPhaseGe_succ_iff_geFinished` (on card-`n`, `allPhaseGe(p+1) n ↔ geCount(p+1)≥n`).
+- Potential + drift: `gDeficitPot` (exp-window), `gDeficitPot_{measurable,eq_of_lt,pointwise_bound}`,
+  `not_finished_imp_gDeficitPot_ge_one`, `geFinished_absorbing`, `advance_floor_seam`, and the
+  capstone `phaseAdvanceDrift` — the GENUINE one-step contraction at rate
+  `r = 1 − ((n−1)/(n(n−1)))·(1 − e^{−s})` (verbatim clone of `phase4AdvancedDrift`).
+- Tail + discharge: `gDeficitPot_le_pre`, `Qwin`/`Qwin_absorbing`, `gPotW` (window-guarded),
+  `seamGeConvergence` (the `windowDrift_PhaseConvergence` wrap, `Post = geFinished`),
+  `advTriggered_iff_geCount`, and **`seam_drift`** — the bare kernel-power tail
+  `(K^t) c {¬ allPhaseGe (p+1) n} ≤ ε` from `Pre = allPhaseGe p n ∧ advTriggered (p+1)` under the
+  explicit Phase-4-shape tail input `hε`.  This IS the `hDrift` field's exact type.
+- Packaged: **`seamEpidemicW_calibrated`** = `seamEpidemicW` with the `hDrift` slot fed by
+  `seam_drift` — NO undischarged drift; only input is `hε`.  `@[simp]` projections
+  `seamEpidemicW_calibrated_{Pre,Post,t,eps}`.
+
+**The calibrated tail's explicit form** (= the `hε` input, mirrors Phase 4 exactly):
+`ENNReal.ofReal (1 − ((n−1)/(n(n−1)))·(1 − e^{−s}))^t · ENNReal.ofReal (exp(s·(n−1))) / 1
+   ≤ (εepidemic : ℝ≥0∞)`.
+
+**`DotyTimeHeadline` consumption** (append-only doc note; signature unchanged — the headline was
+already polymorphic over `phases`): the 10 seam slots are now filled by `seamEpidemicW_calibrated`
+instead of `seamEpidemicW`-with-raw-`hDrift`; `hDrift` LEAVES the surviving-input list of
+`doty_time_headline_W2`.  Remaining seam-side named input = `hNoOvershoot` only (named-gap #2,
+folded into `εovershoot`).
+
+**Commits (all pushed to origin main):**
+- `91963f24` D-4d1: per-pair mono/advance + rectangle prob + sync advance prob.
+- `d241f818` D-4d2: window closure + `geFinished↔allPhaseGe(p+1)` bridge + deficit potential +
+  genuine `phaseAdvanceDrift`.
+- `4245f79a` D-4d3: `seamGeConvergence` + `seam_drift` (bare tail) + `seamEpidemicW_calibrated`.
+- `28253ede` D-4d: `DotyTimeHeadline` consumption-form note.

@@ -312,6 +312,85 @@ private lemma clock_clock_decrement (r₁ r₂ : AgentState L K)
   simp only [hr₁, hr₂]
   refine ⟨?_, ?_, ?_, ?_⟩ <;> simp_all [stdCounterSubroutine]
 
+/-- A clock at the FULL counter `50(L+1)` has summand EXACTLY the fresh value
+`ofReal(e^{−s·50(L+1)})`. -/
+private lemma clockSummand_full (s : ℝ) (a : AgentState L K)
+    (hrole : a.role = .clock) (hctr : a.counter.val = 50 * (L + 1)) :
+    clockSummand (L := L) (K := K) s a
+      = ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) := by
+  unfold clockSummand
+  rw [if_pos hrole, hctr]
+
+set_option maxHeartbeats 1000000 in
+/-- **LEFT output summand bound (not both clock).**  The `Phase0Transition` LEFT
+output's clock summand is at most the LEFT source summand plus the fresh value.
+The only way the LEFT output is a clock when not both sources are clocks is Rule 4
+(`cr–cr`), giving a fresh clock at the full counter (summand = fresh value, source
+summand `0`); otherwise a source clock is carried through unchanged. -/
+private lemma Phase0Transition_left_summand_not_both (s : ℝ)
+    (r₁ r₂ : AgentState L K)
+    (hnbc : ¬ (r₁.role = .clock ∧ r₂.role = .clock)) :
+    clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).1
+      ≤ clockSummand (L := L) (K := K) s r₁
+        + ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) := by
+  rcases r₁ with
+    ⟨in₁, out₁, ph₁, role₁, asg₁, bias₁, sb₁, hr₁_, mn₁, fl₁, op₁, ctr₁⟩
+  rcases r₂ with
+    ⟨in₂, out₂, ph₂, role₂, asg₂, bias₂, sb₂, hr₂_, mn₂, fl₂, op₂, ctr₂⟩
+  cases role₁ <;> cases role₂ <;> cases asg₁ <;> cases asg₂ <;>
+    simp only [reduceCtorEq, not_and, not_true, not_false_iff, IsEmpty.forall_iff,
+      forall_true_left, false_implies] at hnbc ⊢ <;>
+    simp only [Phase0Transition, clockSummand, stdCounterSubroutine,
+      reduceCtorEq, and_true, and_false, true_and, false_and, if_true, if_false,
+      ite_true, ite_false] <;>
+    first
+      | exact le_add_right le_rfl
+      | exact le_add_left le_rfl
+
+set_option maxHeartbeats 1000000 in
+/-- **RIGHT output summand bound (not both clock).**  The `Phase0Transition` RIGHT
+output's clock summand is at most the RIGHT source summand: the RIGHT output is
+NEVER a fresh clock (Rule 4 makes the RIGHT a reserve), and source clocks are
+carried through unchanged. -/
+private lemma Phase0Transition_right_summand_not_both (s : ℝ)
+    (r₁ r₂ : AgentState L K)
+    (hnbc : ¬ (r₁.role = .clock ∧ r₂.role = .clock)) :
+    clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).2
+      ≤ clockSummand (L := L) (K := K) s r₂ := by
+  rcases r₁ with
+    ⟨in₁, out₁, ph₁, role₁, asg₁, bias₁, sb₁, hr₁_, mn₁, fl₁, op₁, ctr₁⟩
+  rcases r₂ with
+    ⟨in₂, out₂, ph₂, role₂, asg₂, bias₂, sb₂, hr₂_, mn₂, fl₂, op₂, ctr₂⟩
+  cases role₁ <;> cases role₂ <;> cases asg₁ <;> cases asg₂ <;>
+    simp only [reduceCtorEq, not_and, not_true, not_false_iff, IsEmpty.forall_iff,
+      forall_true_left, false_implies] at hnbc ⊢ <;>
+    simp only [Phase0Transition, clockSummand, stdCounterSubroutine,
+      reduceCtorEq, and_true, and_false, true_and, false_and, if_true, if_false,
+      ite_true, ite_false] <;>
+    exact le_rfl
+
+/-- **Non-both-clock per-pair OUTPUT bound.**  For a pair that is NOT both clocks,
+the `Phase0Transition` output two-summand block is bounded by the source block
+plus the single fresh-clock value `ofReal(e^{−s·50(L+1)})`.  Rule 4 (`cr–cr`) makes
+the LEFT output a fresh clock at the full counter (RIGHT becomes reserve); all
+other non-both-clock cases carry source clocks through unchanged (Rules 1–3 never
+touch a clock's role or counter; Rule 5 is excluded). -/
+private lemma Phase0Transition_summand_not_both_clock (s : ℝ)
+    (r₁ r₂ : AgentState L K)
+    (hnbc : ¬ (r₁.role = .clock ∧ r₂.role = .clock)) :
+    clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).1
+      + clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).2
+      ≤ (clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂)
+        + ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) := by
+  -- LEFT output ≤ source-left summand + fresh; RIGHT output ≤ source-right summand.
+  refine le_trans (add_le_add
+    (Phase0Transition_left_summand_not_both (L := L) (K := K) s r₁ r₂ hnbc)
+    (Phase0Transition_right_summand_not_both (L := L) (K := K) s r₁ r₂ hnbc)) ?_
+  -- `(a + M) + b ≤ (a + b) + M`, in fact equal by commutativity.
+  rw [add_right_comm (clockSummand (L := L) (K := K) s r₁)
+      (ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))))
+      (clockSummand (L := L) (K := K) s r₂)]
+
 /-- **Clock–clock per-pair drift (full kernel).**  For a clock–clock pair both at
 phase 0 with positive counters, the full Doty transition's output two-summand
 block is EXACTLY `eˢ` times the source block:
@@ -352,6 +431,66 @@ theorem clockSummand_pair_clock_clock (s : ℝ) (r₁ r₂ : AgentState L K)
     rw [show ((Transition L K r₁ r₂).2.counter).val = ((Phase0Transition L K r₁ r₂).2.counter).val
           from by rw [hctr2]]; exact hp2ctr
   rw [hs1, hs2, mul_add]
+
+/-- At phase 0, the full `Transition` output summands coincide with the
+`Phase0Transition` output summands (the `clockSummand` reads only `role`/`counter`,
+on which the `phaseEpidemicUpdate` pre-step and `finishPhase10Entry` post-step are
+identities at phase 0). -/
+private lemma Transition_summand_eq_phase0 (s : ℝ) (r₁ r₂ : AgentState L K)
+    (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0) :
+    clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+        = clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).1
+    ∧ clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2
+        = clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).2 := by
+  have hpe := RoleSplitConcentration.phaseEpidemicUpdate_eq_self_of_both_phase0
+    (L := L) (K := K) r₁ r₂ h₁ h₂
+  have hr0 : r₁.phase = (⟨0, by omega⟩ : Fin _) := Fin.ext h₁
+  have hrole1 : (Transition L K r₁ r₂).1.role = (Phase0Transition L K r₁ r₂).1.role := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_role_eq]; rw [hr0]
+  have hrole2 : (Transition L K r₁ r₂).2.role = (Phase0Transition L K r₁ r₂).2.role := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_role_eq]; rw [hr0]
+  have hctr1 : (Transition L K r₁ r₂).1.counter = (Phase0Transition L K r₁ r₂).1.counter := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_counter]; rw [hr0]
+  have hctr2 : (Transition L K r₁ r₂).2.counter = (Phase0Transition L K r₁ r₂).2.counter := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_counter]; rw [hr0]
+  refine ⟨?_, ?_⟩ <;> unfold clockSummand
+  · rw [hrole1, hctr1]
+  · rw [hrole2, hctr2]
+
+/-- **Universal per-pair OUTPUT bound (full kernel, on the window).**  For ANY
+phase-0 pair whose source clocks (if any) have positive counters, the full Doty
+transition's output two-summand block is bounded by `eˢ` times the source block
+plus the single fresh-clock value:
+
+  `summand(δ₁)+summand(δ₂) ≤ eˢ·(summand(r₁)+summand(r₂)) + e^{−s·50(L+1)}`.
+
+Clock–clock pairs scale by EXACTLY `eˢ` (`clockSummand_pair_clock_clock`, no fresh
+term, dropped via `eˢ ≥ 1`); non-clock–clock pairs carry source clocks unchanged
+and may create ONE Rule-4 fresh clock (`Phase0Transition_summand_not_both_clock`,
+bumped to `eˢ·sources` via `eˢ ≥ 1`).  Requires `s ≥ 0`. -/
+theorem clockSummand_pair_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L K)
+    (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0)
+    (hpos₁ : r₁.role = .clock → r₁.counter.val ≠ 0)
+    (hpos₂ : r₂.role = .clock → r₂.counter.val ≠ 0) :
+    clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+      + clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2
+      ≤ ENNReal.ofReal (Real.exp s)
+          * (clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂)
+        + ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) := by
+  have he1 : (1 : ℝ≥0∞) ≤ ENNReal.ofReal (Real.exp s) := by
+    rw [show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from (ENNReal.ofReal_one).symm]
+    exact ENNReal.ofReal_le_ofReal (Real.one_le_exp hs)
+  by_cases hcc : r₁.role = .clock ∧ r₂.role = .clock
+  · -- clock–clock: exact eˢ, then add the (nonnegative) fresh term.
+    rw [clockSummand_pair_clock_clock s r₁ r₂ h₁ h₂ hcc.1 hcc.2
+      (hpos₁ hcc.1) (hpos₂ hcc.2)]
+    exact le_add_right le_rfl
+  · -- non-clock–clock: ≤ sources + fresh ≤ eˢ·sources + fresh.
+    obtain ⟨he1', he2'⟩ := Transition_summand_eq_phase0 s r₁ r₂ h₁ h₂
+    rw [he1', he2']
+    refine le_trans (Phase0Transition_summand_not_both_clock s r₁ r₂ hcc) ?_
+    gcongr
+    exact le_mul_of_one_le_left zero_le' he1
 
 /-! ## The kernel-level tail from a supplied one-step drift.
 

@@ -357,4 +357,35 @@ theorem doty_time_headline_W2
           gcongr
       _ = 21 * C0 * n * (L + 1) := by ring
 
+/-! ## Phase D-4d — `hDrift(p)` DISCHARGED: the seam consumption form (append-only note)
+
+`doty_time_headline_W2` consumes its ten seam instances POLYMORPHICALLY, through the abstract
+`phases : Fin 21 → PhaseConvergenceW …` array — it does not itself carry `hDrift` as a separate
+hypothesis.  Phase D-4 left the seam slot fillable only by `SeamEpidemics.seamEpidemicW`, which
+carries an UNDISCHARGED `hDrift` feeder (the generic-`p` advance-epidemic convergence bound).
+
+Phase D-4d **discharges that feeder**.  `SeamEpidemics.seam_drift` proves the exact `hDrift`
+shape by cloning the Phase-4 non-tie epidemic at an arbitrary phase parameter `p` (informed =
+`phase ≥ p+1`, count `geCount (p+1)`, spread by the public phase-`max` lemmas
+`Transition_{left,right}_phase_ge_pair_max`, genuine drift rate
+`r = 1 − ((n−1)/(n(n−1)))·(1 − e^{−s})` via `windowDrift_PhaseConvergence`).  The packaged seam
+`SeamEpidemics.seamEpidemicW_calibrated p n t hn s hs εepidemic εovershoot hε` then has the SAME
+`Pre`/`Post`/`t`/`ε` profile (`@[simp]` projection lemmas
+`seamEpidemicW_calibrated_{Pre,Post,t,eps}`) as `seamEpidemicW` but with NO undischarged `hDrift`
+— its only quantitative input is the explicit geometric-tail check `hε` (the Phase-4-shape
+`r^t · exp(s·(n−1)) ≤ εepidemic`), exactly mirroring `Phase4Convergence.phase4Convergence`'s `hε`.
+
+**Consumption form.**  A caller assembling the 21-instance `phases` array now plugs
+`SeamEpidemics.seamEpidemicW_calibrated pᵢ n tᵢ hn s hs εᵢ εovᵢ hεᵢ` into each of the ten seam
+slots.  The headline's `ht`/`hε`/`h_chain` obligations on those slots read off the calibrated
+seam's projections (`t = tᵢ`, `ε = εᵢ + εovᵢ`, `Pre = allPhaseGe pᵢ n ∧ advTriggered (pᵢ+1)`,
+`Post = allPhaseGe (pᵢ+1) n`); the work↔seam bridges `h_chain` use
+`SeamEpidemics.{exact_work_into_seam, ge_work_into_seam, seam_into_exact_work}` exactly as before.
+**Result:** `hDrift` LEAVES the surviving-input list of `doty_time_headline_W2`.  The remaining
+seam-side named input is `hNoOvershoot` (per-seam timing separation, folded into `εovershoot`),
+still carried; `εepidemic` is now a derived quantity bounded by `hε`, not an unconstrained gap.
+
+The headline signature is unchanged (it was already polymorphic over `phases`); this note records
+the consumption form so the assembly does not silently reopen the discharged feeder. -/
+
 end ExactMajority
