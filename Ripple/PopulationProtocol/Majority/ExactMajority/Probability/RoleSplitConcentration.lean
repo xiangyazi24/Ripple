@@ -1703,6 +1703,211 @@ theorem partialMGF_one_step_contraction_on (mp : MilestonePhaseOn (L := L) (K :=
           rw [sub_nonneg, div_le_one hfj_pos]; exact hfj_ge_one
         linarith [mul_le_mul_of_nonneg_right hpj_le_qr h_coeff_nonneg]
 
+/-- **Full one-step contraction at an `Inv`-config** (handles `Post` and `¬Post`):
+`∫ truncMGF dK(c) ≤ exp(−s)·truncMGF(c)`.  On `Post c` the LHS is `0` (absorbing);
+on `¬Post c` it is `partialMGF_one_step_contraction_on`. -/
+theorem truncMGF_contracts_on (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1)
+    (c : Config (AgentState L K)) (hInv : mp.Inv c) :
+    ∫⁻ c', mp.truncMGF s c' ∂(P.transitionKernel c) ≤
+      ENNReal.ofReal (Real.exp (-s)) * mp.truncMGF s c := by
+  by_cases hc : mp.Post c
+  · simp only [truncMGF, if_pos hc, mul_zero]
+    have h_ae : (fun c' => if mp.Post c' then (0 : ℝ≥0∞)
+        else ENNReal.ofReal (mp.partialMGF s c')) =ᵐ[P.transitionKernel c] 0 := by
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨{y | mp.Post y}, ?_, fun y hy => if_pos hy⟩
+      rw [mem_ae_iff]
+      have h1 := mp.post_absorbing c hc
+      have h_meas : MeasurableSet {y : Config (AgentState L K) | mp.Post y} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      calc P.transitionKernel c {y | mp.Post y}ᶜ
+          = P.transitionKernel c Set.univ - P.transitionKernel c {y | mp.Post y} :=
+            measure_compl h_meas (by rw [h1]; exact ENNReal.one_ne_top)
+        _ = 1 - 1 := by rw [measure_univ, h1]
+        _ = 0 := tsub_self _
+    exact le_of_eq (lintegral_eq_zero_of_ae_eq_zero h_ae)
+  · simp only [truncMGF, if_neg hc]
+    calc ∫⁻ c', (if mp.Post c' then 0 else ENNReal.ofReal (mp.partialMGF s c'))
+            ∂(P.transitionKernel c)
+        ≤ ∫⁻ c', ENNReal.ofReal (mp.partialMGF s c') ∂(P.transitionKernel c) := by
+          refine lintegral_mono fun c' => ?_
+          by_cases hc' : mp.Post c' <;> simp [hc']
+      _ ≤ ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal (mp.partialMGF s c) :=
+        mp.partialMGF_one_step_contraction_on hs_pos hs_valid c hInv hc
+
+/-- **Inv-relative geometric decay.**  From an `Inv`-start, the `t`-step
+expectation of `truncMGF` contracts geometrically.  The contraction need only
+hold at `Inv`-configs (`truncMGF_contracts_on`), because by `inv_closed` the
+chain stays in `Inv` (mass `0` off `Inv`).  Mirrors `lintegral_geometric_decay`
+relativised to the reachable `Inv`-set. -/
+theorem lintegral_geometric_decay_on (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1)
+    (t : ℕ) (c : Config (AgentState L K)) (hInv : mp.Inv c) :
+    ∫⁻ c', mp.truncMGF s c' ∂((P.transitionKernel ^ t) c) ≤
+      ENNReal.ofReal (Real.exp (-s)) ^ t * mp.truncMGF s c := by
+  induction t generalizing c with
+  | zero =>
+    simp only [pow_zero, one_mul]
+    change ∫⁻ c', mp.truncMGF s c' ∂(Kernel.id c) ≤ mp.truncMGF s c
+    rw [Kernel.id_apply, lintegral_dirac' c (mp.truncMGF_measurable s)]
+  | succ t ih =>
+    change ∫⁻ c', mp.truncMGF s c' ∂(((P.transitionKernel ^ t) ∘ₖ P.transitionKernel) c) ≤ _
+    rw [Kernel.lintegral_comp _ _ c (mp.truncMGF_measurable s)]
+    have hclosed : (P.transitionKernel c) {x | ¬ mp.Inv x} = 0 := mp.inv_closed c hInv
+    calc ∫⁻ b, ∫⁻ c', mp.truncMGF s c' ∂((P.transitionKernel ^ t) b) ∂(P.transitionKernel c)
+        ≤ ∫⁻ b, ENNReal.ofReal (Real.exp (-s)) ^ t * mp.truncMGF s b
+            ∂(P.transitionKernel c) := by
+          refine lintegral_mono_ae ?_
+          rw [Filter.eventually_iff_exists_mem]
+          refine ⟨{x | mp.Inv x}, ?_, fun b hb => ih b hb⟩
+          rw [mem_ae_iff]
+          have hco : ({x | mp.Inv x}ᶜ : Set (Config (AgentState L K))) = {x | ¬ mp.Inv x} := by
+            ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+          rw [hco]; exact hclosed
+      _ = ENNReal.ofReal (Real.exp (-s)) ^ t *
+            ∫⁻ b, mp.truncMGF s b ∂(P.transitionKernel c) :=
+          lintegral_const_mul _ (mp.truncMGF_measurable s)
+      _ ≤ ENNReal.ofReal (Real.exp (-s)) ^ t *
+            (ENNReal.ofReal (Real.exp (-s)) * mp.truncMGF s c) := by
+          gcongr; exact mp.truncMGF_contracts_on hs_pos hs_valid c hInv
+      _ = ENNReal.ofReal (Real.exp (-s)) ^ (t + 1) * mp.truncMGF s c := by
+          rw [pow_succ, mul_assoc]
+
+/-! ### The Inv-relative milestone tail and hitting-time bound. -/
+
+/-- `{¬Post} ⊆ {1 ≤ truncMGF}`. -/
+theorem not_post_subset_ge_one (mp : MilestonePhaseOn (L := L) (K := K) P)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) :
+    {c | ¬ mp.Post c} ⊆ {c | 1 ≤ mp.truncMGF s c} := by
+  intro c hc
+  simp only [Set.mem_setOf_eq] at hc ⊢
+  rw [show mp.truncMGF s c = ENNReal.ofReal (mp.partialMGF s c) from if_neg hc,
+    ← ENNReal.ofReal_one]
+  exact ENNReal.ofReal_le_ofReal (mp.partialMGF_ge_one_of_not_post hs_pos hs_valid c hc)
+
+/-- **Inv-relative milestone tail via MGF.**  From an `Inv`-start `c₀` with no
+milestone reached, the `t`-step mass on `¬Post` is bounded by the geometric MGF
+decay.  This is the `_on` analogue of `milestone_tail_bound_via_mgf`. -/
+theorem milestone_tail_bound_via_mgf_on (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c₀ : Config (AgentState L K)) (hInv₀ : mp.Inv c₀)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (t : ℕ) :
+    (P.transitionKernel ^ t) c₀ {c | ¬ mp.Post c} ≤
+      ENNReal.ofReal (Real.exp (-s * t) *
+        ∏ i : Fin mp.k, mp.mgfFactor s i) := by
+  by_cases hk : mp.k = 0
+  · have hempty : {c : Config (AgentState L K) | ¬ mp.Post c} = ∅ := by
+      ext c
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_not, Post]
+      intro i; exact absurd i.2 (by omega)
+    simp [hempty]
+  have hk_pos : 0 < mp.k := Nat.pos_of_ne_zero hk
+  haveI : Nonempty (Fin mp.k) := ⟨⟨0, hk_pos⟩⟩
+  have hexp_s_pos : (0 : ℝ) < Real.exp (-s) := Real.exp_pos _
+  have hNotPost : ¬ mp.Post c₀ := fun h => absurd (h ⟨0, hk_pos⟩) (hPre ⟨0, hk_pos⟩)
+  have hmarkov := mul_meas_ge_le_lintegral₀
+    (μ := (P.transitionKernel ^ t) c₀) (mp.truncMGF_measurable s).aemeasurable (1 : ℝ≥0∞)
+  simp only [one_mul] at hmarkov
+  calc (P.transitionKernel ^ t) c₀ {c | ¬ mp.Post c}
+      ≤ (P.transitionKernel ^ t) c₀ {c | 1 ≤ mp.truncMGF s c} :=
+        measure_mono (mp.not_post_subset_ge_one hs_pos hs_valid)
+    _ ≤ ∫⁻ c', mp.truncMGF s c' ∂((P.transitionKernel ^ t) c₀) := hmarkov
+    _ ≤ ENNReal.ofReal (Real.exp (-s)) ^ t * mp.truncMGF s c₀ :=
+        mp.lintegral_geometric_decay_on hs_pos hs_valid t c₀ hInv₀
+    _ = ENNReal.ofReal (Real.exp (-s * t) * ∏ i : Fin mp.k, mp.mgfFactor s i) := by
+        rw [show mp.truncMGF s c₀ = ENNReal.ofReal (mp.partialMGF s c₀) from if_neg hNotPost,
+          mp.partialMGF_eq_full_of_none_reached s c₀ hPre,
+          ← ENNReal.ofReal_pow hexp_s_pos.le, ← ENNReal.ofReal_mul (by positivity)]
+        congr 1
+        rw [show -s * (t : ℝ) = (t : ℝ) * (-s) from by ring, Real.exp_nat_mul]
+
+/-- `geometricProductMGF` (on the dummy `(k,p)`) equals `∏ mgfFactor`. -/
+theorem geometricProductMGF_eq_prod_mgfFactor
+    (mp : MilestonePhaseOn (L := L) (K := K) P) (s : ℝ) :
+    geometricProductMGF mp.k mp.p s = ∏ i : Fin mp.k, mp.mgfFactor s i := rfl
+
+/-- `pMin` is positive when there is at least one milestone. -/
+theorem pMin_pos (mp : MilestonePhaseOn (L := L) (K := K) P) (hk : 0 < mp.k) :
+    0 < mp.pMin := by
+  haveI : Nonempty (Fin mp.k) := ⟨⟨0, hk⟩⟩
+  obtain ⟨j₀, _, hj₀⟩ := Finset.exists_min_image Finset.univ mp.p
+    ⟨⟨0, hk⟩, Finset.mem_univ _⟩
+  have h_eq : ⨅ i, mp.p i = mp.p j₀ := le_antisymm
+    (ciInf_le ⟨0, fun x ⟨j, hj⟩ => hj ▸ (mp.hp_pos j).le⟩ j₀)
+    (le_ciInf fun i => hj₀ i (Finset.mem_univ i))
+  rw [pMin, h_eq]; exact mp.hp_pos j₀
+
+theorem pMin_le (mp : MilestonePhaseOn (L := L) (K := K) P) (i : Fin mp.k) :
+    mp.pMin ≤ mp.p i :=
+  ciInf_le ⟨0, fun _ ⟨j, hj⟩ => hj ▸ (mp.hp_pos j).le⟩ i
+
+/-- **Milestone hitting-time concentration (invariant-relative, Gap A).**  From
+an `Inv`-start `c₀` with no milestone reached, the probability of NOT completing
+all milestones within `λ·meanTime` steps is at most
+`exp(−pMin·meanTime·(λ−1−ln λ))` — the **same** Janson tail as the plain engine,
+but with `progress` required only along the (closed) `Inv`-set.  The MGF
+real-analysis optimisation is borrowed from `janson_exponential_tail_from_mgf`
+via the `(k,p)`-identical `toDummyMP`. -/
+theorem milestone_hitting_time_bound_on (mp : MilestonePhaseOn (L := L) (K := K) P)
+    (c₀ : Config (AgentState L K)) (hInv₀ : mp.Inv c₀)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    (lam : ℝ) (hlam : 1 ≤ lam)
+    (t : ℕ) (ht : lam * mp.meanTime ≤ (t : ℝ)) :
+    (P.transitionKernel ^ t) c₀ {c | ¬ mp.Post c} ≤
+      ENNReal.ofReal (Real.exp (-mp.pMin * mp.meanTime * (lam - 1 - Real.log lam))) := by
+  by_cases hk : mp.k = 0
+  · have hempty : {c : Config (AgentState L K) | ¬ mp.Post c} = ∅ := by
+      ext c
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_not, Post]
+      intro i; exact absurd i.2 (by omega)
+    simp [hempty]
+  by_cases hlam_eq : lam = 1
+  · have hzero : -mp.pMin * mp.meanTime * (lam - 1 - Real.log lam) = 0 := by
+      rw [hlam_eq, Real.log_one]; ring
+    rw [hzero, Real.exp_zero, ENNReal.ofReal_one]
+    haveI : IsMarkovKernel (P.transitionKernel ^ t) := by
+      rw [← Kernel.pow_eq]; infer_instance
+    haveI : IsProbabilityMeasure ((P.transitionKernel ^ t) c₀) :=
+      IsMarkovKernel.isProbabilityMeasure _
+    calc (P.transitionKernel ^ t) c₀ {c | ¬ mp.Post c}
+        ≤ (P.transitionKernel ^ t) c₀ Set.univ := measure_mono (Set.subset_univ _)
+      _ ≤ 1 := prob_le_one
+  · have hlam_gt : 1 < lam := lt_of_le_of_ne hlam (Ne.symm hlam_eq)
+    have hk_pos : 0 < mp.k := Nat.pos_of_ne_zero hk
+    set s : ℝ := mp.pMin * (1 - 1 / lam) with hs_def
+    have hpmin_pos : 0 < mp.pMin := mp.pMin_pos hk_pos
+    have hs_pos : 0 < s := by
+      apply mul_pos hpmin_pos
+      have : 1 / lam < 1 := by rw [div_lt_one (by linarith)]; exact hlam_gt
+      linarith
+    have hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1 := by
+      intro i
+      have hsi : s ≤ mp.p i := by
+        calc s = mp.pMin * (1 - 1 / lam) := hs_def
+          _ ≤ mp.pMin * 1 := by
+              apply mul_le_mul_of_nonneg_left _ hpmin_pos.le
+              linarith [div_pos one_pos (show (0:ℝ) < lam by linarith)]
+          _ = mp.pMin := mul_one _
+          _ ≤ mp.p i := mp.pMin_le i
+      have hne : (-s : ℝ) ≠ 0 := by linarith
+      calc (1 - mp.p i) * Real.exp s
+          ≤ (1 - s) * Real.exp s := by
+            apply mul_le_mul_of_nonneg_right _ (Real.exp_pos s).le; linarith
+        _ < 1 := by
+            have h1 : 1 - s < Real.exp (-s) := by linarith [Real.add_one_lt_exp hne]
+            have h2 := mul_lt_mul_of_pos_right h1 (Real.exp_pos s)
+            rwa [← Real.exp_add, neg_add_cancel, Real.exp_zero] at h2
+    -- Borrow the pure MGF optimisation from the dummy `(k,p)`-identical plain phase.
+    have h_opt := janson_exponential_tail_from_mgf mp.toDummyMP lam hlam (t : ℝ) ht s hs_def
+    rw [mp.toDummyMP_meanTime, mp.toDummyMP_pMin] at h_opt
+    have h_tail := mp.milestone_tail_bound_via_mgf_on c₀ hInv₀ hPre hs_pos hs_valid t
+    -- `toDummyMP.k = mp.k`, `toDummyMP.p = mp.p` (rfl), so its geometricProductMGF = ∏ mgfFactor.
+    have hkp : geometricProductMGF mp.toDummyMP.k mp.toDummyMP.p s =
+        ∏ i : Fin mp.k, mp.mgfFactor s i := mp.geometricProductMGF_eq_prod_mgfFactor s
+    rw [hkp] at h_opt
+    exact le_trans h_tail (ENNReal.ofReal_le_ofReal h_opt)
+
 end MilestonePhaseOn
 
 end RoleSplitConcentration

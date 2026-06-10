@@ -47,7 +47,7 @@ ZERO sorry, zero axiom (beyond `propext`/`Classical.choice`/`Quot.sound`),
 zero `native_decide`.
 -/
 
-import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase10ExpectedTime
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ExpectedHitting
 
 namespace ExactMajority
 
@@ -57,6 +57,306 @@ open scoped ENNReal BigOperators
 set_option linter.unusedSectionVars false
 
 namespace ConditionalPhaseProgress
+
+/-! ## Part 0 — Lifted generic coupon-collector hitting engine
+
+The level-split coupon engine lives in `Probability/Phase10ExpectedTime.lean`
+(`PotNonincr`, `potBelow`, `coupon_expectedHitting_le_uniform`, …), but that file is
+mid-edit by a concurrent agent and its `.olean` is not in the build cache, so it
+cannot be imported here.  We therefore **lift** the self-contained generic chain (it
+depends only on `ExpectedHitting` + Mathlib) into a private `Engine` namespace.  Each
+lemma is verbatim the generic version; no protocol content.  When the campaign closes
+and `Phase10ExpectedTime` is built, these can be deduplicated by re-pointing the
+E3 headline at the original `coupon_expectedHitting_le_uniform`. -/
+
+namespace Engine
+
+variable {α : Type*} [MeasurableSpace α]
+
+/-- The set of states strictly below level `m`. -/
+def potBelow (Φ : α → ℕ) (m : ℕ) : Set α := {x | Φ x < m}
+
+theorem potBelow_measurable [DiscreteMeasurableSpace α] (Φ : α → ℕ) (m : ℕ) :
+    MeasurableSet (potBelow Φ m) :=
+  DiscreteMeasurableSpace.forall_measurableSet _
+
+/-- Kernel-level "potential non-increasing" hypothesis: one step never strictly
+raises `Φ`. -/
+def PotNonincr (K : Kernel α α) (Φ : α → ℕ) : Prop :=
+  ∀ b : α, K b {x | Φ b < Φ x} = 0
+
+theorem potBelow_absorbing [DiscreteMeasurableSpace α]
+    (K : Kernel α α) (Φ : α → ℕ) (hmono : PotNonincr K Φ) (m : ℕ) :
+    ∀ x ∈ potBelow Φ m, K x (potBelow Φ m)ᶜ = 0 := by
+  intro x hx
+  have hsub : ((potBelow Φ m)ᶜ : Set α) ⊆ {y | Φ x < Φ y} := by
+    intro y hy
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hy
+    have hxlt : Φ x < m := hx
+    exact Set.mem_setOf_eq ▸ (lt_of_lt_of_le hxlt hy)
+  exact measure_mono_null hsub (hmono x)
+
+theorem pow_above_eq_zero_of_start_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (c : α) (hc : Φ c ≤ m) (t : ℕ) :
+    (K ^ t) c {x | m < Φ x} = 0 := by
+  induction t generalizing c with
+  | zero =>
+      rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+        Measure.dirac_apply' c
+          (DiscreteMeasurableSpace.forall_measurableSet _)]
+      have : c ∉ {x | m < Φ x} := by simp only [Set.mem_setOf_eq, not_lt]; exact hc
+      simp [this]
+  | succ t ih =>
+      have hbad : MeasurableSet {x : α | m < Φ x} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral K 1 t c hbad, pow_one,
+        lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad)]
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨{y | Φ y ≤ m}, ?_, ?_⟩
+      · rw [mem_ae_iff]
+        have hcompl : ({y | Φ y ≤ m}ᶜ : Set α) = {x | m < Φ x} := by
+          ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_le]
+        rw [hcompl]
+        refine measure_mono_null ?_ (hmono c)
+        intro y hy
+        simp only [Set.mem_setOf_eq] at hy ⊢
+        exact lt_of_le_of_lt hc hy
+      · intro y hy
+        exact ih y hy
+
+theorem level_occ_contract [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) (t : ℕ) :
+    (K ^ (t + 1)) c (potBelow Φ m)ᶜ ≤ q * (K ^ t) c (potBelow Φ m)ᶜ := by
+  classical
+  have hbad : MeasurableSet ((potBelow Φ m)ᶜ : Set α) :=
+    (potBelow_measurable Φ m).compl
+  rw [Kernel.pow_succ_apply_eq_lintegral K t c hbad]
+  calc ∫⁻ b, K b (potBelow Φ m)ᶜ ∂((K ^ t) c)
+      ≤ ∫⁻ b, q * Set.indicator ((potBelow Φ m)ᶜ) (fun _ => (1 : ℝ≥0∞)) b
+          ∂((K ^ t) c) := by
+        apply lintegral_mono_ae
+        have hnull : (K ^ t) c {x | m < Φ x} = 0 :=
+          pow_above_eq_zero_of_start_le K Φ hmono m c hc t
+        rw [Filter.eventually_iff_exists_mem]
+        refine ⟨{x | Φ x ≤ m}, ?_, ?_⟩
+        · rw [mem_ae_iff]
+          have : ({x | Φ x ≤ m}ᶜ : Set α) = {x | m < Φ x} := by
+            ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_le]
+          rw [this]; exact hnull
+        · intro b hb
+          simp only [Set.mem_setOf_eq] at hb
+          rcases lt_or_eq_of_le hb with hlt | heq
+          · have hbb : b ∈ potBelow Φ m := hlt
+            rw [potBelow_absorbing K Φ hmono m b hbb]; exact zero_le'
+          · have hbmem : b ∈ ((potBelow Φ m)ᶜ : Set α) := by
+              simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+              exact heq.ge
+            rw [Set.indicator_of_mem hbmem, mul_one]
+            exact hdrop b heq
+    _ = q * (K ^ t) c (potBelow Φ m)ᶜ := by
+        rw [lintegral_const_mul q (measurable_const.indicator hbad)]
+        congr 1
+        rw [lintegral_indicator hbad]; simp
+
+theorem level_occ_geometric [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) (t : ℕ) :
+    (K ^ t) c (potBelow Φ m)ᶜ ≤ q ^ t := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      calc (K ^ 0) c (potBelow Φ m)ᶜ ≤ (K ^ 0) c Set.univ :=
+            measure_mono (Set.subset_univ _)
+        _ = 1 := by
+            rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply, measure_univ]
+  | succ t ih =>
+      calc (K ^ (t + 1)) c (potBelow Φ m)ᶜ
+          ≤ q * (K ^ t) c (potBelow Φ m)ᶜ :=
+            level_occ_contract K Φ hmono m q hdrop c hc t
+        _ ≤ q * q ^ t := by gcongr
+        _ = q ^ (t + 1) := by rw [pow_succ]; ring
+
+/-- The level-`m` occupation along the chain from `c`. -/
+noncomputable def occLevel (K : Kernel α α) (Φ : α → ℕ) (m : ℕ) (c : α) : ℝ≥0∞ :=
+  ∑' t : ℕ, (K ^ t) c {x | Φ x = m}
+
+theorem expectedHitting_eq_tsum_occLevel [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (c : α) :
+    expectedHitting K c (potBelow Φ 1) = ∑' m : ℕ, occLevel K Φ (m + 1) c := by
+  simp only [expectedHitting, occLevel]
+  rw [ENNReal.tsum_comm]
+  refine tsum_congr (fun t => ?_)
+  have hbiject : ((potBelow Φ 1)ᶜ : Set α) = ⋃ m : ℕ, {x | Φ x = m + 1} := by
+    ext x
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt,
+      Set.mem_iUnion]
+    constructor
+    · intro hx; exact ⟨Φ x - 1, by omega⟩
+    · rintro ⟨m, hm⟩; omega
+  rw [hbiject]
+  have hdisj : Pairwise (Function.onFun Disjoint (fun m : ℕ => {x | Φ x = m + 1})) := by
+    intro i j hij
+    rw [Function.onFun, Set.disjoint_iff]
+    intro x hx
+    simp only [Set.mem_inter_iff, Set.mem_setOf_eq] at hx
+    exact hij (by omega)
+  have hmeas : ∀ m : ℕ, MeasurableSet {x : α | Φ x = m + 1} :=
+    fun m => DiscreteMeasurableSpace.forall_measurableSet _
+  rw [measure_iUnion hdisj hmeas]
+
+theorem coupon_expectedHitting_le_of_occBounds [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ)
+    (q : ℕ → ℝ≥0∞) (M : ℕ) (c : α)
+    (hocc : ∀ m : ℕ, 1 ≤ m → m ≤ M → occLevel K Φ m c ≤ (1 - q m)⁻¹)
+    (hhi : ∀ m : ℕ, M < m → occLevel K Φ m c = 0) :
+    expectedHitting K c (potBelow Φ 1) ≤ ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹ := by
+  rw [expectedHitting_eq_tsum_occLevel K Φ c]
+  rw [tsum_eq_sum (s := Finset.range M) (fun m hm => by
+    rw [Finset.mem_range, not_lt] at hm
+    exact hhi (m + 1) (by omega))]
+  rw [show (∑ m ∈ Finset.range M, occLevel K Φ (m + 1) c)
+      = ∑ m ∈ Finset.Icc 1 M, occLevel K Φ m c by
+    rw [Finset.sum_bij (fun m _ => m + 1)]
+    · intro a ha; rw [Finset.mem_range] at ha; rw [Finset.mem_Icc]; omega
+    · intro a ha b hb hab; omega
+    · intro b hb; rw [Finset.mem_Icc] at hb
+      exact ⟨b - 1, by rw [Finset.mem_range]; omega, by omega⟩
+    · intro a _; rfl]
+  apply Finset.sum_le_sum
+  intro m hm
+  rw [Finset.mem_Icc] at hm
+  exact hocc m hm.1 hm.2
+
+theorem occLevel_le_of_start_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) :
+    occLevel K Φ m c ≤ (1 - q)⁻¹ := by
+  have hsub : ({x : α | Φ x = m} : Set α) ⊆ (potBelow Φ m)ᶜ := by
+    intro x hx
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+    exact (Set.mem_setOf_eq ▸ hx).ge
+  rw [occLevel]
+  calc ∑' t : ℕ, (K ^ t) c {x | Φ x = m}
+      ≤ ∑' t : ℕ, (K ^ t) c (potBelow Φ m)ᶜ :=
+        ENNReal.tsum_le_tsum (fun t => measure_mono hsub)
+    _ ≤ ∑' t : ℕ, q ^ t :=
+        ENNReal.tsum_le_tsum (fun t => level_occ_geometric K Φ hmono m q hdrop c hc t)
+    _ = (1 - q)⁻¹ := ENNReal.tsum_geometric q
+
+noncomputable def occLevelUpTo (K : Kernel α α) (Φ : α → ℕ) (m : ℕ) (t : ℕ) (c : α) :
+    ℝ≥0∞ :=
+  ∑ i ∈ Finset.range t, (K ^ i) c {x | Φ x = m}
+
+theorem occLevelUpTo_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (t : ℕ) (c : α) :
+    occLevelUpTo K Φ m t c ≤ (1 - q)⁻¹ := by
+  induction t generalizing c with
+  | zero => simp only [occLevelUpTo, Finset.range_zero, Finset.sum_empty]; exact zero_le'
+  | succ t ih =>
+      by_cases hc : Φ c ≤ m
+      · calc occLevelUpTo K Φ m (t + 1) c
+            ≤ occLevel K Φ m c := by
+              rw [occLevelUpTo, occLevel]; exact ENNReal.sum_le_tsum _
+          _ ≤ (1 - q)⁻¹ := occLevel_le_of_start_le K Φ hmono m q hdrop c hc
+      · rw [not_le] at hc
+        have hmeasm : MeasurableSet {x : α | Φ x = m} :=
+          DiscreteMeasurableSpace.forall_measurableSet _
+        have hzero : (K ^ 0) c {x | Φ x = m} = 0 := by
+          rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+            Measure.dirac_apply' c hmeasm]
+          have : c ∉ {x : α | Φ x = m} := by
+            simp only [Set.mem_setOf_eq]; omega
+          simp [this]
+        have hsplit : occLevelUpTo K Φ m (t + 1) c
+            = ∑ j ∈ Finset.range t, (K ^ (j + 1)) c {x | Φ x = m} := by
+          rw [occLevelUpTo, Finset.sum_range_succ']
+          simp only [hzero, add_zero]
+        rw [hsplit]
+        have hCK : ∀ j : ℕ, (K ^ (j + 1)) c {x | Φ x = m}
+            = ∫⁻ b, (K ^ j) b {x | Φ x = m} ∂(K c) := by
+          intro j
+          rw [show j + 1 = 1 + j from by ring,
+            Kernel.pow_add_apply_eq_lintegral K 1 j c hmeasm, pow_one]
+        simp only [hCK]
+        rw [← lintegral_finsetSum (Finset.range t)
+          (fun j _ => Kernel.measurable_coe (K ^ j) hmeasm)]
+        calc ∫⁻ b, (∑ j ∈ Finset.range t, (K ^ j) b {x | Φ x = m}) ∂(K c)
+            ≤ ∫⁻ _ : α, (1 - q)⁻¹ ∂(K c) := by
+              apply lintegral_mono
+              intro b
+              simpa only [occLevelUpTo] using ih b
+          _ = (1 - q)⁻¹ := by
+              rw [lintegral_const, measure_univ, mul_one]
+
+theorem occLevel_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) :
+    occLevel K Φ m c ≤ (1 - q)⁻¹ := by
+  rw [occLevel, ENNReal.tsum_eq_iSup_nat]
+  refine iSup_le (fun t => ?_)
+  exact occLevelUpTo_le K Φ hmono m q hdrop t c
+
+theorem occLevel_eq_zero_of_high [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) (m : ℕ) (hm : M < m) :
+    occLevel K Φ m c = 0 := by
+  rw [occLevel, ENNReal.tsum_eq_zero]
+  intro t
+  refine measure_mono_null ?_ (pow_above_eq_zero_of_start_le K Φ hmono M c hc t)
+  intro x hx
+  simp only [Set.mem_setOf_eq] at hx ⊢
+  omega
+
+theorem coupon_expectedHitting_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) :
+    expectedHitting K c (potBelow Φ 1) ≤ ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹ :=
+  coupon_expectedHitting_le_of_occBounds K Φ q M c
+    (fun m _ _ => occLevel_le K Φ hmono m (q m) (hdrop m) c)
+    (fun m hm => occLevel_eq_zero_of_high K Φ hmono M c hc m hm)
+
+theorem coupon_sum_le_of_uniform (q : ℕ → ℝ≥0∞) (M : ℕ) (r : ℝ≥0∞)
+    (hq : ∀ m : ℕ, 1 ≤ m → m ≤ M → (1 - q m)⁻¹ ≤ r) :
+    ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹ ≤ (M : ℝ≥0∞) * r := by
+  calc ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹
+      ≤ ∑ _m ∈ Finset.Icc 1 M, r := by
+        apply Finset.sum_le_sum
+        intro m hm
+        rw [Finset.mem_Icc] at hm
+        exact hq m hm.1 hm.2
+    _ = (M : ℝ≥0∞) * r := by
+        rw [Finset.sum_const, Nat.card_Icc, Nat.add_sub_cancel, nsmul_eq_mul]
+
+/-- **Generic coupon capstone with crude uniform evaluation.** Under non-increasing
+`Φ`, a per-level drop family `q`, a start `c` at level `≤ M`, and a uniform per-level
+waiting-time ceiling `r`, the expected hitting time of `{Φ = 0}` is `≤ M · r`. -/
+theorem coupon_expectedHitting_le_uniform [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) (r : ℝ≥0∞)
+    (hq : ∀ m : ℕ, 1 ≤ m → m ≤ M → (1 - q m)⁻¹ ≤ r) :
+    expectedHitting K c (potBelow Φ 1) ≤ (M : ℝ≥0∞) * r :=
+  le_trans (coupon_expectedHitting_le K Φ hmono q hdrop M c hc)
+    (coupon_sum_le_of_uniform q M r hq)
+
+end Engine
 
 /-! ## Part 1 — The uniform per-step drop rate arithmetic
 
