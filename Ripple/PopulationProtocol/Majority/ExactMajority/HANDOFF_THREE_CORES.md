@@ -4,6 +4,44 @@ Source: ChatGPT Pro (family2, Ripple connector). 15,421 B. Verbatim below.
 
 ---
 
+## STATUS (2026-06-10) — Brick 0 + B + C landed in `Probability/MarginLedgers.lean`
+
+New file `Probability/MarginLedgers.lean` (append-only, no existing file edited). Single-file
+`lake env lean` EXIT_0; every headline `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`;
+no sorry/admit/axiom/native_decide.
+
+* **Brick 0 (DONE, fully closed)** — shared Main exponent-profile finset algebra.
+  `mainAtExp`/`majorityAtExp`/`minorityAtExp` observables (`mainAtExp = Phase7.minorityAt7 =
+  Phase8.minorityAt`, definitional), profile masses, and `main_profile_partition`:
+  `mainCount c = majorityProfileMass σ c + minorityProfileMass σ c + zeroMainCount c`.
+  Flat ↔ per-exponent bridge proved fiberwise over the bias exponent. Follows `PhaseFloors`
+  finset-filter style. NO carried field.
+* **Brick B (DONE, ledger closed; ONE carried per-level field)** —
+  `phase6_to_phase7_eliminator_margin_of_confinement`. From `MainConfinementProfile` (A-shape:
+  `hUseful` 0.92 confinement, `hMinoritySmall` 0.12, `hMainFloor` n/3) + `Phase6Win` + carried
+  `Phase6HighMassDrained`, derives `EliminatorMargins.Phase6To7Structure σ E c` for `E ≤ 4n/15`.
+  The GLOBAL majority-eliminator budget `majorityProfileMass ≥ 4n/15` is PROVED
+  (`majorityProfileMass_floor`: 0.92−0.12 = 0.8, 0.8·(n/3) = 4n/15 — the partition residue ledger).
+  Per-level gap-1 localization carried as `Phase6HighMassDrained` (the eliminator LOWER bound the
+  survival-UPPER Posts omit).
+* **Brick C (DONE, ledger closed; ONE carried per-level field)** —
+  `phase7_to_phase8_eliminator_margin_of_phase7`. From B's `Phase6To7Structure` at Phase-7 entry
+  (`c_start`) + `Phase7AllMain` window + carried `Phase7SurvivalUpperBounds`, derives
+  `EliminatorMargins.Phase7To8Structure σ E c` for `E ≤ n/5`. REAL transition-ledger attack on the
+  FROZEN `cancelSplit`: same-level cancel is the only eliminator loss (gap-1 increments/preserves
+  the eliminator, gap-2 preserves/grows the σ-opposite supply); landed `lemma_7_5/7_6` are
+  survival-UPPER bounds not eliminator LOWER bounds, so the surviving above-level count is a genuine
+  dynamic fact — carried as ONE precise named field after the attack.
+
+Both B/C outputs are the EXACT `EliminatorMargins.Phase6To7Structure` / `Phase7To8Structure`
+consumer shapes (`#check`-verified); the downstream adapters (`lemma7_4_phase7_elimGap1_floor`,
+`lemma7_6_phase8_elimAbove_floor`, `phase7/8_hdrop_wired`) consume them unchanged. Constants
+verified: 0.92, 0.12, 0.8, 4n/15 = 0.8·n/3, n/5. Brick A (Theorem 6.2 Main confinement, the one big
+probability brick) remains carried in `UsefulMainFloor.Theorem62EntryHypotheses.hConfine` — out of
+scope for this file.
+
+---
+
 I’ll read the three new floor files and the invariant/Post files enough to separate “new probability” from deterministic ledger work. Then I’ll give a brick order and Lean target signatures without claiming unlanded exports exist.
 
 The new files are explicit: A/B/C are deliberately carried as named fields, not hidden in Posts. UsefulMainFloor carries hConfine; EliminatorMargins carries Phase6To7Structure/Phase7To8Structure; PhaseFloors confirms 5/7/8 provenance is not landed. I’ll now separate what can be deterministic from what needs a new probabilistic brick.

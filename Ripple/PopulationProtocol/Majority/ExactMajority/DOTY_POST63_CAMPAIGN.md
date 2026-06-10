@@ -3560,3 +3560,36 @@ The paper-constant real bounds (`E ≤ 4n/15`, `E ≤ n/5`) are carried as docum
   are the Doty Lemma 7.4 `0.8·|M|` / Lemma 7.6 `0.8|M|−0.2|M|` eliminator-majority floors, which
   no landed Post exports (the landed Lemmas 7.5/7.6 are survival upper bounds). They are now
   honest named predicate fields, not faked.
+
+---
+
+## 2026-06-10 — Three cores Brick 0 + B + C (`Probability/MarginLedgers.lean`)
+
+New append-only file delivering the shared exponent-profile algebra (Brick 0) and the B/C
+deterministic eliminator-margin ledgers, per `HANDOFF_THREE_CORES.md`. Single-file `lake env lean`
+EXIT_0; all headlines axiom-clean `[propext, Classical.choice, Quot.sound]`; no
+sorry/admit/axiom/native_decide. Three commits (cffb4662 Brick 0, a3650f55 Brick B, ed65736e
+Brick C), each pushed to `main` + mirrored to `xiangyazi24/Ripple opus-wip`.
+
+* **Brick 0 (fully closed).** `mainAtExp`/`majorityAtExp`/`minorityAtExp` + `main_profile_partition`
+  (`mainCount = majorityProfileMass + minorityProfileMass + zeroMainCount`). `mainAtExp` is
+  definitionally `Phase7.minorityAt7` and `Phase8.minorityAt`. Flat ↔ per-exponent profile-mass
+  bridge via `Finset.sum_biUnion` fibered over the bias exponent. Zero carried fields.
+* **Brick B (ledger closed; 1 carried field).** `phase6_to_phase7_eliminator_margin_of_confinement`
+  fills `EliminatorMargins.Phase6To7Structure σ E c` for `E ≤ 4n/15` from `MainConfinementProfile`
+  (0.92 / 0.12 / n/3) + `Phase6Win` + carried `Phase6HighMassDrained`. The GLOBAL budget
+  `majorityProfileMass ≥ 4n/15` is PROVED (`majorityProfileMass_floor`, the 0.92−0.12 = 0.8,
+  0.8·n/3 = 4n/15 residue ledger over Brick 0's partition). Only the per-level gap-1 routing is
+  carried (the eliminator LOWER bound the landed survival-UPPER Posts omit).
+* **Brick C (ledger closed; 1 carried field).** `phase7_to_phase8_eliminator_margin_of_phase7`
+  fills `EliminatorMargins.Phase7To8Structure σ E c` for `E ≤ n/5` from B's Phase-7-entry margin
+  (`c_start`) + `Phase7AllMain` + carried `Phase7SurvivalUpperBounds`. Real attack on FROZEN
+  `cancelSplit`: same-level cancel is the ONLY eliminator loss; gap-1 increments/preserves; gap-2
+  preserves/grows the σ-opposite supply. `lemma_7_5/7_6` are survival-UPPER (absorbing zero-mass),
+  not eliminator LOWER bounds, so the surviving above-level count is carried as ONE precise named
+  field after the attack.
+
+B/C outputs `#check`-verified to be the exact `EliminatorMargins.Phase6To7Structure` /
+`Phase7To8Structure` consumer shapes; existing adapters consume them unchanged. Constants verified:
+0.92, 0.12, 0.8, 4n/15 = 0.8·(n/3), n/5. Brick A (Theorem 6.2 confinement) stays carried in
+`UsefulMainFloor.hConfine`.
