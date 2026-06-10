@@ -200,3 +200,22 @@ hwin_all, det envelope, det-∀c rEnvelope_maintained, 2 absolute-low regression
 - starting avenue: Phase B (family line) — DotyParams (agent 4) + FrontSync rethread (self, awaiting ChatGPT map); Phase E1 ExpectedHitting (agent 5) in parallel
 - end: <fill on close>
 - final result: <fill on close>
+
+## Phase F-1 (chain bridges) — 2026-06-10, commit 0d0b58bd
+ChainBridges.lean (NEW). LOAD-BEARING FINDING: the ten h_chain maps of doty_time_headline_W
+(`∀ x, Post_i x → Pre_{i+1} x`, fixed x) are NOT pointwise-provable for the concrete eleven
+instances. Every phase-window predicate pins all agents to a DISTINCT phase.val
+(Phase1AllMain=1, Q2=2, Phase6Win=6, Phase7AllMain=7, Phase8AllMain=8; phase-9 reuses Q2 at
+phase 2). So on any populated config (card=n≥1) Post_i ∧ Pre_{i+1} is contradictory (one agent
+would carry two phase values). PROVEN rigorously (phase_clash helper, axioms [propext,Quot.sound]):
+  - bridge_1_2_pointwise_false_on_nonempty + bridge_1_2_vacuous_on_empty (only n=0 makes the abstract sig hold)
+  - bridge_6_7 / bridge_7_8 / bridge_8_9 _pointwise_false_on_nonempty
+HONEST CONSEQUENCE: the bridges are NOT a fixed-x implication; they are the paper's per-phase
+ENTRY CONVENTION realised by the inter-phase advancePhase counter-advance TRANSITION (maps a
+phase-i config to a phase-(i+1) config). This is precisely why D-3 carries h_chain as a NAMED
+input. To genuinely discharge h_chain the family must be (a) restated so consecutive Post_i/Pre_{i+1}
+coincide via the advance step (fold advancePhase into each instance's Post), OR (b) the headline
+re-signatured to thread a phase-advance relation `Post_i x → ∃ y, Advance x y ∧ Pre_{i+1} y`.
+Build: single-file `lake env lean -o` into .lake/build/lib/lean (NOT lib/); reused D-3 closure,
+built only Phase1/6/7/8 Convergence (+ExpectedHitting/OneSidedCancel/CounterTimeout/Epidemic chain,
+all <10s each, NO lake build). 0-sorry.

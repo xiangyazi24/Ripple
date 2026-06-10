@@ -55,6 +55,11 @@ hypothesis.  The deep quantitative scheduler computation (the per-step drift on
 the real kernel) is the campaign's separate quantitative core; the precise goal
 it must discharge is recorded as `ClockTickDrift` below.
 
+Gap-2 (deterministic phase-0-exit bridge) is DISCHARGED here; Gap-1's per-pair
+ledger infrastructure (lintegral→pair-sum, localized potential splits, the
+clock–clock `eˢ` per-pair contribution) is also built — see the gap note at the
+end of the file for the precise residual arithmetic.
+
 * `clockCounterPotential` — the multiset exp-potential `Φ_s`;
 * `allPhase0` — the absorbing phase-0 window predicate;
 * `clockCounterPotential_ge_one_of_clock_counter_zero` — the threshold link
@@ -213,6 +218,140 @@ theorem lintegral_transitionKernel_eq_sum (P : Protocol Λ) (c : Config Λ)
   rfl
 
 end SchedulerPairSum
+
+/-! ## Localized per-pair potential decompositions (Gap-1 infrastructure).
+
+The clock-counter potential `Φ_s = Config.sumOf clockSummand` is additive over the
+multiset, so when a scheduled pair `{r₁, r₂}` is removed and the transition output
+`{δ.1, δ.2}` re-inserted, the potential's change is LOCALIZED to those two agents:
+both `Φ_s(c)` and `Φ_s(stepOrSelf c r₁ r₂)` share the common base
+`Φ_s(c − {r₁, r₂})`, differing only in the two-agent summand block.  This is the
+no-truncated-subtraction form of the per-pair ledger — the per-pair drift bound
+then compares only `clockSummand δ.1 + clockSummand δ.2` against
+`clockSummand r₁ + clockSummand r₂`. -/
+
+/-- **Source-side potential split.**  If the ordered pair `{r₁, r₂}` is contained
+in `c`, the potential splits as the base `Φ_s(c − {r₁, r₂})` plus the two source
+summands. -/
+theorem clockCounterPotential_eq_base_add_pair (s : ℝ)
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c) :
+    clockCounterPotential (L := L) (K := K) s c
+      = Config.sumOf (clockSummand (L := L) (K := K) s) (c - {r₁, r₂})
+        + (clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂) := by
+  unfold clockCounterPotential Config.sumOf
+  conv_lhs => rw [← Multiset.sub_add_cancel hle]
+  rw [Multiset.map_add, Multiset.sum_add]
+  congr 1
+  show clockSummand (L := L) (K := K) s r₁
+         + (clockSummand (L := L) (K := K) s r₂ + 0) = _
+  rw [add_zero]
+
+/-- **Post-step potential split.**  When the scheduled pair is applicable, the
+post-step potential splits as the same base `Φ_s(c − {r₁, r₂})` plus the two
+TRANSITION-OUTPUT summands. -/
+theorem clockCounterPotential_stepOrSelf_eq_base_add_pair (s : ℝ)
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (happ : Protocol.Applicable c r₁ r₂) :
+    clockCounterPotential (L := L) (K := K) s
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      = Config.sumOf (clockSummand (L := L) (K := K) s) (c - {r₁, r₂})
+        + (clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+           + clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2) := by
+  unfold clockCounterPotential Protocol.stepOrSelf
+  rw [if_pos happ]
+  show Config.sumOf _ (c - {r₁, r₂} + {_, _}) = _
+  unfold Config.sumOf
+  rw [Multiset.map_add, Multiset.sum_add]
+  congr 1
+  show clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+         + (clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2 + 0) = _
+  rw [add_zero]
+
+/-! ## The clock–clock per-pair drift ledger (Gap-1 dominant case).
+
+On the absorbing window where every clock has `counter > 0` (`noClockAtZero`), a
+clock–clock meeting runs `stdCounterSubroutine` on both partners; with both
+counters positive each simply DECREMENTS by 1 (the phase-advancing branch is the
+`counter = 0` case, excluded on the window).  A decrement multiplies that clock's
+summand `exp(−s·counter)` by EXACTLY `eˢ`.  Hence for a clock–clock phase-0 pair
+at positive counters the output two-summand block is exactly `eˢ` times the source
+block — the tightest per-pair contribution feeding the affine drift rate
+`1 + 2(eˢ−1)/n`.  (The remaining per-pair cases — non-clock–clock pairs, where
+clock counters are untouched except Rule-4 fresh clocks contribute the tiny
+`exp(−s·50(L+1))` summand — close the affine bound; see the gap note below.) -/
+
+/-- A clock whose counter DECREMENTS by 1 (staying a clock) scales its summand by
+exactly `eˢ`: `exp(−s·(c−1)) = eˢ·exp(−s·c)` (`c ≥ 1`, so the ℕ-subtraction is
+exact). -/
+private lemma clockSummand_scale_of_decrement (s : ℝ) (a a' : AgentState L K)
+    (hrole : a.role = .clock) (hrole' : a'.role = .clock)
+    (hc : a.counter.val ≠ 0) (hc' : a'.counter.val = a.counter.val - 1) :
+    clockSummand (L := L) (K := K) s a'
+      = ENNReal.ofReal (Real.exp s) * clockSummand (L := L) (K := K) s a := by
+  unfold clockSummand
+  rw [if_pos hrole, if_pos hrole', hc']
+  rw [← ENNReal.ofReal_mul (Real.exp_nonneg _), ← Real.exp_add]
+  congr 2
+  have h1 : (1:ℕ) ≤ a.counter.val := Nat.one_le_iff_ne_zero.mpr hc
+  have : ((a.counter.val - 1 : ℕ) : ℝ) = (a.counter.val : ℝ) - 1 := by
+    rw [Nat.cast_sub h1]; simp
+  rw [this]; ring
+
+/-- A clock–clock pair at positive counters: `Phase0Transition` keeps both as
+clocks and decrements each counter by 1 (Rule 5 = `stdCounterSubroutine`, the
+positive-counter branch). -/
+private lemma clock_clock_decrement (r₁ r₂ : AgentState L K)
+    (hr₁ : r₁.role = .clock) (hr₂ : r₂.role = .clock)
+    (hc₁ : r₁.counter.val ≠ 0) (hc₂ : r₂.counter.val ≠ 0) :
+    (Phase0Transition L K r₁ r₂).1.role = .clock
+    ∧ (Phase0Transition L K r₁ r₂).1.counter.val = r₁.counter.val - 1
+    ∧ (Phase0Transition L K r₁ r₂).2.role = .clock
+    ∧ (Phase0Transition L K r₁ r₂).2.counter.val = r₂.counter.val - 1 := by
+  unfold Phase0Transition
+  simp only [hr₁, hr₂]
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> simp_all [stdCounterSubroutine]
+
+/-- **Clock–clock per-pair drift (full kernel).**  For a clock–clock pair both at
+phase 0 with positive counters, the full Doty transition's output two-summand
+block is EXACTLY `eˢ` times the source block:
+
+  `Φ-summand(δ₁) + Φ-summand(δ₂) = eˢ · (Φ-summand(r₁) + Φ-summand(r₂))`.
+
+The `Transition` wrapper is reduced to `Phase0Transition` at phase 0 via
+`phaseEpidemicUpdate_eq_self_of_both_phase0` + `finishPhase10Entry_{role,counter}`
+(which read only `role`/`counter`, the only fields `clockSummand` inspects). -/
+theorem clockSummand_pair_clock_clock (s : ℝ) (r₁ r₂ : AgentState L K)
+    (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0)
+    (hr₁ : r₁.role = .clock) (hr₂ : r₂.role = .clock)
+    (hc₁ : r₁.counter.val ≠ 0) (hc₂ : r₂.counter.val ≠ 0) :
+    clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+      + clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2
+      = ENNReal.ofReal (Real.exp s)
+        * (clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂) := by
+  have hpe := RoleSplitConcentration.phaseEpidemicUpdate_eq_self_of_both_phase0
+    (L := L) (K := K) r₁ r₂ h₁ h₂
+  have hr0 : r₁.phase = (⟨0, by omega⟩ : Fin _) := Fin.ext h₁
+  have hrole1 : (Transition L K r₁ r₂).1.role = (Phase0Transition L K r₁ r₂).1.role := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_role_eq]; rw [hr0]
+  have hrole2 : (Transition L K r₁ r₂).2.role = (Phase0Transition L K r₁ r₂).2.role := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_role_eq]; rw [hr0]
+  have hctr1 : (Transition L K r₁ r₂).1.counter = (Phase0Transition L K r₁ r₂).1.counter := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_counter]; rw [hr0]
+  have hctr2 : (Transition L K r₁ r₂).2.counter = (Phase0Transition L K r₁ r₂).2.counter := by
+    unfold Transition; rw [hpe]; simp only [finishPhase10Entry_counter]; rw [hr0]
+  obtain ⟨hp1role, hp1ctr, hp2role, hp2ctr⟩ := clock_clock_decrement r₁ r₂ hr₁ hr₂ hc₁ hc₂
+  have hs1 : clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+      = ENNReal.ofReal (Real.exp s) * clockSummand (L := L) (K := K) s r₁ := by
+    apply clockSummand_scale_of_decrement s r₁ _ hr₁ (by rw [hrole1]; exact hp1role) hc₁
+    rw [show ((Transition L K r₁ r₂).1.counter).val = ((Phase0Transition L K r₁ r₂).1.counter).val
+          from by rw [hctr1]]; exact hp1ctr
+  have hs2 : clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2
+      = ENNReal.ofReal (Real.exp s) * clockSummand (L := L) (K := K) s r₂ := by
+    apply clockSummand_scale_of_decrement s r₂ _ hr₂ (by rw [hrole2]; exact hp2role) hc₂
+    rw [show ((Transition L K r₁ r₂).2.counter).val = ((Phase0Transition L K r₁ r₂).2.counter).val
+          from by rw [hctr2]]; exact hp2ctr
+  rw [hs1, hs2, mul_add]
 
 /-! ## The kernel-level tail from a supplied one-step drift.
 
@@ -861,14 +1000,26 @@ takes its one-step drift as input), so it is stated here with its exact goal.
 **Gap 1 — the quantitative one-step drift `hdrift` (the scheduler core).**
 The window engine consumes
   `∫ Φ_1 dK(c) ≤ ofReal(1 + 2(e−1)/n) · Φ_1(c)`  on an absorbing window `Q`.
-Goal: over the uniform-pair scheduler (`Config.interactionProb`), each clock
-ticks (its `counter` drops by 1, multiplying its summand by `e^1`) only in a
-clock–clock meeting, w.p. `≤ 2(clockCount−1)/(n(n−1)) ≤ 2/n` per step.  The
-affected-summand bound gives the affine rate `1 + 2(e−1)/n`.  This is the
-in-house affine-counter pattern (cf. `EarlyDripMarked`'s tainted-counter drift);
-it is the campaign's separate quantitative deliverable.  `Q` should be a
-clock-count window absorbing under `stepDistOrSelf` (e.g. via `RoleSplitGood` /
-`clockCount ≤ n`).
+INFRASTRUCTURE NOW BUILT (0-sorry, axiom-clean):
+* `lintegral_transitionKernel_eq_sum` — the one-step lintegral as the explicit
+  `interactionProb`-weighted pair sum `∑_pair Φ(stepOrSelf c pair)·prob(pair)`;
+* `clockCounterPotential_eq_base_add_pair` /
+  `clockCounterPotential_stepOrSelf_eq_base_add_pair` — both `Φ(c)` and
+  `Φ(stepOrSelf c r₁ r₂)` split over the common base `Φ(c − {r₁, r₂})`, so the
+  per-pair change is LOCALIZED to the two interacting agents (no truncated
+  subtraction);
+* `clockSummand_pair_clock_clock` — the DOMINANT per-pair case: a clock–clock
+  phase-0 pair at positive counters scales its two-summand block by EXACTLY `eˢ`
+  (`clockSummand_scale_of_decrement` + `clock_clock_decrement`).
+REMAINING to assemble the affine bound: the per-pair contribution of the
+NON-clock–clock pairs (clock counters untouched ⇒ summand block unchanged, except
+a Rule-4 fresh clock adds the tiny `exp(−s·50(L+1))` summand), plus the counting
+step `#(clock–clock pairs) · prob = 2(clockCount−1)/(n(n−1)) ≤ 2/n`, summed
+against `interactionProb` over the localized ledger above to the affine rate
+`1 + 2(eˢ−1)/n`.  This is the in-house affine-counter pattern (cf.
+`EarlyDripMarked`'s tainted-counter drift); the window `Q` must carry
+`allPhase0`, `noClockAtZero` (positive counters) and a clock-count bound
+(absorbing under `stepDistOrSelf`, e.g. via `RoleSplitGood` / `clockCount ≤ n`).
 
 **Gap 2 — the deterministic phase-0-exit bridge — DISCHARGED above.**  The
 single-step deterministic fact
