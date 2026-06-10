@@ -1214,6 +1214,163 @@ noncomputable def phase7Convergence' (σ : Sign) (n : ℕ)
     hmono
     q hstep M₀ t ε hε
 
+/-! ## Part J — the SIGN-CLASS signed-mass split and the honest `hmono` discharge.
+
+The relay-5 obstruction (`gap2_minorityU_rise_compatible_with_pos_sum`) shows the
+minority *count* `minorityU σ` can RISE under a gap-2 fire.  But the minority *mass*
+cannot.  Define `classMass σ c` = the (nonnegative, `2^L`-scaled) total dyadic mass of
+the σ-signed Main agents.  Working the five `cancelSplit` branches:
+
+* same sign / `zero` / gap ≥ 3 — identity, class masses unchanged.
+* **gap 0** (`i = j`, opposite signs) — both agents zero out: the σ-class loses
+  `2^{L-i}` and the σ.flip-class loses `2^{L-i}` (EQUAL removal).
+* **gap 1** (smaller index `i`, larger `i+1`) — the `i+1` agent zeroes, the `i` agent
+  keeps its sign: whichever class held the `i+1` agent loses `2^{L-(i+1)}`; the other
+  class is unchanged.
+* **gap 2** (smaller index `i`, larger `i+2`) — the smaller-index agent's sign is copied
+  onto BOTH outputs at `i+1, i+2`: the smaller-index class GAINS `2^{L-(i+1)}+2^{L-(i+2)}`
+  and LOSES its original `2^{L-i}` (net `-2^{L-(i+2)}`, a DROP since
+  `2^{L-(i+1)}+2^{L-(i+2)} = 2^{L-i}-2^{L-(i+2)}` — wait: `2^{L-i}=4·2^{L-(i+2)}`,
+  `2^{L-(i+1)}=2·2^{L-(i+2)}`, so gain `3·2^{L-(i+2)}` minus loss `4·2^{L-(i+2)}` = net
+  `-2^{L-(i+2)}`); the larger-index class LOSES its original `2^{L-(i+2)}`.
+
+So under cancelSplit EVERY class's mass is NON-INCREASING — including the gap-2 minority
+class, which drops by `2^{L-(i+2)}` even as its COUNT rises.  This makes `classMass σ`
+the honest engine potential: it is per-pair non-increasing on the all-Main phase-7 window
+WITHOUT any index-ordering hypothesis, and `{classMass σ = 0}` is exactly
+`NoMinority σ` (a Main with a σ-signed dyadic contributes `≥ 1`). -/
+
+/-- The `2^L`-scaled NONNEGATIVE dyadic mass that a bias contributes to sign-class `σ`:
+`2^{L-i}` for `dyadic σ i`, `0` for the opposite sign or `zero`. -/
+def biasClassMass (σ : Sign) (L : ℕ) : Bias L → ℤ
+  | .zero => 0
+  | .dyadic s i => if s = σ then (2 : ℤ) ^ (L - i.val) else 0
+
+/-- The σ-class mass of an agent (reads only its bias; Mains and non-Mains alike, but
+in the phase-7 all-Main window every agent is Main). -/
+def agentClassMass (σ : Sign) (a : AgentState L K) : ℤ := biasClassMass σ L a.bias
+
+/-- `agentClassMass` is always `≥ 0`. -/
+theorem agentClassMass_nonneg (σ : Sign) (a : AgentState L K) :
+    0 ≤ agentClassMass σ a := by
+  unfold agentClassMass biasClassMass
+  cases a.bias with
+  | zero => simp
+  | dyadic s i =>
+      by_cases h : s = σ
+      · simp only [h, if_true]; positivity
+      · simp [h]
+
+/-- The σ-class total mass of a config. -/
+def classMass (σ : Sign) (c : Config (AgentState L K)) : ℤ :=
+  (c.map (fun a => agentClassMass σ a)).sum
+
+/-- `classMass σ` is `≥ 0` (a sum of nonnegative per-agent masses). -/
+theorem classMass_nonneg (σ : Sign) (c : Config (AgentState L K)) :
+    0 ≤ classMass σ c := by
+  unfold classMass
+  refine Multiset.sum_nonneg ?_
+  intro x hx
+  rw [Multiset.mem_map] at hx
+  obtain ⟨a, _, ha⟩ := hx
+  rw [← ha]; exact agentClassMass_nonneg σ a
+
+/-- **Per-pair σ-class mass NON-INCREASE under `cancelSplit`.**  For ANY sign class `σ`,
+the sum of the two agents' `agentClassMass σ` over the produced pair is `≤` that over the
+consumed pair.  This holds in EVERY branch with NO index-ordering hypothesis — in
+particular the gap-2 branch (where the minority *count* rises) still DROPS the minority
+*mass*.  This is the honest one-sided potential the relay-5 obstruction left open. -/
+theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
+    agentClassMass σ (cancelSplit L K s t).1
+        + agentClassMass σ (cancelSplit L K s t).2
+      ≤ agentClassMass σ s + agentClassMass σ t := by
+  classical
+  unfold agentClassMass
+  cases hsb : s.bias with
+  | zero =>
+      have hcs : cancelSplit L K s t = (s, t) := by unfold cancelSplit; rw [hsb]
+      rw [hcs, hsb]
+  | dyadic ss i =>
+    cases htb : t.bias with
+    | zero =>
+        have hcs : cancelSplit L K s t = (s, t) := by unfold cancelSplit; rw [hsb, htb]
+        rw [hcs, hsb, htb]
+    | dyadic st j =>
+      by_cases hne : ss = st
+      · have hcs : cancelSplit L K s t = (s, t) := by
+          unfold cancelSplit
+          simp only [hsb, htb, if_neg (show ¬ ss ≠ st from by simpa using hne)]
+        rw [hcs, hsb, htb]
+      · have hnee : ss ≠ st := hne
+        by_cases h0 : i.val = j.val
+        · -- gap 0: both zero out; removed mass ≥ 0.
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .zero}, {t with bias := .zero}) := by
+            unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_pos h0]
+          rw [hcs]; simp only [biasClassMass]
+          have h := fun (b : Bias L) => le_refl (0 : ℤ)
+          cases ss <;> cases st <;> simp_all [biasClassMass] <;> positivity
+        by_cases h1 : i.val + 1 = j.val
+        · have hjL : j.val < L + 1 := j.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic ss ⟨i.val + 1, by omega⟩}, {t with bias := .zero}) := by
+            unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_pos h1]
+          rw [hcs]; simp only [biasClassMass]
+          have hexp2 : L - (i.val + 1) = L - j.val := by omega
+          cases ss <;> cases st <;> simp_all [biasClassMass] <;>
+            first
+            | positivity
+            | (split_ifs <;> simp_all <;> positivity)
+        by_cases h1' : j.val + 1 = i.val
+        · have hiL : i.val < L + 1 := i.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .zero}, {t with bias := .dyadic st ⟨j.val + 1, by omega⟩}) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_pos h1']
+          rw [hcs]; simp only [biasClassMass]
+          have hexp2 : L - (j.val + 1) = L - i.val := by omega
+          cases ss <;> cases st <;> simp_all [biasClassMass] <;>
+            first
+            | positivity
+            | (split_ifs <;> simp_all <;> positivity)
+        by_cases h2 : i.val + 2 = j.val
+        · have hjL : j.val < L + 1 := j.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic ss ⟨i.val + 1, by omega⟩},
+                 {t with bias := .dyadic ss ⟨i.val + 2, by omega⟩}) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_pos h2]
+          rw [hcs]; simp only [biasClassMass]
+          have hei : L - i.val = (L - j.val) + 2 := by omega
+          have hei1 : L - (i.val + 1) = (L - j.val) + 1 := by omega
+          have hei2 : L - (i.val + 2) = L - j.val := by omega
+          -- ss-class: gain 2^{(L-j)+1}+2^{L-j} vs loss 2^{(L-j)+2}: net drop 2^{L-j}.
+          -- st-class: loss 2^{L-j}, gain 0.
+          rcases ss with _ | _ <;> rcases st with _ | _ <;>
+            rcases (by cases hnee <;> rfl : True) with _ <;>
+            simp_all [biasClassMass, hei, hei1, hei2, pow_succ] <;>
+            split_ifs <;> simp_all <;> nlinarith [pow_pos (show (0:ℤ) < 2 by norm_num) (L - j.val)]
+        by_cases h2' : j.val + 2 = i.val
+        · have hiL : i.val < L + 1 := i.2
+          have hcs : cancelSplit L K s t
+              = ({s with bias := .dyadic st ⟨j.val + 2, by omega⟩},
+                 {t with bias := .dyadic st ⟨j.val + 1, by omega⟩}) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,
+              dif_pos h2']
+          rw [hcs]; simp only [biasClassMass]
+          have hej : L - j.val = (L - i.val) + 2 := by omega
+          have hej1 : L - (j.val + 1) = (L - i.val) + 1 := by omega
+          have hej2 : L - (j.val + 2) = L - i.val := by omega
+          rcases ss with _ | _ <;> rcases st with _ | _ <;>
+            simp_all [biasClassMass, hej, hej1, hej2, pow_succ] <;>
+            split_ifs <;> simp_all <;> nlinarith [pow_pos (show (0:ℤ) < 2 by norm_num) (L - i.val)]
+        · have hcs : cancelSplit L K s t = (s, t) := by
+            unfold cancelSplit
+            simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,
+              dif_neg h2']
+          rw [hcs, hsb, htb]
+
 end Phase7Convergence
 
 end ExactMajority

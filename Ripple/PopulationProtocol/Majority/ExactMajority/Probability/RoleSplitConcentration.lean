@@ -2279,6 +2279,352 @@ theorem partialMGF_drop_reached (mp : KernelMilestone Q) {s : ℝ} (hs_pos : 0 <
         rw [Finset.prod_insert (by simp [Finset.mem_erase])]; ring
     _ = mp.partialMGF s c := by rw [partialMGF]; congr 1; exact Finset.insert_erase hj_unreached
 
+/-- `Post` is absorbing under the kernel: once all milestones hold they stay (mass `1`). -/
+theorem post_absorbing [IsMarkovKernel Q] (mp : KernelMilestone Q) (c : β)
+    (hPost : mp.Post c) : Q c {c' | mp.Post c'} = 1 := by
+  have hmeas : MeasurableSet {c' : β | mp.Post c'} :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  have hnull : Q c {c' | mp.Post c'}ᶜ = 0 :=
+    measure_compl_eq_zero_of_singleton (Q c) {c' | mp.Post c'}
+      (fun c' hc' i => mp.milestone_monotone i c c' (hPost i) hc')
+  have h := measure_compl hmeas (measure_ne_top (Q c) _)
+  rw [hnull, measure_univ] at h
+  -- h : 0 = 1 - Q c {Post}
+  rw [eq_comm, tsub_eq_zero_iff_le] at h
+  exact le_antisymm (by simpa using prob_le_one) h
+
+/-- The unreached set is nonempty when `Post` fails. -/
+theorem unreached_nonempty_of_not_post (mp : KernelMilestone Q) (c : β)
+    (hc : ¬ mp.Post c) : (mp.unreached c).Nonempty := by
+  rw [Finset.nonempty_iff_ne_empty]
+  intro h; apply hc; intro i; by_contra hi
+  have : i ∈ mp.unreached c := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩
+  rw [h] at this; simp at this
+
+/-- The minimal unreached milestone index. -/
+noncomputable def firstUnreached (mp : KernelMilestone Q) (c : β)
+    (hne : (mp.unreached c).Nonempty) : Fin mp.k := (mp.unreached c).min' hne
+
+theorem firstUnreached_unhit (mp : KernelMilestone Q) (c : β) (hc : ¬ mp.Post c) :
+    mp.firstUnreached c (mp.unreached_nonempty_of_not_post c hc) ∈ mp.unreached c :=
+  Finset.min'_mem _ _
+
+theorem firstUnreached_minimal (mp : KernelMilestone Q) (c : β) (hc : ¬ mp.Post c)
+    (i : Fin mp.k) (hi : i < mp.firstUnreached c (mp.unreached_nonempty_of_not_post c hc)) :
+    mp.milestone i c := by
+  by_contra h_not
+  have h_mem : i ∈ mp.unreached c := Finset.mem_filter.mpr ⟨Finset.mem_univ _, h_not⟩
+  exact absurd (lt_of_lt_of_le hi (Finset.min'_le _ _ h_mem)) (lt_irrefl _)
+
+/-- Pointwise a.e. bound on `partialMGF` after one step, at the first-unreached milestone
+`j`.  The bad set (where the bound fails) is `Q c`-null because every positive-mass
+successor satisfies the bound (`partialMGF_drop_reached`/`partialMGF_mono_of_support`). -/
+theorem partialMGF_pointwise_bound (mp : KernelMilestone Q) {s : ℝ} (hs_pos : 0 < s)
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c : β) (j : Fin mp.k)
+    (hj_unreached : j ∈ mp.unreached c) :
+    ∀ᵐ c' ∂(Q c),
+      ENNReal.ofReal (mp.partialMGF s c') ≤
+        if mp.milestone j c' then
+          ENNReal.ofReal (mp.partialMGF s c / mp.mgfFactor s j)
+        else ENNReal.ofReal (mp.partialMGF s c) := by
+  rw [ae_iff]
+  refine measure_compl_eq_zero_of_singleton (Q c) {c' | ENNReal.ofReal (mp.partialMGF s c') ≤
+      if mp.milestone j c' then ENNReal.ofReal (mp.partialMGF s c / mp.mgfFactor s j)
+      else ENNReal.ofReal (mp.partialMGF s c)} ?_
+  intro c' hsupp
+  simp only [Set.mem_setOf_eq]
+  by_cases hm : mp.milestone j c'
+  · simp only [hm, ite_true]
+    exact ENNReal.ofReal_le_ofReal
+      (mp.partialMGF_drop_reached hs_pos hs_valid c c' j hj_unreached hm hsupp)
+  · simp only [hm, ite_false]
+    exact ENNReal.ofReal_le_ofReal
+      (mp.partialMGF_mono_of_support hs_pos hs_valid c c' hsupp)
+
+/-- **One-step contraction** of the ENNReal partial MGF at a `¬Post`-config.  This is the
+only place `progress` is consumed.  Generic-kernel mirror of
+`MilestonePhaseOn.partialMGF_one_step_contraction_on` (no `Inv` hypothesis: `progress` is
+global on `KernelMilestone`). -/
+theorem partialMGF_one_step_contraction [IsMarkovKernel Q] (mp : KernelMilestone Q) {s : ℝ}
+    (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c : β)
+    (hc : ¬ mp.Post c) :
+    ∫⁻ c', ENNReal.ofReal (mp.partialMGF s c') ∂(Q c) ≤
+      ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal (mp.partialMGF s c) := by
+  set j := mp.firstUnreached c (mp.unreached_nonempty_of_not_post c hc) with hj_def
+  have hj_in : j ∈ mp.unreached c := mp.firstUnreached_unhit c hc
+  have hj_minimal : ∀ i < j, mp.milestone i c := mp.firstUnreached_minimal c hc
+  set Mj := {c' : β | mp.milestone j c'} with hMj_def
+  have hMj_meas : MeasurableSet Mj := DiscreteMeasurableSpace.forall_measurableSet _
+  set Φc := mp.partialMGF s c with hΦc_def
+  set fj := mp.mgfFactor s j with hfj_def
+  have hΦc_pos : 0 < Φc := mp.partialMGF_pos hs_valid c
+  have hfj_pos : 0 < fj := mp.mgfFactor_pos hs_valid j
+  have hfj_ge_one : 1 ≤ fj := mp.mgfFactor_ge_one hs_pos hs_valid j
+  have h_bound := mp.partialMGF_pointwise_bound hs_pos hs_valid c j hj_in
+  calc ∫⁻ c', ENNReal.ofReal (mp.partialMGF s c') ∂(Q c)
+      ≤ ∫⁻ c', (if mp.milestone j c' then ENNReal.ofReal (Φc / fj)
+          else ENNReal.ofReal Φc) ∂(Q c) := lintegral_mono_ae h_bound
+    _ = (∫⁻ c' in Mj, ENNReal.ofReal (Φc / fj) ∂(Q c)) +
+        (∫⁻ c' in Mjᶜ, ENNReal.ofReal Φc ∂(Q c)) := by
+        rw [← lintegral_add_compl _ hMj_meas]
+        congr 1
+        · refine lintegral_congr_ae ?_
+          filter_upwards [ae_restrict_mem hMj_meas] with c' hc'
+          simp only [Set.mem_setOf_eq, Mj] at hc'; simp [hc']
+        · refine lintegral_congr_ae ?_
+          filter_upwards [ae_restrict_mem hMj_meas.compl] with c' hc'
+          simp only [Set.mem_compl_iff, Set.mem_setOf_eq, Mj] at hc'; simp [hc']
+    _ = ENNReal.ofReal (Φc / fj) * (Q c) Mj + ENNReal.ofReal Φc * (Q c) Mjᶜ := by
+        rw [lintegral_const, Measure.restrict_apply_univ,
+            lintegral_const, Measure.restrict_apply_univ]
+    _ ≤ ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal Φc := by
+        set q := (Q c) Mj with hq_def
+        set qc := (Q c) Mjᶜ with hqc_def
+        have hq_ge : q ≥ ENNReal.ofReal (mp.p j) := by
+          have h_unhit : ¬ mp.milestone j c := (Finset.mem_filter.mp hj_in).2
+          exact mp.progress j c hj_minimal h_unhit
+        have hq_le_one : q ≤ 1 := by
+          calc q ≤ (Q c) Set.univ := measure_mono (Set.subset_univ _)
+            _ = 1 := measure_univ
+        have hq_ne_top : q ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hq_le_one
+        have hqc_eq : qc = 1 - q := by
+          have h_compl := measure_compl hMj_meas hq_ne_top
+          rw [show (Q c) Set.univ = 1 from measure_univ] at h_compl
+          exact h_compl
+        set qr := q.toReal with hqr_def
+        have hqr_nonneg : 0 ≤ qr := ENNReal.toReal_nonneg
+        have hqr_le_one : qr ≤ 1 := by
+          have := ENNReal.toReal_mono ENNReal.one_ne_top hq_le_one
+          rwa [ENNReal.toReal_one] at this
+        have hq_ofReal : q = ENNReal.ofReal qr := (ENNReal.ofReal_toReal hq_ne_top).symm
+        have hpj_le_qr : mp.p j ≤ qr := by
+          have h1 : ENNReal.ofReal (mp.p j) ≤ ENNReal.ofReal qr := by rwa [← hq_ofReal]
+          exact (ENNReal.ofReal_le_ofReal_iff hqr_nonneg).mp h1
+        have h1mqr_nonneg : 0 ≤ 1 - qr := by linarith
+        have hqc_ofReal : qc = ENNReal.ofReal (1 - qr) := by
+          rw [hqc_eq, hq_ofReal,
+              show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from ENNReal.ofReal_one.symm,
+              ← ENNReal.ofReal_sub 1 hqr_nonneg]
+        have hΦc_div_fj_nonneg : 0 ≤ Φc / fj := div_nonneg hΦc_pos.le hfj_pos.le
+        have hexp_neg_s_nonneg : (0 : ℝ) ≤ Real.exp (-s) := (Real.exp_pos _).le
+        have lhs_eq : ENNReal.ofReal (Φc / fj) * q + ENNReal.ofReal Φc * qc =
+            ENNReal.ofReal (Φc / fj * qr + Φc * (1 - qr)) := by
+          rw [hq_ofReal, hqc_ofReal,
+              ← ENNReal.ofReal_mul hΦc_div_fj_nonneg,
+              ← ENNReal.ofReal_mul hΦc_pos.le,
+              ← ENNReal.ofReal_add (mul_nonneg hΦc_div_fj_nonneg hqr_nonneg)
+                (mul_nonneg hΦc_pos.le h1mqr_nonneg)]
+        have rhs_eq : ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal Φc =
+            ENNReal.ofReal (Real.exp (-s) * Φc) := by
+          rw [← ENNReal.ofReal_mul hexp_neg_s_nonneg]
+        rw [lhs_eq, rhs_eq]
+        apply ENNReal.ofReal_le_ofReal
+        have hpj_pos := mp.hp_pos j
+        have h_factor : Φc / fj * qr + Φc * (1 - qr) = Φc * ((1 - qr) + qr / fj) := by
+          field_simp; ring
+        have h_rhs_factor : Real.exp (-s) * Φc = Φc * Real.exp (-s) := by ring
+        rw [h_factor, h_rhs_factor]
+        apply mul_le_mul_of_nonneg_left _ hΦc_pos.le
+        have h_inv_fj : (1 - (1 - mp.p j) * Real.exp s) / (mp.p j * Real.exp s) = 1 / fj := by
+          rw [hfj_def, mgfFactor]; field_simp
+        have h_identity := MilestonePhaseOn.mgf_contraction_identity (mp.p j) s hpj_pos
+          (hs_valid j)
+        rw [h_inv_fj] at h_identity
+        have h_identity' : 1 - mp.p j * (1 - 1 / fj) = Real.exp (-s) := by linarith
+        have h_rewrite : (1 - qr) + qr / fj = 1 - qr * (1 - 1 / fj) := by field_simp; ring
+        rw [h_rewrite, ← h_identity']
+        have h_coeff_nonneg : 0 ≤ 1 - 1 / fj := by
+          rw [sub_nonneg, div_le_one hfj_pos]; exact hfj_ge_one
+        linarith [mul_le_mul_of_nonneg_right hpj_le_qr h_coeff_nonneg]
+
+/-- **Full one-step contraction** (handles `Post` and `¬Post`).  On `Post c` the LHS is `0`
+(absorbing, by `post_absorbing`); on `¬Post c` it is `partialMGF_one_step_contraction`. -/
+theorem truncMGF_contracts [IsMarkovKernel Q] (mp : KernelMilestone Q) {s : ℝ}
+    (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (c : β) :
+    ∫⁻ c', mp.truncMGF s c' ∂(Q c) ≤
+      ENNReal.ofReal (Real.exp (-s)) * mp.truncMGF s c := by
+  by_cases hc : mp.Post c
+  · simp only [truncMGF, if_pos hc, mul_zero]
+    have h_ae : (fun c' => if mp.Post c' then (0 : ℝ≥0∞)
+        else ENNReal.ofReal (mp.partialMGF s c')) =ᵐ[Q c] 0 := by
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨{y | mp.Post y}, ?_, fun y hy => if_pos hy⟩
+      rw [mem_ae_iff]
+      have h_meas : MeasurableSet {y : β | mp.Post y} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      calc Q c {y | mp.Post y}ᶜ
+          = Q c Set.univ - Q c {y | mp.Post y} :=
+            measure_compl h_meas (by rw [mp.post_absorbing c hc]; exact ENNReal.one_ne_top)
+        _ = 1 - 1 := by rw [measure_univ, mp.post_absorbing c hc]
+        _ = 0 := tsub_self _
+    exact le_of_eq (lintegral_eq_zero_of_ae_eq_zero h_ae)
+  · simp only [truncMGF, if_neg hc]
+    calc ∫⁻ c', (if mp.Post c' then 0 else ENNReal.ofReal (mp.partialMGF s c')) ∂(Q c)
+        ≤ ∫⁻ c', ENNReal.ofReal (mp.partialMGF s c') ∂(Q c) := by
+          refine lintegral_mono fun c' => ?_
+          by_cases hc' : mp.Post c' <;> simp [hc']
+      _ ≤ ENNReal.ofReal (Real.exp (-s)) * ENNReal.ofReal (mp.partialMGF s c) :=
+        mp.partialMGF_one_step_contraction hs_pos hs_valid c hc
+
+/-- **Geometric decay.**  From any start, the `t`-step expectation of `truncMGF` contracts
+geometrically.  No `Inv` threading (contraction holds at every state). -/
+theorem lintegral_geometric_decay [IsMarkovKernel Q] (mp : KernelMilestone Q) {s : ℝ}
+    (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (t : ℕ) (c : β) :
+    ∫⁻ c', mp.truncMGF s c' ∂((Q ^ t) c) ≤
+      ENNReal.ofReal (Real.exp (-s)) ^ t * mp.truncMGF s c := by
+  induction t generalizing c with
+  | zero =>
+    simp only [pow_zero, one_mul]
+    change ∫⁻ c', mp.truncMGF s c' ∂(Kernel.id c) ≤ mp.truncMGF s c
+    rw [Kernel.id_apply, lintegral_dirac' c (mp.truncMGF_measurable s)]
+  | succ t ih =>
+    change ∫⁻ c', mp.truncMGF s c' ∂(((Q ^ t) ∘ₖ Q) c) ≤ _
+    rw [Kernel.lintegral_comp _ _ c (mp.truncMGF_measurable s)]
+    calc ∫⁻ b, ∫⁻ c', mp.truncMGF s c' ∂((Q ^ t) b) ∂(Q c)
+        ≤ ∫⁻ b, ENNReal.ofReal (Real.exp (-s)) ^ t * mp.truncMGF s b ∂(Q c) :=
+          lintegral_mono fun b => ih b
+      _ = ENNReal.ofReal (Real.exp (-s)) ^ t * ∫⁻ b, mp.truncMGF s b ∂(Q c) :=
+          lintegral_const_mul _ (mp.truncMGF_measurable s)
+      _ ≤ ENNReal.ofReal (Real.exp (-s)) ^ t *
+            (ENNReal.ofReal (Real.exp (-s)) * mp.truncMGF s c) := by
+          gcongr; exact mp.truncMGF_contracts hs_pos hs_valid c
+      _ = ENNReal.ofReal (Real.exp (-s)) ^ (t + 1) * mp.truncMGF s c := by
+          rw [pow_succ, mul_assoc]
+
+/-- `{¬Post} ⊆ {1 ≤ truncMGF}`. -/
+theorem not_post_subset_ge_one (mp : KernelMilestone Q) {s : ℝ} (hs_pos : 0 < s)
+    (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) :
+    {c | ¬ mp.Post c} ⊆ {c | 1 ≤ mp.truncMGF s c} := by
+  intro c hc
+  simp only [Set.mem_setOf_eq] at hc ⊢
+  rw [show mp.truncMGF s c = ENNReal.ofReal (mp.partialMGF s c) from if_neg hc,
+    ← ENNReal.ofReal_one]
+  exact ENNReal.ofReal_le_ofReal (mp.partialMGF_ge_one_of_not_post hs_pos hs_valid c hc)
+
+/-- `pMin` is positive when there is at least one milestone. -/
+theorem pMin_pos (mp : KernelMilestone Q) (hk : 0 < mp.k) : 0 < mp.pMin := by
+  haveI : Nonempty (Fin mp.k) := ⟨⟨0, hk⟩⟩
+  obtain ⟨j₀, _, hj₀⟩ := Finset.exists_min_image Finset.univ mp.p
+    ⟨⟨0, hk⟩, Finset.mem_univ _⟩
+  have h_eq : ⨅ i, mp.p i = mp.p j₀ := le_antisymm
+    (ciInf_le ⟨0, fun x ⟨j, hj⟩ => hj ▸ (mp.hp_pos j).le⟩ j₀)
+    (le_ciInf fun i => hj₀ i (Finset.mem_univ i))
+  rw [pMin, h_eq]; exact mp.hp_pos j₀
+
+theorem pMin_le (mp : KernelMilestone Q) (i : Fin mp.k) : mp.pMin ≤ mp.p i :=
+  ciInf_le ⟨0, fun _ ⟨j, hj⟩ => hj ▸ (mp.hp_pos j).le⟩ i
+
+/-- **Milestone tail via MGF.**  From a start `c₀` with no milestone reached, the `t`-step
+mass on `¬Post` is bounded by the geometric MGF decay. -/
+theorem milestone_tail_bound_via_mgf [IsMarkovKernel Q] (mp : KernelMilestone Q) (c₀ : β)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    {s : ℝ} (hs_pos : 0 < s) (hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1) (t : ℕ) :
+    (Q ^ t) c₀ {c | ¬ mp.Post c} ≤
+      ENNReal.ofReal (Real.exp (-s * t) * ∏ i : Fin mp.k, mp.mgfFactor s i) := by
+  by_cases hk : mp.k = 0
+  · have hempty : {c : β | ¬ mp.Post c} = ∅ := by
+      ext c
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_not, Post]
+      intro i; exact absurd i.2 (by omega)
+    simp [hempty]
+  have hk_pos : 0 < mp.k := Nat.pos_of_ne_zero hk
+  haveI : Nonempty (Fin mp.k) := ⟨⟨0, hk_pos⟩⟩
+  have hexp_s_pos : (0 : ℝ) < Real.exp (-s) := Real.exp_pos _
+  have hNotPost : ¬ mp.Post c₀ := fun h => absurd (h ⟨0, hk_pos⟩) (hPre ⟨0, hk_pos⟩)
+  have hmarkov := mul_meas_ge_le_lintegral₀
+    (μ := (Q ^ t) c₀) (mp.truncMGF_measurable s).aemeasurable (1 : ℝ≥0∞)
+  simp only [one_mul] at hmarkov
+  calc (Q ^ t) c₀ {c | ¬ mp.Post c}
+      ≤ (Q ^ t) c₀ {c | 1 ≤ mp.truncMGF s c} :=
+        measure_mono (mp.not_post_subset_ge_one hs_pos hs_valid)
+    _ ≤ ∫⁻ c', mp.truncMGF s c' ∂((Q ^ t) c₀) := hmarkov
+    _ ≤ ENNReal.ofReal (Real.exp (-s)) ^ t * mp.truncMGF s c₀ :=
+        mp.lintegral_geometric_decay hs_pos hs_valid t c₀
+    _ = ENNReal.ofReal (Real.exp (-s * t) * ∏ i : Fin mp.k, mp.mgfFactor s i) := by
+        rw [show mp.truncMGF s c₀ = ENNReal.ofReal (mp.partialMGF s c₀) from if_neg hNotPost,
+          mp.partialMGF_eq_full_of_none_reached s c₀ hPre,
+          ← ENNReal.ofReal_pow hexp_s_pos.le, ← ENNReal.ofReal_mul (by positivity)]
+        congr 1
+        rw [show -s * (t : ℝ) = (t : ℝ) * (-s) from by ring, Real.exp_nat_mul]
+
+/-- `toDummyMP` preserves `pMin`. -/
+theorem toDummyMP_pMin {Λ : Type*} [Fintype Λ] [DecidableEq Λ] (mp : KernelMilestone Q)
+    (P : Protocol Λ) : (mp.toDummyMP P).pMin = mp.pMin := rfl
+
+/-- `toDummyMP` preserves `meanTime`. -/
+theorem toDummyMP_meanTime {Λ : Type*} [Fintype Λ] [DecidableEq Λ] (mp : KernelMilestone Q)
+    (P : Protocol Λ) : (mp.toDummyMP P).meanTime = mp.meanTime := rfl
+
+/-- `geometricProductMGF` (on the dummy `(k,p)`) equals `∏ mgfFactor`. -/
+theorem geometricProductMGF_eq_prod_mgfFactor (mp : KernelMilestone Q) (s : ℝ) :
+    geometricProductMGF mp.k mp.p s = ∏ i : Fin mp.k, mp.mgfFactor s i := rfl
+
+/-- **Milestone hitting-time concentration (Kernel-generic, Gap A on the killed kernel).**
+From a start `c₀` with no milestone reached, the probability of NOT completing all
+milestones within `λ·meanTime` steps is at most `exp(−pMin·meanTime·(λ−1−ln λ))` — the same
+Janson tail as the protocol engines, but over an ABSTRACT Markov kernel `Q` and with NO
+`Inv`/`inv_closed` obligation (global `progress`).  A host `Protocol P` supplies the
+borrowed pure-MGF optimisation (only `(k,p)`-determined, `rfl`-equal). -/
+theorem milestone_hitting_time_bound [IsMarkovKernel Q] {Λ : Type*} [Fintype Λ]
+    [DecidableEq Λ] (mp : KernelMilestone Q) (P : Protocol Λ) (c₀ : β)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    (lam : ℝ) (hlam : 1 ≤ lam) (t : ℕ) (ht : lam * mp.meanTime ≤ (t : ℝ)) :
+    (Q ^ t) c₀ {c | ¬ mp.Post c} ≤
+      ENNReal.ofReal (Real.exp (-mp.pMin * mp.meanTime * (lam - 1 - Real.log lam))) := by
+  by_cases hk : mp.k = 0
+  · have hempty : {c : β | ¬ mp.Post c} = ∅ := by
+      ext c
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_not, Post]
+      intro i; exact absurd i.2 (by omega)
+    simp [hempty]
+  by_cases hlam_eq : lam = 1
+  · have hzero : -mp.pMin * mp.meanTime * (lam - 1 - Real.log lam) = 0 := by
+      rw [hlam_eq, Real.log_one]; ring
+    rw [hzero, Real.exp_zero, ENNReal.ofReal_one]
+    have hMK : ∀ s : ℕ, IsMarkovKernel (Q ^ s) := by
+      intro s; induction s with
+      | zero => rw [pow_zero]
+                exact inferInstanceAs (IsMarkovKernel (Kernel.id : Kernel β β))
+      | succ s ih => haveI := ih; rw [pow_succ]
+                     exact inferInstanceAs (IsMarkovKernel ((Q ^ s) ∘ₖ _))
+    haveI := hMK t
+    haveI : IsProbabilityMeasure ((Q ^ t) c₀) := IsMarkovKernel.isProbabilityMeasure _
+    calc (Q ^ t) c₀ {c | ¬ mp.Post c}
+        ≤ (Q ^ t) c₀ Set.univ := measure_mono (Set.subset_univ _)
+      _ ≤ 1 := prob_le_one
+  · have hlam_gt : 1 < lam := lt_of_le_of_ne hlam (Ne.symm hlam_eq)
+    have hk_pos : 0 < mp.k := Nat.pos_of_ne_zero hk
+    set s : ℝ := mp.pMin * (1 - 1 / lam) with hs_def
+    have hpmin_pos : 0 < mp.pMin := mp.pMin_pos hk_pos
+    have hs_pos : 0 < s := by
+      apply mul_pos hpmin_pos
+      have : 1 / lam < 1 := by rw [div_lt_one (by linarith)]; exact hlam_gt
+      linarith
+    have hs_valid : ∀ i, (1 - mp.p i) * Real.exp s < 1 := by
+      intro i
+      have hsi : s ≤ mp.p i := by
+        calc s = mp.pMin * (1 - 1 / lam) := hs_def
+          _ ≤ mp.pMin * 1 := by
+              apply mul_le_mul_of_nonneg_left _ hpmin_pos.le
+              linarith [div_pos one_pos (show (0:ℝ) < lam by linarith)]
+          _ = mp.pMin := mul_one _
+          _ ≤ mp.p i := mp.pMin_le i
+      have hne : (-s : ℝ) ≠ 0 := by linarith
+      calc (1 - mp.p i) * Real.exp s
+          ≤ (1 - s) * Real.exp s := by
+            apply mul_le_mul_of_nonneg_right _ (Real.exp_pos s).le; linarith
+        _ < 1 := by
+            have h1 : 1 - s < Real.exp (-s) := by linarith [Real.add_one_lt_exp hne]
+            have h2 := mul_lt_mul_of_pos_right h1 (Real.exp_pos s)
+            rwa [← Real.exp_add, neg_add_cancel, Real.exp_zero] at h2
+    have h_opt := janson_exponential_tail_from_mgf (mp.toDummyMP P) lam hlam (t : ℝ) ht s hs_def
+    rw [mp.toDummyMP_meanTime P, mp.toDummyMP_pMin P] at h_opt
+    have h_tail := mp.milestone_tail_bound_via_mgf c₀ hPre hs_pos hs_valid t
+    have hkp : geometricProductMGF (mp.toDummyMP P).k (mp.toDummyMP P).p s =
+        ∏ i : Fin mp.k, mp.mgfFactor s i := mp.geometricProductMGF_eq_prod_mgfFactor s
+    rw [hkp] at h_opt
+    exact le_trans h_tail (ENNReal.ofReal_le_ofReal h_opt)
+
 end KernelMilestone
 
 /-! ## Gap (B), killed-kernel route: the floor as a UNION term, by construction.
@@ -2377,6 +2723,63 @@ theorem killedAliveBad_le_killedAliveNotGood
   apply measure_mono
   rintro o ⟨y, rfl, hy⟩
   exact ⟨y, rfl, fun hg => himpl y hg hy⟩
+
+/-- The cemetery extension carries the discrete (`⊤`) measurable space (matches
+`GatedDrift.instOptionMSnow`, supplied here so `KernelMilestone (killK_now …)` typechecks
+in this file). -/
+local instance instOptionMSrsc {α : Type*} : MeasurableSpace (Option α) := ⊤
+local instance instOptionDMSrsc {α : Type*} : DiscreteMeasurableSpace (Option α) :=
+  ⟨fun _ => trivial⟩
+
+open ExactMajority GatedDrift in
+/-- **Killed alive-(¬good) ≤ KernelMilestone Janson tail.**  Given a `KernelMilestone`
+witness `mp` over the killed kernel whose postcondition on alive states forces `good`
+(`post_sound`), and a start `c₀` (lifted to `some c₀`) at which no milestone has fired, the
+killed alive-`¬good` mass is at most the Janson hitting-time tail.  This is where the
+generic engine (`milestone_hitting_time_bound`) discharges the alive-bad term — with `Inv`
+DISSOLVED (alive ⟹ gated holds by `killK_now`'s construction, baked into `mp`'s `progress`
+when the witness is built). -/
+theorem killedAliveNotGood_le_janson
+    {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α] [Inhabited α] [Countable α]
+    {Λ : Type*} [Fintype Λ] [DecidableEq Λ]
+    (K : Kernel α α) [IsMarkovKernel K] (G : Set α) (good : α → Prop)
+    (mp : KernelMilestone (killK_now K G)) (P : Protocol Λ)
+    (post_sound : ∀ y, mp.Post (some y) → good y)
+    (c₀ : α) (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i (some c₀))
+    (lam : ℝ) (hlam : 1 ≤ lam) (t : ℕ) (ht : lam * mp.meanTime ≤ (t : ℝ)) :
+    (killK_now K G ^ t) (some c₀) {o | ∃ y, o = some y ∧ ¬ good y} ≤
+      ENNReal.ofReal (Real.exp (-mp.pMin * mp.meanTime * (lam - 1 - Real.log lam))) := by
+  refine le_trans (measure_mono ?_)
+    (mp.milestone_hitting_time_bound P (some c₀) hPre lam hlam t ht)
+  rintro o ⟨y, rfl, hy⟩
+  exact fun hPost => hy (post_sound y hPost)
+
+open ExactMajority GatedDrift in
+/-- **Stage-1 union assembly (killed-kernel route, abstract witness).**  The real `t`-step
+bad mass is at most the Janson tail (alive-`¬good`, via the `KernelMilestone` engine) PLUS
+the escape union term `εfloor = t·q + ∑_{τ<t} (K^τ) c₀ Sᶜ`.  This is the FULL relay-6
+realisation of relay-5's "route (a)": the floor enters as an additive budget, the milestone
+engine runs with `inv_closed` dissolved into `killK_now`.  Plugging the concrete role-split
+witness (the remaining construction) and the Chernoff `q`, `Sᶜ` bounds gives Lemma 5.1's
+`O(1/n²)`. -/
+theorem real_bad_le_janson_add_escape
+    {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α] [Inhabited α] [Countable α]
+    {Λ : Type*} [Fintype Λ] [DecidableEq Λ]
+    (K : Kernel α α) [IsMarkovKernel K] (G S : Set α) (good : α → Prop) (q : ℝ≥0∞)
+    (mp : KernelMilestone (killK_now K G)) (P : Protocol Λ)
+    (post_sound : ∀ y, mp.Post (some y) → good y)
+    (hstep : ∀ x ∈ G, x ∈ S → K x Gᶜ ≤ q)
+    (c₀ : α) (hc₀ : c₀ ∈ G) (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i (some c₀))
+    (lam : ℝ) (hlam : 1 ≤ lam) (t : ℕ) (ht : lam * mp.meanTime ≤ (t : ℝ)) :
+    (K ^ t) c₀ {y | ¬ good y} ≤
+      ENNReal.ofReal (Real.exp (-mp.pMin * mp.meanTime * (lam - 1 - Real.log lam))) +
+      ((t : ℝ≥0∞) * q + ∑ τ ∈ Finset.range t, (K ^ τ) c₀ Sᶜ) := by
+  refine le_trans
+    (real_bad_le_killedAliveBad_add_escape K G S (fun y => ¬ good y) q hstep t c₀ hc₀) ?_
+  gcongr
+  refine le_trans (killedAliveBad_le_killedAliveNotGood K G (fun y => ¬ good y) good
+    (fun y hg => by simpa using hg) t c₀) ?_
+  exact killedAliveNotGood_le_janson K G good mp P post_sound c₀ hPre lam hlam t ht
 
 end RoleSplitConcentration
 end ExactMajority

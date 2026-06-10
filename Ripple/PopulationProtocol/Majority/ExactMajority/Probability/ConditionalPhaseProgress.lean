@@ -1145,6 +1145,71 @@ theorem AllClockGEp_absorbing (p : ℕ) (hp : 3 ≤ p) (c c' : Config (AgentStat
     rw [PMF.mem_support_pure_iff] at hc'
     subst hc'; exact hw
 
+/-! ## Part 6 — Brick 1: `PotNonincrOn (AllClockGEp p) K (clockCounterSumAt p)`
+
+The phase-`p`-restricted clock-counter sum never rises from an `AllClockGEp p`-state,
+for a timed phase `p ∈ {0,1,5,6,7,8}`.  Per-pair: `clockCounterSumAt p` decomposes
+additively over the removed pair and the two outputs (`Multiset.sum` over `map`), so
+the discharge reduces to the per-pair fact `wt p out.1 + wt p out.2 ≤ wt p r₁ + wt p r₂`
+where `wt p a := if a.role = .clock ∧ a.phase.val = p then a.counter.val else 0`.
+
+The per-pair fact is itself per-component: for a clock at phase `≥ p` interacting with a
+clock partner at phase `≥ p`, the corresponding output's `wt p` value is `≤` the input's.
+A clock leaving phase `p` (counter-zero advance or epidemic drag-up to a higher phase)
+drops to `wt = 0`; a clock STAYING at phase `p` did not advance, so it ran the standard
+counter decrement and its counter is `≤` the input counter. -/
+
+/-- The per-agent weight summed by `clockCounterSumAt p`. -/
+def wtAt (p : ℕ) (a : AgentState L K) : ℕ :=
+  if a.role = .clock ∧ a.phase.val = p then a.counter.val else 0
+
+theorem clockCounterSumAt_eq_sum_wtAt (p : ℕ) (c : Config (AgentState L K)) :
+    clockCounterSumAt p c = (c.map (wtAt (L := L) (K := K) p)).sum := rfl
+
+/-- Epidemic stage is inert on two agents at the same non-error phase.  (Local copy
+of the `private` `Analysis.PhaseProgress` lemma; `runInitsBetween_self` is public.) -/
+theorem epidemic_inert_same_phase (ph : Fin 11) (hph10 : ph.val ≠ 10)
+    (s t : AgentState L K) (hs : s.phase = ph) (ht : t.phase = ph) :
+    phaseEpidemicUpdate L K s t = (s, t) := by
+  unfold phaseEpidemicUpdate
+  rw [hs, ht, max_self]
+  simp only [runInitsBetween_self]
+  cases s
+  cases t
+  simp_all
+
+/-- Per-agent `wtAt p`-bound for the standard counter subroutine at phase exactly `p`:
+if the output is still a clock at phase `p`, the counter only decremented. -/
+theorem wtAt_std_le (p : ℕ) (hp10 : p < 10) (a : AgentState L K) (ha : a.role = .clock)
+    (hap : a.phase.val = p) :
+    wtAt (L := L) (K := K) p (stdCounterSubroutine L K a) ≤ a.counter.val := by
+  classical
+  unfold wtAt
+  by_cases hpos : 0 < a.counter.val
+  · -- counter positive ⇒ decrement, stays at phase p, counter ≤ a.counter
+    have hle := stdCounterSubroutine_counter_le (L := L) (K := K) a hpos
+    split
+    · exact hle
+    · exact Nat.zero_le _
+  · -- counter zero ⇒ advance, phase > p, so the guard `phase = p` fails ⇒ wtAt = 0
+    have hzero : a.counter.val = 0 := by omega
+    have h10 : a.phase.val < 10 := by omega
+    have hadv : a.phase.val + 1 ≤ (stdCounterSubroutine L K a).phase.val :=
+      stdCounterSubroutine_zero_advances (L := L) (K := K) a hzero h10
+    split
+    · rename_i hguard
+      omega
+    · exact Nat.zero_le _
+
+theorem transition_pair_wtAt_le (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ))
+    (r₁ r₂ : AgentState L K)
+    (h1c : r₁.role = .clock) (h2c : r₂.role = .clock)
+    (h1p : p ≤ r₁.phase.val) (h2p : p ≤ r₂.phase.val) :
+    wtAt (L := L) (K := K) p (Transition L K r₁ r₂).1
+        + wtAt (L := L) (K := K) p (Transition L K r₁ r₂).2
+      ≤ wtAt (L := L) (K := K) p r₁ + wtAt (L := L) (K := K) p r₂ := by
+  sorry
+
 end ConditionalPhaseProgress
 
 end ExactMajority
