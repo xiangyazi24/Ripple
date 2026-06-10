@@ -2825,6 +2825,76 @@ theorem floorGate_phase0 {n a₀ : ℕ} {c : Config (AgentState L K)}
     (hc : c ∈ floorGate (L := L) (K := K) n a₀) :
     ∀ a ∈ c, a.role = .mcr → a.phase.val = 0 := hc.2.2
 
+/-! ### Structural-shell decomposition of the floor-escape set (relay 8).
+
+The Stage-1 headline `phase0_stage1_whp` (with `S := floorGate`) leaves the residual
+floor-escape prefix `∑_{τ<t} (K^τ) c₀ floorGateᶜ`.  `floorGate` is the conjunction of
+THREE predicates — a *structural shell* (`card = n` ∧ the Phase-0 MCR-phase invariant)
+and the *floor* (`a₀ ≤ assignableCount`).  The structural shell is deterministically
+preserved by the kernel support (`card` exactly, via `stepDistOrSelf_support_card_eq`),
+so the genuinely-probabilistic content is ONLY the floor disjunct.  The lemmas here split
+`floorGateᶜ` along that line so the MGF-drift development can target the pure floor event
+`{assignableCount < a₀}` rather than the full complement.  This is the deterministic
+scaffolding (closable from the count atoms) under the irreducibly-probabilistic floor
+(the in-house `exp(−s·assignableCount)` real-kernel drift — see the campaign note's crux). -/
+
+/-- The structural shell of `floorGate`: the two deterministic predicates (cardinality and
+the Phase-0 MCR-phase invariant), without the floor.  `floorGate = cardPhaseShell ∩ floor`. -/
+def cardPhaseShell (n : ℕ) : Set (Config (AgentState L K)) :=
+  {c | Multiset.card c = n ∧ (∀ a ∈ c, a.role = .mcr → a.phase.val = 0)}
+
+/-- `floorGate` is exactly the structural shell intersected with the floor predicate. -/
+theorem floorGate_eq_shell_inter_floor (n a₀ : ℕ) :
+    floorGate (L := L) (K := K) n a₀ =
+      cardPhaseShell (L := L) (K := K) n ∩
+        {c | a₀ ≤ assignableCount (L := L) (K := K) c} := by
+  ext c
+  constructor
+  · rintro ⟨hcard, hfloor, hphase⟩; exact ⟨⟨hcard, hphase⟩, hfloor⟩
+  · rintro ⟨⟨hcard, hphase⟩, hfloor⟩; exact ⟨hcard, hfloor, hphase⟩
+
+/-- **Floor-escape set decomposition.**  The complement of `floorGate` is the union of the
+shell-complement and the pure floor-failure event.  Consequently the floor-escape *mass*
+splits: `(K^τ) c₀ floorGateᶜ ≤ (K^τ) c₀ (cardPhaseShellᶜ) + (K^τ) c₀ {assignableCount < a₀}`.
+On the support-reachable set the shell holds (deterministic), so the first term vanishes and
+the residual reduces to the floor prefix `∑_τ P(assignableCount < a₀)`. -/
+theorem floorGate_compl_subset (n a₀ : ℕ) :
+    (floorGate (L := L) (K := K) n a₀)ᶜ ⊆
+      (cardPhaseShell (L := L) (K := K) n)ᶜ ∪
+        {c | assignableCount (L := L) (K := K) c < a₀} := by
+  intro c hc
+  by_cases hshell : c ∈ cardPhaseShell (L := L) (K := K) n
+  · refine Or.inr ?_
+    by_contra hfl
+    exact hc ⟨hshell.1, not_lt.mp hfl, hshell.2⟩
+  · exact Or.inl hshell
+
+/-- **Floor-escape mass split.**  For any kernel-step measure `μ`, the floor-escape mass
+splits into the shell-escape mass plus the pure floor-failure mass.  Applied with
+`μ = (K^τ) c₀` and summed over `τ < t`, this reduces the residual escape prefix
+`∑_τ μ_τ floorGateᶜ` to `∑_τ μ_τ (cardPhaseShellᶜ) + ∑_τ μ_τ {assignableCount < a₀}` — the
+first sum deterministic (zero on the support-reachable shell), the second the genuine MGF
+target. -/
+theorem floorGate_escape_mass_le (n a₀ : ℕ)
+    (μ : MeasureTheory.Measure (Config (AgentState L K))) :
+    μ (floorGate (L := L) (K := K) n a₀)ᶜ ≤
+      μ (cardPhaseShell (L := L) (K := K) n)ᶜ +
+        μ {c | assignableCount (L := L) (K := K) c < a₀} :=
+  le_trans (measure_mono (floorGate_compl_subset (L := L) (K := K) n a₀))
+    (measure_union_le _ _)
+
+/-- **Cardinality is preserved on the kernel support.**  Every support successor of `c`
+under the `NonuniformMajority` step has the same cardinality (`stepDistOrSelf_support_card_eq`).
+This is the airtight half of the structural-shell closure: the `card = n` predicate of
+`cardPhaseShell` is deterministically maintained, so the `card`-disjunct of `floorGateᶜ`
+contributes ZERO support mass from any `card = n` start.  (The remaining shell predicate, the
+Phase-0 MCR-phase invariant, requires the per-rule phase analysis; see campaign note.) -/
+theorem card_eq_of_support {n : ℕ} {c c' : Config (AgentState L K)}
+    (hcard : Multiset.card c = n)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    Multiset.card c' = n := by
+  rw [Protocol.stepDistOrSelf_support_card_eq (NonuniformMajority L K) c c' hc']; exact hcard
+
 /-- The lifted milestone predicate on `Option (Config …)`: the cemetery `none` is
 milestone-`True` (absorbing, counted as `Post`); an alive `some c` reuses the plain
 `phase0Milestone`. -/
