@@ -4691,6 +4691,286 @@ theorem per_window_delta (T θn n : ℕ) (hn : 2 ≤ n)
           - σ * (Yt m : ℝ))
       (mul_nonneg hσ.le hQ0) hB0 hGm1 (fun m hm => hslice m hm)
 
+/-! ## Part 31 — the recurrence invariant and the per-window failure bound (brick 3.5e step 2).
+
+`recInv` is Lemma 6.3's induction invariant at level `T`: inside the hour region (full population,
+phases ≥ 3), WHILE the level is in the recurrence window (`AllClockP3 ∧ 10X ≤ n`), the feeder has
+reached the gate floor (`θn ≤ X`) and the clean tail obeys the recurrence (`Y ≤ cc·X²/n`).  The
+window-exit disjuncts (phase 4 reached, or `10X > n`) are PERMANENT (phase monotone, `X` monotone),
+so a window that starts exited never re-enters — failure only happens through the per-window bad
+event, which is exactly `per_window_delta`'s. -/
+
+/-- The hour region: full population, all clocks at phases ≥ 3 (forward-invariant a.e.). -/
+def hourRegion (n : ℕ) : Set (Config (MarkedAgent L K)) :=
+  {mc | mc.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+
+/-- The hour region is preserved by one marked step (a.e.). -/
+theorem hourRegion_ae_step (T θn n : ℕ) (mc : Config (MarkedAgent L K))
+    (hmc : mc ∈ hourRegion (L := L) (K := K) n) :
+    ∀ᵐ mc' ∂(markedK (L := L) (K := K) T θn mc),
+      mc' ∈ hourRegion (L := L) (K := K) n := by
+  classical
+  obtain ⟨hcard, hge3⟩ := hmc
+  refine ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp => ⟨?_, ?_⟩)
+  · have h1 := eraseConfig_card (L := L) (K := K) mc
+    have h2 := eraseConfig_card (L := L) (K := K) mc'
+    revert hsupp
+    unfold markedPMF
+    by_cases h : 2 ≤ mc.card
+    · rw [dif_pos h]
+      intro hsupp
+      rw [PMF.support_map] at hsupp
+      obtain ⟨pr, _, hpr⟩ := hsupp
+      subst hpr
+      by_cases happ : ({pr.1, pr.2} : Multiset (MarkedAgent L K)) ≤ mc
+      · have herase := erase_markedStep (L := L) (K := K) T θn mc pr happ
+        have hreal : (eraseConfig (L := L) (K := K)
+            (markedStep (L := L) (K := K) T θn mc pr)).card
+            = (eraseConfig (L := L) (K := K) mc).card := by
+          rw [herase]
+          exact Protocol.reachable_card_eq
+            (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) _ pr.1.1 pr.2.1)
+        omega
+      · unfold markedStep
+        rw [if_neg happ]
+        omega
+    · rw [dif_neg h]
+      intro hsupp
+      rw [PMF.support_pure] at hsupp
+      rw [Set.mem_singleton_iff.mp hsupp]
+      omega
+  · exact allClockGE3_erase_step (L := L) (K := K) T θn mc mc' hge3 hsupp
+
+/-- Leaving the `AllClockP3` hour window is permanent (one step, a.e., within the region): within
+`AllClockGE3`, `¬AllClockP3` means a phase-4 witness, and witnesses persist. -/
+theorem notP3_ae_step (T θn n : ℕ) (mc : Config (MarkedAgent L K))
+    (hmc : mc ∈ hourRegion (L := L) (K := K) n)
+    (hP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)) :
+    ∀ᵐ mc' ∂(markedK (L := L) (K := K) T θn mc),
+      ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc') := by
+  classical
+  obtain ⟨hcard, hge3⟩ := hmc
+  have h4 : ∃ m ∈ mc, 4 ≤ m.1.phase.val := by
+    by_contra hcon
+    push Not at hcon
+    apply hP3
+    intro a ha
+    unfold eraseConfig at ha
+    obtain ⟨m, hm, hma⟩ := Multiset.mem_map.mp ha
+    have hge := hge3 a ha
+    have hno4 := hcon m hm
+    refine ⟨hge.1, ?_⟩
+    have h3 : 3 ≤ a.phase.val := hge.2
+    have : a.phase.val ≤ 3 := by
+      rw [← hma]
+      omega
+    omega
+  refine ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp => ?_)
+  have h4' := phase4_witness_absorbing (L := L) (K := K) T θn mc mc' h4 hsupp
+  intro hP3'
+  obtain ⟨m, hm, hm4⟩ := h4'
+  have := hP3' m.1 (by
+    unfold eraseConfig
+    exact Multiset.mem_map_of_mem Prod.fst hm)
+  omega
+
+/-- **The Lemma 6.3 recurrence invariant at level `T`**: inside the hour region, while the level is
+in the recurrence window (`AllClockP3 ∧ 10X ≤ n`), the feeder is past the floor and the clean tail
+obeys the recurrence. -/
+def recInv (T θn n : ℕ) (cc : ℝ) (mc : Config (MarkedAgent L K)) : Prop :=
+  mc.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+    (AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n →
+      (θn ≤ rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ∧
+        (cleanAbove (L := L) (K := K) T mc : ℝ) ≤
+          cc * (rBeyond (L := L) (K := K) T
+            (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)))
+
+/-- **The per-window failure bound for the recurrence invariant**: from any `recInv` start, the
+probability that `recInv` fails after `w` steps is at most the recurrence-window bad-event bound
+`δ` (supplied, in the live case, by `per_window_delta`); the window-exit and region-exit failure
+modes are NULL (monotone/absorbing).  This is `checkpoint_composition`'s `hwindow` input. -/
+theorem window_failure_le (T θn n : ℕ) (cc : ℝ) (w : ℕ) (aM : ℕ) (haM : n ≤ 10 * aM)
+    (δ : ℝ≥0∞) (mc₀ : Config (MarkedAgent L K))
+    (hInv : recInv (L := L) (K := K) T θn n cc mc₀)
+    (hB : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ) :
+    ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ≤ δ := by
+  classical
+  obtain ⟨hcard, hge3, himpl⟩ := hInv
+  have hR : mc₀ ∈ hourRegion (L := L) (K := K) n := ⟨hcard, hge3⟩
+  -- region preservation at w steps (null region-exit).
+  have hRstep : ∀ mc ∈ hourRegion (L := L) (K := K) n,
+      ∀ᵐ mc' ∂(markedK (L := L) (K := K) T θn mc),
+        mc' ∈ hourRegion (L := L) (K := K) n :=
+    fun mc hmc => hourRegion_ae_step (L := L) (K := K) T θn n mc hmc
+  have hnull_region : ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+      {mc | mc ∉ hourRegion (L := L) (K := K) n} = 0 := by
+    have h := ae_notG_pow (markedK (L := L) (K := K) T θn)
+      (hourRegion (L := L) (K := K) n) (hourRegion (L := L) (K := K) n)ᶜ
+      hRstep
+      (fun mc hmc _ => by
+        filter_upwards [hRstep mc hmc] with mc' hmc'
+        exact fun hc => hc hmc')
+      w mc₀ hR (fun hc => hc hR)
+    rw [MeasureTheory.ae_iff] at h
+    have hset : {z : Config (MarkedAgent L K) | ¬ z ∉ (hourRegion (L := L) (K := K) n)ᶜ}
+        = {mc | mc ∉ hourRegion (L := L) (K := K) n} := by
+      ext z
+      simp [Set.mem_compl_iff, not_not]
+    rwa [hset] at h
+  by_cases hP3₀ : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀)
+  · by_cases hX₀ : 10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n
+    · -- the live case: the recurrence window is open at the start.
+      obtain ⟨hθ, hY⟩ := himpl hP3₀ hX₀
+      -- X never drops below θn (null floor-exit).
+      have hnull_theta : ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) < θn} = 0 := by
+        have h := ae_notG_pow (markedK (L := L) (K := K) T θn)
+          (hourRegion (L := L) (K := K) n)
+          {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) < θn}
+          hRstep
+          (fun mc hmc hG => by
+            refine ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp => ?_)
+            have hmono := rBeyond_erase_monotone_ge3 (L := L) (K := K) T θn T mc mc'
+              hmc.2 hsupp
+            rw [Set.mem_setOf_eq] at hG ⊢
+            omega)
+          w mc₀ hR (by
+            rw [Set.mem_setOf_eq]
+            omega)
+        rw [MeasureTheory.ae_iff] at h
+        have hset : {z : Config (MarkedAgent L K) |
+            ¬ z ∉ {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) < θn}}
+            = {mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) < θn} := by
+          ext z
+          simp
+        rwa [hset] at h
+      -- split the failure into the two null modes and the bad event.
+      have hsub : {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ⊆
+          {mc | mc ∉ hourRegion (L := L) (K := K) n} ∪
+          ({mc | rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) < θn} ∪
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧
+            AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}) := by
+        intro mc hmc
+        rw [Set.mem_setOf_eq] at hmc
+        by_cases hreg : mc ∈ hourRegion (L := L) (K := K) n
+        · right
+          by_cases hθ' : rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) < θn
+          · exact Or.inl hθ'
+          · right
+            -- in-region, floor held: the failure must be the recurrence break in the window.
+            unfold recInv at hmc
+            push Not at hmc
+            obtain ⟨hregc, hregg⟩ := hreg
+            obtain ⟨hP3', hXw, hbreak⟩ := hmc hregc hregg
+            have hbreak' : cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+                < (cleanAbove (L := L) (K := K) T mc : ℝ) := hbreak (by omega)
+            exact ⟨hbreak', by omega, hregc, hP3'⟩
+        · exact Or.inl hreg
+      refine le_trans (measure_mono hsub) ?_
+      refine le_trans (measure_union_le _ _) ?_
+      rw [hnull_region, zero_add]
+      refine le_trans (measure_union_le _ _) ?_
+      rw [hnull_theta, zero_add]
+      exact hB hP3₀ hX₀
+    · -- the bulk has arrived at the start: `10X > n` is permanent, the window never reopens.
+      have hnull_X : ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | 10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n}
+          = 0 := by
+        have h := ae_notG_pow (markedK (L := L) (K := K) T θn)
+          (hourRegion (L := L) (K := K) n)
+          {mc | 10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n}
+          hRstep
+          (fun mc hmc hG => by
+            refine ae_markedStep (L := L) (K := K) T θn mc _ (fun mc' hsupp => ?_)
+            have hmono := rBeyond_erase_monotone_ge3 (L := L) (K := K) T θn T mc mc'
+              hmc.2 hsupp
+            rw [Set.mem_setOf_eq] at hG ⊢
+            omega)
+          w mc₀ hR (by
+            rw [Set.mem_setOf_eq]
+            omega)
+        rw [MeasureTheory.ae_iff] at h
+        have hset : {z : Config (MarkedAgent L K) |
+            ¬ z ∉ {mc | 10 * rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) ≤ n}}
+            = {mc | 10 * rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) ≤ n} := by
+          ext z
+          simp
+        rwa [hset] at h
+      have hsub : {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ⊆
+          {mc | mc ∉ hourRegion (L := L) (K := K) n} ∪
+          {mc | 10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n} := by
+        intro mc hmc
+        rw [Set.mem_setOf_eq] at hmc
+        by_cases hreg : mc ∈ hourRegion (L := L) (K := K) n
+        · right
+          unfold recInv at hmc
+          push Not at hmc
+          obtain ⟨hregc, hregg⟩ := hreg
+          obtain ⟨_, hXw, _⟩ := hmc hregc hregg
+          exact hXw
+        · exact Or.inl hreg
+      refine le_trans (measure_mono hsub) ?_
+      refine le_trans (measure_union_le _ _) ?_
+      rw [hnull_region, hnull_X, zero_add]
+      exact zero_le'
+  · -- the hour window is already over at the start: `¬P3` is permanent.
+    have hnull_P3 : ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+        {mc | AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} = 0 := by
+      have h := ae_notG_pow (markedK (L := L) (K := K) T θn)
+        (hourRegion (L := L) (K := K) n)
+        {mc | AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        hRstep
+        (fun mc hmc hG => by
+          have := notP3_ae_step (L := L) (K := K) T θn n mc hmc (by
+            rw [Set.mem_setOf_eq] at hG
+            exact hG)
+          filter_upwards [this] with mc' hmc'
+          exact hmc')
+        w mc₀ hR (by
+          rw [Set.mem_setOf_eq]
+          exact hP3₀)
+      rw [MeasureTheory.ae_iff] at h
+      have hset : {z : Config (MarkedAgent L K) |
+          ¬ z ∉ {mc | AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}}
+          = {mc | AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} := by
+        ext z
+        simp
+      rwa [hset] at h
+    have hsub : {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ⊆
+        {mc | mc ∉ hourRegion (L := L) (K := K) n} ∪
+        {mc | AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} := by
+      intro mc hmc
+      rw [Set.mem_setOf_eq] at hmc
+      by_cases hreg : mc ∈ hourRegion (L := L) (K := K) n
+      · right
+        unfold recInv at hmc
+        push Not at hmc
+        obtain ⟨hregc, hregg⟩ := hreg
+        obtain ⟨hP3', _, _⟩ := hmc hregc hregg
+        exact hP3'
+      · exact Or.inl hreg
+    refine le_trans (measure_mono hsub) ?_
+    refine le_trans (measure_union_le _ _) ?_
+    rw [hnull_region, hnull_P3, zero_add]
+    exact zero_le'
+
 end EarlyDripMarked
 
 end ExactMajority
