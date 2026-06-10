@@ -159,17 +159,32 @@ private lemma freeW_stdCounterSubroutine_clock (a : AgentState L K)
     (stdCounterSubroutine_assigned_eq a)
 
 /-- The combined per-agent ledger weight `g = freeW − 2·topW`, which the per-pair
-conservation below shows is exactly preserved by every Phase-0 rule. -/
+conservation below shows is exactly preserved by every Phase-0 rule on agents that
+are not *assigned `mcr`* (an unreachable corner — `Phase0Initial` starts with every
+`mcr` UNassigned and NO rule ever produces an `mcr`, so `assigned mcr` never
+arises; see `NoAssignedMcr`). -/
 private def ledgerW (a : AgentState L K) : ℤ :=
   freeW (L := L) (K := K) a - 2 * topW (L := L) (K := K) a
+
+/-- An agent is *not an assigned `mcr`* — the honest reachability side-condition
+the per-pair ledger conservation needs.  Holds for every agent reachable from
+`Phase0Initial`: the initial `mcr` agents are unassigned, and no Phase-0 rule
+ever assigns an `mcr` or creates a fresh `mcr` (rules only CONSUME `mcr`). -/
+def NotAssignedMcr (a : AgentState L K) : Prop :=
+  ¬ (a.role = .mcr ∧ a.assigned = true)
 
 set_option maxHeartbeats 1600000 in
 /-- **Per-pair ledger conservation (`Phase0Transition`).**  `freeW − 2·topW`
 summed over the output pair equals the same over the input pair: the
 assigned-balance ledger `Mf − Sf − 2·X` is locally conserved by every Phase-0
-rule.  Finite case check over the role/assigned tree (R5 clock–clock split off,
-where both fields are preserved by `stdCounterSubroutine`). -/
-theorem ledgerW_Phase0_pair_conserved (r₁ r₂ : AgentState L K) :
+rule, on inputs that are not assigned `mcr` (`NotAssignedMcr`, the honest
+reachability side-condition — see its doc).  Finite case check over the
+role/assigned tree (R5 clock–clock split off, where both fields are preserved by
+`stdCounterSubroutine`; the two assigned-`mcr` input cases are excluded by the
+hypotheses). -/
+theorem ledgerW_Phase0_pair_conserved (r₁ r₂ : AgentState L K)
+    (h₁ : NotAssignedMcr (L := L) (K := K) r₁)
+    (h₂ : NotAssignedMcr (L := L) (K := K) r₂) :
     ledgerW (L := L) (K := K) (Phase0Transition L K r₁ r₂).1
         + ledgerW (L := L) (K := K) (Phase0Transition L K r₁ r₂).2
       = ledgerW (L := L) (K := K) r₁ + ledgerW (L := L) (K := K) r₂ := by
@@ -184,18 +199,144 @@ theorem ledgerW_Phase0_pair_conserved (r₁ r₂ : AgentState L K) :
     rw [hpt]
     rw [freeW_stdCounterSubroutine_clock r₁ hr₁, freeW_stdCounterSubroutine_clock r₂ hr₂,
         topW_stdCounterSubroutine_clock' r₁ hr₁, topW_stdCounterSubroutine_clock' r₂ hr₂]
-  · rcases r₁ with
+  · unfold NotAssignedMcr at h₁ h₂
+    rcases r₁ with
       ⟨in₁, out₁, ph₁, role₁, asg₁, bias₁, sb₁, hr₁, mn₁, fl₁, op₁, ctr₁⟩
     rcases r₂ with
       ⟨in₂, out₂, ph₂, role₂, asg₂, bias₂, sb₂, hr₂, mn₂, fl₂, op₂, ctr₂⟩
     cases role₁ <;> cases role₂ <;> cases asg₁ <;> cases asg₂ <;>
       first
       | (exfalso; exact hcc ⟨rfl, rfl⟩)
-      | (simp only [Phase0Transition, freeW, topW, stdCounterSubroutine, reduceCtorEq,
-          ne_eq, and_true, and_false, true_and, false_and, if_true, if_false, ite_true,
-          ite_false, or_true, or_false, false_or, true_or, not_true_eq_false,
-          not_false_eq_true, not_true, not_false_iff, not_and, decide_eq_true_eq,
-          Bool.not_false, Bool.not_true, Bool.false_eq_true] <;> decide)
+      | (exact absurd ⟨rfl, rfl⟩ h₁)
+      | (exact absurd ⟨rfl, rfl⟩ h₂)
+      | (simp only [Phase0Transition, freeW, topW, reduceCtorEq, ne_eq, and_true,
+          and_false, true_and, false_and, and_self, if_true, if_false, ite_true, ite_false,
+          or_true, or_false, false_or, true_or, not_true_eq_false, not_false_eq_true,
+          Bool.not_true, Bool.not_false, Bool.true_eq_false, Bool.false_eq_true] <;> norm_num)
+
+/-! ## Stage 1b — the global ledger invariant `freeDiff = 2·X` (preserved + initial). -/
+
+/-- `freeDiff` agrees with the role/assigned counts: it is `Mf − Sf`. -/
+theorem freeDiff_eq_sumOf (c : Config (AgentState L K)) :
+    freeDiff (L := L) (K := K) c = Config.sumOf (freeW (L := L) (K := K)) c := rfl
+
+/-- The per-config ledger predicate: `freeDiff c = 2 · topSplitXZ c`, i.e.
+`Mf − Sf = 2·X`.  The honest assigned-balance invariant; holds at the balanced
+all-`mcr` start and is preserved by every Phase-0 step (Stage 1b). -/
+def LedgerInv (c : Config (AgentState L K)) : Prop :=
+  freeDiff (L := L) (K := K) c = 2 * topSplitXZ (L := L) (K := K) c
+
+/-- The per-config "no assigned `mcr`" predicate. -/
+def NoAssignedMcrConfig (c : Config (AgentState L K)) : Prop :=
+  ∀ a ∈ c, NotAssignedMcr (L := L) (K := K) a
+
+/-- `topW` reads only the agent's `role` (local copy of the private TopSplitDrift
+lemma). -/
+private lemma topW_eq_of_role_eq' (a b : AgentState L K) (h : a.role = b.role) :
+    topW (L := L) (K := K) a = topW (L := L) (K := K) b := by
+  unfold topW; rw [h]
+
+/-- At both phase 0, the full `Transition` output `assigned` flags equal the
+`Phase0Transition` output flags (the epidemic update is identity and
+`finishPhase10Entry` projects `assigned` to the post-dispatch value). -/
+theorem Transition_assigned_eq_phase0_of_both_phase0
+    (s t : AgentState L K) (hs : s.phase.val = 0) (ht : t.phase.val = 0) :
+    (Transition L K s t).1.assigned = (Phase0Transition L K s t).1.assigned ∧
+    (Transition L K s t).2.assigned = (Phase0Transition L K s t).2.assigned := by
+  have hpe := phaseEpidemicUpdate_eq_self_of_both_phase0 (L := L) (K := K) s t hs ht
+  have hs0 : s.phase = (⟨0, by omega⟩ : Fin _) := Fin.ext hs
+  unfold Transition
+  rw [hpe]
+  simp only [finishPhase10Entry_assigned]
+  rw [hs0]
+  exact ⟨rfl, rfl⟩
+
+/-- `Config.sumOf` of a sum-of-weights splits additively over `+`. -/
+private lemma sumOf_add_pair (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c) (w : AgentState L K → ℤ) :
+    Config.sumOf w c
+      = Config.sumOf w (c - {r₁, r₂}) + (w r₁ + w r₂) := by
+  unfold Config.sumOf
+  conv_lhs => rw [← Multiset.sub_add_cancel hle]
+  rw [Multiset.map_add, Multiset.sum_add]
+  congr 1
+  show w r₁ + (w r₂ + 0) = _
+  rw [add_zero]
+
+/-- **`LedgerInv` is preserved by `stepOrSelf` on the Phase-0 / no-assigned-`mcr`
+region.**  The per-pair ledger conservation `ledgerW_Phase0_pair_conserved` lifts
+through the additive `Config.sumOf` decomposition: `freeDiff − 2·topSplitXZ =
+Config.sumOf ledgerW` is unchanged by removing the input pair and inserting the
+output pair (whose `ledgerW`-block matches), hence `LedgerInv` propagates. -/
+theorem LedgerInv_stepOrSelf
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hnomcr : NoAssignedMcrConfig (L := L) (K := K) c)
+    (hled : LedgerInv (L := L) (K := K) c) :
+    LedgerInv (L := L) (K := K)
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  classical
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c := happ
+    have hr₁ : r₁ ∈ c := Multiset.mem_of_le hle (by simp)
+    have hr₂ : r₂ ∈ c := Multiset.mem_of_le hle (by simp)
+    have h₁ : r₁.phase.val = 0 := by have := hall r₁ hr₁; simp [this]
+    have h₂ : r₂.phase.val = 0 := by have := hall r₂ hr₂; simp [this]
+    have hn₁ : NotAssignedMcr (L := L) (K := K) r₁ := hnomcr r₁ hr₁
+    have hn₂ : NotAssignedMcr (L := L) (K := K) r₂ := hnomcr r₂ hr₂
+    -- The combined ledger weight `Config.sumOf ledgerW` is `freeDiff − 2·topSplitXZ`.
+    have hcomb : ∀ d : Config (AgentState L K),
+        Config.sumOf (ledgerW (L := L) (K := K)) d
+          = freeDiff (L := L) (K := K) d - 2 * topSplitXZ (L := L) (K := K) d := by
+      intro d
+      unfold ledgerW freeDiff topSplitXZ Config.sumOf
+      induction d using Multiset.induction with
+      | empty => simp
+      | cons a s ih => simp only [Multiset.map_cons, Multiset.sum_cons, ih]; ring
+    have hstep : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    -- `ledgerW` reads role+assigned only, so the Transition output matches Phase0Transition.
+    have hrole := Transition_roles_eq_phase0_of_both_phase0 (L := L) (K := K) r₁ r₂ h₁ h₂
+    have hasg := Transition_assigned_eq_phase0_of_both_phase0 (L := L) (K := K) r₁ r₂ h₁ h₂
+    have hpair : ledgerW (L := L) (K := K) (Transition L K r₁ r₂).1
+          + ledgerW (L := L) (K := K) (Transition L K r₁ r₂).2
+        = ledgerW (L := L) (K := K) r₁ + ledgerW (L := L) (K := K) r₂ := by
+      have e1 : ledgerW (L := L) (K := K) (Transition L K r₁ r₂).1
+          = ledgerW (L := L) (K := K) (Phase0Transition L K r₁ r₂).1 := by
+        unfold ledgerW
+        rw [freeW_eq_of_role_assigned_eq _ _ hrole.1 hasg.1,
+            topW_eq_of_role_eq' _ _ hrole.1]
+      have e2 : ledgerW (L := L) (K := K) (Transition L K r₁ r₂).2
+          = ledgerW (L := L) (K := K) (Phase0Transition L K r₁ r₂).2 := by
+        unfold ledgerW
+        rw [freeW_eq_of_role_assigned_eq _ _ hrole.2 hasg.2,
+            topW_eq_of_role_eq' _ _ hrole.2]
+      rw [e1, e2]
+      exact ledgerW_Phase0_pair_conserved r₁ r₂ hn₁ hn₂
+    -- Combine: Config.sumOf ledgerW (step) = Config.sumOf ledgerW c = 0.
+    have hsumstep : Config.sumOf (ledgerW (L := L) (K := K))
+          (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+        = Config.sumOf (ledgerW (L := L) (K := K)) c := by
+      rw [hstep]
+      have hout := sumOf_add_pair (c - {r₁, r₂} + {(Transition L K r₁ r₂).1,
+          (Transition L K r₁ r₂).2}) (Transition L K r₁ r₂).1 (Transition L K r₁ r₂).2
+          (by simp) (ledgerW (L := L) (K := K))
+      have hsrc := sumOf_add_pair c r₁ r₂ hle (ledgerW (L := L) (K := K))
+      rw [hout, hsrc, hpair]
+      congr 1
+      -- (c - {r₁,r₂} + {o₁,o₂}) - {o₁,o₂} = c - {r₁,r₂}
+      rw [Multiset.add_sub_cancel_right]
+    have hzero : Config.sumOf (ledgerW (L := L) (K := K)) c = 0 := by
+      rw [hcomb]; unfold LedgerInv at hled; rw [hled]; ring
+    have : Config.sumOf (ledgerW (L := L) (K := K))
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) = 0 := by
+      rw [hsumstep, hzero]
+    unfold LedgerInv
+    have := this
+    rw [hcomb] at this
+    linarith [this]
+  · rw [Protocol.stepOrSelf, if_neg happ]; exact hled
 
 end RoleSplitConcentration
 end ExactMajority

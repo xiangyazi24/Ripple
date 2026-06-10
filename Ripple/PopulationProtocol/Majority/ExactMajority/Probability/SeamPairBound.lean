@@ -72,6 +72,99 @@ theorem phaseInit_clock_counter_reset (q : Fin 11) (a : AgentState L K)
     simp only [ha, reduceCtorEq, ↓reduceDIte, ↓reduceIte] <;>
     norm_num
 
+/-- When the responder's phase is `≤` the initiator's, the epidemic leaves the
+initiator's `counter`/`role` untouched (`runInitsBetween p p = id`, and both
+epidemic branches preserve `after`'s `counter`/`role`); the phase is either
+`a.phase` (non-error) or `10` (the error-to-backup branch). -/
+theorem phaseEpidemicUpdate_left_id_of_ge (a b : AgentState L K)
+    (hba : b.phase.val ≤ a.phase.val) :
+    (phaseEpidemicUpdate L K a b).1.counter = a.counter
+    ∧ (phaseEpidemicUpdate L K a b).1.role = a.role
+    ∧ ((phaseEpidemicUpdate L K a b).1.phase = a.phase
+        ∨ (phaseEpidemicUpdate L K a b).1.phase.val = 10) := by
+  unfold phaseEpidemicUpdate
+  have hmax : max a.phase b.phase = a.phase := by
+    apply max_eq_left; exact Fin.le_def.mpr hba
+  simp only [hmax]
+  have hself : runInitsBetween L K a.phase.val a.phase.val { a with phase := a.phase }
+      = a := by
+    rw [runInitsBetween_self_api]
+  split_ifs with h
+  · rw [hself]
+    refine ⟨by simp, by simp, ?_⟩
+    by_cases ha10 : a.phase.val < 10
+    · right
+      exact phase10EpidemicEntry_phase_val_of_before_lt_10 (L := L) (K := K) a a ha10
+    · left
+      have : ¬ a.phase.val < 10 := ha10
+      have hval : (phase10EpidemicEntry L K a a).phase.val = a.phase.val := by
+        simp [phase10EpidemicEntry, this]
+      exact Fin.ext hval
+  · rw [hself]; exact ⟨rfl, rfl, Or.inl rfl⟩
+
+/-- Symmetric right-side version of `phaseEpidemicUpdate_left_id_of_ge`. -/
+theorem phaseEpidemicUpdate_right_id_of_ge (a b : AgentState L K)
+    (hab : a.phase.val ≤ b.phase.val) :
+    (phaseEpidemicUpdate L K a b).2.counter = b.counter
+    ∧ (phaseEpidemicUpdate L K a b).2.role = b.role
+    ∧ ((phaseEpidemicUpdate L K a b).2.phase = b.phase
+        ∨ (phaseEpidemicUpdate L K a b).2.phase.val = 10) := by
+  unfold phaseEpidemicUpdate
+  have hmax : max a.phase b.phase = b.phase := by
+    apply max_eq_right; exact Fin.le_def.mpr hab
+  simp only [hmax]
+  have hself : runInitsBetween L K b.phase.val b.phase.val { b with phase := b.phase }
+      = b := by
+    rw [runInitsBetween_self_api]
+  split_ifs with h
+  · rw [hself]
+    refine ⟨by simp, by simp, ?_⟩
+    by_cases hb10 : b.phase.val < 10
+    · right
+      exact phase10EpidemicEntry_phase_val_of_before_lt_10 (L := L) (K := K) b b hb10
+    · left
+      have hval : (phase10EpidemicEntry L K b b).phase.val = b.phase.val := by
+        simp [phase10EpidemicEntry, hb10]
+      exact Fin.ext hval
+  · rw [hself]; exact ⟨rfl, rfl, Or.inl rfl⟩
+
+/-- For a clock initiator, the Phase-1 dispatch leaves the LEFT output equal to
+`clockCounterStep` (the main–main averaging pre-step never touches a clock). -/
+theorem Phase1Transition_left_clock (c t : AgentState L K) (hc : c.role = .clock) :
+    (Phase1Transition L K c t).1 = clockCounterStep L K c := by
+  unfold Phase1Transition
+  have hnm : ¬ (c.role = .main ∧ t.role = .main) := by
+    rintro ⟨h, _⟩; rw [hc] at h; exact absurd h (by decide)
+  simp only [hnm, if_false]
+
+/-- For a clock initiator, the Phase-5 dispatch leaves the LEFT output equal to
+`stdCounterSubroutine` (the reserve/main sampling pre-step never touches a clock). -/
+theorem Phase5Transition_left_clock (c t : AgentState L K) (hc : c.role = .clock) :
+    (Phase5Transition L K c t).1 = stdCounterSubroutine L K c := by
+  unfold Phase5Transition
+  simp only [hc, reduceCtorEq, false_and, and_false, ↓reduceIte]
+
+/-- For a clock initiator, the Phase-6 dispatch leaves the LEFT output equal to
+`stdCounterSubroutine`. -/
+theorem Phase6Transition_left_clock (c t : AgentState L K) (hc : c.role = .clock) :
+    (Phase6Transition L K c t).1 = stdCounterSubroutine L K c := by
+  unfold Phase6Transition
+  simp only [hc, reduceCtorEq, false_and, and_false, ↓reduceIte]
+
+/-- For a clock initiator, the Phase-7 dispatch leaves the LEFT output equal to
+`stdCounterSubroutine` (the main–main cancel pre-step never touches a clock). -/
+theorem Phase7Transition_left_clock (c t : AgentState L K) (hc : c.role = .clock) :
+    (Phase7Transition L K c t).1 = stdCounterSubroutine L K c := by
+  unfold Phase7Transition
+  simp only [hc, reduceCtorEq, false_and, ↓reduceIte]
+
+/-- For a clock initiator, the Phase-8 dispatch leaves the LEFT output equal to
+`stdCounterSubroutine` (the main–main absorb pre-step never touches a clock). -/
+theorem Phase8Transition_left_clock (c t : AgentState L K) (hc : c.role = .clock) :
+    (Phase8Transition L K c t).1 = stdCounterSubroutine L K c := by
+  unfold Phase8Transition
+  simp only [hc, reduceCtorEq, false_and, ↓reduceIte]
+
 end SeamNoOvershoot
 
 end ExactMajority
