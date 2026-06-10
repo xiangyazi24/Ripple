@@ -55,21 +55,29 @@ hypothesis.  The deep quantitative scheduler computation (the per-step drift on
 the real kernel) is the campaign's separate quantitative core; the precise goal
 it must discharge is recorded as `ClockTickDrift` below.
 
-Gap-2 (deterministic phase-0-exit bridge) is DISCHARGED here; Gap-1's per-pair
-ledger infrastructure (lintegral→pair-sum, localized potential splits, the
-clock–clock `eˢ` per-pair contribution) is also built — see the gap note at the
-end of the file for the precise residual arithmetic.
+Gap-2 (deterministic phase-0-exit bridge) is DISCHARGED here.  Gap-1 (the
+quantitative scheduler drift) is now DISCHARGED as an AFFINE one-step drift on the
+phase-0 window: `clockCounterPotential_drift_affine` proves
+`∫ Φ_s dK(c) ≤ ofReal(1+2(eˢ−1)/n)·Φ_s(c) + e^{−s·50(L+1)}` on `allPhase0` (no
+positive-counter side condition), and `phase0_window_tail_affine` is the matching
+immigration tail engine.  See the gap note at the end of the file for the one
+remaining structural input (an absorbing `Q ⊆ allPhase0` witness).
 
 * `clockCounterPotential` — the multiset exp-potential `Φ_s`;
-* `allPhase0` — the absorbing phase-0 window predicate;
+* `allPhase0` — the phase-0 window predicate;
+* `lintegral_transitionKernel_eq_sum` — lintegral = `interactionProb` pair sum;
+* `sum_fst/snd_interactionProb` — the two interaction marginals `= Φ_s(c)/card`;
+* `clockSummand_pair_le` — the universal per-pair output bound
+  `≤ eˢ·sources + fresh` (ANY counters);
+* `clockCounterPotential_stepOrSelf_le` — per-pair potential bound on `allPhase0`;
+* `clockCounterPotential_drift_affine` — the AFFINE one-step drift (Gap-1 capstone);
+* `lintegral_decay_affine_on_absorbing` / `phase0_window_tail_affine` — the affine
+  (immigration) tail engine;
 * `clockCounterPotential_ge_one_of_clock_counter_zero` — the threshold link
-  (`¬ allPhase0` via some clock at `counter = 0` forces `Φ_s ≥ 1`);
-* `phase0_window_tail_of_drift` — the kernel-level tail from a supplied drift;
-* `phase0_window_whp` — the `(K^t) c₀ {¬ allPhase0}` corollary;
-* `phase0_window_PhaseConvergence` — the `PhaseConvergence` packaging;
-* `phase0CRShellEscape_le` — the relay-11 phase-0-CR shell-escape corollary;
-* `phase0_window_numerics` — the numerics at `s = 1`, `t = δ n (L+1)`,
-  `k = 50(L+1)`.
+  (`¬ noClockAtZero` forces `Φ_s ≥ 1`);
+* `phase0_window_tail_of_drift` — the (multiplicative) kernel-level tail;
+* `phase0_window_whp` — the `(K^t) c₀ {¬ noClockAtZero}` corollary;
+* `det_phase0_exit` / `allPhase0_window_whp` — the Gap-2 deterministic bridge.
 
 Reference: Doty et al. §3.4 (counter subroutine), §6 (Phase-0 time window);
 engine = `WindowConcentration.windowDrift_tail`; consumer = relay-11
@@ -559,17 +567,6 @@ private lemma Transition_summand_eq_phase0 (s : ℝ) (r₁ r₂ : AgentState L K
   · rw [hrole1, hctr1]
   · rw [hrole2, hctr2]
 
-/-- **Universal per-pair OUTPUT bound (full kernel, on the window).**  For ANY
-phase-0 pair whose source clocks (if any) have positive counters, the full Doty
-transition's output two-summand block is bounded by `eˢ` times the source block
-plus the single fresh-clock value:
-
-  `summand(δ₁)+summand(δ₂) ≤ eˢ·(summand(r₁)+summand(r₂)) + e^{−s·50(L+1)}`.
-
-Clock–clock pairs scale by EXACTLY `eˢ` (`clockSummand_pair_clock_clock`, no fresh
-term, dropped via `eˢ ≥ 1`); non-clock–clock pairs carry source clocks unchanged
-and may create ONE Rule-4 fresh clock (`Phase0Transition_summand_not_both_clock`,
-bumped to `eˢ·sources` via `eˢ ≥ 1`).  Requires `s ≥ 0`. -/
 /-- Any clock summand is `≤ 1` (for `s ≥ 0`): `exp(−s·counter) ≤ exp(0) = 1` since
 `counter ≥ 0`; a non-clock summand is `0 ≤ 1`. -/
 private lemma clockSummand_le_one (s : ℝ) (hs : 0 ≤ s) (a : AgentState L K) :
@@ -620,10 +617,54 @@ private lemma clockSummand_clock_clock_left_le (s : ℝ) (hs : 0 ≤ s)
       refine ⟨?_, ?_⟩ <;> simp_all [stdCounterSubroutine]
     rw [clockSummand_scale_of_decrement s r₁ _ hr₁ hdec.1 hc₁ hdec.2]
 
-theorem clockSummand_pair_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L K)
+/-- **Per-side clock–clock summand bound (RIGHT), any counter.**  Symmetric to the
+LEFT version: the RIGHT output summand is `≤ eˢ·summand(r₂)`. -/
+private lemma clockSummand_clock_clock_right_le (s : ℝ) (hs : 0 ≤ s)
+    (r₁ r₂ : AgentState L K) (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0)
+    (hr₁ : r₁.role = .clock) (hr₂ : r₂.role = .clock) :
+    clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2
+      ≤ ENNReal.ofReal (Real.exp s) * clockSummand (L := L) (K := K) s r₂ := by
+  have he1 : (1 : ℝ≥0∞) ≤ ENNReal.ofReal (Real.exp s) := by
+    rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal (Real.one_le_exp hs)
+  obtain ⟨_, heq2⟩ := Transition_summand_eq_phase0 s r₁ r₂ h₁ h₂
+  rw [heq2]
+  by_cases hc₂ : r₂.counter.val = 0
+  · rw [clockSummand_eq_one_of_zero s r₂ hr₂ hc₂, mul_one]
+    calc clockSummand (L := L) (K := K) s (Phase0Transition L K r₁ r₂).2
+        ≤ 1 := clockSummand_le_one s hs _
+      _ ≤ ENNReal.ofReal (Real.exp s) := he1
+  · have hdec : (Phase0Transition L K r₁ r₂).2.role = .clock
+        ∧ (Phase0Transition L K r₁ r₂).2.counter.val = r₂.counter.val - 1 := by
+      unfold Phase0Transition
+      simp only [hr₁, hr₂]
+      refine ⟨?_, ?_⟩ <;> simp_all [stdCounterSubroutine]
+    rw [clockSummand_scale_of_decrement s r₂ _ hr₂ hdec.1 hc₂ hdec.2]
+
+/-- **Unconditional clock–clock per-pair bound.**  For a clock–clock phase-0 pair
+at ANY counters, the output block is `≤ eˢ·(source block)` (sum of the two per-side
+bounds). -/
+theorem clockSummand_pair_clock_clock_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L K)
     (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0)
-    (hpos₁ : r₁.role = .clock → r₁.counter.val ≠ 0)
-    (hpos₂ : r₂.role = .clock → r₂.counter.val ≠ 0) :
+    (hr₁ : r₁.role = .clock) (hr₂ : r₂.role = .clock) :
+    clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+      + clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2
+      ≤ ENNReal.ofReal (Real.exp s)
+        * (clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂) := by
+  rw [mul_add]
+  exact add_le_add
+    (clockSummand_clock_clock_left_le s hs r₁ r₂ h₁ h₂ hr₁ hr₂)
+    (clockSummand_clock_clock_right_le s hs r₁ r₂ h₁ h₂ hr₁ hr₂)
+
+/-- **Universal per-pair OUTPUT bound (full kernel) — NO counter hypotheses.**  For
+ANY phase-0 pair, the output two-summand block is bounded by `eˢ·(source block) +
+e^{−s·50(L+1)}`.  Clock–clock pairs scale by `≤ eˢ` at ANY counters
+(`clockSummand_pair_clock_clock_le`, including counter-`0` clocks via the `≤ 1`
+bound); non-clock–clock pairs carry source clocks unchanged plus at most one Rule-4
+fresh clock (`Phase0Transition_summand_not_both_clock`), bumped to `eˢ·sources` via
+`eˢ ≥ 1`.  Requires only `s ≥ 0` — the absorbing-window predicate need NOT carry
+`noClockAtZero`. -/
+theorem clockSummand_pair_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L K)
+    (h₁ : r₁.phase.val = 0) (h₂ : r₂.phase.val = 0) :
     clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
       + clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2
       ≤ ENNReal.ofReal (Real.exp s)
@@ -633,9 +674,8 @@ theorem clockSummand_pair_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L 
     rw [show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from (ENNReal.ofReal_one).symm]
     exact ENNReal.ofReal_le_ofReal (Real.one_le_exp hs)
   by_cases hcc : r₁.role = .clock ∧ r₂.role = .clock
-  · -- clock–clock: exact eˢ, then add the (nonnegative) fresh term.
-    rw [clockSummand_pair_clock_clock s r₁ r₂ h₁ h₂ hcc.1 hcc.2
-      (hpos₁ hcc.1) (hpos₂ hcc.2)]
+  · -- clock–clock: ≤ eˢ (any counters), then add the (nonnegative) fresh term.
+    refine le_trans (clockSummand_pair_clock_clock_le s hs r₁ r₂ h₁ h₂ hcc.1 hcc.2) ?_
     exact le_add_right le_rfl
   · -- non-clock–clock: ≤ sources + fresh ≤ eˢ·sources + fresh.
     obtain ⟨he1', he2'⟩ := Transition_summand_eq_phase0 s r₁ r₂ h₁ h₂
@@ -658,8 +698,7 @@ agents, where `clockSummand_pair_le` bounds the output block by `eˢ·sources +
 fresh`, and `eˢ·x = x + (eˢ−1)·x` recombines with the base into the stated form. -/
 theorem clockCounterPotential_stepOrSelf_le (s : ℝ) (hs : 0 ≤ s)
     (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
-    (hall : allPhase0 (L := L) (K := K) c)
-    (hno : noClockAtZero (L := L) (K := K) c) :
+    (hall : allPhase0 (L := L) (K := K) c) :
     clockCounterPotential (L := L) (K := K) s
         (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
       ≤ clockCounterPotential (L := L) (K := K) s c
@@ -675,15 +714,13 @@ theorem clockCounterPotential_stepOrSelf_le (s : ℝ) (hs : 0 ≤ s)
       Multiset.mem_of_le hle (by simp)
     have h₁ : r₁.phase.val = 0 := by have := hall r₁ hr₁; simp [this]
     have h₂ : r₂.phase.val = 0 := by have := hall r₂ hr₂; simp [this]
-    have hpos₁ : r₁.role = .clock → r₁.counter.val ≠ 0 := fun hc => hno r₁ hr₁ hc
-    have hpos₂ : r₂.role = .clock → r₂.counter.val ≠ 0 := fun hc => hno r₂ hr₂ hc
     rw [clockCounterPotential_stepOrSelf_eq_base_add_pair s c r₁ r₂ happ]
     rw [clockCounterPotential_eq_base_add_pair s c r₁ r₂ hle]
     set base := Config.sumOf (clockSummand (L := L) (K := K) s) (c - {r₁, r₂})
     set S := clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂
     set M := ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ))))
     -- outputs ≤ eˢ·S + M ; and eˢ·S = S + (eˢ−1)·S.
-    have hpair := clockSummand_pair_le s hs r₁ r₂ h₁ h₂ hpos₁ hpos₂
+    have hpair := clockSummand_pair_le s hs r₁ r₂ h₁ h₂
     have hofeq : ENNReal.ofReal (Real.exp s) = 1 + ENNReal.ofReal (Real.exp s - 1) := by
       rw [← ENNReal.ofReal_one,
           ← ENNReal.ofReal_add (by norm_num) (by linarith [Real.one_le_exp hs])]
@@ -727,8 +764,7 @@ contracts affinely:
 theorem clockCounterPotential_drift_affine (s : ℝ) (hs : 0 ≤ s)
     (n : ℕ) (c : Config (AgentState L K))
     (hcard : Multiset.card c = n) (hc2 : 2 ≤ Multiset.card c)
-    (hall : allPhase0 (L := L) (K := K) c)
-    (hno : noClockAtZero (L := L) (K := K) c) :
+    (hall : allPhase0 (L := L) (K := K) c) :
     ∫⁻ c', clockCounterPotential (L := L) (K := K) s c'
         ∂((NonuniformMajority L K).transitionKernel c)
       ≤ ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
@@ -750,7 +786,7 @@ theorem clockCounterPotential_drift_affine (s : ℝ) (hs : 0 ≤ s)
           * c.interactionProb pair.1 pair.2 := by
     intro pair
     gcongr
-    exact clockCounterPotential_stepOrSelf_le s hs c pair.1 pair.2 hall hno
+    exact clockCounterPotential_stepOrSelf_le s hs c pair.1 pair.2 hall
   refine le_trans (Finset.sum_le_sum (fun pair _ => hpp pair)) ?_
   -- 3) distribute the product over the three additive terms.
   simp_rw [add_mul]
@@ -1587,28 +1623,36 @@ exists.  The numerics close with slack: `aᵗ·Φ(c₀) ≤ e^{−45(L+1)}`
 (`phase0_numerics_real`) and `b·∑aⁱ ≤ n(L+1)·e^{−50(L+1)}·e^{2(e−1)(L+1)} ≤
 e^{−44(L+1)}` (using `n(L+1) ≤ e^{2(L+1)}` from `ln n ≤ L+1`), total `≤ 2·e^{−44(L+1)}`.
 
+ROUTE (a) NOW DONE — the affine drift `clockCounterPotential_drift_affine` is proven
+on `allPhase0` ALONE (it no longer requires `noClockAtZero`).  The per-pair output
+bound `clockSummand_pair_le` was strengthened to drop the positive-counter
+hypotheses: at a counter-`0` clock the source summand is `e^0 = 1`, and the Rule-5
+`advancePhaseWithInit` output has summand `≤ 1` (a non-clock gives `0`; a clock at
+any counter gives `≤ 1`), so the per-side bound `summand(δ_i) ≤ eˢ·summand(r_i)`
+holds at ANY counter (`clockSummand_clock_clock_{left,right}_le` →
+`clockSummand_pair_clock_clock_le`).  Hence the downstream relay's `hdrift`
+hypothesis is now discharged by `clockCounterPotential_drift_affine` against any
+absorbing `Q ⊆ allPhase0` — `noClockAtZero` is NO longer part of the drift window.
+
 REMAINING — the ABSORBING-WINDOW BRIDGE (the one structural input still open):
-`clockCounterPotential_drift_affine` holds on `allPhase0 ∧ noClockAtZero` (the
-positive-counter window), but that predicate is NOT `stepDistOrSelf`-absorbing
-(`noClockAtZero` is precisely the exit event — a clock–clock meeting can decrement
-a counter to `0`).  The affine tail engine, like the multiplicative one, needs an
-ABSORBING `Q` on which the drift holds.  Two honest routes to close it:
-  (a) extend `clockSummand_pair_le` to drop the `hpos` (positive-counter) hypotheses
-      — at a counter-`0` clock the source summand is `e^0 = 1`, and the
-      `advancePhaseWithInit` output is either a non-clock (summand `0`) or a clock at
-      some counter `≥ 0` (summand `≤ 1`), so `summand(output) ≤ 1 = summand(source)`
-      still holds; this would make the affine drift hold on `allPhase0` alone — but
-      `allPhase0` is STILL not absorbing (Gap 2: it is preserved only WHILE
-      `noClockAtZero`), so this is necessary but not sufficient;
-  (b) the genuine fix mirrors Gap 2's prefix-union: bound
-      `(Kᵗ)c₀{¬noClockAtZero}` via the affine tail run on the *reachable-and-survived*
-      trace, i.e. compose `phase0_window_tail_affine` (Post = `noClockAtZero`,
-      Q-absorption supplied by the survival filtration) with
-      `allPhase0_window_whp` (Gap 2).  Concretely the downstream relay supplies the
-      absorbing `Q` (e.g. a `RoleSplitGood`-style invariant carrying a clock-count
-      bound) and feeds `clockCounterPotential_drift_affine` (+ route-(a) extension)
-      as its `hdrift`, then `phase0_window_tail_affine` discharges the per-`τ`
-      `hτ` clock-zero bounds that `allPhase0_window_whp` consumes.
+`allPhase0` itself is NOT `stepDistOrSelf`-absorbing (Gap 2: it is preserved one
+step w.p. 1 only WHILE `noClockAtZero` holds — the protocol genuinely advances out
+of phase 0 once a clock hits counter `0`).  The affine tail engine
+`phase0_window_tail_affine`, like the multiplicative `windowDrift_tail`, needs an
+ABSORBING `Q` on which the drift holds.  The genuine fix mirrors Gap 2's
+prefix-union: bound `(Kᵗ)c₀{¬noClockAtZero}` on the *reachable-and-survived* trace.
+Concretely the downstream relay supplies an absorbing `Q ⊆ allPhase0` (e.g. a
+`RoleSplitGood`-style invariant — the count-only role split IS absorbing and implies
+`allPhase0` along the surviving trajectory) and feeds
+`clockCounterPotential_drift_affine` as its `hdrift` (NO positive-counter side
+condition needed now); then `phase0_window_tail_affine` (Post = `noClockAtZero`,
+`θ = 1`, `a = ofReal(1+2(e−1)/n)`, `b = e^{−50(L+1)}`, `Φ(c₀) ≤ n·e^{−50(L+1)}` via
+`clockCounterPotential_init_le`) discharges the per-`τ` clock-zero bounds `hτ`, and
+`allPhase0_window_whp` (Gap 2) assembles the `allPhase0` window.  The numerics close
+with slack (`phase0_numerics_real` for `aᵗΦ₀ ≤ e^{−45(L+1)}`; the immigration sum
+`b·∑aⁱ ≤ e^{−44(L+1)}`).  The only missing Lean object is the absorbing
+`Q ⊆ allPhase0` witness (a role-split-count invariant + its absorption proof),
+which lives in the role-split / `RoleSplitConcentration` layer, not here.
 
 **Gap 2 — the deterministic phase-0-exit bridge — DISCHARGED above.**  The
 single-step deterministic fact
