@@ -2273,6 +2273,89 @@ theorem stage3_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
 
 end StageBounds
 
+/-! ## Capstone: Phase-10 backup expected stabilization (majority case)
+
+The stabilized set is `StableDone = {wrongACount = 0}` (every agent outputs the
+majority answer `A`).  We record the set-nesting `Done₃ ⊆ Done₂`, `Done₃ ⊆ Done₁`
+(`wrongACount = 0 ⟹ activeBCount = activeTCount = 0`, since an active-`B`/`T` source
+has output `B`/`T ≠ A`), and deliver the headline from an `S3` start (the final
+coupon regime, where all three potentials are simultaneously non-increasing). -/
+
+section Capstone
+
+/-- `countP P ≤ countP Q` when `P` implies `Q` on every member. -/
+private theorem countP_le_countP_of_imp {α : Type*}
+    (P Q : α → Prop) [DecidablePred P] [DecidablePred Q]
+    (s : Multiset α) (h : ∀ a ∈ s, P a → Q a) :
+    Multiset.countP P s ≤ Multiset.countP Q s := by
+  induction s using Multiset.induction_on with
+  | empty => simp
+  | cons a s ih =>
+      rw [Multiset.countP_cons, Multiset.countP_cons]
+      have ih' : Multiset.countP P s ≤ Multiset.countP Q s :=
+        ih (fun b hb => h b (Multiset.mem_cons_of_mem hb))
+      by_cases hP : P a
+      · have hQ : Q a := h a (Multiset.mem_cons_self a s) hP
+        simp only [hP, hQ, if_true]; omega
+      · by_cases hQ : Q a <;> simp only [hP, hQ, if_true, if_false] <;> omega
+
+/-- Every active-`B` source is a "wrong" (output `≠ A`) agent, so
+`activeBCount ≤ wrongACount`. -/
+theorem activeBCount_le_wrongACount (c : Config (AgentState L K)) :
+    activeBCount c ≤ wrongACount c := by
+  unfold activeBCount wrongACount
+  exact countP_le_countP_of_imp IsActiveB (fun a => a.output ≠ Output.A) c
+    (fun a _ ha => by show a.output ≠ Output.A; rw [ha.2]; decide)
+
+/-- Every active-`T` source is a "wrong" agent, so `activeTCount ≤ wrongACount`. -/
+theorem activeTCount_le_wrongACount (c : Config (AgentState L K)) :
+    activeTCount c ≤ wrongACount c := by
+  unfold activeTCount wrongACount
+  exact countP_le_countP_of_imp IsActiveT (fun a => a.output ≠ Output.A) c
+    (fun a _ ha => by show a.output ≠ Output.A; rw [ha.2]; decide)
+
+/-- `wrongACount = 0` forces `activeBCount = 0`. -/
+theorem activeBCount_zero_of_wrongACount_zero {c : Config (AgentState L K)}
+    (h : wrongACount c = 0) : activeBCount c = 0 :=
+  Nat.le_zero.mp (le_trans (activeBCount_le_wrongACount c) (Nat.le_of_eq h))
+
+/-- `wrongACount = 0` forces `activeTCount = 0`. -/
+theorem activeTCount_zero_of_wrongACount_zero {c : Config (AgentState L K)}
+    (h : wrongACount c = 0) : activeTCount c = 0 :=
+  Nat.le_zero.mp (le_trans (activeTCount_le_wrongACount c) (Nat.le_of_eq h))
+
+/-- **Set nesting** `{wrongACount = 0} ⊆ {activeBCount = 0}`. -/
+theorem done3_subset_done1 :
+    potBelow (fun c => wrongACount (L := L) (K := K) c) 1 ⊆
+      potBelow (fun c => activeBCount (L := L) (K := K) c) 1 := by
+  intro c hc
+  simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hc ⊢
+  exact activeBCount_zero_of_wrongACount_zero hc
+
+/-- **Set nesting** `{wrongACount = 0} ⊆ {activeTCount = 0}`. -/
+theorem done3_subset_done2 :
+    potBelow (fun c => wrongACount (L := L) (K := K) c) 1 ⊆
+      potBelow (fun c => activeTCount (L := L) (K := K) c) 1 := by
+  intro c hc
+  simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hc ⊢
+  exact activeTCount_zero_of_wrongACount_zero hc
+
+/-- **Phase-10 backup expected stabilization from the final coupon regime (`S3`).**
+From an all-phase-10 majority-`A` start with no active-`B` and no active-`T`
+(`S3 n`), card `= n ≥ 2`, and `wrongACount ≤ M ≤ n(n−1)`, the expected number of
+interactions to reach the stabilized set `{wrongACount = 0}` (all outputs `A`) is
+`≤ M · n(n−1) = O(n⁴)` crudely, `O(n² log n)` after the harmonic refinement.  This
+is the convert-passive stage as the standalone headline. -/
+theorem phase10_expected_stabilization_S3 (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S3 (L := L) (K := K) n c)
+    (M : ℕ) (hM : wrongACount c ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongACount c) 1) ≤
+      (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) :=
+  stage3_expectedHitting_le n hn c hc M hM hMle
+
+end Capstone
+
 end MajStages
 
 end Phase10Drop

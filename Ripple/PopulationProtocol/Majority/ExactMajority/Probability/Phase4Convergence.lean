@@ -573,7 +573,7 @@ theorem sum_interactionCount_syncRect (n : ℕ) (c : Config (AgentState L K)) (h
         (Finset.univ.filter (fun a : AgentState L K => susceptibleP a)),
         c.interactionCount p.1 p.2)
       = advancedU (L := L) (K := K) c * (n - advancedU (L := L) (K := K) c) := by
-  rw [Phase2Convergence.sum_interactionCount_cross_disjoint' c _ _ ?_, sum_count_advanced,
+  rw [sum_interactionCount_cross_disjoint c _ _ ?_, sum_count_advanced,
       sum_count_susceptible, susceptible_count_eq n c hw]
   intro a ha b hb
   rw [Finset.mem_filter] at ha hb
@@ -581,7 +581,7 @@ theorem sum_interactionCount_syncRect (n : ℕ) (c : Config (AgentState L K)) (h
   have haA : advancedP (L := L) (K := K) a := ha.2
   have hbS : susceptibleP (L := L) (K := K) b := hb.2
   rw [hab] at haA
-  unfold advancedP susceptibleP at haA hbS; omega
+  simp only [advancedP, susceptibleP] at haA hbS; omega
 
 /-- **The SYNC advanced-advance probability (DERIVED).**  One step raises
 `advancedU` by `≥ 1` with probability `≥ m·(n−m)/(n(n−1))`, `m = advancedU c`. -/
@@ -603,16 +603,292 @@ theorem advanced_advance_prob (n : ℕ) (hn : 2 ≤ n)
     obtain ⟨⟨_, haA⟩, ⟨_, hbS⟩⟩ := hp
     have haadv : advancedP (L := L) (K := K) a := haA
     have hbsus : susceptibleP (L := L) (K := K) b := hbS
-    have ha4 : 4 ≤ a.phase.val := by unfold advancedP at haadv; omega
-    have hb4 : 4 ≤ b.phase.val := by unfold susceptibleP at hbsus; omega
+    have ha4 : 4 ≤ a.phase.val := by simp only [advancedP] at haadv; omega
+    have hb4 : 4 ≤ b.phase.val := by simp only [susceptibleP] at hbsus; omega
     have hbnadv : ¬ advancedP (L := L) (K := K) b := by
-      unfold advancedP susceptibleP at hbsus ⊢; omega
+      simp only [advancedP, susceptibleP] at hbsus ⊢; omega
     have hamem : a ∈ c := Multiset.one_le_count_iff_mem.mp h1
     have hbmem : b ∈ c := Multiset.one_le_count_iff_mem.mp h2
     have hab : a ≠ b := by
       intro h; rw [h] at haadv; exact hbnadv haadv
     have happ : Protocol.Applicable c a b := applicable_of_mem_distinct hamem hbmem hab
     exact advancedU_stepOrSelf_advance c a b happ ha4 hb4 (Or.inl ⟨haadv, hbnadv⟩)
+
+/-! ## Part F — the window `Q4` is one-step closed, and the deficit potential. -/
+
+/-- `Q4 n` is preserved by a single chosen-pair update (phase only rises, card
+preserved). -/
+theorem Q4_stepOrSelf (n : ℕ) (c : Config (AgentState L K)) (hw : Q4 n c)
+    (r₁ r₂ : AgentState L K) :
+    Q4 n (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hmem1 := mem_of_applicable_left happ
+    have hmem2 := mem_of_applicable_right happ
+    have h1p := hw.2 r₁ hmem1
+    have h2p := hw.2 r₂ hmem2
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    have hmono := Transition_phase_monotone (L := L) (K := K) r₁ r₂
+    simp only [] at hmono
+    obtain ⟨hsm, htm⟩ := hmono
+    refine ⟨?_, ?_⟩
+    · have hcard := Protocol.reachable_card_eq
+        (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) c r₁ r₂)
+      rw [hcard]; exact hw.1
+    · intro a ha
+      rw [hc'] at ha
+      rcases Multiset.mem_add.mp ha with hold | hnew
+      · exact hw.2 a (Multiset.mem_of_le (Multiset.sub_le_self _ _) hold)
+      · rw [show ({(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+              : Multiset (AgentState L K))
+            = (Transition L K r₁ r₂).1 ::ₘ (Transition L K r₁ r₂).2 ::ₘ 0 from rfl] at hnew
+        simp only [Multiset.mem_cons, Multiset.notMem_zero, or_false] at hnew
+        rcases hnew with h | h
+        · subst h; exact le_trans h1p hsm
+        · subst h; exact le_trans h2p htm
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]; exact hw
+
+/-- `Q4 n` is one-step-support closed. -/
+theorem Q4_absorbing (n : ℕ) (c c' : Config (AgentState L K)) (hw : Q4 n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    Q4 n c' := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]
+    exact Q4_stepOrSelf n c hw r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'
+    subst hc'; exact hw
+
+/-- The clamped advanced count `min (advancedU c) n`. -/
+def aClamp (n : ℕ) (c : Config (AgentState L K)) : ℕ := min (advancedU (L := L) (K := K) c) n
+
+/-- "Finished": all `n` agents are advanced (`phase ≥ 5`). -/
+def advFinished (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  n ≤ advancedU (L := L) (K := K) c
+
+instance (n : ℕ) (c : Config (AgentState L K)) : Decidable (advFinished n c) := by
+  unfold advFinished; infer_instance
+
+/-- The exponential-window deficit potential: `0` when finished, else
+`ofReal(exp(s·(n − aClamp)))`.  Mirrors `Phase2Convergence.oDeficitPot`. -/
+noncomputable def aDeficitPot (n : ℕ) (s : ℝ) (c : Config (AgentState L K)) : ℝ≥0∞ :=
+  if advFinished (L := L) (K := K) n c then 0
+  else ENNReal.ofReal (Real.exp (s * ((n : ℝ) - (aClamp (L := L) (K := K) n c : ℝ))))
+
+theorem aDeficitPot_measurable (n : ℕ) (s : ℝ) :
+    Measurable (aDeficitPot n s (L := L) (K := K)) :=
+  Measurable.of_discrete
+
+theorem aDeficitPot_eq_of_lt (n : ℕ) (s : ℝ) (c : Config (AgentState L K))
+    (hlt : advancedU (L := L) (K := K) c < n) :
+    aDeficitPot n s c
+      = ENNReal.ofReal (Real.exp (s * ((n : ℝ) - (advancedU (L := L) (K := K) c : ℝ)))) := by
+  unfold aDeficitPot advFinished aClamp
+  rw [if_neg (by omega)]
+  congr 2
+  rw [min_eq_left (le_of_lt hlt)]
+
+theorem not_finished_imp_aDeficitPot_ge_one (n : ℕ) (s : ℝ) (hs : 0 < s)
+    (c : Config (AgentState L K)) (hc : ¬ advFinished (L := L) (K := K) n c) :
+    (1 : ℝ≥0∞) ≤ aDeficitPot n s c := by
+  have hlt : advancedU (L := L) (K := K) c < n := by unfold advFinished at hc; omega
+  rw [aDeficitPot_eq_of_lt n s c hlt]
+  rw [show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from ENNReal.ofReal_one.symm]
+  apply ENNReal.ofReal_le_ofReal
+  rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
+  apply Real.exp_le_exp.mpr
+  have hdef : (1 : ℝ) ≤ (n : ℝ) - (advancedU (L := L) (K := K) c : ℝ) := by
+    have : (advancedU (L := L) (K := K) c : ℝ) + 1 ≤ (n : ℝ) := by exact_mod_cast hlt
+    linarith
+  nlinarith [hs, hdef]
+
+theorem advFinished_absorbing (n : ℕ) (c c' : Config (AgentState L K))
+    (hfin : advFinished (L := L) (K := K) n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    advFinished (L := L) (K := K) n c' := by
+  unfold advFinished at hfin ⊢
+  exact advancedU_ge_monotone n c c' hfin hc'
+
+/-- Pointwise one-step bound on the deficit potential, using the PROVEN
+monotonicity `advancedU_ge_monotone`. -/
+theorem aDeficitPot_pointwise_bound (n : ℕ) (s : ℝ) (hs : 0 < s)
+    (c : Config (AgentState L K)) (m : ℕ)
+    (_hm : advancedU (L := L) (K := K) c = m) (_hm_hi : m < n)
+    (c' : Config (AgentState L K)) (hmono : m ≤ advancedU (L := L) (K := K) c') :
+    aDeficitPot n s c' ≤
+      (if m + 1 ≤ advancedU (L := L) (K := K) c' then
+        ENNReal.ofReal (Real.exp (s * ((n : ℝ) - (m : ℝ) - 1)))
+      else
+        ENNReal.ofReal (Real.exp (s * ((n : ℝ) - (m : ℝ))))) := by
+  unfold aDeficitPot advFinished aClamp
+  by_cases hfin : n ≤ advancedU (L := L) (K := K) c'
+  · rw [if_pos hfin]; split_ifs <;> exact bot_le
+  · rw [if_neg hfin]
+    rw [not_le] at hfin
+    by_cases hadv : m + 1 ≤ advancedU (L := L) (K := K) c'
+    · rw [if_pos hadv]
+      apply ENNReal.ofReal_le_ofReal
+      apply Real.exp_le_exp.mpr
+      rw [min_eq_left (le_of_lt hfin)]
+      have : (m : ℝ) + 1 ≤ (advancedU (L := L) (K := K) c' : ℝ) := by exact_mod_cast hadv
+      nlinarith [hs, this]
+    · rw [if_neg hadv]
+      apply ENNReal.ofReal_le_ofReal
+      apply Real.exp_le_exp.mpr
+      rw [min_eq_left (le_of_lt hfin)]
+      have hle : (m : ℝ) ≤ (advancedU (L := L) (K := K) c' : ℝ) := by exact_mod_cast hmono
+      nlinarith [hs, hle]
+
+/-! ## Part G — the genuine one-step advanced-count drift. -/
+
+/-- The PROVEN advance-fraction floor: for `1 ≤ m ≤ n−1`, `n − 1 ≤ m·(n−m)`.
+(Local copy of `Phase2Convergence.advance_floor`.) -/
+theorem advance_floor (n m : ℕ) (h1 : 1 ≤ m) (hlt : m < n) : n - 1 ≤ m * (n - m) := by
+  obtain ⟨k, hk⟩ : ∃ k, n = m + k ∧ 1 ≤ k := ⟨n - m, by omega, by omega⟩
+  obtain ⟨hnk, hk1⟩ := hk
+  subst hnk
+  rw [Nat.add_sub_cancel_left]
+  obtain ⟨a, rfl⟩ : ∃ a, m = a + 1 := ⟨m - 1, by omega⟩
+  obtain ⟨b, rfl⟩ : ∃ b, k = b + 1 := ⟨k - 1, by omega⟩
+  have : (a + 1) * (b + 1) = a * b + a + b + 1 := by ring
+  omega
+
+/-- **The genuine Phase-4 non-tie advanced-count drift.**  On the window `Q4 n`
+with `n ≥ 2`, in the unfinished regime (`advancedU c < n`), the deficit potential
+contracts at the GENUINE rate `r = 1 − ((n−1)/(n(n−1)))·(1 − e^{−s})`. -/
+theorem phase4AdvancedDrift (n : ℕ) (hn : 2 ≤ n) (s : ℝ) (hs : 0 < s)
+    (c : Config (AgentState L K)) (hQ : Q4 n c)
+    (hlo : 1 ≤ advancedU (L := L) (K := K) c) (hnc : advancedU (L := L) (K := K) c < n) :
+    ∫⁻ c', aDeficitPot n s c' ∂((NonuniformMajority L K).transitionKernel c) ≤
+      ENNReal.ofReal (1 - (((n - 1 : ℕ) : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) * (1 - Real.exp (-s)))
+        * aDeficitPot n s c := by
+  set m := advancedU (L := L) (K := K) c with hm
+  have hΦc : aDeficitPot n s c
+      = ENNReal.ofReal (Real.exp (s * ((n : ℝ) - (m : ℝ)))) :=
+    aDeficitPot_eq_of_lt n s c hnc
+  set A := {c' : Config (AgentState L K) | m + 1 ≤ advancedU (L := L) (K := K) c'} with hA_def
+  have hA_meas : MeasurableSet A := DiscreteMeasurableSpace.forall_measurableSet _
+  set pR : ℝ := (((n - 1 : ℕ)) : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) with hpR
+  have hnR : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  have hden_pos : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by nlinarith
+  have hfloorN : n - 1 ≤ m * (n - m) := advance_floor n m hlo hnc
+  have hmRle : (m : ℝ) ≤ (n : ℝ) := by exact_mod_cast le_of_lt hnc
+  have hnmR : ((n - m : ℕ) : ℝ) = (n : ℝ) - (m : ℝ) := by rw [Nat.cast_sub (le_of_lt hnc)]
+  have hrec_le : ((m * (n - m) : ℕ) : ℝ) ≤ (n : ℝ) * ((n : ℝ) - 1) := by
+    rw [Nat.cast_mul, hnmR]
+    nlinarith [sq_nonneg ((n : ℝ) - 2 * (m : ℝ)), hmRle, hnR,
+      mul_nonneg (by linarith : (0:ℝ) ≤ (m:ℝ)) (by linarith : (0:ℝ) ≤ (n:ℝ) - (m:ℝ))]
+  have hfloorR : (((n - 1 : ℕ)) : ℝ) ≤ ((m * (n - m) : ℕ) : ℝ) := by exact_mod_cast hfloorN
+  have hnum_le : (((n - 1 : ℕ)) : ℝ) ≤ (n : ℝ) * ((n : ℝ) - 1) := le_trans hfloorR hrec_le
+  have hpR_nonneg : 0 ≤ pR := by rw [hpR]; exact div_nonneg (Nat.cast_nonneg _) (le_of_lt hden_pos)
+  have hpR_le_one : pR ≤ 1 := by rw [hpR, div_le_one hden_pos]; exact hnum_le
+  set E0 : ℝ := Real.exp (s * ((n : ℝ) - (m : ℝ))) with hE0
+  set E1 : ℝ := Real.exp (s * ((n : ℝ) - (m : ℝ) - 1)) with hE1
+  have hE0_pos : 0 < E0 := Real.exp_pos _
+  have hE1_pos : 0 < E1 := Real.exp_pos _
+  have hE1_eq : E1 = E0 * Real.exp (-s) := by rw [hE0, hE1, ← Real.exp_add]; congr 1; ring
+  have hstep : ENNReal.ofReal pR ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure A := by
+    have hadv := advanced_advance_prob n hn c hQ
+    rw [← hm] at hadv
+    refine le_trans (ENNReal.ofReal_le_ofReal ?_) hadv
+    rw [hpR]
+    apply (div_le_div_iff_of_pos_right hden_pos).mpr
+    exact hfloorR
+  change ∫⁻ c', aDeficitPot n s c'
+    ∂((NonuniformMajority L K).stepDistOrSelf c).toMeasure ≤ _
+  calc ∫⁻ c', aDeficitPot n s c'
+        ∂((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+      ≤ ∫⁻ c', (if m + 1 ≤ advancedU (L := L) (K := K) c' then ENNReal.ofReal E1
+          else ENNReal.ofReal E0) ∂((NonuniformMajority L K).stepDistOrSelf c).toMeasure := by
+        apply lintegral_mono_ae
+        rw [ae_iff, PMF.toMeasure_apply_eq_zero_iff _
+          (DiscreteMeasurableSpace.forall_measurableSet _)]
+        rw [Set.disjoint_left]
+        intro x hsupp hbad
+        apply hbad
+        have hmono_x : m ≤ advancedU (L := L) (K := K) x :=
+          advancedU_ge_monotone m c x (le_of_eq hm.symm) hsupp
+        exact aDeficitPot_pointwise_bound n s hs c m hm.symm hnc x hmono_x
+    _ = (∫⁻ c' in A, ENNReal.ofReal E1 ∂((NonuniformMajority L K).stepDistOrSelf c).toMeasure) +
+        (∫⁻ c' in Aᶜ, ENNReal.ofReal E0 ∂((NonuniformMajority L K).stepDistOrSelf c).toMeasure) := by
+        rw [← lintegral_add_compl _ hA_meas]
+        congr 1
+        · apply lintegral_congr_ae
+          filter_upwards [ae_restrict_mem hA_meas] with c' hc'
+          simp only [Set.mem_setOf_eq, hA_def] at hc'
+          simp [hc']
+        · apply lintegral_congr_ae
+          filter_upwards [ae_restrict_mem hA_meas.compl] with c' hc'
+          simp only [Set.mem_compl_iff, Set.mem_setOf_eq, hA_def] at hc'
+          simp [hc']
+    _ = ENNReal.ofReal E1 * ((NonuniformMajority L K).stepDistOrSelf c).toMeasure A +
+        ENNReal.ofReal E0 * ((NonuniformMajority L K).stepDistOrSelf c).toMeasure Aᶜ := by
+        rw [lintegral_const, Measure.restrict_apply_univ,
+            lintegral_const, Measure.restrict_apply_univ]
+    _ ≤ ENNReal.ofReal (1 - pR * (1 - Real.exp (-s))) * aDeficitPot n s c := by
+        rw [hΦc]
+        set q := ((NonuniformMajority L K).stepDistOrSelf c).toMeasure A with hq_def
+        set qc := ((NonuniformMajority L K).stepDistOrSelf c).toMeasure Aᶜ with hqc_def
+        haveI : IsProbabilityMeasure ((NonuniformMajority L K).stepDistOrSelf c).toMeasure :=
+          PMF.toMeasure.isProbabilityMeasure _
+        have hq_ge : ENNReal.ofReal pR ≤ q := hstep
+        have hq_le_one : q ≤ 1 := by
+          calc q ≤ ((NonuniformMajority L K).stepDistOrSelf c).toMeasure Set.univ :=
+                measure_mono (Set.subset_univ _)
+            _ = 1 := measure_univ
+        have hq_ne_top : q ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top hq_le_one
+        have hqc_eq : qc = 1 - q := by
+          have h_compl := measure_compl hA_meas hq_ne_top
+          rw [show ((NonuniformMajority L K).stepDistOrSelf c).toMeasure Set.univ = 1
+            from measure_univ] at h_compl
+          exact h_compl
+        set qr := q.toReal with hqr_def
+        have hqr_nonneg : 0 ≤ qr := ENNReal.toReal_nonneg
+        have hqr_le_one : qr ≤ 1 := by
+          have := ENNReal.toReal_mono ENNReal.one_ne_top hq_le_one
+          rwa [ENNReal.toReal_one] at this
+        have hq_ofReal : q = ENNReal.ofReal qr := (ENNReal.ofReal_toReal hq_ne_top).symm
+        have hp_le_qr : pR ≤ qr := by
+          have h1 : ENNReal.ofReal pR ≤ ENNReal.ofReal qr := by rw [← hq_ofReal]; exact hq_ge
+          exact (ENNReal.ofReal_le_ofReal_iff hqr_nonneg).mp h1
+        have h1mqr_nonneg : 0 ≤ 1 - qr := by linarith
+        have hqc_ofReal : qc = ENNReal.ofReal (1 - qr) := by
+          rw [hqc_eq, hq_ofReal,
+              show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from ENNReal.ofReal_one.symm,
+              ← ENNReal.ofReal_sub 1 hqr_nonneg]
+        have lhs_eq : ENNReal.ofReal E1 * q + ENNReal.ofReal E0 * qc =
+            ENNReal.ofReal (E1 * qr + E0 * (1 - qr)) := by
+          rw [hq_ofReal, hqc_ofReal,
+              ← ENNReal.ofReal_mul hE1_pos.le, ← ENNReal.ofReal_mul hE0_pos.le,
+              ← ENNReal.ofReal_add (mul_nonneg hE1_pos.le hqr_nonneg)
+                (mul_nonneg hE0_pos.le h1mqr_nonneg)]
+        have hexp_le_one : Real.exp (-s) ≤ 1 := by
+          rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
+          exact Real.exp_le_exp.mpr (by linarith)
+        have rhs_eq : ENNReal.ofReal (1 - pR * (1 - Real.exp (-s))) * ENNReal.ofReal E0 =
+            ENNReal.ofReal ((1 - pR * (1 - Real.exp (-s))) * E0) := by
+          rw [← ENNReal.ofReal_mul]
+          have : (1 : ℝ) - pR * (1 - Real.exp (-s)) ≥ 0 := by
+            have h0 : (0 : ℝ) ≤ 1 - Real.exp (-s) := by linarith
+            nlinarith [hpR_nonneg, hpR_le_one, h0]
+          linarith
+        rw [lhs_eq, rhs_eq]
+        apply ENNReal.ofReal_le_ofReal
+        have hfactor : E1 * qr + E0 * (1 - qr) = E0 * (1 - qr * (1 - Real.exp (-s))) := by
+          rw [hE1_eq]; ring
+        rw [hfactor]
+        have hrhs : (1 - pR * (1 - Real.exp (-s))) * E0
+            = E0 * (1 - pR * (1 - Real.exp (-s))) := by ring
+        rw [hrhs]
+        apply mul_le_mul_of_nonneg_left _ hE0_pos.le
+        have h1me : (0 : ℝ) ≤ 1 - Real.exp (-s) := by linarith
+        nlinarith [mul_le_mul_of_nonneg_right hp_le_qr h1me]
 
 end Phase4Convergence
 

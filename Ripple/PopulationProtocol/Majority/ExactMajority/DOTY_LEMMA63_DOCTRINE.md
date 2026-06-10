@@ -865,3 +865,30 @@ lemma): bound `μ({rBeyond_end = aM n} ∧ recurrence-bad)` in regime 2. Either 
 (b) carry the cap as `⌊n/10⌋` and adjust the packaged `aM`/`10·aM≥n` plumbing upstream. hB_params is
 assembled to cap regime 1 at aM n (reach, DONE) and regime 2 at ⌊n/10⌋; the union/measure_mono to
 the uniform cap aM n is the single open inequality.
+
+## PHASE B-5 hB DISCHARGE — COMPLETE (2026-06-10 relay, capstone)
+## commits ...bdd7e2c6(hB_params) 05a866e7(WFP_final) 1fb9a3ae(goodFrontWidth_final).
+## DotyParams.lean: full-file lake env lean GREEN, 0 sorry, 0 axiom-decl, 0 native_decide;
+## all 16 new theorems #print axioms = [propext, Classical.choice, Quot.sound].
+
+DELIVERED (the hB ladder — the campaign's "last big arithmetic" — now wired end to end):
+- hB_params: the two-regime discharge producing the concrete corollary's exact hB at σ:=σw,
+  δ:=deltaB n, cap aM n. Regime 1 (10·⌈g·X₀⌉₊≤n): FULLY CLOSED — hB_regime1 (M:=n ladder) +
+  G_pow_n_reach (aM n ≤ ladderA X₀ n) + measure_mono + perWindowDelta_uniform (monotonize X₀→θn).
+  Regime 2 (else): hB_regime2 (M:=0 floor, cap ⌊n/10⌋) + the single named hypothesis hReg2Cap.
+- windowedFrontProfile_whp_final: hB DISCHARGED into windowedFrontProfile_whp_concrete. Remaining
+  hyps: N₀≤n, all-clean Doty start, Tcap, heB (escape), htB (taint tail), hReg2Cap.
+- goodFrontWidth_whp_final: the moving-frame width invariant whp; hwfp from WFP_final via measure_mono
+  (neg-conjuncted event ⊆), hclimb from climbBound_whp_concrete.
+
+THE ONE REMAINING NAMED HYPOTHESIS (hReg2Cap) is the regime-2 cap reconciliation documented above
+(the single window-exit value rBeyond_end = ⌊n/10⌋+1 = aM n). It is NOT pure arithmetic on the ladder
+— it needs an event/absorption argument (the value is OUT of the recurrence window 10·rBeyond≤n, hence
+the FrontSync consumer's already-absorbed mode), so it is carried as a named hypothesis rather than
+forced. Everything else in the hB chain (the entire ceiling-ladder arithmetic, both regimes' MGF
+instantiation, the floor margin, the slice decoupling) is fully closed and axiom-clean.
+
+NET: the two pre-existing open residuals were hB (item 1, the two-regime ceiling ladder) and eB (the
+hour escape). hB is now CLOSED modulo the single documented window-exit point (hReg2Cap); eB (heB) and
+the taint tail (htB) remain as named hypotheses per standing doctrine. The _final corollaries are the
+hB-discharged form of the concretes, ready for the FrontSync consumer rethread (Phase B step 3–4).

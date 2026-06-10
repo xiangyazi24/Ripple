@@ -556,3 +556,58 @@ GONE. The OLD `ClockRealFaithfulHours` assembly is NOT deleted (later cleanup).
 - The per-minute side prefixes `∑_{τ∈window_i} (realκ^τ) c₀ QbulkSet(i)ᶜ` — discharged by
   `WidthPrefix.goodFrontWidth_whp_at` + endpoint bridges + DotyParams (seed drip ⟹ mC/10 floor
   whp by Tstart+tseed ⟹ post-seed prefix whp-small). This file leaves all parameters raw.
+
+## Phase C-1 — RoleSplitConcentration witness (Lemma 5.2 progress field) — STATUS
+
+`RoleSplitConcentration.lean` `roleSplitTail_le` (Phase0Initial + RoleSplitMilestone ⟹
+tail ≤ 1/n²) was already delivered (C-1c). The one named remaining input is the
+`RoleSplitMilestone` witness over the REAL kernel. C-1d/C-1e findings:
+
+**REAL-KERNEL STAGE-1 MILESTONE PHASE ALREADY EXISTS** in `Analysis/Phase0Convergence.lean`:
+`phase0MilestonePhase n hn : MilestonePhase (NonuniformMajority L K)`, 0-sorry, with the
+`progress` field discharged against the ACTUAL protocol transitions via
+`interactionPMF_toMeasure_mcr_phase0_ge → stepDistOrSelf_toMeasure_ge` (the
+`countP_eq_sum_count`/class-aggregation mass route). Milestones = `mcrCount`-threshold
+decrements of Stage 1 (`RoleMCR,RoleMCR → Main,RoleCR`, paper Lemma 5.1).
+`p i = M(M−1)/(n(n−1))`, M from n down to 2.
+
+**TASKS 1 (per-step rates) and 2 (milestone family) are therefore ALREADY DONE** by the
+predecessor — over the real kernel, axiom-clean. C-1d added the bridges into the
+RoleSplitConcentration interface:
+- `roleMCRCount_eq_mcrCount` (countP = filter.card).
+- `mcrCount_le_one_of_phase0Post` : `phase0MilestonePhase.Post c` (+ carried card=n,
+  all-MCR-phase-0 invariants) ⟹ `mcrCount c ≤ 1` (the last threshold).
+- `phase0_milestone_jansonTail` : `phase0MilestonePhase` pushed straight through
+  `milestone_hitting_time_bound` (real-kernel Stage-1 Janson tail).
+
+**TASK 3 (balance) — the transitions ARE deterministic 1:1**: Rule 1 (two MCR → one Main
++ one CR) and Rule 4 (two CR → one Clock + one Reserve) are deterministic 1:1 in
+`Phase0Transition` (Transition.lean L356–404). So the count-balance is EXACT counting, NOT
+Azuma/MGF — once Stage 2 is wired, `|Clock| = |Reserve| = #Rule4-firings` deterministically
+(parity ≤ initial), `|Main| = #Rule1-firings`. No in-house drift engine needed for balance.
+
+**BLOCKER (precise) — the witness `potential` field is UNSATISFIABLE for the single-chain
+Stage-1 phase.** `roleSplitTail_le_inv_sq` consumes `hpot : log n ≤ pMin · meanTime`. For
+`phase0MilestonePhase`:
+  * `pMin ≤ 2/(n(n−1)) = Θ(1/n²)` — FORMALIZED as `phase0MilestonePhase_pMin_le_two_div`
+    (C-1e, the easy `iInf_le` at the near-empty `M=2` milestone), 0-sorry axiom-clean.
+  * `meanTime = Σ 1/p_i = (n−1)²` (telescoping; not yet formalized — gap below).
+  * ⟹ `pMin · meanTime = 2(n−1)/n → 2 < log n` for all n ≥ 8. POTENTIAL FAILS.
+
+This is the prompt's own thesis confirmed formally: the naive per-decrement single-chain
+Janson with the worst-case `pMin` gives a `Θ(1)` potential, not `Θ(log n)`. The paper's
+`Θ(log n)` comes from the COUPON/parallel-time analysis (sum of heterogeneous geometric
+waiting times whose COLLECTIVE potential is `Θ(log n)`), already half-built abstractly in
+`Phase10ExpectedTime.lean` (`coupon_expectedHitting_le*`). The RoleSplitMilestone witness
+must be assembled NOT from a uniform-pMin Janson bound but from the coupon decomposition.
+
+**REMAINING GAPS into the witness (ordered):**
+1. Stage-2 milestone family over the real kernel: `RoleCR,RoleCR → Clock,Reserve` (Rule 4)
+   at rate `Θ(l²/n²)` — the analogue of `phase0_mcrCount_decrease_prob` for `crCount`
+   (reuse `stepDistOrSelf_toMeasure_ge` + an `interactionPMF_toMeasure_cr_*_ge` clone).
+2. Either (a) replace the uniform-pMin Janson tail with the coupon decomposition so the
+   `Θ(log n)` potential is reachable, OR (b) supply a milestone phase whose `pMin·meanTime`
+   genuinely ≥ log n (requires non-uniform p — the coupon route).
+3. `post_sound : Post ⊆ RoleSplitGood` — Stage-1 Post gives `mcrCount ≤ 1` (need = 0: parity
+   cleanup via the phase-end `RoleCR → Reserve` rule); Stage-2 Post gives the Clock/Reserve
+   Θ(n) floors and the Main n/2±εn window via the deterministic 1:1 counts (pure omega).

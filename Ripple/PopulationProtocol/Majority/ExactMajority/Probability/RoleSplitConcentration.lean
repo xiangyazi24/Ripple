@@ -484,5 +484,52 @@ theorem phase0_milestone_jansonTail
   milestone_hitting_time_bound (phase0MilestonePhase (L := L) (K := K) n hn)
     c₀ hPre lam hlam tRole ht
 
+/-! ## The structural obstruction: the per-decrement `pMin` is `Θ(1/n²)`.
+
+The Janson `1/n²` budget (`roleSplitTail_le_inv_sq`) consumes a *milestone
+potential* `log n ≤ pMin · meanTime`.  For the predecessor's single-chain
+Stage-1 phase this potential **fails**: the worst-case milestone is the
+near-empty `mcrCount = 2 → 1` decrement, whose rate is `p = 2/(n(n−1))`, so
+`pMin ≤ 2/(n(n−1)) = Θ(1/n²)`.  Since `meanTime = Σ 1/p_i = (n−1)²` (telescoping),
+`pMin · meanTime = 2(n−1)/n → 2`, which is `< log n` for all `n ≥ 8`.
+
+This is exactly the gap the paper closes with the *parallel-time / coupon*
+analysis: the milestones are summed as a sum of heterogeneous geometric times
+whose **collective** potential is `Θ(log n)`, not by feeding the single worst
+`pMin` into a uniform Janson bound.  The lemma below formalizes the `pMin` half
+of the obstruction (the easy `iInf_le` direction at the `M = 2` milestone),
+pinning the precise quantitative reason the naive single-chain wiring cannot
+reach `roleSplitTail_le_inv_sq` and documenting what the Stage-1/Stage-2
+upgrade must supply. -/
+
+/-- The minimum Stage-1 milestone probability is at most `2/(n(n−1))`: the rate
+of the last (near-empty `mcrCount = 2 → 1`) decrement.  Hence `pMin = Θ(1/n²)`,
+not `Θ(1/n)` — the structural reason the single-chain Janson potential
+`log n ≤ pMin · meanTime` is unreachable for this phase (see module note). -/
+theorem phase0MilestonePhase_pMin_le_two_div
+    {n : ℕ} (hn : 2 ≤ n) :
+    (phase0MilestonePhase (L := L) (K := K) n hn).pMin ≤
+      (2 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) := by
+  -- The last milestone index `i = n-2 : Fin (n-1)`, where `M = 2`.
+  have hlt : n - 2 < n - 1 := by omega
+  set i₀ : Fin (n - 1) := ⟨n - 2, hlt⟩ with hi₀
+  -- `pMin ≤ p i₀` by `ciInf_le` (the family is bounded below by 0 via `hp_pos`).
+  have hpmin_le :
+      (phase0MilestonePhase (L := L) (K := K) n hn).pMin ≤
+        (phase0MilestonePhase (L := L) (K := K) n hn).p i₀ := by
+    unfold MilestonePhase.pMin
+    exact ciInf_le ⟨0, fun _ ⟨j, hj⟩ =>
+      hj ▸ le_of_lt ((phase0MilestonePhase (L := L) (K := K) n hn).hp_pos j)⟩ i₀
+  -- `p i₀ = phase0MilestoneProb n i₀ = 2·1/(n(n-1))` since `M = n-1-(n-2)+1 = 2`.
+  have hp_eq : (phase0MilestonePhase (L := L) (K := K) n hn).p i₀ =
+      (2 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) := by
+    rw [phase0MilestonePhase_p]
+    unfold ExactMajority.phase0MilestoneProb
+    have hM : n - 1 - i₀.val + 1 = 2 := by simp only [hi₀]; omega
+    simp only [hM]
+    norm_num
+  rw [hp_eq] at hpmin_le
+  exact hpmin_le
+
 end RoleSplitConcentration
 end ExactMajority
