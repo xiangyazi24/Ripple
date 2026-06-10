@@ -248,9 +248,7 @@ theorem phase0_numerics_real (n L t : ℕ) (hn : 1 ≤ n)
       ≤ Real.exp (-(45 * (L + 1) : ℕ)) := by
   have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
   have he1 : (0 : ℝ) ≤ Real.exp 1 - 1 := by
-    have : (1 : ℝ) ≤ Real.exp 1 := by
-      have := Real.add_one_le_exp (0 : ℝ); simp at this; linarith
-    linarith
+    linarith [Real.add_one_le_exp (1 : ℝ)]
   set x : ℝ := 2 * (Real.exp 1 - 1) / (n : ℝ) with hx
   have hx0 : 0 ≤ x := by rw [hx]; positivity
   -- (1+x)^t ≤ exp(t·x)
@@ -300,6 +298,107 @@ theorem phase0_numerics_real (n L t : ℕ) (hn : 1 ≤ n)
         have hcoef : (2 * (Real.exp 1 - 1) + 1 - 50) ≤ -45 := by nlinarith [he3]
         push_cast
         nlinarith [hLpos, hcoef, mul_le_mul_of_nonneg_right hcoef hLpos]
+
+/-! ## The packaged whp window corollary.
+
+Combining the three closed pieces — the tail from drift
+(`phase0_window_tail_of_drift`), the initial-potential bound
+(`clockCounterPotential_init_le`), and the real numerics
+(`phase0_numerics_real`) — at the concrete drift rate
+`r = ofReal(1 + 2(e−1)/n)`, scale `s = 1`, the `t`-step probability that SOME
+clock has reached `counter = 0` is at most `e^{−45(L+1)} ≤ n^{−45}`. -/
+
+/-- **Phase-0 window whp (packaged).**  Given an absorbing window `Q` on which
+the clock-counter potential `Φ_1` contracts at the concrete rate
+`ofReal(1 + 2(e−1)/n)`, a phase-0 start where every clock is at full counter
+`50(L+1)` and `card c₀ = n`, a window `t ≤ n(L+1)` and `ln n ≤ (L+1)`, the
+probability that some clock reached `counter = 0` within `t` steps is at most
+`ofReal(e^{−45(L+1)})`:
+
+  `(K^t) c₀ {∃ clock counter = 0} ≤ ofReal(e^{−45(L+1)})`. -/
+theorem phase0_window_whp (P : Protocol (AgentState L K))
+    (n : ℕ) (hn : 1 ≤ n)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c → c' ∈ (P.stepDistOrSelf c).support → Q c')
+    (hdrift : ∀ c, Q c →
+      ∫⁻ c', clockCounterPotential (L := L) (K := K) 1 c'
+        ∂(P.transitionKernel c)
+        ≤ ENNReal.ofReal (1 + 2 * (Real.exp 1 - 1) / (n : ℝ))
+            * clockCounterPotential (L := L) (K := K) 1 c)
+    (t : ℕ) (ht : t ≤ n * (L + 1))
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ))
+    (c₀ : Config (AgentState L K)) (hQ0 : Q c₀)
+    (hcard : Multiset.card c₀ = n)
+    (hfull : ∀ a ∈ c₀, a.role = .clock → a.counter.val = 50 * (L + 1)) :
+    (P.transitionKernel ^ t) c₀ {c | ¬ noClockAtZero (L := L) (K := K) c}
+      ≤ ENNReal.ofReal (Real.exp (-(45 * (L + 1) : ℕ))) := by
+  set r : ℝ≥0∞ := ENNReal.ofReal (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) with hr
+  -- tail from drift
+  have htail := phase0_window_tail_of_drift P 1 Q hQ_abs r hdrift t c₀ hQ0
+  -- init bound on Φ₁(c₀)
+  have hinit := clockCounterPotential_init_le (L := L) (K := K) 1 n c₀ hcard hfull
+  -- combine: tail ≤ r^t · Φ₁(c₀) ≤ r^t · (n · e^{−50(L+1)})
+  refine htail.trans ?_
+  refine (by gcongr : r ^ t * clockCounterPotential (L := L) (K := K) 1 c₀
+      ≤ r ^ t * ((n : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(1 * (50 * (L + 1) : ℕ)))))).trans ?_
+  -- now an all-ENNReal-ofReal computation; push everything through ofReal
+  have hbase_nonneg : (0 : ℝ) ≤ 1 + 2 * (Real.exp 1 - 1) / (n : ℝ) := by
+    have : (0 : ℝ) ≤ 2 * (Real.exp 1 - 1) / (n : ℝ) := by
+      have he1 : (0 : ℝ) ≤ Real.exp 1 - 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
+      positivity
+    linarith
+  have hexp_nonneg : (0 : ℝ) ≤ Real.exp (-(50 * (L + 1) : ℕ)) := (Real.exp_pos _).le
+  -- r^t = ofReal((1+x)^t)
+  have hrt : r ^ t = ENNReal.ofReal ((1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ t) := by
+    rw [hr, ← ENNReal.ofReal_pow hbase_nonneg]
+  -- n = ofReal n
+  have hncast : (n : ℝ≥0∞) = ENNReal.ofReal (n : ℝ) := by rw [ENNReal.ofReal_natCast]
+  rw [hrt, hncast, ← ENNReal.ofReal_mul (by positivity),
+      ← ENNReal.ofReal_mul (by positivity)]
+  apply ENNReal.ofReal_le_ofReal
+  -- the `s = 1` substitution left a stray `1 *` in the exponent; clear it
+  simp only [one_mul]
+  -- the real numerics; the LHS shape `a * (n * e)` matches `phase0_numerics_real`
+  exact phase0_numerics_real n L t hn hlog ht
+
+/-! ## The relay-11 phase-0-CR shell-escape corollary.
+
+Relay-11's Stage-2 milestone (see `DOTY_POST63_CAMPAIGN.md` §C-1) needs the
+**phase-0-CR shell escape** bound: the genuinely-probabilistic event "a CR
+advanced past phase 0".  By the Doty trace structure that event is contained in
+the clock-zero event the window bounds (a CR's phase advance is driven by the
+clock counter / epidemic — the only phase-0 exit fires at a clock `counter =
+0`).  We expose the bound for ANY shell-escape predicate `Esc` whose
+realization is contained in `{∃ clock counter = 0}` (the deterministic
+containment is supplied as `hcontain`, mirroring `windowDrift_tail`'s `hlink`),
+so relay-11 instantiates it at its concrete `crPhase0Shell` escape. -/
+
+/-- **Phase-0-CR shell escape ≤ the window bound.**  For any escape predicate
+`Esc` whose `t`-step realization is contained in the clock-zero event
+(`hcontain`), the escape probability is bounded by the Phase-0 window bound
+`ofReal(e^{−45(L+1)})`.  Relay-11 instantiates `Esc := "a CR has phase ≠ 0"`. -/
+theorem phase0CRShellEscape_le (P : Protocol (AgentState L K))
+    (n : ℕ) (hn : 1 ≤ n)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c → c' ∈ (P.stepDistOrSelf c).support → Q c')
+    (hdrift : ∀ c, Q c →
+      ∫⁻ c', clockCounterPotential (L := L) (K := K) 1 c'
+        ∂(P.transitionKernel c)
+        ≤ ENNReal.ofReal (1 + 2 * (Real.exp 1 - 1) / (n : ℝ))
+            * clockCounterPotential (L := L) (K := K) 1 c)
+    (t : ℕ) (ht : t ≤ n * (L + 1))
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ))
+    (c₀ : Config (AgentState L K)) (hQ0 : Q c₀)
+    (hcard : Multiset.card c₀ = n)
+    (hfull : ∀ a ∈ c₀, a.role = .clock → a.counter.val = 50 * (L + 1))
+    (Esc : Config (AgentState L K) → Prop)
+    (hcontain : ∀ c, Esc c → ¬ noClockAtZero (L := L) (K := K) c) :
+    (P.transitionKernel ^ t) c₀ {c | Esc c}
+      ≤ ENNReal.ofReal (Real.exp (-(45 * (L + 1) : ℕ))) := by
+  refine (measure_mono ?_).trans
+    (phase0_window_whp P n hn Q hQ_abs hdrift t ht hlog c₀ hQ0 hcard hfull)
+  intro c hc
+  exact hcontain c hc
 
 end Phase0Window
 
