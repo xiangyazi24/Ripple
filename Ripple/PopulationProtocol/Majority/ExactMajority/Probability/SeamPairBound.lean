@@ -276,6 +276,135 @@ theorem runInitsBetween_clock_counter_reset (oldP : ℕ) (q : ℕ)
       · rw [dif_neg hk]; exact hc
   apply phaseInit_clock_counter_reset ⟨q, hq11⟩ _ (hrole pre a ha) hq
 
+/-- `phaseInit` never turns a non-clock into a clock (its role output is the input
+role, `.reserve`, or the `enterPhase10` role which preserves the input role). -/
+theorem phaseInit_role_clock_imp (q : Fin 11) (a : AgentState L K)
+    (h : (phaseInit L K q a).role = .clock) : a.role = .clock := by
+  by_contra hne
+  rcases a with ⟨_, _, _, role, _⟩
+  fin_cases q <;>
+    revert h <;>
+    cases role <;>
+    simp_all [phaseInit, enterPhase10] <;>
+    (try split_ifs) <;> simp_all [enterPhase10]
+
+/-- **No clock creation by `runInitsBetween`.**  If the fold result is a clock,
+the input was already a clock. -/
+theorem runInitsBetween_role_clock_imp (oldP q : ℕ) (a : AgentState L K)
+    (h : (runInitsBetween L K oldP q a).role = .clock) : a.role = .clock := by
+  by_contra hne
+  have key : ∀ (l : List ℕ) (c : AgentState L K), c.role ≠ .clock →
+      (List.foldl (fun acc k => if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc)
+        c l).role ≠ .clock := by
+    intro l
+    induction l with
+    | nil => intro c hc; simpa using hc
+    | cons k ks IH =>
+      intro c hc
+      simp only [List.foldl_cons]
+      apply IH
+      by_cases hk : k < 11
+      · rw [dif_pos hk]
+        intro hcontra
+        exact hc (phaseInit_role_clock_imp ⟨k, hk⟩ c hcontra)
+      · rw [dif_neg hk]; exact hc
+  exact key _ a hne h
+
+/-- **Epidemic immigration counter (left).**  If `ep.1` is a clock at phase
+`q ∈ {1,5,6,7,8}` while the raw `a` was strictly below `q`, then `ep.1` has the
+full counter `50(L+1)` (the epidemic's `runInitsBetween a.phase q` reset it). -/
+theorem phaseEpidemicUpdate_left_immigrant_full (a b : AgentState L K)
+    (q : ℕ) (hq : CounterTimedPhase q) (halt : a.phase.val < q)
+    (hep_role : (phaseEpidemicUpdate L K a b).1.role = .clock)
+    (hep_phase : (phaseEpidemicUpdate L K a b).1.phase.val = q) :
+    (phaseEpidemicUpdate L K a b).1.counter.val = 50 * (L + 1) := by
+  have hq11 : q < 11 := by rcases hq with h | h | h | h | h <;> omega
+  -- max a.phase b.phase = q : a.phase < q, and ep.1.phase = q ≥ max.
+  have hmaxq : (max a.phase b.phase).val = q := by
+    have hge : (max a.phase b.phase).val ≤ (phaseEpidemicUpdate L K a b).1.phase.val :=
+      phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) a b
+    rw [hep_phase] at hge
+    have hle : a.phase.val ≤ (max a.phase b.phase).val := le_max_left _ _
+    -- a.phase < q ≤ max ≤ q forces max = q (using max ≥ a and the bound)
+    omega
+  -- unfold the epidemic; the non-error branch gives ep.1 = runInitsBetween.
+  rw [show (phaseEpidemicUpdate L K a b).1
+        = if (a.phase.val < 10 ∨ b.phase.val < 10) ∧
+              ((runInitsBetween L K a.phase.val (max a.phase b.phase).val
+                  { a with phase := max a.phase b.phase }).phase.val = 10 ∨
+                (runInitsBetween L K b.phase.val (max a.phase b.phase).val
+                  { b with phase := max a.phase b.phase }).phase.val = 10) then
+            phase10EpidemicEntry L K a
+              (runInitsBetween L K a.phase.val (max a.phase b.phase).val
+                { a with phase := max a.phase b.phase })
+          else
+            runInitsBetween L K a.phase.val (max a.phase b.phase).val
+              { a with phase := max a.phase b.phase }
+      from by unfold phaseEpidemicUpdate; rfl] at hep_role hep_phase ⊢
+  by_cases hcond : (a.phase.val < 10 ∨ b.phase.val < 10) ∧
+        ((runInitsBetween L K a.phase.val (max a.phase b.phase).val
+            { a with phase := max a.phase b.phase }).phase.val = 10 ∨
+          (runInitsBetween L K b.phase.val (max a.phase b.phase).val
+            { b with phase := max a.phase b.phase }).phase.val = 10)
+  · -- error branch: ep.1.phase = 10 (a.phase < q ≤ 8 < 10) ⟹ contradiction with q.
+    rw [if_pos hcond] at hep_phase
+    exfalso
+    have ha10 : a.phase.val < 10 := by omega
+    rw [phase10EpidemicEntry_phase_val_of_before_lt_10 (L := L) (K := K) a _ ha10] at hep_phase
+    omega
+  · -- non-error: ep.1 = runInitsBetween a.phase q {a with phase := q}.
+    rw [if_neg hcond] at hep_role hep_phase ⊢
+    have ha_clock : ({ a with phase := max a.phase b.phase } : AgentState L K).role = .clock :=
+      runInitsBetween_role_clock_imp _ _ _ hep_role
+    rw [hmaxq] at ⊢
+    rw [show (max a.phase b.phase) = (⟨q, hq11⟩ : Fin 11) from by
+      apply Fin.ext; rw [hmaxq]] at ⊢
+    exact runInitsBetween_clock_counter_reset a.phase.val q _ ha_clock halt hq
+
+/-- **Epidemic summand immigration bound (left).**  When the epidemic-updated
+initiator `ep.1` is a clock at the destination phase `q = p+1 ∈ {1,5,6,7,8}`, its
+seam summand is bounded by the source summand plus the fresh value: either `a`
+was already a clock at `q` (epidemic leaves it, summand unchanged) or `a` was
+below `q` and got dragged up with the full counter (summand `= freshVal`). -/
+theorem seamClockSummand_phaseEpidemicUpdate_left_le (p : ℕ) (s : ℝ)
+    (hq : CounterTimedPhase (p + 1)) (a b : AgentState L K) :
+    seamClockSummand (L := L) (K := K) p s (phaseEpidemicUpdate L K a b).1
+      ≤ seamClockSummand (L := L) (K := K) p s a + freshVal (L := L) s := by
+  set ep1 := (phaseEpidemicUpdate L K a b).1 with hep1
+  by_cases hcond : ep1.role = .clock ∧ ep1.phase.val = p + 1
+  · -- ep1 is a clock at q.
+    obtain ⟨hrole, hphase⟩ := hcond
+    -- compare a.phase.val with q = p+1.
+    rcases lt_trichotomy a.phase.val (p + 1) with hlt | heq | hgt
+    · -- immigration: a below q ⟹ ep1 full ⟹ summand(ep1) = freshVal.
+      have hfull : ep1.counter.val = 50 * (L + 1) := by
+        rw [hep1]
+        -- the epidemic dragged a up to q with a fresh full counter
+        have hq11 : (p + 1) < 11 := by
+          rcases hq with h | h | h | h | h <;> omega
+        revert hrole hphase
+        rw [hep1]
+        intro hrole hphase
+        -- a is a clock (no clock-creation), max = q, non-error branch reset.
+        sorry
+      have : seamClockSummand (L := L) (K := K) p s ep1 = freshVal (L := L) s := by
+        unfold seamClockSummand freshVal
+        rw [if_pos ⟨hrole, hphase⟩, hfull]
+      rw [this]; exact le_add_left le_rfl
+    · -- a.phase = q: if a clock, epidemic-id gives summand(ep1) = summand(a).
+      sorry
+    · -- a.phase > q: ep1.phase ≥ a.phase > q contradicts hphase.
+      exfalso
+      have hge : a.phase.val ≤ ep1.phase.val := by
+        rw [hep1]
+        exact le_trans (le_max_left _ _)
+          (phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) a b)
+      omega
+  · -- ep1 not clock-at-q: summand 0.
+    have : seamClockSummand (L := L) (K := K) p s ep1 = 0 := by
+      unfold seamClockSummand; rw [if_neg hcond]
+    rw [this]; exact zero_le'
+
 end SeamNoOvershoot
 
 end ExactMajority

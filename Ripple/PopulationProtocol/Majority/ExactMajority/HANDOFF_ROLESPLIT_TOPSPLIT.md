@@ -183,3 +183,42 @@ finding and fixing TWO faithfulness traps in the Stage-C interface:
   carried (both boundary-free): `Q` absorbing (the documented `Q ⊆ allPhase0` witness, also the
   Phase0Window gap) + `InwardResidual` on `Q` (the honest Lemma-5.1 symmetric pair-count comparison).
   Commits f475aedd / 87271ca4 / 7760b01 / 7e9e3a6d (opus-wip mirror).
+
+## InwardResidual discharge — `Probability/TopSplitInward.lean` (2026-06-10, 0-sorry axiom-clean)
+
+`TopSplitDrift.lean` carried `InwardResidual s c := sinh(sX)·E[sinh(sΔ)] ≤ 0` as the one honest
+protocol residual. `TopSplitInward.lean` DISCHARGES it down to a single, precisely-stated,
+sign-verified R2/R3 mass-counting identity, with the genuinely-new assigned-balance ledger and the
+full boundary-free reduction PROVEN. All 8 headlines `#print axioms ⊆ [propext,Classical.choice,Quot.sound]`.
+
+- **Stage 1 — the assigned-balance ledger (THE new content).** Tracking the FOUR pools `Mf`=#unasg-Main,
+  `Ma`=#asg-Main, `Sf`=#unasg-CR-side, `Sa`=#asg-CR-side against FROZEN `Phase0Transition`: every rule has
+  `Δ(Mf−Sf) = 2·ΔX` (R2: −2/−1, R3: +2/+1, R1/R4/R5: 0/0). Per-agent weight
+  `freeW = [main∧¬asg] − [(cr∨clock∨reserve)∧¬asg]`; `ledgerW_Phase0_pair_conserved` proves the per-pair
+  conservation of `freeW − 2·topW` (finite role/assigned case check, R5 clock–clock split off via
+  `stdCounterSubroutine` preserving role+assigned — `phaseInit_assigned_eq`). The Lean-faithful counterpart
+  of the paper's `sf+2st=mf+2mt`. CAVEAT FOUND: conservation FAILS for `assigned-mcr` inputs (an unreachable
+  corner — rules only CONSUME mcr, never assign/produce it); carried as the `NotAssignedMcr` side-condition.
+- **Stage 1b — global invariant `LedgerInv c := freeDiff c = 2·topSplitXZ c`.** Proven preserved by
+  `stepOrSelf` (`LedgerInv_stepOrSelf`, additive lift) on allPhase0 ∧ NoAssignedMcrConfig, and holds at the
+  start (`LedgerInv_init`). `NoAssignedMcrConfig_stepOrSelf`: assigned-mcr never created.
+  HONEST SPEC GAP: `Phase0Initial` pins only role/phase, NOT `assigned=false`, so `NoAssignedMcrConfig c₀`
+  is true-of-the-real-start but not derivable from the abstract `Phase0Initial` — carried explicitly.
+- **Stage 2 — sign comparison** (`freeDiff_sign_of_topSplit`): `Mf−Sf=2X`, so `X>0 ⟹ Sf<Mf` (more free
+  Mains than free CR-side, the inward bias).
+- **Stage 3a — boundary-free sinh collapse** (`inwardResidual_of_expectedDeltaX_sign`): `Δ_pair ∈ {−1,0,1}`
+  ⟹ `sinh(s·Δ_pair) = Δ_pair·sinh s` ⟹ `E[sinh(sΔ)] = sinh s·E[ΔX]`, and `InwardResidual ⟸ X·E[ΔX] ≤ 0`
+  (FULLY PROVEN; `X=0 ⟹ sinh 0 = 0` ⟹ boundary-free).
+- **Stage 3b — ledger ⟹ sign** (`expectedDeltaX_sign_of_ledger`): under `LedgerInv` + the named
+  `RectangleResidual c := totalPairs·E[ΔX] = −2·mcrCount·freeDiff`, `X·E[ΔX] = −4·mcr·X²/tp ≤ 0`.
+  `inwardResidual_of_ledger` packages InwardResidual on the ledger region.
+- **Stage 4 — tail wire-up** (`topSplitWindow_whp_inward`): feeds `topSplitWindow_whp_cosh_clean`; residual
+  = region `Q` carrying allPhase0+card+LedgerInv+RectangleResidual; tail `(cosh s)^T/cosh(s·δn)`.
+
+THE ONE REMAINING RESIDUAL = `RectangleResidual` (the R2/R3 mass identity). GENUINE ATTACK documented
+in-file: reduces to the JOINT double-marginal `∑_{s₁,s₂} interactionCount·pairDelta = 2·mcr·(Sf−Mf)`,
+where `pairDelta ∈ {−1,0,1}` is the proven `topW`-block delta. The repo has only SEPARABLE per-coordinate
+marginal collapse (`sum_fst/snd_interactionProb`, e.g. `clockCounterPotential_drift_affine`); the joint
+double-`Multiset.count` rectangle is the precise missing lemma. Isolated as the named residual; everything
+consuming it (the inward sign + the full cosh tail) is discharged.
+Commits 86f2083e / 666babd4 / 1c7e2fde / e454d342.

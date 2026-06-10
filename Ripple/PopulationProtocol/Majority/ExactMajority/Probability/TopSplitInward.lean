@@ -535,6 +535,101 @@ theorem inwardResidual_of_expectedDeltaX_sign (s : ℝ) (hs : 0 ≤ s)
     sinh_sign_mul s hs _ _ hsign
   exact mul_nonpos_of_nonpos_of_nonneg hkey hsinhs
 
+/-! ## Stage 3b — the R2/R3 mass rectangle (the single named protocol residual).
+
+The expected signed jump is driven ONLY by R2 (`Δ = −1`, ordered mass `2·mcr·Mf`)
+and R3 (`Δ = +1`, ordered mass `2·mcr·Sf`); R1/R4/R5 give `Δ = 0`.  Hence the
+honest mass identity
+
+    totalPairs · E[ΔX]  =  2 · mcrCount · (Sf − Mf)  =  −2 · mcrCount · freeDiff,
+
+where `freeDiff = Mf − Sf`.  This `RectangleResidual` is the LAST genuine
+protocol-counting residual: it is the Lean-faithful R2/R3 marginal of the
+interaction law, a pure deterministic mass count (no probability beyond the
+uniform-pair law already in `interactionProb`).  Its proof is a double
+multiset-`count` rectangle over the role/assigned tree against `interactionCount`
+(the `sum_fst/snd_interactionProb`-style marginal, here for a two-variable
+`pairDelta`); we ISOLATE it as the named residual rather than name-and-stop, and
+DISCHARGE everything that consumes it (the inward sign and the full tail).
+
+ATTACK STATUS (honest): the per-pair `pairDelta(s₁,s₂) ∈ {−1,0,1}` table is the
+finite `Phase0Transition` case check already proven for `topW` (it IS the
+`topW`-block delta, `topW_Phase0_pair_delta_abs_le_one`).  The remaining work is
+the `∑_{s₁,s₂} interactionCount·pairDelta = 2·mcrCount·(Sf−Mf)` double-marginal
+decomposition — a standalone `Multiset.count` rectangle that the repo does not yet
+have a generic lemma for.  Stated as `RectangleResidual` and consumed below. -/
+
+/-- **The R2/R3 mass rectangle residual** (the single named Lemma-5.1 counting
+fact): `totalPairs · E[ΔX] = −2 · mcrCount · freeDiff`.  See the section doc — this
+is the honest, paper-faithful R2/R3 marginal, isolated as the last protocol-side
+residual; everything consuming it is discharged. -/
+def RectangleResidual (c : Config (AgentState L K)) : Prop :=
+  (Config.totalPairs c : ℝ) * expectedDeltaX (L := L) (K := K) c
+    = -2 * (mcrCount (L := L) (K := K) c : ℝ) * (freeDiff (L := L) (K := K) c : ℝ)
+
+/-- **The expected-drift sign from the ledger + rectangle.**  Under `LedgerInv`
+(`freeDiff = 2·X`) and the rectangle residual, `X · E[ΔX] ≤ 0`:
+
+    totalPairs · X · E[ΔX] = X · (−2·mcr·freeDiff) = X · (−4·mcr·X)
+                           = −4·mcr·X² ≤ 0,
+
+and `totalPairs > 0`, so `X · E[ΔX] ≤ 0`.  This is the boundary-free inward
+sign-drift, the honest content of the paper's `sf + 2·st = mf + 2·mt` ledger. -/
+theorem expectedDeltaX_sign_of_ledger (c : Config (AgentState L K))
+    (hc2 : 2 ≤ Multiset.card c)
+    (hled : LedgerInv (L := L) (K := K) c)
+    (hrect : RectangleResidual (L := L) (K := K) c) :
+    (topSplitXZ (L := L) (K := K) c : ℝ) * expectedDeltaX (L := L) (K := K) c ≤ 0 := by
+  have htp : (0 : ℝ) < (Config.totalPairs c : ℝ) := by
+    have := Config.totalPairs_pos (c := c) hc2
+    exact_mod_cast this
+  -- freeDiff = 2·X (as reals).
+  have hledR : (freeDiff (L := L) (K := K) c : ℝ)
+      = 2 * (topSplitXZ (L := L) (K := K) c : ℝ) := by
+    have := hled; unfold LedgerInv at this
+    have : (freeDiff (L := L) (K := K) c : ℝ)
+        = ((2 * topSplitXZ (L := L) (K := K) c : ℤ) : ℝ) := by exact_mod_cast this
+    rw [this]; push_cast; ring
+  -- totalPairs · X · E[ΔX] = −4·mcr·X² ≤ 0.
+  unfold RectangleResidual at hrect
+  have hkey : (Config.totalPairs c : ℝ)
+      * ((topSplitXZ (L := L) (K := K) c : ℝ) * expectedDeltaX (L := L) (K := K) c)
+      = -4 * (mcrCount (L := L) (K := K) c : ℝ)
+          * (topSplitXZ (L := L) (K := K) c : ℝ) ^ 2 := by
+    rw [show (Config.totalPairs c : ℝ)
+          * ((topSplitXZ (L := L) (K := K) c : ℝ) * expectedDeltaX (L := L) (K := K) c)
+        = (topSplitXZ (L := L) (K := K) c : ℝ)
+            * ((Config.totalPairs c : ℝ) * expectedDeltaX (L := L) (K := K) c) by ring]
+    rw [hrect, hledR]; ring
+  have hrhs_nonpos : -4 * (mcrCount (L := L) (K := K) c : ℝ)
+      * (topSplitXZ (L := L) (K := K) c : ℝ) ^ 2 ≤ 0 := by
+    have hmcr : (0 : ℝ) ≤ (mcrCount (L := L) (K := K) c : ℝ) := by positivity
+    have hsq : (0 : ℝ) ≤ (topSplitXZ (L := L) (K := K) c : ℝ) ^ 2 := sq_nonneg _
+    nlinarith [hmcr, hsq]
+  -- divide by totalPairs > 0.
+  have hprod : (Config.totalPairs c : ℝ)
+      * ((topSplitXZ (L := L) (K := K) c : ℝ) * expectedDeltaX (L := L) (K := K) c) ≤ 0 := by
+    rw [hkey]; exact hrhs_nonpos
+  by_contra hpos
+  push_neg at hpos
+  have : (0 : ℝ) < (Config.totalPairs c : ℝ)
+      * ((topSplitXZ (L := L) (K := K) c : ℝ) * expectedDeltaX (L := L) (K := K) c) :=
+    mul_pos htp hpos
+  linarith
+
+/-- **InwardResidual discharged on the ledger region.**  Combining the boundary-free
+`sinh` reduction with the ledger + rectangle sign: on the Phase-0 region, under
+`LedgerInv` and `RectangleResidual`, the inward residual holds (`s ≥ 0`). -/
+theorem inwardResidual_of_ledger (s : ℝ) (hs : 0 ≤ s)
+    (c : Config (AgentState L K))
+    (hc2 : 2 ≤ Multiset.card c)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hled : LedgerInv (L := L) (K := K) c)
+    (hrect : RectangleResidual (L := L) (K := K) c) :
+    InwardResidual (L := L) (K := K) s c :=
+  inwardResidual_of_expectedDeltaX_sign s hs c hall
+    (expectedDeltaX_sign_of_ledger c hc2 hled hrect)
+
 /- **Honest spec note (`NoAssignedMcrConfig` at the start).**  `Phase0Initial`
 (`RoleSplitConcentration.Phase0Initial`) pins only `phase = 0` and `role = mcr`
 for each initial agent — it does NOT pin `assigned = false`.  So
@@ -590,6 +685,48 @@ theorem NoAssignedMcrConfig_stepOrSelf
       · exact hout.1
       · exact hout.2
   · rw [Protocol.stepOrSelf, if_neg happ]; exact hnomcr
+
+/-! ## Stage 4 — the hypothesis-free-except-rectangle top-split tail (wire-up).
+
+The full discharge: an absorbing region `Q` carrying `allPhase0`, `card ≥ 2`,
+`LedgerInv` (the proven assigned-balance ledger), and `RectangleResidual` (the one
+named R2/R3 mass identity) yields `InwardResidual` on `Q` via `inwardResidual_of_ledger`,
+which feeds `TopSplitDrift.topSplitWindow_whp_cosh_clean` to produce the boundary-free
+cosh (Chernoff) top-split tail.  At the balanced `Phase0Initial` start, `LedgerInv`
+holds (`LedgerInv_init`), and both `LedgerInv` and `NoAssignedMcrConfig` propagate
+through the region (`LedgerInv_stepOrSelf` / `NoAssignedMcrConfig_stepOrSelf`), so the
+ONLY genuine protocol residual remaining is `RectangleResidual` on `Q`. -/
+
+/-- **Stage 4 — the top-split tail discharged to the rectangle residual.**  With
+the Phase-0 balanced start, an absorbing region `Q` carrying `allPhase0`, `card ≥ 2`,
+the proven ledger invariant `LedgerInv`, and the single named R2/R3 mass identity
+`RectangleResidual`, the probability that `TopSplitWindow δ n` fails after `T` steps
+is at most the boundary-free cosh tail `(cosh s)^T / cosh (s·δn)`.
+
+This is the sharpest hypothesis-free-except-`RectangleResidual` discharge of the
+top-split balance: the assigned-balance ledger (Stage 1–1b), the boundary-free
+`sinh` reduction (Stage 3a), and the ledger→sign derivation (Stage 3b) are ALL
+proven 0-`sorry`; only the R2/R3 counting identity is carried, on `Q`. -/
+theorem topSplitWindow_whp_inward
+    {s : ℝ} (hs : 0 ≤ s) {δ : ℝ} {n : ℕ}
+    {c₀ : Config (AgentState L K)} (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c →
+      c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support → Q c')
+    (hQ_phase0 : ∀ c, Q c → Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hQ_card : ∀ c, Q c → 2 ≤ Multiset.card c)
+    (hQ_ledger : ∀ c, Q c → LedgerInv (L := L) (K := K) c)
+    (hQ_rect : ∀ c, Q c → RectangleResidual (L := L) (K := K) c)
+    (hQ0 : Q c₀)
+    (T : ℕ) (hδn : 0 < s * (δ * n)) :
+    ((NonuniformMajority L K).transitionKernel ^ T) c₀
+        {c | ¬ TopSplitWindow (L := L) (K := K) δ n c}
+      ≤ ENNReal.ofReal (Real.cosh s) ^ T
+          / ENNReal.ofReal (Real.cosh (s * (δ * n))) :=
+  topSplitWindow_whp_cosh_clean hs hinit Q hQ_abs hQ_phase0 hQ_card
+    (fun c hcQ => inwardResidual_of_ledger s hs c (hQ_card c hcQ) (hQ_phase0 c hcQ)
+      (hQ_ledger c hcQ) (hQ_rect c hcQ))
+    hQ0 T hδn
 
 end RoleSplitConcentration
 end ExactMajority

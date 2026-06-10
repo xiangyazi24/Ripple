@@ -2976,3 +2976,29 @@ phase-synchronisation condition to neutralise `phaseEpidemicUpdate`.  Fact (ii) 
 verbatim true on `PoolDriftRegion` as currently defined (see Stage-3 reasons a/b); the region
 or `r4FreshCRDrainMass` would need strengthening (e.g. an all-phase-0 / `crCount ≤ Ahi`
 region invariant) for a clean verbatim `hdeath`.
+
+---
+
+## §5.1 InwardResidual discharge — `Probability/TopSplitInward.lean` (2026-06-10)
+
+The `TopSplitDrift.lean` cosh route reduced the top-split tail to one boundary-free residual
+`InwardResidual s c := sinh(sX)·E[sinh(sΔ)] ≤ 0`. `TopSplitInward.lean` discharges it to a single
+named R2/R3 mass identity, with the new assigned-balance ledger + the full reduction proven 0-sorry
+(all 8 headlines axiom-clean ⊆ [propext, Classical.choice, Quot.sound]).
+
+PROVEN (genuinely new): the assigned-balance ledger `freeDiff = 2·X` (`freeW = [main∧¬asg] −
+[CR-side∧¬asg]`), per-pair conserved (`ledgerW_Phase0_pair_conserved`), preserved by stepOrSelf
+(`LedgerInv_stepOrSelf`) and initial (`LedgerInv_init`) — the Lean-faithful `sf+2st=mf+2mt`. Plus the
+boundary-free sinh collapse `InwardResidual ⟸ X·E[ΔX] ≤ 0` (`inwardResidual_of_expectedDeltaX_sign`),
+and `LedgerInv + RectangleResidual ⟹ X·E[ΔX] = −4mcr·X²/tp ≤ 0` (`expectedDeltaX_sign_of_ledger`).
+Tail wired: `topSplitWindow_whp_inward`.
+
+CAVEATS FOUND (honest): (a) the ledger conservation FAILS for `assigned-mcr` inputs — unreachable
+(rules only consume mcr), carried as `NotAssignedMcr`/`NoAssignedMcrConfig` (proven preserved, but
+NOT pinned by the abstract `Phase0Initial`, which fixes only role/phase — carried explicitly).
+
+THE ONE NAMED RESIDUAL = `RectangleResidual c := totalPairs·E[ΔX] = −2·mcrCount·freeDiff`. Genuine
+attack: reduces to the JOINT double-marginal `∑_{s₁,s₂} interactionCount·pairDelta = 2·mcr·(Sf−Mf)`
+(pairDelta ∈ {−1,0,1} is the proven topW-block delta). The repo has only SEPARABLE per-coordinate
+marginal collapse; the joint double-`Multiset.count` rectangle is the precise missing lemma — the
+clean follow-up target. Commits 86f2083e / 666babd4 / 1c7e2fde / e454d342.
