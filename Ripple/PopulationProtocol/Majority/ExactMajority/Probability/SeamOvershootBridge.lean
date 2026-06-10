@@ -438,6 +438,37 @@ theorem Phase0Transition_left_phase_le_succ_of_phase0 (a b : AgentState L K)
   show s5.phase.val ≤ a.phase.val + 1
   omega
 
+/-- Phase 3 left output advances by at most one when the agent is at phase 3 (the only
+phase that dispatches Phase3Transition): Rule 1's `stdCounterSubroutine` on a clock at
+phase 3 advances by at most one; the minute/hour-drag and `phase3CancelSplit`
+pre/post-steps preserve the phase. -/
+theorem Phase3Transition_left_phase_le_succ_of_phase3 (a b : AgentState L K)
+    (h3 : a.phase.val = 3) :
+    (Phase3Transition L K a b).1.phase.val ≤ a.phase.val + 1 := by
+  -- `Phase3Transition.1.phase = s1.phase` (Rule 1); s1 is a minute-drag (phase-preserving)
+  -- or `stdCounterSubroutine` on a clock at phase 3 (≤ +1).
+  set s1 : AgentState L K :=
+    (if a.role = .clock ∧ b.role = .clock then
+      if a.minute ≠ b.minute then { a with minute := max a.minute b.minute }
+      else if _h : a.minute.val < K * (L + 1) then
+        { a with minute := ⟨a.minute.val + 1, by omega⟩ }
+      else stdCounterSubroutine L K a
+    else a) with hs1def
+  have hphaseeq : (Phase3Transition L K a b).1.phase = s1.phase :=
+    (Phase3Transition_left_output_eq_rule1 (L := L) (K := K) a b s1 hs1def).2
+  have hs1 : s1.phase.val ≤ a.phase.val + 1 := by
+    rw [hs1def]
+    split_ifs with hcl hmin hlt
+    · exact le_trans (le_of_eq (show ({ a with minute := max a.minute b.minute }
+        : AgentState L K).phase.val = a.phase.val from rfl)) (Nat.le_succ _)
+    · exact le_trans (le_of_eq (show ({ a with minute := ⟨a.minute.val + 1, by omega⟩ }
+        : AgentState L K).phase.val = a.phase.val from rfl)) (Nat.le_succ _)
+    · exact stdCounterSubroutine_phase_le_succ_of_clock a hcl.1
+        (by rw [h3]; decide) (by rw [h3]; decide) (by rw [h3]; decide)
+    · exact Nat.le_succ _
+  have : (Phase3Transition L K a b).1.phase.val = s1.phase.val := by rw [hphaseeq]
+  omega
+
 /-- Phase 2 left output advances by `≤ +1` (`advancePhaseWithInit` of the
 opinions-updated — hence still well-formed — agent, or an output-only change). -/
 theorem Phase2Transition_left_phase_le_succ_of_wf (a b : AgentState L K)
