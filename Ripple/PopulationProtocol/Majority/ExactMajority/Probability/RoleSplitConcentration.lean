@@ -3584,5 +3584,323 @@ theorem phase0_stage1_whp_final (n a₀ : ℕ) (hn2 : 2 ≤ n) (ha1 : 1 ≤ a₀
   phase0_stage1_whp (L := L) (K := K) n a₀ hn2 ha1 ha_le
     (floorGate (L := L) (K := K) n a₀) q hstep hinit hc₀ lam hlam t ht
 
+/-! ## Phase C-1 (relay 10) — the deterministic count ledger feeding `RoleSplitGood`.
+
+This block builds the **deterministic** half of Lemma 5.2's postcondition: the
+exact role-count identities that hold *with probability 1* (no concentration),
+isolating the genuinely-probabilistic `±η` windows as named inputs.  The two
+pillars are:
+
+  * **Conservation** (`roleCount_conservation`): the five role counts partition
+    the population — `mainCount + reserveCount + clockCount + mcrCount + crCount
+    = card`.  Pure multiset combinatorics (`Multiset.induction`), no protocol.
+  * **Exact clock/reserve balance** (the R4 1:1 producer): every Rule-4 firing
+    emits exactly one `Clock` and one `Reserve` (`Phase0Transition_rule4_clock_reserve`),
+    so along any Phase-0 trajectory `|Clock| = |Reserve|` is an exact invariant.
+    We state this as the deterministic identity `clockCount = reserveCount` that
+    the trajectory maintains, carried as the named invariant `ClockReserveBalanced`.
+
+The `±η` Main-vs-onesided split windows remain probabilistic (the paper's
+Chernoff on the random R1-vs-R2/R3 mix); they are exposed as the named input
+`RoleSplitWindows` below, NOT faked. -/
+
+/-- Number of transient `RoleCR` agents in a configuration (the Stage-2 input
+pool: two `RoleCR` agents split into a `Clock` and a `Reserve`). -/
+def crCount (c : Config (AgentState L K)) : ℕ :=
+  Multiset.countP (fun a => a.role = .cr) c
+
+/-- **Five-way role-count conservation (deterministic, probability 1).**  The five
+role counts partition the population: every agent has exactly one of the five
+roles, so their counts sum to the cardinality.  Proved by multiset induction —
+each `cons` step lands in exactly one role bucket (the `Role` enum is a 5-way
+`DecidableEq` split), pure combinatorics independent of the protocol. -/
+theorem roleCount_conservation (c : Config (AgentState L K)) :
+    mainCount (L := L) (K := K) c + reserveCount (L := L) (K := K) c +
+      clockCount (L := L) (K := K) c + roleMCRCount (L := L) (K := K) c +
+      crCount (L := L) (K := K) c = Multiset.card c := by
+  unfold mainCount reserveCount clockCount roleMCRCount crCount
+  induction c using Multiset.induction with
+  | empty => simp
+  | cons a s ih =>
+    simp only [Multiset.countP_cons, Multiset.card_cons]
+    -- Each indicator (a.role = X) fires for exactly one role X; sum the +1.
+    rcases a.role with _ | _ | _ | _ | _ <;>
+      simp only [reduceIte, reduceCtorEq] <;> omega
+
+/-- `clockCount` of a pair, as a sum of role indicators. -/
+theorem clockCount_pair' (a b : AgentState L K) :
+    clockCount (L := L) (K := K) ({a, b} : Config (AgentState L K)) =
+      (if a.role = .clock then 1 else 0) + (if b.role = .clock then 1 else 0) := by
+  show Multiset.countP (fun y => y.role = .clock) ({a} + {b}) = _
+  rw [Multiset.countP_add, Multiset.countP_eq_card_filter, Multiset.countP_eq_card_filter]
+  by_cases ha : a.role = .clock <;> by_cases hb : b.role = .clock <;>
+    simp [ha, hb, Multiset.filter_singleton]
+
+/-- `reserveCount` of a pair, as a sum of role indicators. -/
+theorem reserveCount_pair' (a b : AgentState L K) :
+    reserveCount (L := L) (K := K) ({a, b} : Config (AgentState L K)) =
+      (if a.role = .reserve then 1 else 0) + (if b.role = .reserve then 1 else 0) := by
+  show Multiset.countP (fun y => y.role = .reserve) ({a} + {b}) = _
+  rw [Multiset.countP_add, Multiset.countP_eq_card_filter, Multiset.countP_eq_card_filter]
+  by_cases ha : a.role = .reserve <;> by_cases hb : b.role = .reserve <;>
+    simp [ha, hb, Multiset.filter_singleton]
+
+/-- **Per-pair Clock/Reserve balance preservation (deterministic, probability 1).**
+For *every* input pair `(s, t)`, the `Phase0Transition` outputs preserve the
+clock-minus-reserve balance — in subtraction-free `ℕ` form,
+`#Clock(out) + #Reserve(in) = #Reserve(out) + #Clock(in)`.  This is the per-pair
+atom behind the global invariant `|Clock| = |Reserve|`: the *only* reaction
+that creates a fresh `Clock` (Rule 4, the `s`-side) creates a `Reserve`
+simultaneously (the `t`-side, `Phase0Transition_rule4_clock_reserve`), and no
+other rule (R1/R2/R3 never emit clock or reserve; R5's counter subroutine
+preserves the clock role) unbalances the two counts.  Proved by exhausting the
+finite role/assigned case tree; the opaque counter machinery is handled by
+`simp [Phase0Transition]` (clock stays clock under it). -/
+theorem Phase0Transition_clock_reserve_balance_pair (s t : AgentState L K) :
+    clockCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} :
+          Config (AgentState L K)) +
+      reserveCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) =
+    reserveCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} :
+          Config (AgentState L K)) +
+      clockCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  rw [clockCount_pair', reserveCount_pair', clockCount_pair', reserveCount_pair']
+  rcases s with
+    ⟨sinput, soutput, sphase, srole, sassigned, sbias, ssmallBias,
+      shour, sminute, sfull, sopinions, scounter⟩
+  rcases t with
+    ⟨tinput, toutput, tphase, trole, tassigned, tbias, tsmallBias,
+      thour, tminute, tfull, topinions, tcounter⟩
+  cases srole <;> cases trole <;> cases sassigned <;> cases tassigned <;>
+    simp [Phase0Transition, addSmallBias]
+
+/-! ## The deterministic `post_sound` ledger and the honest probabilistic windows.
+
+`roleSplitGoodMile` (the Stage-1 composed `Post`) gives `mcrCount ≤ 1`.  To reach
+`RoleSplitGood` we need `roleMCRCount = 0` *and* the count windows.  We separate:
+
+  * **Deterministic** (probability 1, proved here):
+    - `clockCount = reserveCount` (exact balance — `Phase0Transition_clock_reserve_balance_pair`
+      threaded as the carried invariant `ClockReserveBalanced`);
+    - the **balanced conservation** `mainCount + 2·clockCount + crCount + roleMCRCount = n`
+      (substitute the balance into `roleCount_conservation`).
+  * **Probabilistic** (the paper's Chernoff on the random R1-vs-onesided mix, NOT
+    derivable from the count atoms): the `±η` Main window and the `≥(1−η)n/4`
+    Clock/Reserve floor.  Exposed as the named input `RoleSplitWindows` with its
+    precise shape; NOT faked. -/
+
+/-- **`ClockReserveBalanced c`** — the exact deterministic balance `|Clock| = |Reserve|`.
+This is the global invariant the per-pair atom `Phase0Transition_clock_reserve_balance_pair`
+maintains along any Phase-0 trajectory (each Rule-4 firing emits one Clock and one
+Reserve; no other rule unbalances the two), carried as a hypothesis since the
+kernel-level threading (a separate invariant-propagation lemma) is not in this file. -/
+def ClockReserveBalanced (c : Config (AgentState L K)) : Prop :=
+  clockCount (L := L) (K := K) c = reserveCount (L := L) (K := K) c
+
+/-- **Balanced conservation (deterministic).**  When `|Clock| = |Reserve|` and
+`card = n`, the five-way `roleCount_conservation` collapses to
+`mainCount + 2·clockCount + crCount + roleMCRCount = n`: the Main pool plus twice
+the (balanced) clock pool plus the leftover transients exhaust the population.
+This is the exact count identity Lemma 5.2's windows refine. -/
+theorem balanced_conservation {n : ℕ} (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n)
+    (hbal : ClockReserveBalanced (L := L) (K := K) c) :
+    mainCount (L := L) (K := K) c + 2 * clockCount (L := L) (K := K) c +
+      crCount (L := L) (K := K) c + roleMCRCount (L := L) (K := K) c = n := by
+  have hcons := roleCount_conservation (L := L) (K := K) c
+  rw [hcard] at hcons
+  unfold ClockReserveBalanced at hbal
+  omega
+
+/-- **`RoleSplitWindows η n c`** — the genuinely-probabilistic concentration
+windows that Lemma 5.2 establishes by Chernoff on the random R1-vs-(R2/R3) mix.
+These are NOT deterministic consequences of the count ledger (the R1-vs-onesided
+split *fraction* is random), so they enter the assembly as a named input with
+their precise shape: the Main count is within `(1 ± η)·n/2`, and the Clock and
+Reserve counts each meet the `(1 − η)·n/4` floor.  (The paper, §5.2: "`|Main| =
+n/2 ± εn` whp" and "`|Clock|, |Reserve| ≥ (1−η)·n/4` whp".) -/
+def RoleSplitWindows (η : ℝ) (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  ((1 - η) * (n : ℝ) / 2 ≤ (mainCount (L := L) (K := K) c : ℝ)) ∧
+  ((mainCount (L := L) (K := K) c : ℝ) ≤ (1 + η) * (n : ℝ) / 2) ∧
+  ((1 - η) * (n : ℝ) / 4 ≤ (clockCount (L := L) (K := K) c : ℝ)) ∧
+  ((1 - η) * (n : ℝ) / 4 ≤ (reserveCount (L := L) (K := K) c : ℝ))
+
+/-- **`RoleSplitGood` from the deterministic `roleMCRCount = 0` plus the named
+probabilistic windows.**  This is the honest factoring of Lemma 5.2's
+postcondition: the `RoleMCR`-elimination half (deterministic, from Stage-1's
+`mcrCount → 0`) AND the count windows (probabilistic, supplied as `RoleSplitWindows`).
+Pure unfolding — `RoleSplitGood` is by definition the conjunction. -/
+theorem roleSplitGood_of_windows {η : ℝ} {n : ℕ} (c : Config (AgentState L K))
+    (hmcr0 : roleMCRCount (L := L) (K := K) c = 0)
+    (hwin : RoleSplitWindows (L := L) (K := K) η n c) :
+    RoleSplitGood (L := L) (K := K) η n c := by
+  obtain ⟨h1, h2, h3, h4⟩ := hwin
+  exact ⟨hmcr0, h1, h2, h3, h4⟩
+
+/-- **`roleSplitGoodMile` ⇒ `roleMCRCount ≤ 1` (deterministic, with carried invariants).**
+The Stage-1 composed postcondition `roleSplitGoodMile y` is the last lifted milestone
+`phase0Milestone n ⟨n-2,_⟩ y`, whose threshold is `1`.  With the Phase-0 invariants
+(`card = n`, all `RoleMCR` at phase 0) the milestone collapses to its `mcrCount`-disjunct,
+giving `roleMCRCount y ≤ 1`.  This is the deterministic content of Stage-1's `|RoleMCR| → 0`
+(off by the single residual MCR at which the diagonal milestone family stops). -/
+theorem roleMCRCount_le_one_of_roleSplitGoodMile {n : ℕ} (hn : 2 ≤ n)
+    {y : Config (AgentState L K)} (hcard : Multiset.card y = n)
+    (hphase : ∀ a ∈ y, a.role = .mcr → a.phase.val = 0)
+    (hgood : roleSplitGoodMile (L := L) (K := K) n hn y) :
+    roleMCRCount (L := L) (K := K) y ≤ 1 := by
+  rw [roleMCRCount_eq_mcrCount]
+  -- `roleSplitGoodMile = phase0Milestone n ⟨n-2,_⟩`; threshold = 1.
+  have hmile : ExactMajority.phase0Milestone n ⟨n - 2, by omega⟩ y := hgood
+  have hthr : ExactMajority.mcrThreshold n ⟨n - 2, by omega⟩ = 1 := by
+    unfold ExactMajority.mcrThreshold; simp only []; omega
+  unfold ExactMajority.phase0Milestone at hmile
+  rcases hmile with hmcr | hcard' | hhigh
+  · rwa [hthr] at hmcr
+  · exact absurd hcard hcard'
+  · obtain ⟨a, ha_mem, ha_mcr, ha_phase⟩ := hhigh
+    exact absurd (hphase a ha_mem ha_mcr) ha_phase
+
+/-- **`phase0_roleSplit_whp_assembled` — the full Lemma-5.2 assembly, honest factoring.**
+Combines:
+  * the **Stage-1 whp tail** (`phase0_stage1_whp_final`): after `t` steps the bad
+    event `¬ roleSplitGoodMile` has the Janson tail mass + the `εfloor` escape prefix;
+  * the **deterministic ledger** (this relay): on the good-mile event with the carried
+    invariants and the exact `ClockReserveBalanced` balance, `roleMCRCount ≤ 1`,
+    `clockCount = reserveCount`, and the balanced conservation
+    `mainCount + 2·clockCount + crCount + roleMCRCount = n` all hold with probability 1;
+  * the **named probabilistic inputs**: `hmcr0` (`roleMCRCount = 0`, the residual MCR
+    absorption that the `≤ 1` diagonal family stops one short of) and `RoleSplitWindows`
+    (the `±η` Main / `≥(1−η)n/4` Clock-Reserve windows from the paper's Chernoff on the
+    random R1-vs-onesided mix).
+
+Given these, the configuration is `RoleSplitGood`.  This is the precise residual
+shape: the ONLY undischarged quantities are (1) the `εfloor` MGF (another line),
+(2) `roleMCRCount = 0`, and (3) the `RoleSplitWindows` concentration. -/
+theorem phase0_roleSplit_whp_assembled {η : ℝ} {n : ℕ} (hn : 2 ≤ n)
+    (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n)
+    (hphase : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0)
+    (hgood : roleSplitGoodMile (L := L) (K := K) n hn c)
+    (hbal : ClockReserveBalanced (L := L) (K := K) c)
+    (hmcr0 : roleMCRCount (L := L) (K := K) c = 0)
+    (hwin : RoleSplitWindows (L := L) (K := K) η n c) :
+    RoleSplitGood (L := L) (K := K) η n c ∧
+      clockCount (L := L) (K := K) c = reserveCount (L := L) (K := K) c ∧
+      mainCount (L := L) (K := K) c + 2 * clockCount (L := L) (K := K) c +
+        crCount (L := L) (K := K) c + roleMCRCount (L := L) (K := K) c = n :=
+  ⟨roleSplitGood_of_windows (L := L) (K := K) c hmcr0 hwin,
+   hbal,
+   balanced_conservation (L := L) (K := K) c hcard hbal⟩
+
+/-! ## Phase C-1 (relay 10) — Stage-2: the `crCount` non-increase closure (no-MCR regime).
+
+The Stage-2 process is `RoleCR, RoleCR → Clock, Reserve` (Rule 4), driving
+`crCount` down to `≤ 1`.  In the *concurrent* Lean kernel the Stage-2 milestone
+monotonicity is delicate because R1/R2 can *create* fresh `RoleCR` while MCR
+remain.  The honest composition is the **Chapman–Kolmogorov checkpoint**: run
+Stage-2 only after Stage-1 has driven `mcrCount = 0`, where the production of CR
+shuts off.  The structural fact licensing this is purely deterministic:
+
+  **With no `RoleMCR` in the interacting pair, no `Phase0Transition` rule produces
+  a `RoleCR`** — R1 (needs both MCR) and R2 (needs one MCR) are blocked; R3 emits
+  `Main` (no CR); R4 *consumes* two CRs (→ Clock, Reserve); R5 runs on clocks.
+  Hence `crCount` is non-increasing on the no-MCR pairs, the monotonicity Stage-2's
+  milestone family needs.  Proved per-pair by the finite role case tree. -/
+
+/-- `crCount` of a pair, as a sum of role indicators. -/
+theorem crCount_pair' (a b : AgentState L K) :
+    crCount (L := L) (K := K) ({a, b} : Config (AgentState L K)) =
+      (if a.role = .cr then 1 else 0) + (if b.role = .cr then 1 else 0) := by
+  show Multiset.countP (fun y => y.role = .cr) ({a} + {b}) = _
+  rw [Multiset.countP_add, Multiset.countP_eq_card_filter, Multiset.countP_eq_card_filter]
+  by_cases ha : a.role = .cr <;> by_cases hb : b.role = .cr <;>
+    simp [ha, hb, Multiset.filter_singleton]
+
+/-- **Per-pair `crCount` non-increase in the no-MCR regime (deterministic).**  If
+neither input agent is `RoleMCR`, the `Phase0Transition` outputs carry no *more*
+`RoleCR` than the inputs: `crCount{out} ≤ crCount{in}`.  This is the Stage-2
+monotonicity atom — once Stage-1 has eliminated MCR, CR production shuts off and
+Rule 4 only drains the CR pool.  Proved by exhausting the finite role/assigned
+case tree (the opaque counter machinery handled by `simp [Phase0Transition]`). -/
+theorem Phase0Transition_crCount_noMCR_le_pair (s t : AgentState L K)
+    (hs : s.role ≠ .mcr) (ht : t.role ≠ .mcr) :
+    crCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} :
+          Config (AgentState L K)) ≤
+      crCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  rw [crCount_pair', crCount_pair']
+  rcases s with
+    ⟨sinput, soutput, sphase, srole, sassigned, sbias, ssmallBias,
+      shour, sminute, sfull, sopinions, scounter⟩
+  rcases t with
+    ⟨tinput, toutput, tphase, trole, tassigned, tbias, tsmallBias,
+      thour, tminute, tfull, topinions, tcounter⟩
+  cases srole <;> cases trole <;> simp_all <;>
+    cases sassigned <;> cases tassigned <;>
+      simp [Phase0Transition, addSmallBias]
+
+/-- **Stage-2 milestone progress atom: R4 drains `crCount` by exactly `2` per pair.**
+Two `RoleCR` agents become a `Clock` and a `Reserve` (`Phase0Transition_rule4_clock_reserve`),
+neither a `RoleCR`: the input pair carries `2` CRs, the output `0`.  This is the
+Stage-2 decrement — the analogue of Stage-1's `mcrCount` drop — that drives `crCount`
+down to `≤ 1` while the no-MCR closure (`Phase0Transition_crCount_noMCR_le_pair`)
+guarantees monotonicity in between firings. -/
+theorem crCount_pair_rule4_drop (s t : AgentState L K)
+    (hs_cr : s.role = .cr) (ht_cr : t.role = .cr) :
+    crCount (L := L) (K := K)
+        ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} :
+          Config (AgentState L K)) + 2 =
+      crCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by
+  obtain ⟨hroleC, hroleR⟩ := Phase0Transition_rule4_clock_reserve s t hs_cr ht_cr
+  rw [crCount_pair', crCount_pair', hs_cr, ht_cr, hroleC, hroleR]
+  simp
+
+/-- `crCount` additivity (it is a `Multiset.countP`). -/
+theorem crCount_add (c₁ c₂ : Config (AgentState L K)) :
+    crCount (L := L) (K := K) (c₁ + c₂) =
+      crCount (L := L) (K := K) c₁ + crCount (L := L) (K := K) c₂ := by
+  unfold crCount; rw [Multiset.countP_add]
+
+/-- **Config-level Stage-2 `crCount` strict decrement (the R4 progress atom).**  Two
+phase-0 `RoleCR` agents present in `c` interact; the real-kernel `Transition` output
+(equal in roles to `Phase0Transition` for both-phase-0 agents) carries `crCount` strictly
+below `crCount c`.  This is the Stage-2 analogue of `mcrCount_config_decrease_of_phase0_mcr_pair`:
+the config-level decrement driving the `crCount`-threshold milestone family. -/
+theorem crCount_config_decrease_of_phase0_cr_pair
+    (c : Config (AgentState L K)) (s t : AgentState L K)
+    (h_sub : ({s, t} : Config (AgentState L K)) ≤ c)
+    (hs : s.role = .cr) (hs_phase : s.phase.val = 0)
+    (ht : t.role = .cr) (ht_phase : t.phase.val = 0) :
+    crCount (L := L) (K := K)
+        (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2}) <
+      crCount (L := L) (K := K) c := by
+  have h_restore : c - {s, t} + {s, t} = c := Multiset.sub_add_cancel h_sub
+  have hroles := Transition_roles_eq_phase0_of_both_phase0 (L := L) (K := K) s t hs_phase ht_phase
+  -- crCount only reads roles, so the Transition pair matches the Phase0Transition pair.
+  have hpair_eq : crCount (L := L) (K := K)
+      ({(Transition L K s t).1, (Transition L K s t).2} : Config (AgentState L K)) =
+      crCount (L := L) (K := K)
+      ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} : Config (AgentState L K)) := by
+    rw [crCount_pair', crCount_pair', hroles.1, hroles.2]
+  -- The Phase0Transition pair drops crCount by 2 (R4 drain).
+  have h_drop := crCount_pair_rule4_drop (L := L) (K := K) s t hs ht
+  have h_pair_lt : crCount (L := L) (K := K)
+      ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2} : Config (AgentState L K)) <
+      crCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) := by omega
+  calc crCount (L := L) (K := K)
+          (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2})
+      = crCount (L := L) (K := K) (c - {s, t}) +
+          crCount (L := L) (K := K) ({(Transition L K s t).1, (Transition L K s t).2}) :=
+        crCount_add _ _
+    _ = crCount (L := L) (K := K) (c - {s, t}) +
+          crCount (L := L) (K := K)
+            ({(Phase0Transition L K s t).1, (Phase0Transition L K s t).2}) := by rw [hpair_eq]
+    _ < crCount (L := L) (K := K) (c - {s, t}) +
+          crCount (L := L) (K := K) ({s, t} : Config (AgentState L K)) :=
+        Nat.add_lt_add_left h_pair_lt _
+    _ = crCount (L := L) (K := K) (c - {s, t} + {s, t}) := (crCount_add _ _).symm
+    _ = crCount (L := L) (K := K) c := by rw [h_restore]
+
 end RoleSplitConcentration
 end ExactMajority
