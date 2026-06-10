@@ -45,6 +45,7 @@ import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.JansonHittin
 import Ripple.PopulationProtocol.Majority.ExactMajority.Protocol.Transition
 import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase0Convergence
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.GatedKillNow
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.PhaseConvergenceWeak
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 namespace ExactMajority
@@ -3902,6 +3903,180 @@ theorem crCount_config_decrease_of_phase0_cr_pair
     _ = crCount (L := L) (K := K) (c - {s, t} + {s, t}) := (crCount_add _ _).symm
     _ = crCount (L := L) (K := K) c := by rw [h_restore]
 
+/-! ### The Stage-2 `crCount`-diagonal probabilistic rate (clone of the MCR×MCR route).
+
+R4 (`RoleCR, RoleCR → Clock, Reserve`) fires on ANY two phase-0 `RoleCR` agents — no floor pool
+needed (unlike Stage-1's one-sided MCR conversion).  The per-step rate is the pure diagonal
+`crCount·(crCount−1)/(n(n−1))`.  We re-run the rectangle argument over `crF ×ˢ crF` (the analogue
+of `mcrF ×ˢ mcrF`), with no cross-term. -/
+
+/-- The `RoleCR` filter Finset. -/
+private def crF : Finset (AgentState L K) :=
+  Finset.univ.filter (fun s : AgentState L K => s.role = .cr)
+
+/-- `∑_{s ∈ crF} c.count s = crCount c`. -/
+private lemma sum_count_crF (c : Config (AgentState L K)) :
+    ∑ s ∈ crF (L := L) (K := K), c.count s = crCount (L := L) (K := K) c := by
+  set F := crF (L := L) (K := K) with hF
+  set cm := Multiset.filter (fun a : AgentState L K => a.role = .cr) c with hcm
+  have hcount : ∀ s ∈ F, c.count s = Multiset.count s cm := fun s hs => by
+    show Multiset.count s c = Multiset.count s cm
+    have hs_cr : (fun a : AgentState L K => a.role = .cr) s := (Finset.mem_filter.mp hs).2
+    simp only [cm, Multiset.count_filter, hs_cr, ite_true]
+  calc ∑ s ∈ F, c.count s
+      = ∑ s ∈ F, Multiset.count s cm := Finset.sum_congr rfl hcount
+    _ = Multiset.card cm :=
+        Multiset.sum_count_eq_card (s := F) (m := cm)
+          (fun a ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a,
+            (Multiset.mem_filter.mp ha).2⟩)
+    _ = crCount (L := L) (K := K) c := by
+        rw [crCount, hcm, Multiset.countP_eq_card_filter]
+
+/-- For a fixed CR initiator `s₁`, the CR-responder sum is `count s₁ · (crCount c − 1)`. -/
+private lemma sum_interactionCount_crF_right (c : Config (AgentState L K))
+    (s₁ : AgentState L K) (hs₁ : s₁.role = .cr) :
+    ∑ s₂ ∈ crF (L := L) (K := K), c.interactionCount s₁ s₂ =
+      c.count s₁ * (crCount (L := L) (K := K) c - 1) := by
+  set F := crF (L := L) (K := K) with hF
+  by_cases hzero : c.count s₁ = 0
+  · have hall : ∀ s₂ ∈ F, c.interactionCount s₁ s₂ = 0 := fun s₂ _ => by
+      unfold Config.interactionCount Config.count
+      unfold Config.count at hzero
+      split_ifs with h
+      · subst h; simp [hzero]
+      · simp [hzero]
+    rw [Finset.sum_eq_zero hall]; simp [hzero]
+  · have hfactor : ∀ s₂ ∈ F, c.interactionCount s₁ s₂ =
+        c.count s₁ * if s₁ = s₂ then c.count s₁ - 1 else c.count s₂ := by
+      intro s₂ _; unfold Config.interactionCount
+      by_cases h : s₁ = s₂ <;> simp [h]
+    rw [Finset.sum_congr rfl hfactor, ← Finset.mul_sum]; congr 1
+    have hs₁F : s₁ ∈ F := Finset.mem_filter.mpr ⟨Finset.mem_univ s₁, hs₁⟩
+    set f : AgentState L K → ℕ :=
+      fun s₂ => if s₁ = s₂ then c.count s₁ - 1 else c.count s₂ with hfdef
+    have hf_s₁ : f s₁ = c.count s₁ - 1 := if_pos rfl
+    have hf_ne : ∀ s₂ ∈ F.erase s₁, f s₂ = c.count s₂ :=
+      fun s₂ hs₂ => if_neg (Finset.ne_of_mem_erase hs₂).symm
+    calc ∑ s₂ ∈ F, f s₂
+        = f s₁ + ∑ s₂ ∈ F.erase s₁, f s₂ := (Finset.add_sum_erase F f hs₁F).symm
+      _ = (c.count s₁ - 1) + ∑ s₂ ∈ F.erase s₁, c.count s₂ := by
+          rw [hf_s₁, Finset.sum_congr rfl hf_ne]
+      _ = crCount (L := L) (K := K) c - 1 := by
+          have hse : c.count s₁ + ∑ s₂ ∈ F.erase s₁, c.count s₂ =
+              crCount (L := L) (K := K) c := by
+            rw [Finset.add_sum_erase F (fun s => c.count s) hs₁F]
+            exact sum_count_crF c
+          have hcount_pos : 0 < c.count s₁ := Nat.pos_of_ne_zero hzero
+          omega
+
+/-- The CR×CR rectangle sum `= crCount·(crCount−1)`. -/
+private lemma sum_interactionCount_cr_cr (c : Config (AgentState L K)) :
+    ∑ s₁ ∈ crF (L := L) (K := K), ∑ s₂ ∈ crF (L := L) (K := K),
+        c.interactionCount s₁ s₂ =
+      crCount (L := L) (K := K) c * (crCount (L := L) (K := K) c - 1) := by
+  have hstep : ∀ s₁ ∈ crF (L := L) (K := K),
+      ∑ s₂ ∈ crF (L := L) (K := K), c.interactionCount s₁ s₂ =
+        c.count s₁ * (crCount (L := L) (K := K) c - 1) := fun s₁ hs₁ =>
+    sum_interactionCount_crF_right c s₁ (Finset.mem_filter.mp hs₁).2
+  rw [Finset.sum_congr rfl hstep, ← Finset.sum_mul, sum_count_crF]
+
+/-- **CR×CR interactionPMF mass bound.**  The PMF mass of the good set "`p.1` and `p.2` are both
+phase-0 `RoleCR` and `(p.1,p.2)` is applicable" is at least `crCount·(crCount−1)/(card(card−1))`. -/
+private lemma interactionPMF_toMeasure_cr_cr_ge
+    (c : Config (AgentState L K)) (hc : 2 ≤ c.card)
+    (h_phase0 : ∀ a ∈ c, a.role = .cr → a.phase.val = 0) :
+    (c.interactionPMF hc).toMeasure
+      {p : AgentState L K × AgentState L K |
+        p.1.role = .cr ∧ p.1.phase.val = 0 ∧ p.2.role = .cr ∧ p.2.phase.val = 0 ∧
+        Protocol.Applicable c p.1 p.2} ≥
+    ENNReal.ofReal
+      (((crCount (L := L) (K := K) c * (crCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+        (c.card * (c.card - 1) : ℝ)) := by
+  set target := {p : AgentState L K × AgentState L K |
+    p.1.role = .cr ∧ p.1.phase.val = 0 ∧ p.2.role = .cr ∧ p.2.phase.val = 0 ∧
+    Protocol.Applicable c p.1 p.2}
+  set F := crF (L := L) (K := K) with hFdef
+  have h_sub : (↑(F ×ˢ F) : Set _) ∩ (c.interactionPMF hc).support ⊆ target := by
+    intro ⟨s₁, s₂⟩ ⟨h_mem, h_supp⟩
+    have hs₁_cr : s₁.role = .cr := (Finset.mem_filter.mp (Finset.mem_product.mp h_mem).1).2
+    have hs₂_cr : s₂.role = .cr := (Finset.mem_filter.mp (Finset.mem_product.mp h_mem).2).2
+    rw [PMF.mem_support_iff] at h_supp
+    have h_app : Protocol.Applicable c s₁ s₂ := by
+      apply applicable_of_pos_iCount'
+      by_contra h0; exact h_supp (show c.interactionProb s₁ s₂ = 0 by
+        simp [Config.interactionProb, show c.interactionCount s₁ s₂ = 0 by omega])
+    exact ⟨hs₁_cr,
+      h_phase0 s₁ (Multiset.mem_of_le h_app (Multiset.mem_cons_self _ _)) hs₁_cr,
+      hs₂_cr,
+      h_phase0 s₂ (Multiset.mem_of_le h_app
+        (Multiset.mem_cons.mpr (Or.inr (Multiset.mem_singleton_self _)))) hs₂_cr,
+      h_app⟩
+  have h_le := (c.interactionPMF hc).toMeasure_mono
+    (DiscreteMeasurableSpace.forall_measurableSet _) h_sub
+  suffices h_val : (c.interactionPMF hc).toMeasure (↑(F ×ˢ F)) ≥
+      ENNReal.ofReal
+        (((crCount (L := L) (K := K) c * (crCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+          (c.card * (c.card - 1) : ℝ)) from le_trans h_val h_le
+  rw [PMF.toMeasure_apply_finset]
+  simp_rw [show ∀ p : AgentState L K × AgentState L K,
+    (c.interactionPMF hc) p = (c.interactionCount p.1 p.2 : ENNReal) / c.totalPairs
+    from fun _ => rfl, div_eq_mul_inv, ← Finset.sum_mul]
+  conv_lhs => arg 1; rw [Finset.sum_product' F F
+    (fun s₁ s₂ => (c.interactionCount s₁ s₂ : ENNReal))]
+  have h_comb := sum_interactionCount_cr_cr (L := L) (K := K) c
+  set MM := crCount (L := L) (K := K) c * (crCount (L := L) (K := K) c - 1) with hMM
+  rw [show (∑ s₁ ∈ F, ∑ s₂ ∈ F, (c.interactionCount s₁ s₂ : ENNReal)) =
+      ((MM : ℕ) : ENNReal) from by exact_mod_cast h_comb, ← div_eq_mul_inv]
+  have h1 : 1 ≤ c.card := by omega
+  have hprod_pos : (0 : ℝ) < ↑c.card * (↑c.card - 1) := by
+    apply mul_pos
+    · exact Nat.cast_pos.mpr (by omega)
+    · exact sub_pos.mpr (by exact_mod_cast (show 1 < c.card by omega))
+  show ↑MM / ↑c.totalPairs ≥
+    ENNReal.ofReal (((MM : ℕ) : ℝ) / (↑c.card * (↑c.card - 1)))
+  have hcard_cast : ↑c.card * (↑c.card - 1 : ℝ) = ((c.card * (c.card - 1) : ℕ) : ℝ) := by
+    push_cast [Nat.cast_sub h1]; ring
+  rw [ENNReal.ofReal_div_of_pos hprod_pos, hcard_cast,
+    ENNReal.ofReal_natCast, ENNReal.ofReal_natCast,
+    show (c.card * (c.card - 1) : ℕ) = c.totalPairs from rfl]
+
+/-- **Stage-2 `crCount`-decrease probability (the diagonal R4 rate).**  On a config `c` with
+`card = n` and all `RoleCR` at phase 0, the scheduled step drops `crCount` with mass at least
+`crCount·(crCount−1)/(n(n−1))` — the pure diagonal rate (no floor, no cross-term).  This is the
+Stage-2 analogue of `phase0_mcrCount_decrease_prob_combined`, the `progress`-rate input for the
+Stage-2 `KernelMilestone`. -/
+theorem phase0_crCount_decrease_prob
+    (c : Config (AgentState L K)) (n : ℕ)
+    (h_card : c.card = n) (hn2 : 2 ≤ n)
+    (h_phase0 : ∀ a ∈ c, a.role = .cr → a.phase.val = 0) :
+    ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | crCount (L := L) (K := K) c' < crCount (L := L) (K := K) c} ≥
+      ENNReal.ofReal
+        (((crCount (L := L) (K := K) c * (crCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+          (n * (n - 1) : ℝ)) := by
+  have hc2 : 2 ≤ c.card := by omega
+  set good : Set (AgentState L K × AgentState L K) :=
+    {p | p.1.role = .cr ∧ p.1.phase.val = 0 ∧ p.2.role = .cr ∧ p.2.phase.val = 0 ∧
+         Protocol.Applicable c p.1 p.2} with hgooddef
+  have hgood : ∀ pair ∈ good, (NonuniformMajority L K).scheduledStep c pair ∈
+      {c' | crCount (L := L) (K := K) c' < crCount (L := L) (K := K) c} := by
+    intro ⟨s, t⟩ ⟨hs_cr, hs_phase, ht_cr, ht_phase, happ⟩
+    simp only [Set.mem_setOf_eq]
+    unfold Protocol.scheduledStep Protocol.stepOrSelf
+    rw [if_pos happ]
+    exact crCount_config_decrease_of_phase0_cr_pair c s t happ hs_cr hs_phase ht_cr ht_phase
+  calc ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+          {c' | crCount (L := L) (K := K) c' < crCount (L := L) (K := K) c}
+      ≥ (c.interactionPMF hc2).toMeasure good :=
+        stepDistOrSelf_toMeasure_ge c hc2 _ good hgood
+    _ ≥ ENNReal.ofReal
+          (((crCount (L := L) (K := K) c * (crCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+            (c.card * (c.card - 1) : ℝ)) :=
+        interactionPMF_toMeasure_cr_cr_ge c hc2 h_phase0
+    _ = ENNReal.ofReal
+          (((crCount (L := L) (K := K) c * (crCount (L := L) (K := K) c - 1) : ℕ) : ℝ) /
+            (n * (n - 1) : ℝ)) := by rw [h_card]
+
 /-! ## Phase C-1 (relay 11) — Stage-2 gate, escape-zero, milestone instance, and composition.
 
 The Stage-2 `KernelMilestone` runs on the gate `noMCRShell n = {card = n ∧ roleMCRCount = 0}`,
@@ -3938,6 +4113,156 @@ theorem Phase0Transition_roleMCRCount_noMCR_pair (s t : AgentState L K)
   rw [roleMCRCount_pair']
   rw [if_neg (Phase0Transition_first_no_mcr (L := L) (K := K) s t hs),
       if_neg (Phase0Transition_second_no_mcr (L := L) (K := K) s t ht)]
+
+/-- **Per-pair no-MCR closure for the FULL real kernel `Transition` (deterministic).**  If
+neither input agent is `RoleMCR`, neither `Transition` output is — the only MCR-producers are
+R1/R2, both of which require an MCR input.  Uses the protocol-wide `Transition_first/second_no_mcr`
+(every phase's dispatch preserves non-MCR), so NO phase restriction is needed: this is what makes
+the Stage-2 gate `{roleMCRCount = 0}` genuinely absorbing for the actual chain. -/
+theorem Transition_roleMCRCount_noMCR_pair (s t : AgentState L K)
+    (hs : s.role ≠ .mcr) (ht : t.role ≠ .mcr) :
+    roleMCRCount (L := L) (K := K)
+        ({(Transition L K s t).1, (Transition L K s t).2} :
+          Config (AgentState L K)) = 0 := by
+  rw [roleMCRCount_pair']
+  rw [if_neg (Transition_first_no_mcr (L := L) (K := K) s t hs),
+      if_neg (Transition_second_no_mcr (L := L) (K := K) s t ht)]
+
+/-- A member of a no-MCR config is non-MCR. -/
+theorem not_mcr_of_mem_noMCR {c : Config (AgentState L K)}
+    (hmcr0 : roleMCRCount (L := L) (K := K) c = 0) {a : AgentState L K} (ha : a ∈ c) :
+    a.role ≠ .mcr := by
+  unfold roleMCRCount at hmcr0
+  exact (Multiset.countP_eq_zero.mp hmcr0) a ha
+
+/-- **Config-level no-MCR preservation (the absorbing-gate engine).**  If `c` has no `RoleMCR`
+and a pair `{s,t} ≤ c` interacts, the real-kernel successor
+`c − {s,t} + {Transition.1, Transition.2}` still has no `RoleMCR`.  Combining the per-pair
+closure (`Transition_roleMCRCount_noMCR_pair`, both inputs non-MCR since `roleMCRCount c = 0`)
+with `roleMCRCount` additivity and the `c − {s,t} ≤ c` sub-bound: the leftover `c − {s,t}` has no
+MCR (submultiset of a no-MCR config) and the output pair has no MCR. -/
+theorem roleMCRCount_config_zero_of_noMCR
+    (c : Config (AgentState L K)) (s t : AgentState L K)
+    (h_sub : ({s, t} : Config (AgentState L K)) ≤ c)
+    (hmcr0 : roleMCRCount (L := L) (K := K) c = 0) :
+    roleMCRCount (L := L) (K := K)
+        (c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2}) = 0 := by
+  have hs_mem : s ∈ c := Multiset.mem_of_le h_sub (by simp)
+  have ht_mem : t ∈ c := Multiset.mem_of_le h_sub (by simp)
+  have hs : s.role ≠ .mcr := not_mcr_of_mem_noMCR (L := L) (K := K) hmcr0 hs_mem
+  have ht : t.role ≠ .mcr := not_mcr_of_mem_noMCR (L := L) (K := K) hmcr0 ht_mem
+  rw [roleMCRCount_add, Transition_roleMCRCount_noMCR_pair (L := L) (K := K) s t hs ht,
+    add_zero]
+  -- leftover c - {s,t} is a submultiset of the no-MCR config c, hence no MCR.
+  have hle : roleMCRCount (L := L) (K := K) (c - {s, t}) ≤
+      roleMCRCount (L := L) (K := K) c := by
+    unfold roleMCRCount
+    exact Multiset.countP_le_of_le _ (Multiset.sub_le_self _ _)
+  omega
+
+/-- **Single-step no-MCR preservation under `StepRel` (the actual chain relation).**  A
+`StepRel`-successor of a no-MCR config has no MCR.  `StepRel c c'` exhibits the applicable pair
+`{r₁,r₂} ≤ c` with `c' = c − {r₁,r₂} + {NonuniformMajority.δ r₁ r₂}`, and `δ = Transition`, so
+this is exactly `roleMCRCount_config_zero_of_noMCR`. -/
+theorem roleMCRCount_zero_of_stepRel
+    {c c' : Config (AgentState L K)}
+    (hstep : (NonuniformMajority L K).StepRel c c')
+    (hmcr0 : roleMCRCount (L := L) (K := K) c = 0) :
+    roleMCRCount (L := L) (K := K) c' = 0 := by
+  obtain ⟨r₁, r₂, happ, hc'⟩ := hstep
+  -- δ = Transition; unfold the StepRel successor shape.
+  have hc'' : c' = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := hc'
+  rw [hc'']
+  exact roleMCRCount_config_zero_of_noMCR (L := L) (K := K) c r₁ r₂ happ hmcr0
+
+/-- **No-MCR preservation under `Reachable` (reflexive-transitive closure).**  Threading the
+single-step preservation through `Relation.ReflTransGen`: any configuration reachable from a
+no-MCR config has no MCR. -/
+theorem roleMCRCount_zero_of_reachable
+    {c c' : Config (AgentState L K)}
+    (hreach : (NonuniformMajority L K).Reachable c c')
+    (hmcr0 : roleMCRCount (L := L) (K := K) c = 0) :
+    roleMCRCount (L := L) (K := K) c' = 0 := by
+  induction hreach with
+  | refl => exact hmcr0
+  | tail _ hstep ih => exact roleMCRCount_zero_of_stepRel (L := L) (K := K) hstep ih
+
+/-- **The Stage-2 gate `noMCRShell n`** — configurations with `card = n` and `roleMCRCount = 0`.
+This is the gate the Stage-2 `KernelMilestone` runs on; unlike Stage-1's `floorGate`, it is
+genuinely **absorbing** under the real kernel (no rule produces MCR; `Transition` preserves
+`card`), so the killed-kernel floor-escape mass is identically `0`. -/
+def noMCRShell (n : ℕ) : Set (Config (AgentState L K)) :=
+  {c | Multiset.card c = n ∧ roleMCRCount (L := L) (K := K) c = 0}
+
+theorem noMCRShell_card {n : ℕ} {c : Config (AgentState L K)}
+    (hc : c ∈ noMCRShell (L := L) (K := K) n) : Multiset.card c = n := hc.1
+
+theorem noMCRShell_mcr0 {n : ℕ} {c : Config (AgentState L K)}
+    (hc : c ∈ noMCRShell (L := L) (K := K) n) :
+    roleMCRCount (L := L) (K := K) c = 0 := hc.2
+
+/-- **`noMCRShell` is preserved along the `stepDistOrSelf` support.**  Each support point is
+reachable in one step (`stepDistOrSelf_support_reachable`), so `card` is preserved
+(`reachable_card_eq`) and `roleMCRCount = 0` is preserved (`roleMCRCount_zero_of_reachable`). -/
+theorem noMCRShell_support_preserved {n : ℕ}
+    (c c' : Config (AgentState L K))
+    (hc : c ∈ noMCRShell (L := L) (K := K) n)
+    (hsupp : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    c' ∈ noMCRShell (L := L) (K := K) n := by
+  have hreach := Protocol.stepDistOrSelf_support_reachable (NonuniformMajority L K) c c' hsupp
+  refine ⟨?_, ?_⟩
+  · have := Protocol.reachable_card_eq hreach
+    rw [show Multiset.card c' = c'.card from rfl, this,
+      show c.card = Multiset.card c from rfl]; exact hc.1
+  · exact roleMCRCount_zero_of_reachable (L := L) (K := K) hreach hc.2
+
+/-- **`noMCRShell` is closed under the real kernel: `(K^t) c₀ (noMCRShellᶜ) = 0`.**  The
+support-preservation invariant feeds the generic Markov-chain almost-sure closure
+(`transitionKernel_pow_not_pred_eq_zero_of_stepDistOrSelf_support_preserved`): from a no-MCR
+config the chain never leaves the gate. -/
+theorem noMCRShell_pow_compl_eq_zero {n : ℕ}
+    (c₀ : Config (AgentState L K)) (hc₀ : c₀ ∈ noMCRShell (L := L) (K := K) n) (t : ℕ) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+      (noMCRShell (L := L) (K := K) n)ᶜ = 0 := by
+  have h := Protocol.transitionKernel_pow_not_pred_eq_zero_of_stepDistOrSelf_support_preserved
+    (NonuniformMajority L K) (fun c => c ∈ noMCRShell (L := L) (K := K) n)
+    (fun c c' hQ hsupp => noMCRShell_support_preserved (L := L) (K := K) (n := n) c c' hQ hsupp)
+    c₀ hc₀ t
+  -- `{c' | ¬ (c' ∈ G)} = Gᶜ` definitionally.
+  exact h
+
+/-- **The Stage-2 escape mass is identically `0` (the gate is absorbing).**  For the
+immediate-kill kernel on the absorbing gate `noMCRShell n`, starting from an in-gate
+`c₀`, the cemetery mass `(killK_now K G ^ M)(some c₀){none}` is `0` at every step `M`:
+plugging `S := noMCRShell n` and `q := 0` into `kill_now_escape_le_prefix_union`, the
+per-step escape bound `K x Gᶜ ≤ 0` holds (the gate is one-step closed,
+`noMCRShell_pow_compl_eq_zero` at `t = 1`) and the residual prefix `∑_{τ<M} (K^τ) c₀ Gᶜ`
+vanishes term-by-term (gate closed at every `τ`).  This is why Stage-2 needs **no**
+floor MGF (`εfloor`): the escape Doty's Stage-1 pays for is structurally absent once
+`mcrCount = 0`. -/
+theorem noMCRShell_killedEscape_eq_zero {n : ℕ}
+    (c₀ : Config (AgentState L K)) (hc₀ : c₀ ∈ noMCRShell (L := L) (K := K) n) (M : ℕ) :
+    (GatedDrift.killK_now (NonuniformMajority L K).transitionKernel
+        (noMCRShell (L := L) (K := K) n) ^ M) (some c₀) {(none : Option (Config (AgentState L K)))}
+      = 0 := by
+  -- Upper bound via the escape-prefix lemma with q = 0 and S = the gate itself.
+  have hstep : ∀ x ∈ noMCRShell (L := L) (K := K) n, x ∈ noMCRShell (L := L) (K := K) n →
+      (NonuniformMajority L K).transitionKernel x
+        (noMCRShell (L := L) (K := K) n)ᶜ ≤ (0 : ℝ≥0∞) := by
+    intro x hx _
+    rw [show (NonuniformMajority L K).transitionKernel x = (((NonuniformMajority L K).transitionKernel ^ 1) x)
+        from by rw [pow_one]]
+    rw [noMCRShell_pow_compl_eq_zero (L := L) (K := K) x hx 1]
+  have hbound := GatedDrift.kill_now_escape_le_prefix_union
+    (K := (NonuniformMajority L K).transitionKernel) (G := noMCRShell (L := L) (K := K) n)
+    (noMCRShell (L := L) (K := K) n) (0 : ℝ≥0∞) hstep M c₀ hc₀
+  -- the bound RHS = 0·0 + ∑_{τ<M} (K^τ) c₀ Gᶜ = 0.
+  refine le_antisymm ?_ (zero_le')
+  refine le_trans hbound ?_
+  rw [mul_zero, zero_add]
+  refine le_of_eq ?_
+  refine Finset.sum_eq_zero (fun τ _ => ?_)
+  exact noMCRShell_pow_compl_eq_zero (L := L) (K := K) c₀ hc₀ τ
 
 end RoleSplitConcentration
 end ExactMajority
