@@ -439,12 +439,13 @@ theorem coshExpVal_drift_real (s : ℝ) (hs : 0 ≤ s)
     rw [tsum_eq_sum (s := Finset.univ)
         (by intro x hx; exact absurd (Finset.mem_univ x) hx)] at this
     convert this using 1
-  have htp0 : (c.totalPairs : ℝ≥0∞) ≠ 0 := by
-    have : 0 < c.totalPairs := by
-      unfold Config.totalPairs; have : 2 ≤ c.card := hc2
-      have : 1 ≤ c.card - 1 := by omega
-      positivity
-    exact_mod_cast Nat.pos_iff.mp this |>.symm ▸ (by exact_mod_cast (by omega : c.totalPairs ≠ 0))
+  have htpne : c.totalPairs ≠ 0 := by
+    unfold Config.totalPairs
+    have h2 : 2 ≤ c.card := hc2
+    have : c.card * (c.card - 1) ≠ 0 := by
+      apply Nat.mul_ne_zero <;> omega
+    exact this
+  have htp0 : (c.totalPairs : ℝ≥0∞) ≠ 0 := by exact_mod_cast htpne
   have hfin : ∀ pair ∈ (Finset.univ : Finset (AgentState L K × AgentState L K)),
       Config.interactionProb c pair.1 pair.2 ≠ ⊤ := by
     intro pair _
