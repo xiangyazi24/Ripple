@@ -5707,6 +5707,79 @@ theorem goodFrontWidth_whp (n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (θ : ℝ) (hθn 
   refine le_trans (measure_union_le _ _) ?_
   exact add_le_add hwfp hclimb
 
+/-! ## Part 42 — the `ClimbBound`-whp union (item 5, ClimbBound side): the climb-failure mass via
+`ClimbTail.climb_real_tail`.
+
+`ClimbBound θ W₂ c` fails iff some level `k` is sub-floor (`frac k < θ`) yet carries a clock `W₂`
+above (`0 < rBeyond(k+W₂)`).  A clock that far above forces `k ≤ capMinute`
+(`climbN_ge_of_beyond_pos`), so the failure event is a finite union over `k ≤ capMinute` of exactly
+`climb_real_tail`'s bad event (at `card = n`, `frac k < θ ↔ rBeyond k < θn` for `θ = θn/n`).  Each
+term is the gated climb tail; the union is bounded by the per-level sum. -/
+
+open ClockFrontProfile in
+/-- **The `ClimbBound`-failure deterministic cover.**  On a full-population config (`card = n`) with
+`θ = θn/n`, if `ClimbBound θ W₂` fails then some `k ≤ capMinute` witnesses the climb bad event
+`rBeyond k < θn ∧ 0 < rBeyond(k+W₂)`. -/
+theorem climbBound_bad_subset (n θn W₂ : ℕ) (hn : 0 < n) (hW₂ : 2 ≤ W₂) (θ : ℝ)
+    (hθ : θ = (θn : ℝ) / (n : ℝ)) (c : Config (AgentState L K)) (hcard : c.card = n)
+    (hbad : ¬ ClimbBound (L := L) (K := K) θ W₂ c) :
+    ∃ k ∈ Finset.range (ClockFrontShape.capMinute (L := L) (K := K) + 1),
+      rBeyond (L := L) (K := K) k c < θn ∧ 0 < rBeyond (L := L) (K := K) (k + W₂) c := by
+  classical
+  have hnℝ : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  unfold ClimbBound at hbad
+  push Not at hbad
+  obtain ⟨k, hfrac, hbeyond⟩ := hbad
+  have hbeyond' : 0 < rBeyond (L := L) (K := K) (k + W₂) c := Nat.pos_of_ne_zero hbeyond
+  -- frac k < θ ⟹ rBeyond k < θn (at card = n, θ = θn/n).
+  have hrk : rBeyond (L := L) (K := K) k c < θn := by
+    unfold ClockFrontProfile.frac at hfrac
+    rw [hθ, hcard, div_lt_div_iff_of_pos_right hnℝ] at hfrac
+    exact_mod_cast hfrac
+  -- the clock W₂ above forces k + W₂ ≤ capMinute, hence k ≤ capMinute.
+  have hkcap : k ≤ ClockFrontShape.capMinute (L := L) (K := K) := by
+    by_contra hc
+    push Not at hc
+    rw [ClimbTail.rBeyond_eq_zero_of_cap_lt (L := L) (K := K) (k + W₂) (by omega) c] at hbeyond'
+    omega
+  exact ⟨k, Finset.mem_range.mpr (by omega), hrk, hbeyond'⟩
+
+open ClockFrontProfile in
+/-- **STEP 5 (ClimbBound side) — the `ClimbBound`-failure mass via the gated climb tail.**  On the
+real kernel, the probability that the end config is a full-population all-phase-3 config yet FAILS
+`ClimbBound θ W₂` (`θ = θn/n`) is at most the sum over levels `k ≤ capMinute` of
+`ClimbTail.climb_real_tail`'s gated-tail bound (escape + the contraction tail).  This is the precise
+`climbB` input of `goodFrontWidth_whp` — completing item 5. -/
+theorem climbBound_whp (n θn W₂ : ℕ) (hn : 0 < n) (hW₂ : 2 ≤ W₂) (θ : ℝ)
+    (hθ : θ = (θn : ℝ) / (n : ℝ)) (B' : ℕ) (s : ℝ) (hs : 0 ≤ s) (t : ℕ)
+    (c₀ : Config (AgentState L K)) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+          ∧ ¬ ClimbBound (L := L) (K := K) θ W₂ c}
+      ≤ ∑ k ∈ Finset.range (ClockFrontShape.capMinute (L := L) (K := K) + 1),
+          ((GatedDrift.killK ((NonuniformMajority L K).transitionKernel)
+              (ClimbTail.climbGate (L := L) (K := K) n k B' θn) ^ t) (some c₀) {none} +
+            (ENNReal.ofReal (1 + ((B' : ℝ) / (n : ℝ)) ^ 2 * (Real.exp s - 1))) ^ t *
+              ClimbTail.climbPot (L := L) (K := K) k θn s c₀ /
+              ENNReal.ofReal (Real.exp (s * ((W₂ : ℝ) - 1)))) := by
+  classical
+  have hsub : {c : Config (AgentState L K) |
+      (c.card = n ∧ AllClockP3 (L := L) (K := K) c)
+        ∧ ¬ ClimbBound (L := L) (K := K) θ W₂ c}
+      ⊆ ⋃ k ∈ Finset.range (ClockFrontShape.capMinute (L := L) (K := K) + 1),
+          {c | rBeyond (L := L) (K := K) k c < θn ∧
+            0 < rBeyond (L := L) (K := K) (k + W₂) c} := by
+    intro c hc
+    obtain ⟨⟨hcard, _hP3⟩, hbad⟩ := hc
+    obtain ⟨k, hk, hev⟩ := climbBound_bad_subset (L := L) (K := K) n θn W₂ hn hW₂ θ hθ c hcard hbad
+    rw [Set.mem_iUnion₂]
+    exact ⟨k, hk, hev⟩
+  refine le_trans (measure_mono hsub) ?_
+  refine le_trans (measure_biUnion_finset_le _ _) ?_
+  apply Finset.sum_le_sum
+  intro k _
+  exact ClimbTail.climb_real_tail (L := L) (K := K) n k B' θn W₂ hW₂ s hs t c₀
+
 end EarlyDripMarked
 
 end ExactMajority
