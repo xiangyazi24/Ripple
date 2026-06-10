@@ -1459,6 +1459,358 @@ theorem wrongACount_drop_prob (c : Config (AgentState L K))
       _ ≤ activeACount c * wrongACount c := Nat.mul_le_mul_right _ hA
   exact_mod_cast this
 
+/-! ## Per-pair potential monotonicity (Brick: `PotNonincrOn`)
+
+For the three-stage invariant chain we need, on a both-phase-10 interacting pair,
+that each stage potential never strictly increases.  We prove the per-pair
+`countP`-bound directly by exhaustive case analysis on the two outputs and the two
+`full` flags (the same brute-force pattern as the public `Phase10Transition_*`
+output lemmas), then lift to the kernel via the support template
+(`phaseBelowCount_step_le`-style: peel a pair, `countP` additivity, restore). -/
+
+section PairMonotone
+
+/-- `countP P {x, y} = (if P x then 1 else 0) + (if P y then 1 else 0)`, the
+2-element evaluation we use throughout. -/
+private theorem countP_pair {α : Type*} (P : α → Prop) [DecidablePred P] (x y : α) :
+    Multiset.countP P ({x, y} : Multiset α)
+      = (if P x then 1 else 0) + (if P y then 1 else 0) := by
+  change Multiset.countP P (x ::ₘ ({y} : Multiset α)) = _
+  rw [Multiset.countP_cons]
+  have hy1 : Multiset.countP P ({y} : Multiset α) = if P y then 1 else 0 := by
+    change Multiset.countP P (y ::ₘ (0 : Multiset α)) = _
+    rw [Multiset.countP_cons]
+    by_cases hy : P y <;> simp [hy]
+  rw [hy1]
+  by_cases hx : P x <;> simp [hx, Nat.add_comm]
+
+/-- **Per-pair `activeBCount` non-increase** on a both-phase-10 pair: the cancel
+reaction can only lower the number of active-`B` sources on the interacting pair;
+the active→passive "spread" of Block 2 keeps the converted partner passive
+(`full := false`), so it never creates a new active-`B`. -/
+theorem Transition_activeBCount_le (a b : AgentState L K)
+    (ha : a.phase.val = 10) (hb : b.phase.val = 10) :
+    Multiset.countP IsActiveB
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K))
+      ≤ Multiset.countP IsActiveB ({a, b} : Multiset (AgentState L K)) := by
+  rw [Transition_eq_Phase10Transition_of_phase10 (L := L) (K := K) a b ha hb]
+  rw [countP_pair, countP_pair]
+  rcases a with
+    ⟨ainput, aoutput, aphase, arole, aassigned, abias, asmallBias,
+      ahour, aminute, afull, aopinions, acounter⟩
+  rcases b with
+    ⟨binput, boutput, bphase, brole, bassigned, bbias, bsmallBias,
+      bhour, bminute, bfull, bopinions, bcounter⟩
+  cases aoutput <;> cases boutput <;> cases afull <;> cases bfull <;>
+    simp [Phase10Transition, IsActiveB]
+
+/-- **Per-pair `activeTCount` non-increase** on a both-phase-10 pair with **no
+active-`B`** member.  Active-`T` is only created by the cancel reaction (which
+needs an active-`A` against an active-`B`); with no active-`B` present in the pair,
+cancel cannot fire, and the active→passive spread keeps the partner passive, so the
+number of active-`T` sources cannot rise. -/
+theorem Transition_activeTCount_le (a b : AgentState L K)
+    (ha : a.phase.val = 10) (hb : b.phase.val = 10)
+    (hnB_a : ¬ IsActiveB a) (hnB_b : ¬ IsActiveB b) :
+    Multiset.countP IsActiveT
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K))
+      ≤ Multiset.countP IsActiveT ({a, b} : Multiset (AgentState L K)) := by
+  rw [Transition_eq_Phase10Transition_of_phase10 (L := L) (K := K) a b ha hb]
+  rw [countP_pair, countP_pair]
+  rcases a with
+    ⟨ainput, aoutput, aphase, arole, aassigned, abias, asmallBias,
+      ahour, aminute, afull, aopinions, acounter⟩
+  rcases b with
+    ⟨binput, boutput, bphase, brole, bassigned, bbias, bsmallBias,
+      bhour, bminute, bfull, bopinions, bcounter⟩
+  cases aoutput <;> cases boutput <;> cases afull <;> cases bfull <;>
+    simp_all [Phase10Transition, IsActiveB, IsActiveT]
+
+/-- **Per-pair `wrongACount` non-increase** on a both-phase-10 pair with **no
+active-`B`** and **no active-`T`** member.  Under that restriction every member is
+either active-`A` or passive; an active-`A` only ever spreads `A` (never un-`A`s a
+partner), and passives among themselves are inert, so the number of non-`A` outputs
+cannot rise. -/
+theorem Transition_wrongACount_le (a b : AgentState L K)
+    (ha : a.phase.val = 10) (hb : b.phase.val = 10)
+    (hnB_a : ¬ IsActiveB a) (hnB_b : ¬ IsActiveB b)
+    (hnT_a : ¬ IsActiveT a) (hnT_b : ¬ IsActiveT b) :
+    Multiset.countP (fun a => a.output ≠ Output.A)
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K))
+      ≤ Multiset.countP (fun a => a.output ≠ Output.A)
+          ({a, b} : Multiset (AgentState L K)) := by
+  rw [Transition_eq_Phase10Transition_of_phase10 (L := L) (K := K) a b ha hb]
+  rw [countP_pair, countP_pair]
+  rcases a with
+    ⟨ainput, aoutput, aphase, arole, aassigned, abias, asmallBias,
+      ahour, aminute, afull, aopinions, acounter⟩
+  rcases b with
+    ⟨binput, boutput, bphase, brole, bassigned, bbias, bsmallBias,
+      bhour, bminute, bfull, bopinions, bcounter⟩
+  cases aoutput <;> cases boutput <;> cases afull <;> cases bfull <;>
+    simp_all [Phase10Transition, IsActiveB, IsActiveT]
+
+end PairMonotone
+
+/-! ## Kernel-level lifting: `InvClosed` and `PotNonincrOn`
+
+We lift the per-pair `countP`-bounds to the real kernel via the support template
+(peel a pair from `stepDistOrSelf`'s support, `countP` additivity, restore), with
+the interacting pair members inheriting the all-phase-10 / typed restrictions from
+the invariant on the whole configuration.
+
+The three stage invariants:
+* `Inv₁ := AllPhase10` (`= Phase10EpidemicPost`);
+* `Inv₂ := AllPhase10 ∧ activeBCount = 0`;
+* `Inv₃ := AllPhase10 ∧ activeBCount = 0 ∧ activeTCount = 0`. -/
+
+section InvLift
+
+open Protocol
+
+/-- Stage-1 invariant: every agent is in Phase 10. -/
+def AllPhase10 (c : Config (AgentState L K)) : Prop := ∀ x ∈ c, x.phase.val = 10
+
+/-- Stage-2 invariant: all-phase-10 and no active-`B` source. -/
+def Inv2 (c : Config (AgentState L K)) : Prop :=
+  AllPhase10 (L := L) (K := K) c ∧ activeBCount c = 0
+
+/-- Stage-3 invariant: all-phase-10, no active-`B`, no active-`T` source. -/
+def Inv3 (c : Config (AgentState L K)) : Prop :=
+  AllPhase10 (L := L) (K := K) c ∧ activeBCount c = 0 ∧ activeTCount c = 0
+
+/-- A configuration's `countP P` decomposes over a peeled applicable pair, using the
+per-pair bound `hpair` to control the new pair's contribution. -/
+private theorem countP_scheduledStep_le
+    (P : AgentState L K → Prop) [DecidablePred P]
+    {c c' : Config (AgentState L K)}
+    (h : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support)
+    (hpair : ∀ r₁ r₂ : AgentState L K, r₁ ∈ c → r₂ ∈ c →
+      Multiset.countP P
+          ({(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} :
+            Multiset (AgentState L K))
+        ≤ Multiset.countP P ({r₁, r₂} : Multiset (AgentState L K))) :
+    Multiset.countP P c' ≤ Multiset.countP P c := by
+  unfold Protocol.stepDistOrSelf at h
+  split_ifs at h with h_size
+  · obtain ⟨⟨r₁, r₂⟩, heq⟩ := Protocol.stepDist_support _ _ h_size _ h
+    subst heq
+    unfold Protocol.scheduledStep Protocol.stepOrSelf at *
+    split_ifs at * with h_app
+    · have h_sub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := by
+        unfold Protocol.Applicable at h_app; exact h_app
+      have hr₁ : r₁ ∈ c := Multiset.mem_of_le h_sub (by simp)
+      have hr₂ : r₂ ∈ c := Multiset.mem_of_le h_sub (by simp)
+      have h_restore : c - ({r₁, r₂} : Multiset (AgentState L K)) + {r₁, r₂} = c :=
+        Multiset.sub_add_cancel h_sub
+      calc Multiset.countP P (c - ({r₁, r₂} : Multiset (AgentState L K))
+              + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2})
+          = Multiset.countP P (c - ({r₁, r₂} : Multiset (AgentState L K)))
+              + Multiset.countP P
+                  {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+            rw [Multiset.countP_add]
+        _ ≤ Multiset.countP P (c - ({r₁, r₂} : Multiset (AgentState L K)))
+              + Multiset.countP P ({r₁, r₂} : Multiset (AgentState L K)) :=
+            Nat.add_le_add_left (hpair r₁ r₂ hr₁ hr₂) _
+        _ = Multiset.countP P (c - ({r₁, r₂} : Multiset (AgentState L K)) + {r₁, r₂}) := by
+            rw [Multiset.countP_add]
+        _ = Multiset.countP P c := by rw [h_restore]
+    · rfl
+  · simp [PMF.support_pure] at h; rw [h]
+
+/-- Generic `PotNonincrOn` from a step-level `countP`-bound conditioned on the
+invariant.  Reduces `K b {Φ b < Φ x} = 0` to the support-pointwise bound. -/
+private theorem potNonincrOn_of_countP_step
+    (Inv : Config (AgentState L K) → Prop) (P : AgentState L K → Prop)
+    [DecidablePred P]
+    (hstep : ∀ c, Inv c → ∀ c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support,
+      Multiset.countP P c' ≤ Multiset.countP P c) :
+    PotNonincrOn (fun c => Inv c) (NonuniformMajority L K).transitionKernel
+      (fun c => Multiset.countP P c) := by
+  intro b hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | Multiset.countP P b < Multiset.countP P x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => ?_
+  simp only [Set.mem_setOf_eq] at hbad
+  exact absurd (hstep b hb c' hc') (Nat.not_le.mpr hbad)
+
+/-! ### `InvClosed` for the three stages -/
+
+/-- A support config of an all-phase-10 base is itself all-phase-10
+(the `phaseBelowCount 10`-zero step-template). -/
+private theorem allPhase10_step
+    {c c' : Config (AgentState L K)} (hc : AllPhase10 (L := L) (K := K) c)
+    (h : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    AllPhase10 (L := L) (K := K) c' := by
+  have hpbc : phaseBelowCount 10 c = 0 :=
+    (Phase10EpidemicPost_iff_phaseBelowCount_zero c).mp hc
+  have hle := phaseBelowCount_step_le (L := L) (K := K) 10 c c' h
+  rw [hpbc] at hle
+  exact (Phase10EpidemicPost_iff_phaseBelowCount_zero c').mpr (Nat.le_zero.mp hle)
+
+/-- A support config of a no-active-`B` all-phase-10 base also has no active-`B`. -/
+private theorem activeBCount_step_zero
+    {c c' : Config (AgentState L K)} (hphase : AllPhase10 (L := L) (K := K) c)
+    (hB : activeBCount c = 0)
+    (h : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    activeBCount c' = 0 := by
+  have hle : activeBCount c' ≤ activeBCount c :=
+    countP_scheduledStep_le IsActiveB h
+      (fun r₁ r₂ hr₁ hr₂ =>
+        Transition_activeBCount_le r₁ r₂ (hphase r₁ hr₁) (hphase r₂ hr₂))
+  omega
+
+/-- A support config of an `Inv₃` base (no active-`B`, no active-`T`) has no
+active-`T` (using the `activeTCount` per-pair bound, valid since no active-`B`). -/
+private theorem activeTCount_step_zero
+    {c c' : Config (AgentState L K)} (hphase : AllPhase10 (L := L) (K := K) c)
+    (hB : activeBCount c = 0) (hT : activeTCount c = 0)
+    (h : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    activeTCount c' = 0 := by
+  have hnoB : ∀ x ∈ c, ¬ IsActiveB x := fun x hx =>
+    (Multiset.countP_eq_zero.1 hB) x hx
+  have hle : activeTCount c' ≤ activeTCount c :=
+    countP_scheduledStep_le IsActiveT h
+      (fun r₁ r₂ hr₁ hr₂ =>
+        Transition_activeTCount_le r₁ r₂ (hphase r₁ hr₁) (hphase r₂ hr₂)
+          (hnoB r₁ hr₁) (hnoB r₂ hr₂))
+  omega
+
+/-- **`InvClosed` for stage 1** (`AllPhase10`). -/
+theorem invClosed_allPhase10 :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => AllPhase10 (L := L) (K := K) c) := by
+  intro b hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ AllPhase10 (L := L) (K := K) x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  exact Set.disjoint_left.mpr fun c' hc' hbad =>
+    hbad (allPhase10_step hb hc')
+
+/-- **`InvClosed` for stage 2** (`Inv₂`). -/
+theorem invClosed_inv2 :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Inv2 (L := L) (K := K) c) := by
+  intro b hb
+  obtain ⟨hphase, hB⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ Inv2 (L := L) (K := K) x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  exact ⟨allPhase10_step hphase hc', activeBCount_step_zero hphase hB hc'⟩
+
+/-- **`InvClosed` for stage 3** (`Inv₃`). -/
+theorem invClosed_inv3 :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Inv3 (L := L) (K := K) c) := by
+  intro b hb
+  obtain ⟨hphase, hB, hT⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ Inv3 (L := L) (K := K) x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  exact ⟨allPhase10_step hphase hc', activeBCount_step_zero hphase hB hc',
+    activeTCount_step_zero hphase hB hT hc'⟩
+
+/-! ### `PotNonincrOn` for the three stages -/
+
+/-- **Stage 1 `PotNonincrOn`**: `activeBCount` is non-increasing from all-phase-10
+states. -/
+theorem potNonincrOn_activeBCount :
+    PotNonincrOn (fun c => AllPhase10 (L := L) (K := K) c)
+      (NonuniformMajority L K).transitionKernel
+      (fun c => activeBCount c) :=
+  potNonincrOn_of_countP_step (fun c => AllPhase10 (L := L) (K := K) c) IsActiveB
+    (fun c hphase c' hc' =>
+      countP_scheduledStep_le IsActiveB hc'
+        (fun r₁ r₂ hr₁ hr₂ =>
+          Transition_activeBCount_le r₁ r₂ (hphase r₁ hr₁) (hphase r₂ hr₂)))
+
+/-- **Stage 2 `PotNonincrOn`**: `activeTCount` is non-increasing from `Inv₂`
+states (all-phase-10 with no active-`B`). -/
+theorem potNonincrOn_activeTCount :
+    PotNonincrOn (fun c => Inv2 (L := L) (K := K) c)
+      (NonuniformMajority L K).transitionKernel
+      (fun c => activeTCount c) :=
+  potNonincrOn_of_countP_step (fun c => Inv2 (L := L) (K := K) c) IsActiveT
+    (fun c hInv c' hc' => by
+      obtain ⟨hphase, hB⟩ := hInv
+      have hnoB : ∀ x ∈ c, ¬ IsActiveB x := fun x hx =>
+        (Multiset.countP_eq_zero.1 hB) x hx
+      exact countP_scheduledStep_le IsActiveT hc'
+        (fun r₁ r₂ hr₁ hr₂ =>
+          Transition_activeTCount_le r₁ r₂ (hphase r₁ hr₁) (hphase r₂ hr₂)
+            (hnoB r₁ hr₁) (hnoB r₂ hr₂)))
+
+/-- **Stage 3 `PotNonincrOn`**: `wrongACount` is non-increasing from `Inv₃`
+states (all-phase-10, no active-`B`, no active-`T`). -/
+theorem potNonincrOn_wrongACount :
+    PotNonincrOn (fun c => Inv3 (L := L) (K := K) c)
+      (NonuniformMajority L K).transitionKernel
+      (fun c => wrongACount c) :=
+  potNonincrOn_of_countP_step (fun c => Inv3 (L := L) (K := K) c)
+    (fun a => a.output ≠ Output.A)
+    (fun c hInv c' hc' => by
+      obtain ⟨hphase, hB, hT⟩ := hInv
+      have hnoB : ∀ x ∈ c, ¬ IsActiveB x := fun x hx =>
+        (Multiset.countP_eq_zero.1 hB) x hx
+      have hnoT : ∀ x ∈ c, ¬ IsActiveT x := fun x hx =>
+        (Multiset.countP_eq_zero.1 hT) x hx
+      exact countP_scheduledStep_le (fun a => a.output ≠ Output.A) hc'
+        (fun r₁ r₂ hr₁ hr₂ =>
+          Transition_wrongACount_le r₁ r₂ (hphase r₁ hr₁) (hphase r₂ hr₂)
+            (hnoB r₁ hr₁) (hnoB r₂ hr₂) (hnoT r₁ hr₁) (hnoT r₂ hr₂)))
+
+end InvLift
+
+/-! ## Per-level drop hypothesis `q m = 1 − m/totalPairs` (Brick: q-wiring)
+
+The drop-probability lemmas give `K c (dropTarget Φ c) ≥ Φ(c)/totalPairs`.  When
+`Φ c = m`, `dropTarget Φ c = potBelow Φ m`, so taking complements,
+`K c (potBelow Φ m)ᶜ ≤ 1 − m/totalPairs`. -/
+
+section QWiring
+
+open Protocol
+
+/-- The per-level drop ceiling `q m = 1 − m / totalPairs(n)`. -/
+noncomputable def qLevel (n : ℕ) (m : ℕ) : ℝ≥0∞ :=
+  1 - (m : ℝ≥0∞) / ((n * (n - 1) : ℕ) : ℝ≥0∞)
+
+/-- When `Φ c = m`, the `dropTarget` of `Φ` at `c` is exactly `potBelow Φ m`. -/
+private theorem dropTarget_eq_potBelow (Φ : Config (AgentState L K) → ℕ)
+    (c : Config (AgentState L K)) (m : ℕ) (hm : Φ c = m) :
+    dropTarget Φ c = potBelow Φ m := by
+  unfold dropTarget potBelow; rw [hm]
+
+/-- **Complement arithmetic.** From a kernel lower bound on the drop target,
+`K c (potBelow Φ m)ᶜ ≤ 1 − m/totalPairs`, when `Φ c = m`.  Uses
+`K c univ = 1` (Markov) and `measure_compl`. -/
+private theorem drop_compl_le
+    (Φ : Config (AgentState L K) → ℕ) (c : Config (AgentState L K)) (m : ℕ)
+    (hm : Φ c = m)
+    (hge : (NonuniformMajority L K).transitionKernel c (dropTarget Φ c) ≥
+      (↑(Φ c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞)) :
+    (NonuniformMajority L K).transitionKernel c (potBelow Φ m)ᶜ ≤
+      1 - (m : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  have hdt : dropTarget Φ c = potBelow Φ m := dropTarget_eq_potBelow Φ c m hm
+  rw [hdt, hm] at hge
+  have hmeas : MeasurableSet (potBelow Φ m) :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  have htotal : (NonuniformMajority L K).transitionKernel c Set.univ = 1 :=
+    measure_univ
+  have hcompl : (NonuniformMajority L K).transitionKernel c (potBelow Φ m)ᶜ
+      = 1 - (NonuniformMajority L K).transitionKernel c (potBelow Φ m) := by
+    rw [← htotal, measure_compl hmeas (measure_ne_top _ _)]
+  rw [hcompl]
+  exact tsub_le_tsub_left hge 1
+
+end QWiring
+
 end Phase10Drop
 
 end ExactMajority

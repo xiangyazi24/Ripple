@@ -41,7 +41,9 @@ Reference: Doty et al. §5.2; paper lines 2391–2430.
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Basic.AgentState
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MarkovChain
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.JansonHitting
 import Ripple.PopulationProtocol.Majority.ExactMajority.Protocol.Transition
+import Mathlib.Analysis.Complex.ExponentialBounds
 
 namespace ExactMajority
 namespace RoleSplitConcentration
@@ -183,6 +185,226 @@ theorem phase0_roleSplit_whp
       {c | ¬ RoleSplitGood (L := L) (K := K) η n c}
       ≤ εRole :=
   hbudget
+
+/-! ## The two-stage concentration discharge (Lemma 5.2 proof).
+
+The paper proves Lemma 5.2 by modelling Phase 0 as two count-collapse processes:
+
+  * **Stage 1** (Lemma 5.1): `RoleMCR, RoleMCR → Main, RoleCR` together with the
+    `assigned`-driven follow-ups, taking `12.5 ln n` parallel time whp to drive
+    `|RoleMCR| = 0`, leaving `n/3 ≤ |RoleCR| ≤ 2n/3` with probability `1` and
+    `|RoleCR| = n/2 ± εn` whp.
+  * **Stage 2** (Corollary 4.4): `RoleCR, RoleCR → Reserve, Clock` at rate
+    `O(l²/n²)` when `|RoleCR| = l`, plus `RoleCR → Reserve` at phase end, taking
+    `O(1)` further parallel time to leave `|Clock|, |Reserve| ≥ (1−η)·n/4` whp.
+
+Both stages are *sums of heterogeneous geometric waiting times* analysed by
+Janson's Theorem 4.3 (the in-house `JansonHitting.milestone_hitting_time_bound`
+engine).  The crucial quantitative point — the one that distinguishes the
+paper's `Θ(n log n)`-interaction horizon from the naive `Θ(n²)` per-decrement
+tail — is that the geometric success rates are `Θ(u/n)` (Stage 1) and
+`Θ(l²/n²)` (Stage 2) governed by the *current* count, not the worst-case
+near-empty `Θ(1/n²)` rate.  Summing `Σ 1/p_i` then gives `meanTime = Θ(n log n)`
+with `p_min = Θ(1/n)`, and Janson's bound at `λ = 5`
+(`λ − 1 − ln λ > 2`) yields failure `exp(−p_min · meanTime · 2) = n^{-2}`.
+
+We package the whole probabilistic content as a single hypothesis: a
+`JansonHitting.MilestonePhase` over the real `NonuniformMajority` kernel whose
+joint postcondition implies `RoleSplitGood`.  This is faithful to the paper —
+the milestones are exactly the per-reaction count decrements of the two stages,
+and the `progress` field is exactly the per-step rate lower bound the paper
+computes — and it lets us discharge the Janson tail arithmetic here, in this
+file, axiom-clean, exposing the precise remaining protocol-transition gap
+(`progress` for the real kernel + the `Post ⊆ RoleSplitGood` balance step)
+as the named milestone-phase hypothesis. -/
+
+open ExactMajority in
+/-- **Milestone reduction for the role split.**  If `mp` is a milestone phase
+over the `NonuniformMajority` kernel whose joint postcondition forces
+`RoleSplitGood η n`, then the role-split tail after `tRole` steps is bounded by
+the milestone non-completion probability, *provided the Phase-0 initial config
+has not yet hit any milestone* (true at the start — no reaction has fired).
+
+The monotone inclusion `{¬RoleSplitGood} ⊆ {¬mp.Post}` is the whole content:
+failing the good split forces an unreached milestone. -/
+theorem roleSplitTail_le_milestoneTail
+    {n : ℕ} {η : ℝ} {c₀ : Config (AgentState L K)}
+    (mp : MilestonePhase (NonuniformMajority L K))
+    (hPost : ∀ c, mp.Post c → RoleSplitGood (L := L) (K := K) η n c)
+    (tRole : ℕ) :
+    roleSplitTail (L := L) (K := K) η n tRole c₀ ≤
+      ((NonuniformMajority L K).transitionKernel ^ tRole) c₀
+        {c | ¬ mp.Post c} := by
+  unfold roleSplitTail
+  apply MeasureTheory.measure_mono
+  intro c hc
+  -- hc : ¬ RoleSplitGood η n c ; goal : ¬ mp.Post c
+  simp only [Set.mem_setOf_eq] at hc ⊢
+  exact fun hp => hc (hPost c hp)
+
+open ExactMajority in
+/-- **Janson tail on the role-split.**  Composing the milestone reduction with
+`JansonHitting.milestone_hitting_time_bound`: from a role-split milestone phase
+`mp` (whose `Post ⊆ RoleSplitGood`), an initial config at which no milestone has
+fired, and a horizon `tRole ≥ λ · meanTime`, the role-split tail decays as the
+Janson exponential `exp(−pMin · meanTime · (λ − 1 − ln λ))`.
+
+With the paper's parameters `meanTime = Θ(n log n)`, `pMin = Θ(1/n)`, `λ = 5`
+(so `λ − 1 − ln λ > 2`) this is `exp(−Θ(log n)) = O(1/n²)`. -/
+theorem roleSplitTail_le_jansonExp
+    {n : ℕ} {η : ℝ} {c₀ : Config (AgentState L K)}
+    (mp : MilestonePhase (NonuniformMajority L K))
+    (hPost : ∀ c, mp.Post c → RoleSplitGood (L := L) (K := K) η n c)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    (lam : ℝ) (hlam : 1 ≤ lam)
+    (tRole : ℕ) (ht : lam * mp.meanTime ≤ (tRole : ℝ)) :
+    roleSplitTail (L := L) (K := K) η n tRole c₀ ≤
+      ENNReal.ofReal (Real.exp (-mp.pMin * mp.meanTime *
+        (lam - 1 - Real.log lam))) :=
+  le_trans (roleSplitTail_le_milestoneTail mp hPost tRole)
+    (milestone_hitting_time_bound mp c₀ hPre lam hlam tRole ht)
+
+/-- The Janson exponential collapses to the `O(1/n²)` budget under the paper's
+quantitative inputs: a milestone potential `pMin · meanTime ≥ ln n` and a
+deviation factor `λ − 1 − ln λ ≥ 2` (the paper takes `λ = 5`, where
+`5 − 1 − ln 5 = 4 − ln 5 ≈ 2.39 > 2`).  Then
+`exp(−pMin·meanTime·(λ−1−ln λ)) ≤ exp(−2 ln n) = n^{-2}`. -/
+theorem jansonExp_le_inv_sq
+    {n : ℕ} (hn : 1 ≤ n) {pm devf : ℝ}
+    (hpm_nonneg : 0 ≤ pm)
+    (hpm : Real.log (n : ℝ) ≤ pm)
+    (hdev : 2 ≤ devf) :
+    Real.exp (-pm * devf) ≤ ((n : ℝ) ^ 2)⁻¹ := by
+  have hnR : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  have hlogn_nonneg : 0 ≤ Real.log (n : ℝ) := Real.log_nonneg hnR
+  -- -pm·devf ≤ -2 log n = log(n^{-2}).
+  have hkey : -pm * devf ≤ Real.log (((n : ℝ) ^ 2)⁻¹) := by
+    have hpm_pos : 0 ≤ pm := hpm_nonneg
+    have h1 : 2 * Real.log (n : ℝ) ≤ pm * devf := by
+      have hb : 2 * Real.log (n : ℝ) ≤ pm * 2 := by nlinarith [hpm, hlogn_nonneg]
+      have hc : pm * 2 ≤ pm * devf := by nlinarith [hpm_pos, hdev]
+      linarith
+    have hlog_eq : Real.log (((n : ℝ) ^ 2)⁻¹) = -(2 * Real.log (n : ℝ)) := by
+      rw [Real.log_inv, Real.log_pow]; push_cast; ring
+    rw [hlog_eq]; linarith
+  calc Real.exp (-pm * devf)
+      ≤ Real.exp (Real.log (((n : ℝ) ^ 2)⁻¹)) := Real.exp_le_exp.mpr hkey
+    _ = ((n : ℝ) ^ 2)⁻¹ := by
+        rw [Real.exp_log (by positivity)]
+
+/-- `5 − 1 − ln 5 ≥ 2`, the paper's deviation factor at `λ = 5`: equivalently
+`ln 5 ≤ 2`, which holds because `5 < e² ` (`e² ≈ 7.389`). -/
+theorem five_sub_one_sub_log_five_ge_two :
+    (2 : ℝ) ≤ 5 - 1 - Real.log 5 := by
+  have hlog5 : Real.log 5 ≤ 2 := by
+    have h5 : (5 : ℝ) ≤ Real.exp 2 := by
+      have he1 : (2.7182818283 : ℝ) < Real.exp 1 := Real.exp_one_gt_d9
+      have hexp2 : Real.exp 2 = Real.exp 1 * Real.exp 1 := by
+        rw [← Real.exp_add]; norm_num
+      have hpos : (0 : ℝ) < Real.exp 1 := Real.exp_pos 1
+      nlinarith [he1, hexp2, hpos]
+    calc Real.log 5 ≤ Real.log (Real.exp 2) := Real.log_le_log (by norm_num) h5
+      _ = 2 := Real.log_exp 2
+  linarith
+
+open ExactMajority in
+/-- **Lemma 5.2 concentration discharge (`O(1/n²)` form).**  Given a role-split
+milestone phase `mp` over `NonuniformMajority` whose joint postcondition forces
+`RoleSplitGood η n`, the Phase-0 initial config (no milestone fired), and the
+paper's milestone potential bound `ln n ≤ pMin · meanTime` (a `Θ(log n)` lower
+bound following from `pMin = Θ(1/n)`, `meanTime = Θ(n log n)`), the role-split
+tail after `tRole ≥ 5 · meanTime` steps is at most `1/n²`.
+
+This is the discharged Lemma 5.2 budget: `εRole(n) = 1/n²`, horizon
+`tRole = ⌈5 · meanTime⌉ = Θ(n log n)` interactions (= `12.5 ln n + O(1)`
+parallel time, exactly the paper's Phase-0 horizon).  The only remaining input
+is the role-split `MilestonePhase` itself with its real-kernel `progress`
+field — the protocol-transition content of Lemma 5.1 + Corollary 4.4. -/
+theorem roleSplitTail_le_inv_sq
+    {n : ℕ} (hn : 1 ≤ n) {η : ℝ} {c₀ : Config (AgentState L K)}
+    (mp : MilestonePhase (NonuniformMajority L K))
+    (hPost : ∀ c, mp.Post c → RoleSplitGood (L := L) (K := K) η n c)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    (hpot : Real.log (n : ℝ) ≤ mp.pMin * mp.meanTime)
+    (hpot_nonneg : 0 ≤ mp.pMin * mp.meanTime)
+    (tRole : ℕ) (ht : 5 * mp.meanTime ≤ (tRole : ℝ)) :
+    roleSplitTail (L := L) (K := K) η n tRole c₀ ≤
+      ENNReal.ofReal (((n : ℝ) ^ 2)⁻¹) := by
+  refine le_trans (roleSplitTail_le_jansonExp mp hPost hPre 5 (by norm_num) tRole ht) ?_
+  apply ENNReal.ofReal_le_ofReal
+  -- exp(-(pMin·meanTime)·(5-1-ln5)) ≤ 1/n²
+  have hrw : -mp.pMin * mp.meanTime * (5 - 1 - Real.log 5) =
+      -(mp.pMin * mp.meanTime) * (5 - 1 - Real.log 5) := by ring
+  rw [hrw]
+  exact jansonExp_le_inv_sq hn hpot_nonneg hpot five_sub_one_sub_log_five_ge_two
+
+/-! ## Packaged Lemma 5.2 witness and the named deliverable.
+
+The bundle below collects exactly the protocol-transition content of Lemma 5.1 +
+Corollary 4.4 — the role-split milestone phase, its `Post ⊆ RoleSplitGood`
+soundness, the `Θ(log n)` milestone potential, and the start-of-phase fact that
+the all-`RoleMCR` Phase-0 initial config has fired no milestone — as a single
+hypothesis.  Constructing it is the remaining work (the real-kernel `progress`
+field); everything downstream of it is discharged here. -/
+
+/-- A Lemma-5.2 role-split witness over the `NonuniformMajority` kernel: the
+milestone phase whose completion forces `RoleSplitGood`, with the paper's
+quantitative inputs.  Bundling these makes the final tail bound consume only a
+single hypothesis. -/
+structure RoleSplitMilestone (η : ℝ) (n : ℕ) (c₀ : Config (AgentState L K)) where
+  /-- The role-split milestone phase (Lemma 5.1 + Corollary 4.4 count decrements). -/
+  mp : MilestonePhase (NonuniformMajority L K)
+  /-- Completing every milestone forces the Lemma 5.2 post-condition. -/
+  post_sound : ∀ c, mp.Post c → RoleSplitGood (L := L) (K := K) η n c
+  /-- The all-`RoleMCR` start has fired no milestone (no reaction yet). -/
+  pre_unhit : ∀ i : Fin mp.k, ¬ mp.milestone i c₀
+  /-- The `Θ(log n)` milestone potential: `pMin · meanTime ≥ ln n`
+  (from `pMin = Θ(1/n)`, `meanTime = Θ(n log n)`). -/
+  potential : Real.log (n : ℝ) ≤ mp.pMin * mp.meanTime
+  /-- Nonnegativity of the potential. -/
+  potential_nonneg : 0 ≤ mp.pMin * mp.meanTime
+
+/-- The Phase-0 role-split horizon: `⌈5 · meanTime⌉` interactions
+(`= 12.5 ln n + O(1)` parallel time, the paper's Phase-0 horizon). -/
+noncomputable def roleSplitHorizon {η : ℝ} {n : ℕ} {c₀ : Config (AgentState L K)}
+    (w : RoleSplitMilestone (L := L) (K := K) η n c₀) : ℕ :=
+  ⌈5 * w.mp.meanTime⌉₊
+
+/-- The horizon dominates `5 · meanTime`. -/
+theorem roleSplitHorizon_ge {η : ℝ} {n : ℕ} {c₀ : Config (AgentState L K)}
+    (w : RoleSplitMilestone (L := L) (K := K) η n c₀) :
+    5 * w.mp.meanTime ≤ (roleSplitHorizon (L := L) (K := K) w : ℝ) :=
+  Nat.le_ceil _
+
+/-- **Lemma 5.2 (concentration, named deliverable).**  From the Phase-0 initial
+all-`RoleMCR` configuration and a role-split witness, the role-split tail after
+the `Θ(n log n)` horizon `roleSplitHorizon` is at most `1/n²`.
+
+  * `tRole(n) = roleSplitHorizon w = ⌈5 · meanTime⌉ = Θ(n log n)` interactions;
+  * `εRole(n) = 1/n²`.
+
+This is the discharged Lemma 5.2 budget that `phase0_roleSplit_whp` consumes. -/
+theorem roleSplitTail_le
+    {n : ℕ} (hn : 1 ≤ n) {η : ℝ} {c₀ : Config (AgentState L K)}
+    (_hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (w : RoleSplitMilestone (L := L) (K := K) η n c₀) :
+    roleSplitTail (L := L) (K := K) η n
+        (roleSplitHorizon (L := L) (K := K) w) c₀ ≤
+      ENNReal.ofReal (((n : ℝ) ^ 2)⁻¹) :=
+  roleSplitTail_le_inv_sq hn w.mp w.post_sound w.pre_unhit w.potential
+    w.potential_nonneg _ (roleSplitHorizon_ge w)
+
+/-- The discharged Lemma 5.2 fed straight into the packaging interface: with the
+witness and `n ≥ 1`, `phase0_roleSplit_whp` fires with `εRole = 1/n²`. -/
+theorem phase0_roleSplit_whp_inv_sq
+    {n : ℕ} (hn : 1 ≤ n) {η : ℝ} {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (w : RoleSplitMilestone (L := L) (K := K) η n c₀) :
+    ((NonuniformMajority L K).transitionKernel ^
+        (roleSplitHorizon (L := L) (K := K) w)) c₀
+      {c | ¬ RoleSplitGood (L := L) (K := K) η n c}
+      ≤ ENNReal.ofReal (((n : ℝ) ^ 2)⁻¹) :=
+  phase0_roleSplit_whp hinit _ _ (roleSplitTail_le hn hinit w)
 
 end RoleSplitConcentration
 end ExactMajority

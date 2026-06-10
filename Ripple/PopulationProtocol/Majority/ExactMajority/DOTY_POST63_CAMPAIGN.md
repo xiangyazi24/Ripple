@@ -497,3 +497,62 @@ the `mC/10` floor for ALL alive successors — exactly the unproven front-shape 
 So the blueprint's `clock_killed_stepW` (one composed minute) is delivered as TWO separate
 per-leg tails (`clock_killed_seed_stepW`/`clock_killed_bulk_stepW`) plus the seed-leg real
 transfer; consumers chain the legs at the real-kernel level. This is the precise residual obstruction.
+
+---
+
+## Phase B-10 — WEAK ASSEMBLY DELIVERED (2026-06-10, 0-sorry axiom-clean)
+
+New file `Probability/ClockWeakAssembly.lean` (namespace `ExactMajority.ClockWeakAssembly`;
+imports `ClockKilledMinute` + `ClockRealHours`). All theorems
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`, single-file EXIT_0. SHAs on main:
+
+- **B-10a** (922e2aeb) `leg_escape_global` + `kill_now_escape_prefix_all`: the telescoped
+  global gate-escape. `∫ (killK_now K G ^ M)(some y){none} ∂((K^t)x₀) ≤ M·q + ∑_{τ∈Ico t (t+M)}
+  (K^τ)x₀ Sᶜ`. Per-start `kill_now_escape_le_prefix_union` EXTENDED to ALL starts (ungated
+  y∉G: σ=0 prefix term =1 dominates, M≥1; M=0 escape=0), then integrate + Chapman–Kolmogorov
+  collapse `∫ (K^σ)y Sᶜ ∂((K^t)x₀) = (K^{t+σ})x₀ Sᶜ`. SIDE-SET **S = G** (Gᶜ=Sᶜ, hSG:=rfl).
+- **B-10b** (60a9a716 seed, 2fe83829 bulk) `clock_real_{seed,bulk}_leg_avg` +
+  `killed_{seed,bulk}_avg_le` + `killed_{seed,bulk}_ungated_post_zero`: the averaged real leg.
+  Routes real mass through `real_le_killed_now`, splits killed target `{none ∨ some-bad} =
+  {none} ∪ {¬optLift Post}`, escape→`leg_escape_global`, post-integral→`εleg` (on the gate via
+  killed convergence; on the complement the ungated killed walk dies into `none ∉ {¬optLift
+  Post}`, mass 0, requires 0<M).
+- **B-10c** (a1fba6ae) `clock_real_minute_avg`: the assembled real minute. CK-glue at the seed
+  offset + `clock_real_bulk_leg_avg` at leg-start `Tstart+tseed`. **Minute = the bulk leg
+  started after the seed phase.**
+- **B-10d** (6ea4cac0) `minuteFailW` (`Fin L₀` family) + `clock_real_faithful_all_minutes_W`:
+  union-bounded endpoint over all minutes. Budget `∑_i (εbulk + tbulk·q + per-minute prefix)`.
+- **B-10e** (a7952051) `clock_real_faithful_O_log_n_W`: the O(log n) wrapper at L₀=K·(L+1).
+
+### THE SIDE-SET S (settled — answers the assembly-design open question)
+**S = G = QbulkSet n mC T = {QbulkWin} = {Q_mix n mC T ∧ mC/10 ≤ rBeyond (T+1)}** (per minute,
+gate at level T). The boundary `Q_mix` re-establishment AND the `mC/10` floor re-establishment
+both charge to `(realκ^τ) c₀ QbulkSetᶜ` at τ=Tstart+tseed (inside the per-minute prefix sum).
+
+### DEVIATIONS from the ASSEMBLY DESIGN (all strictly cleaner / honest, nothing dropped)
+1. **No separate εseed budget term; no seed escape budget.** The averaged/global telescoping
+   makes the seed leg's `εseed` UNNECESSARY as an additive term — the seed leg manifests as the
+   WINDOW OFFSET (the bulk leg's prefix runs over τ ≥ Tstart+tseed, post-seed times only). All
+   seed-related failure (floor not yet crossed) is in the SAME `QbulkSetᶜ` prefix. (Design item
+   A's `composeW_legs_avg` re-cut is therefore NOT needed: a single CK-glue + the bulk
+   averaged leg gives the minute directly.)
+2. **No deterministic cross-minute `composeW_n_phases` chain.** `Q_mix_succ_of_post` needs the
+   FULL `Q_mix n mC T` at the boundary, which the NUMERICAL-only `BulkPost` does NOT carry
+   (same residual as B-9's two-kernel split / the unproven front-shape synchronization). Each
+   minute is a STANDALONE averaged-global bound; "all minutes" is the UNION bound
+   (`clock_real_faithful_all_minutes_W`), not a composed chain.
+3. **Per-minute side-set varies** (design item C): `S_T = QbulkSet n mC T` tracks the level T;
+   no single fixed-S global prefix. Endpoint budget is the honest double sum.
+
+### `clock_real_faithful_O_log_n_W` HYPOTHESIS LIST (final)
+`(n mC : ℕ) (hn : 2 ≤ n) (hmC : 2 ≤ mC) (hLK : 0 < K*(L+1)) (tseed tbulk : ℕ) (htbulk : 0 <
+tbulk) (εbulk : ℝ≥0) (hεb : minuteRate^tbulk · ofReal(exp(log2·bulkHi mC)) / 1 ≤ εbulk) (q :
+ℝ≥0∞) (hstep : ∀ T, ∀ x∈QbulkSet n mC T, realκ x QbulkSetᶜ ≤ q) (c₀ : Cfg L K)`. Conclusion:
+union-bound failure ≤ ∑_i (εbulk + tbulk·q + per-minute QbulkSet(i)ᶜ prefix). `habs_mix` is
+GONE. The OLD `ClockRealFaithfulHours` assembly is NOT deleted (later cleanup).
+
+### RESIDUAL (NOT discharged here — for the DotyParams / WidthPrefix follow-up line)
+- `hstep` (per-step gate-escape rate q) — the §6 drip-only excess-counter one-step bound.
+- The per-minute side prefixes `∑_{τ∈window_i} (realκ^τ) c₀ QbulkSet(i)ᶜ` — discharged by
+  `WidthPrefix.goodFrontWidth_whp_at` + endpoint bridges + DotyParams (seed drip ⟹ mC/10 floor
+  whp by Tstart+tseed ⟹ post-seed prefix whp-small). This file leaves all parameters raw.

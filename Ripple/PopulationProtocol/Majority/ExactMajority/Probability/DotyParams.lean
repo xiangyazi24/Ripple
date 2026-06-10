@@ -606,7 +606,6 @@ theorem floor_margin_params (n : ℕ) (hn : N₀ ≤ n) :
       ≤ (w n : ℝ) * (1.8 * (1 - Real.exp (-(1/10 : ℝ))) / (n : ℝ)) := by
     apply mul_le_mul_of_nonneg_left _ hw0
     gcongr
-    nlinarith [hs]
   -- w/n lower bound and the final numeric inequality.
   have hwlb := w_lb n
   have hwnlb : (3 * (n : ℝ) - 199) / 200 * (1.8 * (1903/20000) / (n : ℝ))
@@ -617,7 +616,7 @@ theorem floor_margin_params (n : ℕ) (hn : N₀ ≤ n) :
   --   = 0.0008563...·(3 − 199/n).  Compare to δgLocked + 0.1·(g−1) = 0.002565.
   have hexp : (3 * (n : ℝ) - 199) / 200 * (1.8 * (1903/20000) / (n : ℝ))
       = (1903 * 1.8 / (200 * 20000)) * (3 - 199 / (n : ℝ)) := by
-    field_simp; ring_nf
+    field_simp
   have hkey : δgLocked ≤ (1903 * 1.8 / (200 * 20000)) * (3 - 199 / (n : ℝ))
       - (1/10) * (5123/5000 - 1) := by
     unfold δgLocked
@@ -1071,6 +1070,145 @@ theorem ladder_hslice (n : ℕ) (hn : N₀ ≤ n) (mc₀ : Config (MarkedAgent L
   rw [hbrk]
   refine le_trans (le_of_eq ?_) hcore
   ring
+
+/-! ### Part 13e — `hB_regime1`: the per-window bound from a regime-1 invariant start.
+
+In regime 1 (`10·⌈g·X₀⌉₊ ≤ n`, the band is wider than one growth factor), the full `M := n`-rung
+ceiling ladder `ladderA X₀` from `a0 = ⌈g·X₀⌉₊` feeds `per_window_delta`: `ha0` from the regime
+condition, `hfloor` via `floor_discharge`+`floor_margin_params`, `hslice` via `ladder_hslice`,
+`hYt` via `ladderYt_le`.  The output event caps `rBeyond ≤ ladderA X₀ n`. -/
+
+/-- The regime-1 per-window bound: from a `recInv` start `mc₀` with `AllClockP3`, `10·rBeyond ≤ n`,
+and the regime condition `10·⌈g·rBeyond⌉₊ ≤ n`, `per_window_delta` gives the recurrence-bad mass
+`≤ exp(−δgLocked·X₀+1/10) + n·exp(σw·(X₀²/n)·(A−B'))` with cap `ladderA X₀ n` (`X₀ = rBeyond`). -/
+theorem hB_regime1 (n : ℕ) (hn : N₀ ≤ n) (mc₀ : Config (MarkedAgent L K)) (T : ℕ)
+    (hInv : recInv (L := L) (K := K) T (θn n) n (9/10) mc₀)
+    (hP3 : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hX : 10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n)
+    (hreg : 10 * ⌈gC * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ)⌉₊ ≤ n) :
+    ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀
+        {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc)
+              ≤ ladderA (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀)) n ∧
+          mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} ≤
+      ENNReal.ofReal (Real.exp (-(δgLocked
+          * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ)) + (1/10 : ℝ)))
+      + (n : ℝ≥0∞) * ENNReal.ofReal (Real.exp (σw
+          * (((rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ) ^ 2 / (n : ℝ))
+              * ((9/10 : ℝ) * RWb - gC ^ 2
+                * ((9/10 : ℝ) - Geff ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)))))) := by
+  classical
+  set X₀ := rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) with hX₀
+  have hnpos : 0 < n := N₀_pos n hn
+  have hn2 : 2 ≤ n := two_le n hn
+  have hnℝ : (0:ℝ) < (n : ℝ) := by exact_mod_cast hnpos
+  have hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) :=
+    ⟨hInv.1, hInv.2.1⟩
+  have hrec := hInv.2.2 hP3 hX
+  have hθX : θn n ≤ X₀ := hrec.1
+  have hYlo : (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+      ≤ (9/10 : ℝ) * ((X₀ : ℝ) ^ 2 / (n : ℝ)) := by
+    have h := hrec.2
+    have heq : (9/10 : ℝ) * (X₀ : ℝ) ^ 2 / (n : ℝ) = (9/10 : ℝ) * ((X₀ : ℝ) ^ 2 / (n : ℝ)) := by
+      rw [mul_div_assoc]
+    rw [heq] at h
+    exact h
+  -- X₀ ≥ θn ≥ 10²⁴ − 1 ≥ 10²³.
+  have hθlo : (10:ℝ) ^ (24:ℕ) - 1 ≤ (θn n : ℝ) :=
+    le_trans (by linarith [rpow_three_fifths_ge n hn]) (sub_one_le_θn n)
+  have hX₀lo : (10:ℝ) ^ (23:ℕ) ≤ (X₀ : ℝ) := by
+    have hθXℝ : (θn n : ℝ) ≤ (X₀ : ℝ) := by exact_mod_cast hθX
+    have h1 : (10:ℝ) ^ (23:ℕ) ≤ (10:ℝ) ^ (24:ℕ) - 1 := by norm_num
+    linarith [hθlo, hθXℝ, h1]
+  -- ha0 : 10·ladderA X₀ 0 ≤ n.
+  have ha0 : 10 * ladderA X₀ 0 ≤ n := by
+    rw [ladderA_zero]; exact hreg
+  -- hfloor via floor_discharge.
+  have ha0le : (ladderA X₀ 0 : ℝ) ≤ (5123/5000) * (X₀ : ℝ) + 1 := by
+    rw [ladderA_zero]
+    have hg0 : (0:ℝ) ≤ gC * (X₀ : ℝ) := by have := one_le_gC; positivity
+    have hlt := Nat.ceil_lt_add_one hg0
+    have hgCeq : gC * (X₀ : ℝ) = (5123/5000 : ℝ) * (X₀ : ℝ) := by
+      rw [show gC = (5123/5000:ℝ) from rfl]
+    linarith [hlt, hgCeq.le, hgCeq.ge]
+  have hfloor := floor_discharge n (w n) X₀ (ladderA X₀ 0) ha0le (floor_margin_params n hn)
+  -- hGm1, hB0.
+  have hGm1 : ∀ m, (1:ℝ) ≤ (201/200 : ℝ) ^ (2 * m) := fun m => one_le_pow₀ (by norm_num)
+  have hRWb_nonneg : (0:ℝ) ≤ RWb := by unfold RWb uW; norm_num
+  have hB0 : (0:ℝ) ≤ gC ^ 2 * ((9/10 : ℝ) - Geff ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)) := by
+    have hRWbeq : RWb = 1 / (1 - 603/20000 : ℝ) := by unfold RWb uW; norm_num
+    have hGeq : Geff ^ 2 = (1 + 1/10000 : ℝ) * (201/200 : ℝ) ^ 2 := Geff_sq
+    rw [hRWbeq, hGeq, show gC = (5123/5000:ℝ) from rfl]
+    norm_num
+  -- assemble per_window_delta.
+  have hpwd := per_window_delta (L := L) (K := K) T (θn n) n hn2 (9/10) (1/10) σw (1/200)
+    (by norm_num) (by norm_num) σw_pos (by norm_num) (w n) (σw_hsmall n hn) mc₀ hR
+    (ladderA X₀) n ha0 (ladderYt n X₀)
+    (fun m _ => ladderYt_le n X₀ m hnpos)
+    δgLocked gC Geff RWb (fun m => (201/200 : ℝ) ^ (2 * m)) hGm1 hRWb_nonneg
+    (by positivity) hB0 hfloor
+    (fun m _ => ladder_hslice n hn mc₀ T X₀ hX₀ hX₀lo hYlo m)
+  exact hpwd
+
+/-! ### Part 13f — `hB_regime2`: the per-window bound from a regime-2 invariant start.
+
+In regime 2 (`10·⌈g·X₀⌉₊ > n`, the band is thinner than one growth factor), `M := 0`: the ladder has
+no rungs, so `per_window_delta`'s slice sum is empty and only the floor term `exp(−δg·X₀+σg)`
+survives.  The cap event is `rBeyond ≤ a 0 = ⌊n/10⌋ ≤ aM n`.  Floor margin holds (same
+`floor_margin_params`); `a0 = ⌊n/10⌋ ≤ g·X₀+1` because `g·X₀ > n/10 − 1` in regime 2. -/
+theorem hB_regime2 (n : ℕ) (hn : N₀ ≤ n) (mc₀ : Config (MarkedAgent L K)) (T : ℕ)
+    (hInv : recInv (L := L) (K := K) T (θn n) n (9/10) mc₀)
+    (hP3 : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hX : 10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n)
+    (hreg : n < 10 * ⌈gC * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ)⌉₊) :
+    ((markedK (L := L) (K := K) T (θn n)) ^ (w n)) mc₀
+        {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
+              (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+          rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n / 10 ∧
+          mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)} ≤
+      ENNReal.ofReal (Real.exp (-(δgLocked
+          * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ)) + (1/10 : ℝ))) := by
+  classical
+  set X₀ := rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) with hX₀
+  have hnpos : 0 < n := N₀_pos n hn
+  have hn2 : 2 ≤ n := two_le n hn
+  have hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) :=
+    ⟨hInv.1, hInv.2.1⟩
+  -- ha0 : 10·(n/10) ≤ n.
+  have ha0 : 10 * (n / 10) ≤ n := by omega
+  -- a0 = n/10 ≤ g·X₀ + 1 (regime 2: ⌈g·X₀⌉₊ > n/10).
+  have ha0le : ((n / 10 : ℕ) : ℝ) ≤ (5123/5000) * (X₀ : ℝ) + 1 := by
+    have hceil_gt : n / 10 < ⌈gC * (X₀ : ℝ)⌉₊ := by omega
+    have hcg : (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) ≤ gC * (X₀ : ℝ) + 1 := by
+      have hg0 : (0:ℝ) ≤ gC * (X₀ : ℝ) := by have := one_le_gC; positivity
+      exact le_of_lt (Nat.ceil_lt_add_one hg0)
+    have hn10 : ((n / 10 : ℕ) : ℝ) ≤ (⌈gC * (X₀ : ℝ)⌉₊ : ℝ) := by
+      have : (n / 10 : ℕ) ≤ ⌈gC * (X₀ : ℝ)⌉₊ := by omega
+      exact_mod_cast this
+    have hgCeq : gC * (X₀ : ℝ) = (5123/5000 : ℝ) * (X₀ : ℝ) := by
+      rw [show gC = (5123/5000:ℝ) from rfl]
+    linarith [hn10, hcg, hgCeq.le, hgCeq.ge]
+  have hfloor := floor_discharge n (w n) X₀ (n / 10) ha0le (floor_margin_params n hn)
+  have hGm1 : ∀ m, (1:ℝ) ≤ (201/200 : ℝ) ^ (2 * m) := fun m => one_le_pow₀ (by norm_num)
+  have hRWb_nonneg : (0:ℝ) ≤ RWb := by unfold RWb uW; norm_num
+  have hB0 : (0:ℝ) ≤ gC ^ 2 * ((9/10 : ℝ) - Geff ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)) := by
+    have hRWbeq : RWb = 1 / (1 - 603/20000 : ℝ) := by unfold RWb uW; norm_num
+    have hGeq : Geff ^ 2 = (1 + 1/10000 : ℝ) * (201/200 : ℝ) ^ 2 := Geff_sq
+    rw [hRWbeq, hGeq, show gC = (5123/5000:ℝ) from rfl]; norm_num
+  -- per_window_delta with M = 0, a := fun _ => n/10, Yt := fun _ => 0.
+  have hpwd := per_window_delta (L := L) (K := K) T (θn n) n hn2 (9/10) (1/10) σw (1/200)
+    (by norm_num) (by norm_num) σw_pos (by norm_num) (w n) (σw_hsmall n hn) mc₀ hR
+    (fun _ => n / 10) 0 ha0 (fun _ => 0)
+    (fun m hm => absurd hm (by omega))
+    δgLocked gC Geff RWb (fun m => (201/200 : ℝ) ^ (2 * m)) hGm1 hRWb_nonneg
+    (by positivity) hB0 hfloor
+    (fun m hm => absurd hm (by omega))
+  -- M = 0 ⟹ slice sum is 0; conclusion is the bare floor term.
+  simp only [Nat.cast_zero, zero_mul, add_zero] at hpwd
+  exact hpwd
 
 end DotyParams
 
