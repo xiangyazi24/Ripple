@@ -514,6 +514,48 @@ theorem timed_phase_progress_tinyClock [DiscreteMeasurableSpace α]
         gcongr
         · exact_mod_cast (by omega : n - 1 ≤ n)
 
+/-- **Corollary (a): big-clock linear bound.**  Under the Lemma 5.2 carried floor
+`n/5 ≤ mC` (the `RoleSplitConcentration.clockCount_linear_of_RoleSplitGood`
+conclusion, supplied here as a hypothesis since that file is mid-edit and not
+imported), the expected time to advance a counter-timed phase is `≤ counterMax · 11 n`
+interactions — **linear** in `n` (the clock-clock rate is `Θ(1)`).  With
+`counterMax = O(n log n)` this is the paper's `O(n² log n)` interactions = `O(n log n)`
+parallel rounds for the bad-but-big-clock event.
+
+Algebra: `(counterMax · mC) · rate⁻¹ = counterMax · n(n−1)/(mC−1) ≤ counterMax · 11 n`,
+because `n/5 ≤ mC` (with `n ≥ 18`) gives `n − 1 ≤ 11(mC − 1)`, hence
+`n(n−1) ≤ 11 n (mC − 1)`.  The constant `11` is not optimal (any `mC ≥ cn` gives a
+constant); it is chosen to clear the `Nat`-floor slack uniformly for `n ≥ 18`. -/
+theorem timed_phase_progress_bigClock [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ)
+    (hmono : Engine.PotNonincr K Φ)
+    (mC n counterMax : ℕ) (hfloor : n / 5 ≤ mC) (hmCn : mC ≤ n) (hn : 18 ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    (c : α) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c (Engine.potBelow Φ 1)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((11 * n : ℕ) : ℝ≥0∞) := by
+  have hmC : 2 ≤ mC := by omega
+  refine le_trans
+    (timed_phase_expected_progress K Φ hmono mC n counterMax hmCn hdrop c hc) ?_
+  rw [headline_product_eq counterMax mC n hmC (by omega)]
+  -- counterMax·n(n−1)/(mC−1) ≤ counterMax·(11n) via div_le_of_le_mul on the ℕ core.
+  apply ENNReal.div_le_of_le_mul
+  -- counterMax·n(n−1) ≤ (counterMax·11n)·(mC−1)
+  have hcore : n * (n - 1) ≤ 11 * n * (mC - 1) := by
+    have hkey : n - 1 ≤ 11 * (mC - 1) := by omega
+    calc n * (n - 1) ≤ n * (11 * (mC - 1)) := Nat.mul_le_mul_left n hkey
+      _ = 11 * n * (mC - 1) := by ring
+  have hnat : counterMax * (n * (n - 1)) ≤ counterMax * (11 * n) * (mC - 1) := by
+    calc counterMax * (n * (n - 1)) ≤ counterMax * (11 * n * (mC - 1)) :=
+          Nat.mul_le_mul_left counterMax hcore
+      _ = counterMax * (11 * n) * (mC - 1) := by ring
+  calc ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+      = ((counterMax * (n * (n - 1)) : ℕ) : ℝ≥0∞) := by push_cast; ring
+    _ ≤ ((counterMax * (11 * n) * (mC - 1) : ℕ) : ℝ≥0∞) := by exact_mod_cast hnat
+    _ = ((counterMax : ℕ) : ℝ≥0∞) * ((11 * n : ℕ) : ℝ≥0∞) * ((mC - 1 : ℕ) : ℝ≥0∞) := by
+        push_cast; ring
+
 end ConditionalPhaseProgress
 
 end ExactMajority

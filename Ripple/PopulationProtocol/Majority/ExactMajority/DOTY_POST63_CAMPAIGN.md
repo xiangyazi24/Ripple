@@ -1151,3 +1151,59 @@ C-7f 2d6d24ab (kernel PotNonincrOn) · C-7g c2e709e6 (structural closure) ·
 C-7h 85eb8280 (phase7Convergence) · C-8a 4ed79373 (reduction) · C-8b 70b3ffb1
 (absorbConsume pair) · C-8c 09544472 (full non-increase chain) · C-8d 1ded5789
 (FULL InvClosed) · C-8e 1a930fe5 (phase8Convergence).
+
+### Phase C-1 (relay 4) — GAP (A) CLOSED + GAP (B) PINNED DETERMINISTICALLY
+
+**Gap (A) — the invariant-relative milestone engine — COMPLETE (0-sorry, axiom-clean).**
+Commits: C-1j (in 85eb8280, bundled by a concurrent agent) + C-1k 60eba6a5 + C-1m 718b0d5a.
+New generic engine `MilestonePhaseOn` in RoleSplitConcentration.lean (own namespace):
+- structure with side invariant `Inv`, one-step-closure `inv_closed`, and
+  `progress_on` required ONLY at `Inv`-configs (the slot the plain `MilestonePhase`
+  lacks).  `toDummyMP` (milestone := fun _ _ => True) borrows the pure-MGF
+  optimisation `janson_exponential_tail_from_mgf` verbatim (pMin/meanTime depend
+  only on (k,p), so `rfl`-equal).
+- full Inv-relative MGF chain re-derived (JansonHitting privates not exported):
+  `mgfFactor`/`partialMGF`/`truncMGF`, `partialMGF_one_step_contraction_on`
+  (the only place `progress_on` is consumed — with `Inv c` exactly available),
+  `truncMGF_contracts_on`, `lintegral_geometric_decay_on` (induction using
+  `inv_closed` to stay in `Inv`, mass 0 off `Inv`), `milestone_tail_bound_via_mgf_on`
+  (Markov), capstone `milestone_hitting_time_bound_on` — SAME
+  `exp(-pMin·meanTime·(λ-1-ln λ))` tail as the plain engine.
+- assembled discharge: `roleSplitTail_le_milestoneTail_on` → `_jansonExp_on` →
+  `roleSplitTail_le_inv_sq_on` (1/n² budget from a floor-carrying witness).
+Mirrors the E2 `InvClosed`/`PotNonincrOn` `_on`-ladder, lifted to the Janson engine.
+
+**Gap (B) — the floor — PINNED: deterministic skeleton FAILS in this encoding,
+Chernoff is genuinely needed (0-sorry, axiom-clean).** Commit C-1l 1acd65ae.
+Tried the prompt's deterministic regime-split FIRST; proved the per-rule
+`assignableCount` delta at the transition level, which SETTLES the route:
+- `assignable_rule2_s_stays`: Rule 2 (MCR + unassigned Main) makes the MCR a
+  FRESH unassigned CR (role=cr, ¬assigned, phase 0) → Rule 2 CONSERVES, Δ = 0.
+- `assignable_rule3_s_assigned`: Rule 3 (MCR + unassigned RoleCR) makes the MCR an
+  ASSIGNED Main → Rule 3 CONSUMES, Δ = −1.
+Net per-rule: R1 +2, R2 0, R3 −1, R4 −2.  So `assignableCount` is NOT monotone in
+THIS encoding — unlike the paper's reaction 3 `Mf,U → Mt,Sf` which creates a fresh
+unassigned `Sf` and conserves the pool (the paper's "sf+mf can never decrease").
+The divergence is Rule 3: our encoding marks the converted MCR as an *assigned*
+Main rather than producing a fresh *unassigned* RoleCR.  Therefore the clean
+deterministic floor does NOT transfer; Gap (B) needs the genuine Chernoff floor
+(`assignableCount ≥ n/5` whp on the early split, paper Lemma 5.1's Chernoff step) —
+the ONE irreducible probabilistic ingredient flagged since relay 1.  This is now a
+*proven* fact, not a guess.
+
+**REMAINING to finish Lemma 5.2** (exact inputs to `roleSplitTail_le_inv_sq_on`):
+  (i) construct the `MilestonePhaseOn` witness: milestone = `mcrCount` thresholds,
+      `Inv` = `assignableCount ≥ n/5 ∧ AllPhase0` (or the paper's `sf+mf > n/5`
+      monotone surrogate — note R3 means `assignableCount` itself is not the right
+      monotone, so `Inv` should be a CHERNOFF-established floor, carried by
+      `inv_closed` once established), `progress_on` = combined rate `Θ(M/n)` from
+      `phase0_mcrCount_decrease_prob_combined` (already delivered) restricted to
+      `Inv`-configs where `assignableCount ≥ n/5` makes the rate `≥ Θ(M/n)`,
+      `inv_closed` = the floor is one-step-closed (needs the Chernoff floor to be a
+      closed invariant — i.e. once `≥ n/5`, the regime where it can't drop below).
+  (ii) Gap (B) Chernoff: `assignableCount ≥ n/5` whp while `u ≥ 2n/3` (paper's
+       fraction-½-top-reaction Chernoff).  Via in-house MGF/drift (NOT axiomatised).
+  (iii) Stage-2 (cr,cr→clock,reserve at Θ(l²/n²), Corollary 4.4): own milestone
+        family, same diagonal pattern; chain stages via composition.
+All per-step *mass/rate* obligations and the *engine* (Gap A) are now discharged;
+the genuine open work is (ii) the Chernoff floor + (i) wiring it as `inv_closed`.

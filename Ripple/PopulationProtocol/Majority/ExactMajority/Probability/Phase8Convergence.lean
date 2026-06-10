@@ -520,6 +520,74 @@ theorem drop_prob_of_rect (Φ : Config (AgentState L K) → ℕ) (n : ℕ) (hn :
   rw [← ENNReal.ofReal_natCast M, ← ENNReal.ofReal_natCast (n * (n - 1)),
       ← ENNReal.ofReal_div_of_pos hden_pos]
 
+/-! ## Part D'' — the eliminator × minority rectangle at a fixed level.
+
+Fix a level `i`.  The minority states at exponent index `i` (`σ`-Mains with bias
+`.dyadic σ i`) interacting with eliminator states at any STRICTLY higher index `>i`
+that are non-`full` `σ.flip`-Mains form a rectangle each of whose cells, when fired,
+drops `minorityU σ` by one (`minorityU_stepOrSelf_drop`).  The rectangle's
+`interactionCount` mass is `(#minority@i)·(#elim@>i)` (cross pairs are distinct: the
+biases differ, so the states differ).  Feeding it to `drop_prob_of_rect` gives the
+per-step drop probability `≥ (#minority@i)·(#elim@>i)/(n(n−1))`. -/
+
+/-- The `σ`-minority states at a fixed exponent index `i`. -/
+def minorityAt (σ : Sign) (i : Fin (L + 1)) : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => a.role = Role.main ∧ a.bias = Bias.dyadic σ i)
+
+/-- The eliminator states above index `i`: non-`full` `σ.flip`-Mains at index `> i`. -/
+def elimAbove (σ : Sign) (i : Fin (L + 1)) : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => a.role = Role.main ∧ ¬ a.full ∧
+    ∃ st j, st ≠ σ ∧ i.val < j.val ∧ a.bias = Bias.dyadic st j)
+
+/-- Cross pairs `(minority@i, elim@>i)` are distinct states (their biases differ:
+index `i` vs index `> i`). -/
+theorem minorityAt_elimAbove_disjoint (σ : Sign) (i : Fin (L + 1))
+    (a : AgentState L K) (ha : a ∈ minorityAt (L := L) (K := K) σ i)
+    (b : AgentState L K) (hb : b ∈ elimAbove (L := L) (K := K) σ i) : a ≠ b := by
+  simp only [minorityAt, elimAbove, Finset.mem_filter] at ha hb
+  obtain ⟨_, _, hab⟩ := ha
+  obtain ⟨_, _, _, st, j, _, hij, hbb⟩ := hb
+  intro heq; subst heq
+  rw [hab] at hbb; injection hbb with _ hidx
+  rw [hidx] at hij; omega
+
+/-- **Per-level eliminator×minority rectangle drop probability.**  On a phase-8
+all-Main window, the probability that one step drops `minorityU σ` is at least
+`(#minority@i)·(#elim@>i)/(n(n−1))`, for any fixed level `i`. -/
+theorem minorityU_drop_prob_rect (σ : Sign) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : Phase8AllMain n c) (i : Fin (L + 1)) :
+    ENNReal.ofReal
+        (((minorityAt (L := L) (K := K) σ i).sum c.count *
+          (elimAbove (L := L) (K := K) σ i).sum c.count : ℕ) /
+          ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | minorityU σ c' + 1 ≤ minorityU σ c} := by
+  have hcardn : c.card = n := hInv.1
+  refine drop_prob_of_rect (fun c => minorityU σ c) n hn c hcardn
+    ((minorityAt (L := L) (K := K) σ i) ×ˢ (elimAbove (L := L) (K := K) σ i))
+    _ ?_ (le_of_eq ?_)
+  · -- per-cell drop: each (minority@i, elim@>i) pair drops minorityU by one.
+    rintro ⟨s, t⟩ hp hcs hct _
+    rw [Finset.mem_product] at hp
+    obtain ⟨hsmem, htmem⟩ := hp
+    simp only [minorityAt, Finset.mem_filter] at hsmem
+    simp only [elimAbove, Finset.mem_filter] at htmem
+    obtain ⟨_, hsM, hsb⟩ := hsmem
+    obtain ⟨_, htM, htf, st, j, hst, hij, htb⟩ := htmem
+    have happ : Protocol.Applicable c s t := by
+      have hsm : s ∈ c := Multiset.one_le_count_iff_mem.mp hcs
+      have htm : t ∈ c := Multiset.one_le_count_iff_mem.mp hct
+      have hne : s ≠ t :=
+        minorityAt_elimAbove_disjoint σ i s
+          (by simp only [minorityAt, Finset.mem_filter]; exact ⟨Finset.mem_univ _, hsM, hsb⟩) t
+          (by simp only [elimAbove, Finset.mem_filter]
+              exact ⟨Finset.mem_univ _, htM, htf, st, j, hst, hij, htb⟩)
+      exact applicable_of_mem_distinct hsm htm hne
+    exact minorityU_stepOrSelf_drop σ st n c hInv s t happ i j hsb htb hst hij htf
+  · -- rectangle interactionCount mass = product of counts.
+    rw [sum_interactionCount_cross_disjoint c _ _
+      (minorityAt_elimAbove_disjoint σ i)]
+
 /-! ## Part E — the Phase-8 `PhaseConvergenceW` from the engine.
 
 With both `hmono` (`potNonincrOn_minorityU`) and the FULL `hClosed`
