@@ -4,6 +4,47 @@ Source: ChatGPT Pro (family2, Ripple connector). 15,421 B. Verbatim below.
 
 ---
 
+## STATUS (2026-06-10) — Brick A remainder attacked in `Probability/ProfileSquaringRate.lean`
+
+The single named remainder of Brick A — `MainExponentConfinement.MainProfileSquaredBound` (the
+real-valued windowed squaring on `mainFrac`, carried as the `hSquaring` field of
+`MainProfileHourHypotheses`) — is now DISCHARGED *modulo* ONE genuinely-dynamic carried coupling,
+in NEW append-only file `Probability/ProfileSquaringRate.lean`. No existing file edited. Single-file
+`lake env lean` EXIT_0 (uisai2 v4.30.0); all headlines `#print axioms ⊆ [propext, Classical.choice,
+Quot.sound]`; no sorry/admit/axiom/native_decide. One commit `61a90ce2`, pushed to `main` + mirrored.
+
+* **Stage 1 — the HONEST per-step rate (PROVEN, the genuine quantitative attack).**
+  `split_rectangle_mass` / `honest_per_step_source`: ONE interaction raises `mainProfileAbove (i+1)`
+  only via a split on the rectangle of pairs `(.zero with hour>i) × (.main dyadic exactly i)`. Via
+  the LANDED `RoleSplitConcentration.sum_iCount_rectangle_disjoint`, the split-eligible rectangle
+  mass factorises as `zeroSupplyCount i · mainExactCount i = Z_i · M_i`. **The honest one-step rate
+  is therefore `c_{=i}·Z_i/n²` — a PRODUCT, demonstrably NOT the naive `c_{≥i}²`.** This is the
+  honest derivation the prompt demanded: the naive squared form is FALSE at the single-step level.
+* **Stage 2 — the hour-level squaring recovery (carried coupling).**
+  The square `c_{≥i+1} ≤ c_{≥i}²` is an HOUR-level fact: the `.zero`-supply `Z_i` doublable to level
+  `i+1` is itself produced, within the hour, by Rule-3 cancellations of `±i` pairs (which emit two
+  `.zero` agents with `hour = i`), so `Z_i` is dynamically bounded by the level-`≥i` mass and the
+  product `Z_i · M_i ≲ µ_{≥i}²`. This zero-supply ↔ high-mass coupling is carried as ONE precise
+  named field `IntegerProfileSquaring` (the integer `µ_{≥i+1}·|M| ≤ µ_{≥i}²`), the Main-profile
+  counterpart of the clock side's `ClockFrontProfile.GoodFrontProfile` — exactly the same honesty
+  shape (a TRUE dynamic recurrence carried, not faked).
+* **Stage 3 — the reduction + wiring (PROVEN).**
+  `mainProfileSquaredBound_of_coupling` DERIVES `MainProfileSquaredBound` from `IntegerProfileSquaring`
+  by pure division algebra (in-range: divide by `mainCount²`; boundary `i+1=L+1`: `mainFrac = 0 ≤ □²`).
+  `mainHourHypotheses_of_coupling` builds `MainProfileHourHypotheses` discharging `hSquaring`, so
+  `theorem6_2_main_confinement_whp`'s per-hour input is hypothesis-free except the landed clock facts
+  + the carried `IntegerProfileSquaring` coupling + arithmetic.
+
+**Closed vs carried (honest).** The honest per-step rate (Stage 1) is fully CLOSED — the genuine new
+content, and it proves the naive `c²` form is NOT the single-step rate. The reduction (Stage 3) is
+fully CLOSED. The single remaining residual is `IntegerProfileSquaring` — the integer hour-boundary
+squaring `µ_{≥i+1}·|M| ≤ µ_{≥i}²`, the genuinely-dynamic zero-supply ↔ high-mass coupling that the
+landed §6 clock Posts do not export for the Main exponent profile. It is the Main-profile twin of
+the clock's already-named `GoodFrontProfile` residual: the next thing to discharge probabilistically
+(the §6 hour dynamics establishing `Z_i ≲ µ_{≥i}`).
+
+---
+
 ## STATUS (2026-06-10) — Brick A landed in `Probability/MainExponentConfinement.lean`
 
 Brick A (Theorem 6.2 Main biased-exponent profile confinement, the LAST big probability brick of

@@ -3865,3 +3865,31 @@ reachable ladder telescope. Consumes the two honest residuals
   = phase-regime classification of reachable configs + ladder-spine construction + Lemma 5.2
   floor propagation — the documented future work. These are strictly weaker than the original
   universal `hLadder`: they only ever speak about states `init` can actually reach.
+
+---
+
+## 2026-06-10 — Brick A remainder: `ProfileSquaringRate.lean` (honest per-step rate + hour squaring reduction)
+
+New append-only file `Probability/ProfileSquaringRate.lean` (commit `61a90ce2`). Discharges
+`MainExponentConfinement.MainProfileSquaredBound` (the carried `hSquaring` field of Brick A's
+`MainProfileHourHypotheses`) modulo ONE genuinely-dynamic coupling. Single-file `lake env lean`
+EXIT_0 (uisai2 v4.30.0); all headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide.
+
+- **Stage 1 (honest per-step rate, PROVEN).** `split_rectangle_mass` / `honest_per_step_source`:
+  the per-step source of level-`(i+1)` growth is the split-eligible rectangle mass
+  `zeroSupplyCount i · mainExactCount i = Z_i · M_i` (via the landed
+  `RoleSplitConcentration.sum_iCount_rectangle_disjoint`). **The honest rate is the PRODUCT
+  `c_{=i}·Z_i/n²`, NOT the naive `c_{≥i}²`** — the prompt's central honesty check confirmed: the
+  squared form is not a single-step fact.
+- **Stage 2 (carried coupling).** `IntegerProfileSquaring`: the integer hour-boundary squaring
+  `µ_{≥i+1}·|M| ≤ µ_{≥i}²`, recovered from the product rate via the zero-supply ↔ high-mass coupling
+  (Rule-3 cancellations of `±i` pairs feed the doublable `.zero` supply). The Main-profile twin of
+  the clock's `GoodFrontProfile` — a TRUE dynamic recurrence carried, not faked.
+- **Stage 3 (reduction + wiring, PROVEN).** `mainProfileSquaredBound_of_coupling` (division algebra)
+  + `mainHourHypotheses_of_coupling` (constructor discharging `hSquaring`).
+
+**Remaining for full confinement:** discharge `IntegerProfileSquaring` probabilistically (the §6
+hour dynamics: `Z_i ≲ µ_{≥i}` at hour boundaries), exactly as the clock side still owes
+`GoodFrontProfile`. Everything else in Brick A's collapse → `hConfine` chain is already PROVEN /
+carried as named fields.
