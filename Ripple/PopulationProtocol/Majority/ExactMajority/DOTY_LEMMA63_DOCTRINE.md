@@ -706,3 +706,74 @@ NET: Phase B steps 1–2 are CLOSED for every carried scale hypothesis that has 
 exactly the doctrine's pre-existing two open pieces, now localized as named hypotheses in the
 concrete corollaries.  Phase B step 3–4 (the FrontSync consumer rethread) is the next family-line
 work and consumes goodFrontWidth_whp_concrete.
+
+## PHASE B-5 hB DISCHARGE — INFRASTRUCTURE LANDED + THE PRECISE BLOCKER (2026-06-10 relay session)
+## commits aed14c68 (B-5a, Part 12: uW/RWb/σw + w_y_le_uW + RW_le_RWb), 6aa4d6b4 (B-5b: Part 13
+## one_sub_exp_neg_tenth + σw_hsmall), 0462d298 (B-5c: Part 13a G_pow_200_ge_two + G_pow_10000_ge).
+## DotyParams.lean: 0-sorry; all four new lemmas #print axioms = [propext, Classical.choice,
+## Quot.sound]; single-file lake env lean GREEN.
+
+DELIVERED (the shared hB arithmetic infrastructure at the concrete params):
+- Part 12 (B-5a, predecessor): `uW = 603/20000`, `RWb = 1/(1−uW)`, `σw = 1/250`, `σw_pos`,
+  `baseW_pos`, `w_y_le_uW`, `RW_le_RWb` ((1+2(1+1/200)/n)^w ≤ RWb via exp chain).
+- Part 13 (B-5b): `one_sub_exp_neg_tenth` (47/500 ≤ 1−e^{−1/10}, via `Real.exp_bound` n=3, cubic
+  Taylor remainder ≤ 1/4000 — REQUIRED: the crude (1−s)s = 9/100 is too weak, regime 2 needs
+  > 0.0926); `σw_hsmall` (σw·(1+2(1+1/200)/n)^w ≤ (1/200)/(1+1/200), i.e. the `per_window_delta`
+  smallness gate, via RW_le_RWb + RWb ≤ 250/201).
+- Part 13a (B-5c): `G_pow_200_ge_two` ((201/200)^200 ≥ 2, norm_num), `G_pow_10000_ge`
+  ((201/200)^10000 ≥ 10^15 via ((201/200)^200)^50 ≥ 2^50 ≥ 10^15) — the EXPONENTIAL ladder-reach
+  growth (Bernoulli is too weak; the geometric ladder genuinely needs exp growth).
+
+### THE PRECISE BLOCKER (definitive, numerically pinned this session): `slice_discharge` is
+### STRUCTURALLY INADEQUATE for the ceiling ladder — its rigid drip↔threshold G² coupling has ZERO
+### rounding slack, and the ⌈⌉/⌊⌋ on the rungs opens an irreducible ~1.1e-8 gap.
+
+The geometric ladder rung `a_m = ⌈G^m·a0⌉` (a0 = ⌈g·X₀⌉, G = 201/200) feeds `per_window_delta`,
+whose `hslice` is meant to be discharged by `slice_discharge` (EarlyDripMarked ~5819).  But
+`slice_discharge` requires, per rung m, with a SINGLE free `Gm`:
+  (drip cap)  drip·(1+ε)·RW ≤ Gm·G²·g²·(1+ε)·RWb·wp·Q,   drip = (a_{m+1}/n)²·w
+  (threshold) cc·Gm·g²·Q ≤ Yt ≤ cc·a_m²/n + 1   (hYt + hYtcap sandwich)
+Writing `Gm = G^{2m}·κ` (κ a uniform inflation), these force, for ALL m (worst case X₀ = θn,
+n = 10^40, w = 3n/200 EXACT so no w-slack):
+  κ ≥ a_{m+1}²·w / (G^{2m+2}·g²·wp·Q·n²)         [drip]     → κ_min = 1.0 (from above)
+  κ ≤ a_m² / (G^{2m}·g²·X₀²)                      [cap]      → κ_max = 1.0 (from below)
+and κ_min − κ_max ≈ +1.1e-8 > 0 — the window is EMPTY for ~6988 of 7001 rungs.  ROOT CAUSE: the
+drip term uses a_{m+1} (rounded UP by ⌈⌉), the threshold uses a_m, and `a_{m+1} = ⌈G·a_m⌉ ⪈ G·a_m`,
+so the actual rung ratio a_{m+1}/a_m slightly EXCEEDS G, breaking the exact G² that `slice_discharge`
+bakes in between drip and threshold.  Verified identical for the FLOOR ladder (gap −1.13e-8) — it is
+NOT a choice-of-rounding artifact; it is `slice_discharge`'s rigid coupling.  (Note `A/B = 0.999607`,
+so κ ∈ (A/B, ·] is also needed for A − G^{2m}κ·B < 0 — that side is fine; the killing constraint is
+drip-vs-cap.)
+
+### THE FIX (the genuine "last big arithmetic", buildable next session — NOT yet written):
+A CUSTOM slice lemma that absorbs the ⌈⌉ inflation into the (large) bracket margin A − B = −3.65e-4
+≫ 1.1e-8, instead of `slice_discharge`'s exact G².  Concretely: the threshold and drip should be
+DECOUPLED — let the threshold use a_{m+1} (one rung ahead, giving it breathing room) OR carry the
+inflation factor κ_m = (a_{m+1}/(G·a_m))² ≤ (1+1/(g·θn))² ≤ 1+3/θn (θn ≥ 30000 ⟹ ≤ 1+1e-4) as an
+explicit per-rung multiplier and show A − G^{2m}·κ_m·B ≤ A − B·(1+1e-4) < 0 (margin 3.65e-4 − 1e-4·B
+≈ 2.7e-4 > 0).  This re-derives `slice_clean_tail_explicit`'s exponent (EarlyDripMarked Part ~24)
+through the bracket rather than through the fixed-G² `slice_discharge`.  Build order for next session:
+1. `slice_discharge_inflated` (Q σ RW RWb Gm κ Y₀ drip Yt …): same as `slice_discharge` but RHS
+   bracket is `A − Gm·κ·B`, drip cap relaxed to `drip·(1+ε)·RW ≤ Gm·κ·G²·g²·(1+ε)·RWb·wp·Q`,
+   threshold unchanged `cc·Gm·g²·Q ≤ Yt`; conclusion exponent ≤ σ·Q·(A − Gm·κ·B).  Pure nlinarith
+   rearrangement of `slice_exp_le` with the extra κ factor in the drip slot.
+2. The ladder facts at the concrete params: a_m = ⌈G^m·⌈g·X₀⌉⌉, M = n-DEPENDENT (NOT a fixed 10000
+   — aMn/θn = n^{2/5}/10 grows, so M = ⌈log_G(aMn/θn)⌉; pick M := n and use Bernoulli
+   (201/200)^n ≥ 1+n/200 ≥ 2n^{2/5} ≥ aMn/θn for n ≥ N₀, so a M = ⌈G^n·a0⌉ ≥ aMn, then bound the
+   CONCRETE event (cap aMn) ⊆ ladder event (cap a M) by measure_mono — NO exact a M = aMn needed,
+   which sidesteps the saturation casework AND the G_pow_10000 fixed-M dead-end).  Per-rung: ha0
+   (10·a0 ≤ n needs a0 = ⌈g·X₀⌉ ≤ n/10, i.e. the 4n/41 split OR min-cap a0 — the doctrine's regime
+   split is still needed for ha0 since g·X₀ near n/10 overshoots; use a0 := min ⌈g·X₀⌉ ⌊n/10⌋ which
+   keeps 10·a0 ≤ n AND a0 ≤ g·X₀+1, unifying both regimes for the FLOOR, while the n-rung ladder
+   from that a0 still reaches aMn), κ_m bound, threshold Yt := ⌈cc·G^{2m}·g²·Q⌉, drip cap via κ_m.
+3. floor branch unchanged (`floor_discharge`, margin δgLocked = 1.05e-4 ≤ w·cg − sg(g−1) = 1.094e-4
+   at N₀ — TIGHT but holds; needs w/n ≥ 0.01439, i.e. ⌊3n/200⌋/n ≥ 0.01439 for n ≥ N₀, easy).
+4. `hB_params` = per-mc₀ `per_window_delta` (per-mc₀ M = n) + `perWindowDelta_uniform` (M ≤ n cast,
+   monotonize X₀ → θn) → uniform δ T := exp(−δgLocked·θn + 1/10) + n·exp(σw·(θn²/n)·(A−B)); then
+   `windowedFrontProfile_whp_final`/`goodFrontWidth_whp_final` drop hB for N₀ ≤ n (eB may stay).
+   The n·exp(σ·n^{1/5}·(A−B)) slice term is still n^{−ω(1)} (poly × exp(−Ω(n^{1/5}))).
+
+NOTE the fixed-M dead-end CAUGHT this session: M = 10000 (a constant) CANNOT work — θn = n^{3/5},
+aMn = n/10, ratio n^{2/5} is UNBOUNDED, so M must be n-dependent.  `G_pow_10000_ge` is kept as a
+clean building block (proves the 50-block doubling) but the assembly uses M := n + Bernoulli +
+measure_mono (cap aMn ⊆ a M), not exact saturation.

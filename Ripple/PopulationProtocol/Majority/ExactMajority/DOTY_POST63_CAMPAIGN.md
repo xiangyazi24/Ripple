@@ -207,3 +207,45 @@ Findings (verified in code, not speculation):
    (drift-absorbing vs endpoint-transport — ChatGPT letter 2 in flight, task output
    /tmp/gpt_a_phaseB2.out), then `clock_real_step_gated` + minuteStepPhaseW instances +
    composeW. Escape-budget arithmetic at DotyParams' concrete parameters.
+
+## Phase B step 3 — horizon/start audit results (ChatGPT letter 4, family3, 2026-06-10 ~4am)
+
+1. **Checkpoint prefixes are free**: windowedFrontProfile_whp at τ = j·w is the SAME theorem with
+   KK := j (hsmall at w·j follows from hsmall at w·KK since j ≤ KK and the base > 1 — check
+   direction when wiring). Remainders τ = j·w + r need ONE generic lemma
+   `checkpoint_composition_prefix` (invariant_union_bound's split + a terminal r-block; hrem input
+   `∀ x, Inv x → (Kk^r) x {¬Inv} ≤ δr`). No new probability.
+2. **ClimbBound side is already horizon-free** (climb_real_tail/climbBound_whp take free t; the
+   DotyParams wrapper kept t free).
+3. **Start conditions (the real crux)**: recInv does NOT follow from Q_mix + AllClockP3 + card.
+   All-clean lift ⟹ MarkInv (markInv_of_clean) + taintedCount = 0, but recInv only via
+   window-closed (recInv_of_window_closed: ¬AllClockP3 ∨ rBeyond > n/10). At a mid-run minute
+   boundary with AllClockP3 ∧ open window, a FRESH all-clean lift fails recInv (cleanAbove = full
+   tail ⟹ recurrence inequality false in the window). ⟹ **Design: ONE marked chain per clock run**,
+   started at the phase-3 entry (where ¬AllClockP3 ⟹ recInv all T via h0_params), maintained whp
+   by the §6 engine itself (window_failure_le per window); the per-minute escape accounting reads
+   real-kernel prefix events off this single chain via markedK_pow_erase (horizon/event free) +
+   checkpoint prefixes. Do NOT re-lift per minute.
+4. Targets sketched by the letter: wfpPrefixBound/climbPrefixBound defs + goodFrontWidth_whp_prefix
+   (∀ τ ≤ M family). New-lemma list: checkpoint_composition_prefix (+ a δRem r-horizon window bound,
+   supplied as input).
+
+## Phase B step 3 — the COMPLETE prefix ladder (letter 4 full version; acceptance spec for the
+WidthPrefix brick)
+
+Five wrapper lemmas, no new probability (1-2 generic, 3-5 are copies of existing proofs with the
+prefix lemma substituted):
+1. `checkpoint_composition_prefix` — j full windows via checkpoint_composition + one terminal
+   r-block (split intermediate state on Inv; charge δRem on Inv, complement absorbed in prior mass).
+2. `recurrence_checkpoint_prefix` — specialize to Inv := recInv, Kk := markedK; window_failure_le
+   for both block types (full-w and remainder-r; the r-horizon hB input may be carried as δRem).
+3. `front_squares_whp_prefix` — copy front_squares_whp; recurrence_checkpoint →
+   recurrence_checkpoint_prefix; markInv_ae_pow at τ; tainted_marked_tail_explicit at t := τ.
+4. `real_front_union_prefix` — copy real_front_union; markedK_pow_erase at τ; union over T < Tcap.
+5. `windowedFrontProfile_whp_prefix` — copy windowedFrontProfile_whp; deterministic subset
+   (windowedFrontProfile_of_not_bad) unchanged; real_front_union → real_front_union_prefix.
+Then `goodFrontWidth_whp_prefix` (∀ τ ≤ M family): wfpPrefixBound (j := τ/w, r := τ%w; per-T sum of
+j·δWin T + δRem T r + killK-none at τ + tainted MGF at τ) + climbPrefixBound (already free-t side).
+Pure-wrapper facts: climbBound side free in t; markedK_pow_erase free; neg conjunct droppable via
+neg_params. The only open engineering point: supplying hBrem (r-horizon per-window engine at the
+scale hypotheses, or a coarse uniform δRem for partial windows).

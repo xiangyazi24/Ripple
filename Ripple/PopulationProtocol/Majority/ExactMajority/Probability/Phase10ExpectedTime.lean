@@ -370,31 +370,127 @@ theorem coupon_expectedHitting_le_of_occBounds [DiscreteMeasurableSpace α]
   rw [Finset.mem_Icc] at hm
   exact hocc m hm.1 hm.2
 
-/-! ### Remaining gap: arbitrary-start level occupation (strong-Markov restart)
+/-! ### Arbitrary-start level occupation (the strong-Markov restart, formalized)
 
-`coupon_expectedHitting_le_of_occBounds` reduces the capstone to the per-level
-occupation bound
+We now discharge the per-level occupation bound
 
   `occLevel K Φ m c ≤ (1 - q m)⁻¹`   for **arbitrary** start `c`  (∗)
 
-(plus the trivial high-level vanishing `hhi`, which follows from `Φ c ≤ M` and
-`pow_above_eq_zero_of_start_le`).
+required by `coupon_expectedHitting_le_of_occBounds`.
 
-`level_occ_expectedHitting` already proves the *constrained-start* version of (∗):
-for `Φ c ≤ m`,
-  `expectedHitting K c (potBelow Φ m) ≤ (1 - q m)⁻¹`,
-and `occLevel K Φ m c ≤ expectedHitting K c (potBelow Φ m)` holds for such starts
-because the chain stays in `{Φ ≤ m}` so `{Φ = m} = (potBelow Φ m)ᶜ` along it
-(this is exactly `pow_above_eq_zero_of_start_le` + the level/below identity).
+The constrained case `Φ c ≤ m` is immediate from `level_occ_geometric`
+(`{Φ = m} ⊆ (potBelow Φ m)ᶜ`, geometric decay, geometric series).  The arbitrary
+case is the **first-passage restart**: from a start `Φ c > m` the time-0 level-`m`
+mass is `0`, and one Chapman-Kolmogorov step pushes the whole occupation onto the
+one-step successors, where the bound holds by induction.  We avoid a pathwise
+strong-Markov statement by inducting on a **time-truncated** occupation
+`∑_{i<t} (K^i) c {Φ = m}` (a uniform-in-`c` bound for every truncation `t`), then
+passing to the `tsum` limit.  No measure-theoretic first-passage σ-algebra is
+needed — only the kernel Chapman-Kolmogorov identity and a Markov-kernel
+`∫ const = const`. -/
 
-The gap is purely the **first-passage restart**: from a start `Φ c > m`, the
-level-`m` occupation equals (probability of ever reaching `{Φ ≤ m}`) × (occupation
-once entered).  The first factor is `≤ 1`; the second is the constrained bound
-`(1 - q m)⁻¹`.  Formalizing this requires a one first-passage decomposition of the
-tail sum `∑'_t (K^t) c {Φ = m}` through the hitting time of `{Φ ≤ m}` — the
-standard strong-Markov occupation identity, not yet available as a generic kernel
-lemma in this development.  It is the single remaining brick for the full
-`O(n² log n)` interaction-count expectation.  See campaign file Phase E2 notes. -/
+/-- **Constrained-start level occupation.** For a start at level `≤ m`, the
+level-`m` occupation is bounded by the per-level waiting time `(1 - q)⁻¹`.  Direct
+from geometric decay: `{Φ = m} ⊆ (potBelow Φ m)ᶜ` and `(K^t) c (potBelow Φ m)ᶜ ≤ qᵗ`. -/
+theorem occLevel_le_of_start_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) :
+    occLevel K Φ m c ≤ (1 - q)⁻¹ := by
+  have hsub : ({x : α | Φ x = m} : Set α) ⊆ (potBelow Φ m)ᶜ := by
+    intro x hx
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+    exact (Set.mem_setOf_eq ▸ hx).ge
+  rw [occLevel]
+  calc ∑' t : ℕ, (K ^ t) c {x | Φ x = m}
+      ≤ ∑' t : ℕ, (K ^ t) c (potBelow Φ m)ᶜ :=
+        ENNReal.tsum_le_tsum (fun t => measure_mono hsub)
+    _ ≤ ∑' t : ℕ, q ^ t :=
+        ENNReal.tsum_le_tsum (fun t => level_occ_geometric K Φ hmono m q hdrop c hc t)
+    _ = (1 - q)⁻¹ := ENNReal.tsum_geometric q
+
+/-- The **time-truncated** level-`m` occupation: the partial sum of the level-`m`
+masses over the first `t` steps. -/
+noncomputable def occLevelUpTo (K : Kernel α α) (Φ : α → ℕ) (m : ℕ) (t : ℕ) (c : α) :
+    ℝ≥0∞ :=
+  ∑ i ∈ Finset.range t, (K ^ i) c {x | Φ x = m}
+
+/-- **Uniform truncated bound (the strong-Markov restart, truncated form).** For
+*every* truncation `t` and *every* start `c`, the truncated level-`m` occupation is
+`≤ (1 - q)⁻¹`.  Proof by induction on `t`, splitting on `Φ c ≤ m` (constrained
+bound, no IH) vs `Φ c > m` (the time-0 term vanishes, then one Chapman-Kolmogorov
+step pushes the remaining sum onto successors where the IH applies, integrated
+against the Markov kernel `K c`). -/
+theorem occLevelUpTo_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (t : ℕ) (c : α) :
+    occLevelUpTo K Φ m t c ≤ (1 - q)⁻¹ := by
+  induction t generalizing c with
+  | zero => simp only [occLevelUpTo, Finset.range_zero, Finset.sum_empty]; exact zero_le'
+  | succ t ih =>
+      by_cases hc : Φ c ≤ m
+      · -- Constrained start: truncated sum ≤ full occupation ≤ (1-q)⁻¹.
+        calc occLevelUpTo K Φ m (t + 1) c
+            ≤ occLevel K Φ m c := by
+              rw [occLevelUpTo, occLevel]; exact ENNReal.sum_le_tsum _
+          _ ≤ (1 - q)⁻¹ := occLevel_le_of_start_le K Φ hmono m q hdrop c hc
+      · -- Φ c > m: the i = 0 term is 0; peel it and reindex i ↦ j+1.
+        rw [not_le] at hc  -- m < Φ c
+        have hmeasm : MeasurableSet {x : α | Φ x = m} :=
+          DiscreteMeasurableSpace.forall_measurableSet _
+        -- (K^0) c {Φ = m} = 0 since Φ c ≠ m.
+        have hzero : (K ^ 0) c {x | Φ x = m} = 0 := by
+          rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+            Measure.dirac_apply' c hmeasm]
+          have : c ∉ {x : α | Φ x = m} := by
+            simp only [Set.mem_setOf_eq]; omega
+          simp [this]
+        -- Truncated sum over range (t+1): drop i=0, reindex i = j+1.
+        have hsplit : occLevelUpTo K Φ m (t + 1) c
+            = ∑ j ∈ Finset.range t, (K ^ (j + 1)) c {x | Φ x = m} := by
+          rw [occLevelUpTo, Finset.sum_range_succ']
+          simp only [hzero, add_zero]
+        rw [hsplit]
+        -- Chapman-Kolmogorov per term: (K^(j+1)) c S = ∫ b, (K^j) b S ∂(K c).
+        have hCK : ∀ j : ℕ, (K ^ (j + 1)) c {x | Φ x = m}
+            = ∫⁻ b, (K ^ j) b {x | Φ x = m} ∂(K c) := by
+          intro j
+          rw [show j + 1 = 1 + j from by ring,
+            Kernel.pow_add_apply_eq_lintegral K 1 j c hmeasm, pow_one]
+        simp only [hCK]
+        -- Pull the finite sum inside the integral: ∑_j ∫ f_j = ∫ ∑_j f_j.
+        rw [← lintegral_finsetSum (Finset.range t)
+          (fun j _ => Kernel.measurable_coe (K ^ j) hmeasm)]
+        -- The integrand ∑_{j<t} (K^j) b {Φ = m} = occLevelUpTo … t b ≤ (1-q)⁻¹ (IH),
+        -- so the integral is ≤ (1-q)⁻¹ · (K c)(univ) = (1-q)⁻¹ (Markov kernel).
+        calc ∫⁻ b, (∑ j ∈ Finset.range t, (K ^ j) b {x | Φ x = m}) ∂(K c)
+            ≤ ∫⁻ _ : α, (1 - q)⁻¹ ∂(K c) := by
+              apply lintegral_mono
+              intro b
+              simpa only [occLevelUpTo] using ih b
+          _ = (1 - q)⁻¹ := by
+              rw [lintegral_const, measure_univ, mul_one]
+
+/-- **Arbitrary-start level occupation bound (∗).** For *any* start `c`, the
+level-`m` occupation is bounded by the per-level waiting time `(1 - q)⁻¹`.  The
+truncated occupations `occLevelUpTo … t c` are uniformly `≤ (1-q)⁻¹`
+(`occLevelUpTo_le`) and increase to `occLevel … c` (partial sums of a nonnegative
+series), so their `tsum` limit inherits the bound.  This is the strong-Markov
+first-passage restart, discharged via the time-truncation + Chapman-Kolmogorov
+route, and closes the last brick of the coupon engine. -/
+theorem occLevel_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) :
+    occLevel K Φ m c ≤ (1 - q)⁻¹ := by
+  -- occLevel = tsum = ⨆ truncations; each truncation ≤ (1-q)⁻¹.
+  rw [occLevel, ENNReal.tsum_eq_iSup_nat]
+  refine iSup_le (fun t => ?_)
+  exact occLevelUpTo_le K Φ hmono m q hdrop t c
 
 /-! ### Phase-10 instantiation target
 
