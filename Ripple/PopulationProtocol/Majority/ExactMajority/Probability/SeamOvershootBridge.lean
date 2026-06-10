@@ -912,6 +912,46 @@ theorem Transition_left_advance_imp_ep_clock_zero (a b : AgentState L K) (p : �
     rw [dispatch_left_not_clock_phase_eq e f (p + 1) hq hepphase hc] at hadv
     omega
 
+/-- **Source-tracing (left).**  If the left epidemic output `ep.1` is a clock at phase
+`p+1 ∈ {1,6,7,8}` with `counter = 0`, then the SOURCE `a` is already a clock at phase
+`p+1` with `counter = 0`.  (An epidemic-dragged immigrant clock would be reset to the
+FULL counter `≠ 0`; so `ep.1` with `counter = 0` was not dragged — `a.phase = p+1` and the
+epidemic left `a`'s clock untouched.) -/
+theorem ep_left_clock_zero_imp_source (a b : AgentState L K) (p : ℕ)
+    (hq : CounterResetDest (p + 1))
+    (hrole : (phaseEpidemicUpdate L K a b).1.role = .clock)
+    (hphase : (phaseEpidemicUpdate L K a b).1.phase.val = p + 1)
+    (hctr : (phaseEpidemicUpdate L K a b).1.counter.val = 0) :
+    a.role = .clock ∧ a.phase.val = p + 1 ∧ a.counter.val = 0 := by
+  have hqT : CounterTimedPhase (p + 1) := CounterTimedPhase_of_CounterResetDest hq
+  have hple : p + 1 ≤ 8 := by rcases hq with h | h | h | h <;> omega
+  set ep1 := (phaseEpidemicUpdate L K a b).1 with hep1
+  rcases lt_trichotomy a.phase.val (p + 1) with hlt | heq | hgt
+  · -- immigrant ⟹ full counter ≠ 0, contradicting hctr
+    exfalso
+    have hfull := phaseEpidemicUpdate_left_immigrant_full a b (p + 1) hqT hlt hrole hphase
+    rw [← hep1] at hfull; omega
+  · -- a.phase = p+1: epidemic leaves a's clock untouched.
+    have hba : b.phase.val ≤ a.phase.val := by
+      by_contra hgt
+      rw [not_le] at hgt
+      have hge : b.phase.val ≤ ep1.phase.val := by
+        rw [hep1]
+        exact le_trans (le_max_right _ _)
+          (phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) a b)
+      rw [hphase] at hge; omega
+    obtain ⟨hctra, hrolea, hphase_or⟩ := phaseEpidemicUpdate_left_id_of_ge a b hba
+    refine ⟨?_, heq, ?_⟩
+    · rw [← hrolea]; exact hrole
+    · rw [show a.counter.val = ep1.counter.val from by rw [hctra], hctr]
+  · -- a.phase > p+1 contradicts ep1.phase = p+1 ≥ a.phase (epidemic non-decreasing).
+    exfalso
+    have hge : a.phase.val ≤ ep1.phase.val := by
+      rw [hep1]
+      exact le_trans (le_max_left _ _)
+        (phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) a b)
+    rw [hphase] at hge; omega
+
 end SeamNoOvershoot
 
 end ExactMajority
