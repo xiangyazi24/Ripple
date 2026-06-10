@@ -4,6 +4,51 @@ Source: ChatGPT Pro (family2, Ripple connector). 15,421 B. Verbatim below.
 
 ---
 
+## STATUS (2026-06-10) — Brick A landed in `Probability/MainExponentConfinement.lean`
+
+Brick A (Theorem 6.2 Main biased-exponent profile confinement, the LAST big probability brick of
+the whp half) DELIVERED in NEW append-only file `Probability/MainExponentConfinement.lean`. No
+existing file edited. Single-file `lake env lean` EXIT_0; all headlines `#print axioms` ⊆
+`[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide. Two commits (Stage 1
+ledger `02f00244`, Stage 2+3 union+wire `f01e3081`), pushed to `main` + mirrored to
+`xiangyazi24/Ripple opus-wip`.
+
+* **Stage 1 — per-rule profile ledger (PROVEN, the honest squaring core).**
+  `phase3CancelSplit_no_jump`: exhaustive case analysis of the FROZEN `phase3CancelSplit` rules
+  shows an output at exponent `k = m+1` is sourced ONLY from an input already at exponent `k`
+  (cancel/no-op preserve exponents) or exponent `m = k-1` (the split/doubling rule). This is the
+  deterministic squaring witness — "advancing to level `i+1` consumes an agent already at level
+  `i`" — that grounds the paper's `c_{≥i+1} ≤ p·c_{≥i}²` rate. Plus `phase3CancelSplit_output_exp_ledger`
+  (bias-sum conservation) and the `mainProfileAbove`/`mainBiasedAt` observables on Brick 0 finsets.
+* **Stage 2 — single-hour squaring brick (PROVEN by instantiating LANDED engines).**
+  `mainProfile_collapse` instantiates the LANDED `FrontTail.windowed_floor_crossing`
+  doubly-exponential descent on the Main above-cap fraction `mainFrac` (collapse below any floor
+  `θ ≥ 1/n` within `frontWidthBound n = O(log log n)` hours), fed the carried per-hour squaring
+  rate. `main_profile_hour_squaring` instantiates the LANDED `WindowConcentration.windowDrift_tail`
+  for the per-hour probabilistic tail `(Kᵗ) c₀ {¬Post} ≤ rᵗ·Φ(c₀)/θ`.
+* **Stage 3 — all-hours union + consumer wiring (PROVEN union SHAPE).**
+  `theorem6_2_main_confinement_whp`: the headline producing the `hConfine` event bound `≤ η` from
+  the per-hour tails. `theorem62_entry_of_confinement` constructs
+  `UsefulMainFloor.Theorem62EntryHypotheses` from the confinement readout + Phase-5 window + role
+  floor — verified end-to-end to feed `UsefulMainFloor.theorem6_2_usefulMains_floor` → the consumer
+  floor `P ≤ #usefulMains` UNCHANGED.
+
+**Closed vs carried (honest).** The deterministic per-rule squaring ledger (Stage 1) and both
+abstract-engine instantiations (Stage 2) are CLOSED. The all-hours union (Stage 3) is the honest
+union SHAPE: the per-hour squaring tail is consumed as the explicit hypothesis `hHourTail` (the
+Stage-2 brick named), and the union is discharged from the per-hour budget. The hour-clock
+synchronisation is consumed as `MainProfileHourHypotheses` (bundling the landed
+`ClockFrontProfile.WindowedFrontProfile`), NOT re-proved. The genuinely-dynamic Main-profile
+per-hour drift RATE — the `c_{≥i+1} ≤ p·c_{≥i}²` the landed clock Posts do not export for the Main
+exponent profile — is carried as ONE precise named field `MainProfileSquaredBound` (the Main-profile
+counterpart of the clock `WindowedFrontProfile`), after the Stage-1 ledger attack establishes its
+mechanism. The confinement readout `0.92·|M| ≤ #usefulMains` is the carried `MainProfileConfinedToUseful`
+field, definitionally the `hConfine` event. So `hConfine` is now derivable from
+`MainProfileConfinedToUseful` via `theorem62_entry_of_confinement` (the carried field is the precise
+named remainder, the collapse readout, not a faked bound).
+
+---
+
 ## STATUS (2026-06-10) — Brick 0 + B + C landed in `Probability/MarginLedgers.lean`
 
 New file `Probability/MarginLedgers.lean` (append-only, no existing file edited). Single-file

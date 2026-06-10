@@ -3708,3 +3708,64 @@ New append-only file (309 lines, namespace `ExactMajority.FloorPrefix`) discharg
 εlate landed at `1/(3n²)`; the calibration is honest because the killed leading term decays as
 `rᵗ` (no `1≤r`). Build infra: rsync local Ripple source + 58 Probability oleans into shm, `lake
 exe cache get` for mathlib, `lake build … LateFloor` (3572 jobs) then single-file `lake env lean`.
+
+---
+
+## 2026-06-10 — Brick A: Theorem 6.2 Main-exponent confinement (`Probability/MainExponentConfinement.lean`)
+
+The LAST big probability brick of the whp half, per `HANDOFF_THREE_CORES.md` §1. NEW append-only
+file; no existing file edited. Single-file `lake env lean` EXIT_0; all headlines `#print axioms` ⊆
+`[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide. Two commits (Stage 1
+ledger, Stage 2+3 union+wire), pushed to `main` + mirrored to `xiangyazi24/Ripple opus-wip`.
+
+### Stage 1 — per-rule profile ledger (PROVEN, the honest squaring core)
+
+`phase3CancelSplit_no_jump` is the deterministic squaring witness read off the FROZEN
+`phase3CancelSplit` rules (exhaustive case analysis over both input biases × signs): an output at
+exponent `k = m+1` is sourced ONLY from an input already at exponent `k` (cancel/no-op preserve
+exponents) or exponent `m = k-1` (the split/doubling rule, which makes BOTH outputs `dyadic sgn
+(i+1)` from a `(.zero, dyadic sgn i)` pair with `hour > i`). This is the honest "advance to level
+`i+1` consumes an agent already at level `i`" structure underlying the paper's
+`c_{≥i+1} ≤ p·c_{≥i}²` per-step rate. Plus `phase3CancelSplit_output_exp_ledger` (bias-sum
+conservation, from the FROZEN `phase3CancelSplit_preserves_dyadicBiasSum_pair`) and the
+`mainProfileAbove` / `mainBiasedAt` above-exponent profile observables built on Brick 0's finsets.
+
+### Stage 2 — single-hour squaring brick (PROVEN by instantiating the LANDED engines)
+
+- `mainProfile_collapse` instantiates the LANDED `FrontTail.windowed_floor_crossing`
+  doubly-exponential descent on the Main above-cap fraction `mainFrac i c = µ_{≥i}/|M|`: under the
+  Main-profile hour hypotheses with floor `θ ≥ 1/n`, the fraction crosses below the floor within
+  `frontWidthBound n = O(log log n)` hours. The collapse engine is fed the carried per-hour squaring
+  rate `MainProfileSquaredBound` (the Main-profile counterpart of the clock `WindowedFrontProfile`).
+- `main_profile_hour_squaring` instantiates the LANDED `WindowConcentration.windowDrift_tail` for
+  the per-hour probabilistic tail `(Kᵗ) c₀ {¬Post} ≤ rᵗ·Φ(c₀)/θ` (the squared rate `r` entering
+  through the potential `Φ` and absorbing window `Q`).
+
+### Stage 3 — all-hours union + consumer wiring (PROVEN union SHAPE)
+
+- `theorem6_2_main_confinement_whp`: the headline producing the `hConfine` event bound — the
+  probability that `0.92·|M| ≤ #usefulMains` FAILS over the Phase-3→5 horizon is `≤ η` — from the
+  per-hour squaring tails (`hHourTail`, the Stage-2 brick named explicitly).
+- `theorem62_entry_of_confinement`: the constructor building
+  `UsefulMainFloor.Theorem62EntryHypotheses` from the confinement readout
+  `MainProfileConfinedToUseful` + the landed Phase-5 window + the Lemma-5.2 role floor. Verified
+  end-to-end to feed `UsefulMainFloor.theorem6_2_usefulMains_floor` → the consumer floor
+  `P ≤ #usefulMains` UNCHANGED (the existing adapter `phase5_hdrop_wired_from_theorem6_2` consumes
+  Brick A unmodified).
+
+### Closed vs the precise named remainder (honest)
+
+- **CLOSED (proven, axiom-clean):** the deterministic per-rule squaring ledger `phase3CancelSplit_no_jump`
+  (Stage 1); both abstract-engine instantiations `mainProfile_collapse` / `main_profile_hour_squaring`
+  (Stage 2); the union headline `theorem6_2_main_confinement_whp` and the consumer constructor
+  `theorem62_entry_of_confinement` (Stage 3, the union SHAPE + wiring).
+- **CARRIED (precise named remainder):** the genuinely-dynamic Main-profile per-hour squaring RATE
+  `MainProfileSquaredBound` (the `c_{≥i+1} ≤ p·c_{≥i}²` the landed clock Posts export for the CLOCK
+  front, not the Main exponent profile), consumed inside `MainProfileHourHypotheses` alongside the
+  landed clock `ClockFrontProfile.WindowedFrontProfile` (the hour-boundary synchronisation, NOT
+  re-proved); and the collapse READOUT `MainProfileConfinedToUseful` (= the `hConfine` event,
+  definitionally), which the all-hours collapse delivers. The single-hour squaring tail enters
+  Stage 3's union as the explicit `hHourTail` hypothesis. So `UsefulMainFloor.hConfine` is now
+  constructible via `theorem62_entry_of_confinement`; the carried fields are the precise named
+  remainders (the per-hour drift rate + the collapse readout), after the real Stage-1 ledger attack
+  on `phase3CancelSplit`, not faked bounds.
