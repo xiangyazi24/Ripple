@@ -3087,3 +3087,60 @@ is now BUILT in a new file. All headlines `#print axioms ⊆ [propext, Classical
   left-clock reduction is the one not-yet-packaged piece (Phase{5,6,7} are done). Phase 5 FAILS (finding 2).
 - The full per-pair adapter delivering `SeamNoOvershoot`'s exact `hpair` is NOT deliverable as stated
   (finding 1: constant; finding 2: phase 5). The honest adapter targets `2·eˢ·freshVal` over `{1,6,7,8}`.
+
+---
+
+## KilledAffineTail.lean — the AFFINE-IMMIGRATION killed-tail GENERIC ENGINE (2026-06-10, 0-sorry axiom-clean)
+
+`Probability/KilledAffineTail.lean` builds the ONE generic engine three campaign lines were
+blocked on: the `killK_now` analogue of `Phase0Window.phase0_window_tail_affine`, with affine
+drift on the gate `G` ONLY, immigration `b ≥ 0`, and — critically — rate `a ≥ 0` ARBITRARY (NO
+`1 ≤ a`).  Append-only; existing files untouched.
+
+### Why the old `1 ≤ r` existed and how it was removed (honestly)
+
+The multiplicative gated engine (`GatedGeometricDrift.killed_geometric_tail`,
+`GatedEscape.gated_real_tail_full`) carried `hr : 1 ≤ r`.  It was SPURIOUS: in
+`GatedGeometricDrift.killK_drift` the hypothesis `hr` is never used in the proof body — the
+killed potential `killΦ Φ none = 0`, so on the cemetery/ungated branch the killed drift LHS is
+`∫⁻ killΦ d(δ none) = 0 ≤ r·0` for ANY `r ≥ 0`, and the alive branch is exactly `hdrift_G`.  The
+analytic core `PopProtoCommon.lintegral_geometric_decay` likewise takes arbitrary `r`.  `1 ≤ r`
+was a convention carried from the supermartingale layer.  For the affine case the dead-branch
+killed drift target is `a·killΦ none + b = b ≥ 0 = LHS`, so `a` is unconstrained.  Dropping it
+makes the killed tail GENUINELY decay when `a < 1` — the contractive regime FloorPrefix needed.
+(The non-decaying `t·η + rᵗΦ/θ` of `gated_real_tail_full` came from the COARSE escape bound `t·η`,
+not from any `killK` obstruction; here escape is bounded by the self-referential threshold prefix.)
+
+### Stages (one commit each, all single-file `lake env lean` EXIT_0, axioms [propext, Classical.choice, Quot.sound])
+
+1. `killK_now_drift_affine` / `killed_now_lintegral_decay_affine` / `killed_now_affine_tail`:
+   `(killK_now^t)(some x₀){θ≤killΦ Φ} ≤ (aᵗΦx₀ + b∑aⁱ)/θ`, `a≥0` arbitrary, `b=0` special case.
+2. `real_le_killed_affine_tail_add_escape`: `(K^t)x₀{θ≤Φ} ≤ killed-tail + escape` (real_le_killed_now
+   + measure_union_le split).
+3. `escape_le_threshold_prefix` (deterministic exit bridge, q=0) + `real_window_killed_affine` +
+   `real_window_killed_affine_uniform`: escape replaced by ∑_τ (K^τ)x₀{θ'≤Φ}; packaged window.
+4. **Consumer 1 (Gap-2 headline) — the unconditional Phase-0 window.**  `phase0Gate := allPhase0 ∩
+   {card=n}`; `phase0Gate_exit_bridge` proves the q=0 exit (Φ<1⟹noClockAtZero⟹allPhase0 preserved
+   via `transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero` + card preserved via
+   `stepOrSelf_card_eq`); `phase0_killed_clock_zero_tail` = clean decaying killed budget aᵗΦc₀+b∑aⁱ
+   (NO absorbing Q, NO 1≤a); `phase0_clock_zero_killed_affine` = real per-τ clock-zero bound.  The
+   campaign's only-missing object ("the absorbing Q ⊆ allPhase0") is REMOVED — the killed kernel
+   substitutes for it.  Hypothesis surface: `card=n` + `allPhase0` + arithmetic.
+5. **Consumer 2** (`topGate`, `topGate_exit_bridge`, `top_killed_cosh_tail`, b=0 multiplicative):
+   absorbing-Q discharge for `topSplitWindow_whp_rectFree` — gate = allPhase0∩card∩NoAssignedMcr∩
+   LedgerInv, all 4 conjuncts one-step preserved except the killed allPhase0 exit.
+   **Consumer 3** (`midBand_killed_contractive_tail`, `midBand_real_contractive_tail`): the
+   contractive `r<1` pool-MGF killed tail FloorPrefix finding 3 was blocked on — genuinely decaying.
+
+### Residual (honest)
+
+The Consumer-1 real per-τ bound `phase0_clock_zero_killed_affine` carries a SELF-REFERENTIAL
+threshold prefix `∑_{σ<τ} (K^σ)c₀{1≤Φ}` (the escape) — the same prefix `allPhase0_window_whp`
+(Gap-2) already consumes.  Discharging the uniform per-τ `hτ` (the clean `e^{-45(L+1)}` bound) for
+`allPhase0_window_whp`'s assembly additionally needs the REACHABILITY fact (allPhase0 ∧ full-counter
+gate-membership preserved along the surviving trajectory) — a separate role-split/reachability layer
+object, not an engine gap.  The killed AFFINE-TAIL engine itself (the campaign's named blocker) is
+DELIVERED 0-sorry axiom-clean; the cleanest decaying object `phase0_killed_clock_zero_tail` is the
+absorbing-Q substitute.  Consumers 2/3 adapters delivered at the strongest reachable hypothesis-free
+engine-shape; their final whp instantiation re-cuts the existing `windowDrift_tail`/`gated_real_tail`
+call-sites against the killed tail (mechanical, no new math).

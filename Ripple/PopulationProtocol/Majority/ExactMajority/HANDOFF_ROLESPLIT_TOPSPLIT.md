@@ -256,3 +256,29 @@ The LAST named protocol residual of `TopSplitInward.lean` is now a THEOREM. The 
 
 STATUS: the top-split balance (Doty §5.1 inward drift) is now hypothesis-free modulo the absorbing-region
 construction of `Q` (which is itself protocol-provable from `Phase0Initial` + `NoAssignedMcrConfig`).
+
+---
+
+## ABSORBING-Q DISCHARGE via the killed engine — `Probability/KilledAffineTail.lean` (2026-06-10, 0-sorry axiom-clean)
+
+`topSplitWindow_whp_rectFree` carries an absorbing `Q` (allPhase0, card≥2, LedgerInv).  The new
+generic killed-affine engine removes the absorbing-window requirement:
+
+- **`RoleSplitConcentration.topGate n := allPhase0 ∩ {card=n} ∩ NoAssignedMcrConfig ∩ LedgerInv`** —
+  the killed gate.  All four conjuncts are one-step preserved: `allPhase0` (killed exit, via
+  `det_phase0_exit`), `card` (`stepOrSelf_card_eq`), `NoAssignedMcrConfig`
+  (`NoAssignedMcrConfig_stepOrSelf`), `LedgerInv` (`LedgerInv_stepOrSelf`).
+- **`topGate_exit_bridge`** — the q=0 deterministic exit bridge: from a gate config whose CLOCK
+  potential `Φ_clock < 1` (hence `noClockAtZero`), the real kernel cannot leave `topGate` (all four
+  conjuncts preserved), so the `Gᶜ` mass is `0`.  EXIT threshold is the clock-potential threshold
+  (a DIFFERENT potential from `coshPot`), i.e. the escape is exactly the Phase-0 clock-zero window.
+- **`top_killed_cosh_tail`** — the b=0 killed MULTIPLICATIVE cosh tail
+  `(killK_now^T)(some c₀){θ≤killΦ coshPot} ≤ (cosh s)^T·coshPot(c₀)/θ`, drift supplied by
+  `coshPot_drift` + `inwardResidual_of_ledger` + `rectangleResidual_of_allPhase0` on `topGate`.  NO
+  absorbing Q.  (b=0 is the clean special case of `killed_now_affine_tail`.)
+
+Wire-up to a fully hypothesis-free `topSplitWindow` whp: compose `top_killed_cosh_tail`
+(in-gate tail) with `real_le_killed_affine_tail_add_escape` (real ≤ killed + escape) and bound the
+escape by the Phase-0 clock-zero window (Consumer 1 of the same file).  This is a mechanical re-cut
+of the `windowDrift_tail` call-site — no new protocol math.  STATUS: engine + adapters DELIVERED
+0-sorry axiom-clean; the call-site re-cut is the remaining packaging step.

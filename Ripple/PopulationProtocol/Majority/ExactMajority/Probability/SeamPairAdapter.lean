@@ -141,15 +141,17 @@ theorem Phase0Transition_right_clock_eq (s c : AgentState L K) (hc : c.role = .c
   have hnmain : c.role ≠ .main := by rw [hc]; decide
   have hncr : c.role ≠ .cr := by rw [hc]; decide
   by_cases h3 : s.role = Role.mcr ∧ ¬ c.assigned = true
-  · refine ⟨{ c with assigned := true }, hc, rfl, ?_⟩
+  · -- Rule 3 (branch 1) sets `c.assigned := true`; partner `s` is mcr (NOT clock),
+    -- so Rule 5 gate is false → output is exactly `{c with assigned := true}`.
+    refine ⟨{ c with assigned := true }, hc, rfl, ?_⟩
     right
     unfold Phase0Transition
-    simp only [hc, reduceCtorEq, and_false, if_false, ne_eq, not_false_eq_true,
-      true_and, h3.1, h3.2, and_true, if_true]
+    simp only [hc, reduceCtorEq, and_false, false_and, if_false, ne_eq, not_false_eq_true,
+      true_and, and_true, h3.1, h3.2, if_true]
   · refine ⟨c, hc, rfl, ?_⟩
     unfold Phase0Transition
-    simp only [hc, reduceCtorEq, and_false, if_false, ne_eq, not_false_eq_true,
-      true_and, h3, if_false]
+    simp only [hc, reduceCtorEq, and_false, false_and, if_false, ne_eq, not_false_eq_true,
+      true_and, and_true, h3]
     by_cases hgate : s.role = .clock
     · left; rw [if_pos hgate]
     · right; rw [if_neg hgate]
@@ -173,14 +175,14 @@ theorem Phase6Transition_right_clock (s c : AgentState L K) (hc : c.role = .cloc
 theorem Phase7Transition_right_clock (s c : AgentState L K) (hc : c.role = .clock) :
     (Phase7Transition L K s c).2 = stdCounterSubroutine L K c := by
   unfold Phase7Transition
-  simp only [hc, reduceCtorEq, false_and, ↓reduceIte]
+  simp only [hc, reduceCtorEq, and_false, false_and, ↓reduceIte]
 
 /-- For a clock RESPONDER, the Phase-8 dispatch RIGHT output equals
 `stdCounterSubroutine c`. -/
 theorem Phase8Transition_right_clock (s c : AgentState L K) (hc : c.role = .clock) :
     (Phase8Transition L K s c).2 = stdCounterSubroutine L K c := by
   unfold Phase8Transition
-  simp only [hc, reduceCtorEq, false_and, ↓reduceIte]
+  simp only [hc, reduceCtorEq, and_false, false_and, ↓reduceIte]
 
 end SeamNoOvershoot
 

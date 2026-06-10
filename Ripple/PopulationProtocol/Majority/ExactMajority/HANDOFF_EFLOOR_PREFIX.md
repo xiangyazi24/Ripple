@@ -761,3 +761,27 @@ Single-file EXIT_0, every headline axiom-clean (`⊆ [propext, Classical.choice,
   `s = 1/10` with all three masses + the proven `< 1` favorability.
 
 See `DOTY_POST63_CAMPAIGN.md` (εfloor protocol masses section) for the full verdict.
+
+---
+
+## FINDING 3 RESOLVED — the contractive `r<1` killed engine, `Probability/KilledAffineTail.lean` (2026-06-10, 0-sorry axiom-clean)
+
+FloorPrefix finding 3: the gated engines (`gated_real_tail_full`) require `1 ≤ r`, so the mid-band
+tail is the NON-decaying escape form `t·η + rᵗΦx/θ` — useless for the genuinely-contractive `r<1`
+mid-band (`εmid`/`εlate`).  **The `1 ≤ r` was SPURIOUS** (`GatedGeometricDrift.killK_drift` never
+uses it: `killΦ none = 0` makes the dead-branch killed drift `0 ≤ r·0 + b` trivial for any `r ≥ 0`).
+The new killed affine engine takes `a ≥ 0` ARBITRARY:
+
+- **`FloorPrefix.midBand_killed_contractive_tail`** — the killed pool-MGF tail
+  `(killK_now^t)(some x){θ≤killΦ(poolExpNeg s)} ≤ (rᵗ·poolExpNeg(x) + b∑rⁱ)/θ` at ANY rate `r`
+  (in particular `r<1`, where it GENUINELY decays as `rᵗ`).  This is the exact-shape engine lemma
+  the mid-band needed; the old engine could not provide it.
+- **`midBand_real_contractive_tail`** — the real pool-deficit mass = contractive killed tail +
+  escape (`real_le_killed_affine_tail_add_escape` at `poolExpNeg`).
+
+Re-cut `midBand_gated_tail` against `midBand_killed_contractive_tail`: instantiate `Φ := poolExpNeg
+s`, `a := r` (the Stage-2 contraction rate, `< 1`), `b := 0` (pool drift is purely multiplicative),
+`θ := exp(-s·a₀)`; the killed term decays, and the `εmid` prefix is its aggregate plus the floor-exit
+escape bridge.  STATUS: contractive engine lemma DELIVERED 0-sorry axiom-clean; the `εmid`/`εlate`
+named-hypothesis discharge is now an instantiation (escape via the deterministic floor-exit bridge),
+no longer blocked on `1 ≤ r`.

@@ -60,6 +60,7 @@ import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClimbTail
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFrontProfile
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EarlyDripMarked
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DotyParams
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.CrossHourSide
 
 namespace ExactMajority
 
@@ -284,6 +285,34 @@ theorem crossEmptyClimb_whp
   apply Finset.sum_le_sum
   intro k _
   exact ClimbTail.climb_real_tail (L := L) (K := K) θn k B' θn W₃ hW₃ s hs r c₀
+
+/-! ## Stage 4 — the within-window monotone lift (the `hmono` feeder for the transport).
+
+The deterministic transport (Stage 2) consumes `hmono : ∀ T, rBeyond T c₀ ≤ rBeyond T c₁`.  Over `r`
+real-kernel steps from a checkpoint `y ∈ AllClockGE3`, this holds a.e. for the endpoint, by iterating
+the absorbing-window per-step monotone `ClockRealKernel.rBeyondGE3_ge_monotone`. -/
+
+/-- **Stage 4 helper (iterated within-window monotone).**  Over `r` steps of the real kernel from a
+window state `y ∈ AllClockGE3`, a.e. endpoint `c'` satisfies `rBeyond T y ≤ rBeyond T c'` for the
+fixed level `T` — the absorbing-window growth, iterated.  (The invariant carried is
+`fun c' => rBeyond T y ≤ rBeyond T c' ∧ AllClockGE3 c'`, support-closed via `rBeyondGE3_ge_monotone`
++ `AllClockGE3_absorbing`.) -/
+theorem ae_rBeyond_ge_pow (T : ℕ) (y : Config (AgentState L K))
+    (hge3 : AllClockGE3 (L := L) (K := K) y) (r : ℕ) :
+    ∀ᵐ c' ∂(((NonuniformMajority L K).transitionKernel) ^ r) y,
+      rBeyond (L := L) (K := K) T y ≤ rBeyond (L := L) (K := K) T c' := by
+  have hjoint : ∀ᵐ c' ∂(((NonuniformMajority L K).transitionKernel) ^ r) y,
+      (rBeyond (L := L) (K := K) T y ≤ rBeyond (L := L) (K := K) T c'
+        ∧ AllClockGE3 (L := L) (K := K) c') := by
+    refine Protocol.ae_of_stepDistOrSelf_support_preserved
+      (P := NonuniformMajority L K)
+      (Q := fun c' => rBeyond (L := L) (K := K) T y ≤ rBeyond (L := L) (K := K) T c'
+        ∧ AllClockGE3 (L := L) (K := K) c')
+      ?_ y ⟨le_rfl, hge3⟩ r
+    intro a b ⟨hle, hga⟩ hsupp
+    exact ⟨rBeyondGE3_ge_monotone (L := L) (K := K) T (rBeyond (L := L) (K := K) T y) a b hga hle hsupp,
+      AllClockGE3_absorbing (L := L) (K := K) a b hga hsupp⟩
+  filter_upwards [hjoint] with c' hc' using hc'.1
 
 end EarlyDripMarked
 
