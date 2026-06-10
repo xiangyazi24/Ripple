@@ -2153,7 +2153,23 @@ namespace KernelMilestone
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal NNReal Real
 
-variable {β : Type*} [MeasurableSpace β] [DiscreteMeasurableSpace β] {Q : Kernel β β}
+variable {β : Type*} [MeasurableSpace β] [DiscreteMeasurableSpace β] [Countable β]
+  {Q : Kernel β β}
+
+/-- **Discrete null-set from zero singleton masses.**  On a countable discrete space, if
+every positive-singleton-mass point of `μ` lies in `A`, then `Aᶜ` is `μ`-null.  This is the
+generic replacement for `PMF.toMeasure_apply_eq_zero_iff` used by the protocol-bound engine:
+it turns kernel positive-mass support (`0 < Q c {c'}`) into the a.e. statements the MGF
+contraction needs. -/
+theorem measure_compl_eq_zero_of_singleton (μ : Measure β) (A : Set β)
+    (h : ∀ c', 0 < μ {c'} → c' ∈ A) : μ Aᶜ = 0 := by
+  have hcover : (Aᶜ : Set β) ⊆ ⋃ (c' : β) (_ : c' ∈ Aᶜ), {c'} := by
+    intro x hx; exact Set.mem_iUnion₂.mpr ⟨x, hx, rfl⟩
+  refine measure_mono_null hcover ?_
+  rw [measure_biUnion_null_iff (Set.to_countable _)]
+  intro c' hc'
+  by_contra hne
+  exact hc' (h c' (pos_iff_ne_zero.mpr hne))
 
 /-- The postcondition: all milestones reached. -/
 def Post (mp : KernelMilestone Q) (c : β) : Prop := ∀ i, mp.milestone i c

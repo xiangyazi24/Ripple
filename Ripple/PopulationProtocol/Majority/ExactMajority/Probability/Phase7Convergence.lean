@@ -1179,6 +1179,41 @@ theorem gap2_minorityU_rise_compatible_with_pos_sum (σ st : Sign) (s t : AgentS
       ⟨i.val + 2, by omega⟩ : Bias L)}) := ⟨by rw [htM.symm], _, rfl⟩
   rw [if_pos ho1, if_pos ho2, if_pos hsmin, if_neg htmin_not]
 
+/-! ## Part I — the REBUILT Phase-7 `PhaseConvergenceW` with `hClosed` DISCHARGED.
+
+`phase7Convergence'` instantiates the crude engine on the **genuinely-closed** invariant
+`Inv7Sum` (= `Phase7AllMain n ∧ 0 < phase7SignedSum`).  The closure `hClosed` is now the
+PROVED `invClosed_Inv7Sum n` (no longer a carried hypothesis — the broken
+`MinorityHiIdx`-version could never supply it).  The two remaining carried inputs are:
+`hmono` (the per-step `minorityU` non-increase, `PotNonincrOn Inv7Sum K minorityU`) —
+which is strictly stronger than `Inv7Sum` (see `gap2_minorityU_rise_compatible_with_pos_sum`:
+the gap-2 rise is signed-sum-conserving, so it needs the per-pair ordering content on top
+of `0 < signedSum`), and the drain `hstep` (the carried eliminator floor, unchanged from
+relay-4).  This is the honest rebuild: the invariant layer now rests on the conserved
+signed sum, with `hClosed` fully internal. -/
+
+/-- **The rebuilt Phase-7 cancellation `PhaseConvergenceW` on the genuinely-closed
+signed-sum invariant.**  `Pre = Inv7Sum n ∧ minorityU σ ≤ M₀`, `Post = Inv7Sum n ∧
+minorityU σ = 0`.  `hClosed` is the PROVED `invClosed_Inv7Sum`; `hmono` (per-step
+minority non-increase, strictly stronger than `0 < signedSum`) and the drain `hstep`
+are the carried honest inputs. -/
+noncomputable def phase7Convergence' (σ : Sign) (n : ℕ)
+    (hmono : OneSidedCancel.PotNonincrOn (fun c => Inv7Sum (L := L) (K := K) n c)
+      (NonuniformMajority L K).transitionKernel (fun c => minorityU σ c))
+    (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Inv7Sum n b → 1 ≤ minorityU σ b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => minorityU σ c))ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.crude_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Inv7Sum (L := L) (K := K) n c)
+    (invClosed_Inv7Sum n)
+    (fun c => minorityU σ c)
+    hmono
+    q hstep M₀ t ε hε
+
 end Phase7Convergence
 
 end ExactMajority

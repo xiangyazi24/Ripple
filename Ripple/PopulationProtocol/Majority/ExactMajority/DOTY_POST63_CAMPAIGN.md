@@ -345,16 +345,38 @@ Lean bricks:
   - **E4-shape wrappers** `phase_advance_expectedHitting_{tinyClock,bigClock}`: transport onto an
     arbitrary phase-advance set `Done = {x | Φ x = 0}` (the `potBelow Φ 1 = {Φ=0}` trigger), so E4
     consumes `E[hit Done] ≤ …` directly.
-  - **REMAINING = pure protocol instantiation** (the same engine-vs-instantiation split as E1/E2; the
-    forbidden mid-edit files `RoleSplitConcentration`/`Phase7,8Convergence`/`ClockUnconditional` were
-    NOT touched/imported, and `NonuniformMarkovChain.olean` (real kernel) is absent). Precise goals
-    (also in the file's Part-4 doc): with `Φ :=` clock-counter sum, `mC :=` fixed |Clock|:
-    (i) `Engine.PotNonincr K Φ` — clock-counter sum never rises (per-pair via
-    `PhaseProgress.stdCounterSubroutine_counter_strict_descent` + countP-additive support template);
-    (ii) `hdrop` — clock-clock rectangle mass `≥ mC(mC−1)/(n(n−1))` (analogue of E2's
-    `sum_interactionProb_presentActiveAB`, aggregate `interactionPMF` over clock×clock `Finset`) ∘
-    strict descent; (iii) `counterMax` = the protocol clock-counter cap. All probabilistic content
-    is closed; remaining is per-pair monotonicity + drop-mass aggregation, re-derivable in-file.
+  - **E3-1 (relay, SHA 823b87cf):** the unconditional `PotNonincr K Φ` for the clock-counter SUM is
+    **FALSE** on the real kernel (the phase-advance event runs `advancePhaseWithInit` whose `phaseInit`
+    RESETS `counter` to `counterMax = 50(L+1)`; `phaseEpidemicUpdate` likewise re-inits a clock dragged
+    UP). The honest engine is INVARIANT-RELATIVE. Lifted the `_on` chain verbatim from `Phase10ExpectedTime`
+    (olean absent) into `Engine`: `InvClosed`, `PotNonincrOn`, `level_occ_*_on`, `occLevel_le_on`,
+    `coupon_expectedHitting_le_uniform_on`; + invariant-relative headline `timed_phase_expected_progress_on`
+    + corollaries `timed_phase_progress_{tinyClock,bigClock}_on`. 0-sorry, axiom-clean (verified `#print
+    axioms`). The fix: phase-RESTRICTED potential `Φ_p` (counts only phase-`p` clocks) — a clock leaving
+    phase `p` (counter hit 0 → advance, or epidemic-dragged up) LEAVES the sum, so `Φ_p` only descends.
+  - **E3-2 (relay, SHA ee3f5c71):** real-kernel protocol layer (imported `ClockRealKernel`; none of the
+    forbidden files touched). DEFINITIONS `clockCounterSumAt p` (= phase-`p`-restricted clock-counter sum,
+    `Multiset.map (if clock ∧ phase=p then counter else 0) |>.sum`) and `AllClockGEp p` (= all agents
+    clocks at phase ≥ p, the clock-subpopulation view where `mC=card`). **`AllClockGEp_absorbing` (the
+    `InvClosed` discharge on `(NonuniformMajority L K).transitionKernel`) is FULLY PROVEN, 0-sorry,
+    axiom-clean** — via `Transition_clock_pair_phase_GEp` (3≤p; role permanence from public
+    `ClockRealKernel.Transition_clock_pair` + phase-nondec from public `phaseEpidemicUpdate_*_phase_ge_max_api`
+    ∘ `phaseEpidemicUpdate_phase_le_Transition_phase`), mirroring `ClockRealKernel.AllClockGE3_absorbing`.
+  - **REMAINING (the two per-pair DETERMINISTIC discharges; all probability/coupon content closed):**
+    (i) `hmono : PotNonincrOn (AllClockGEp p) K (clockCounterSumAt p)` — per-pair counter-sum descent
+    through the FULL `Transition` (epidemic + 11-phase dispatch + `finishPhase10Entry`), via
+    `Multiset.sum_map` additivity reducing to `Φ_p{δ₁,δ₂} ≤ Φ_p{r₁,r₂}`; the per-phase ingredient is
+    `PhaseProgress.{Phase5,6,7,8}Transition_clock_counter_descent` (clock-clock, needs BOTH counters; a
+    clock dragged to a higher phase leaves `Φ_p` ⟹ drop). Template: `ClockMonoDischarge.lean` (same
+    countP-monotone-through-`Transition` shape, for `minute`). (ii) `hdrop : K b (potBelow Φ_p m)ᶜ ≤
+    1 − clockPairRate mC n` — clock-clock rectangle mass; **HONEST RATE FINDING:** the descent
+    (`stdCounterSubroutine_counter_strict_descent`) needs BOTH clock counters POSITIVE, so the firing
+    rectangle is over POSITIVE-counter phase-`p` clocks; at level `m≥1` with all `mC` clocks positive
+    this is `mC(mC−1)/(n(n−1))` = `clockPairRate mC n` exactly. Route: `stepDistOrSelf_toMeasure_ge`
+    (`Phase0Convergence`, public) ∘ rectangle `interactionProb` sum (clock-clock analogue of E2's
+    `sum_interactionProb_presentActiveAB`; single-pair template `ClockRealKernel.clock_real_drip_advance_prob`
+    proves `interactionProb w w = m(m−1)/(n(n−1))`). (iii) `counterMax = 50(L+1)` (the `AgentState.counter`
+    `Fin` cap). Both residues re-derivable in-file from the now-imported `ClockRealKernel` + `PhaseProgress`.
 - **E4** The time-0 three-event split + summation: good whp event (Phase D headline) + Lemma 5.2
   clock-count concentration (Phase C, phases 0/1 line) + E2 + E3 → `doty_expected_time_O_log_n`.
 Dependencies: E1, E2 are independent of Phases B–D (parallelizable NOW); E4 needs D's headline +
