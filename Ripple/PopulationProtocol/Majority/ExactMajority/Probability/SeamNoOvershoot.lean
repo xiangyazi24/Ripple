@@ -231,6 +231,213 @@ theorem stepOrSelf_overshoot_imp_atRisk (p : ℕ)
     AtRiskClockZero (L := L) (K := K) p c :=
   hdet c r₁ r₂ hno hexit
 
+/-! ## Stage 3 — the affine one-step drift (clone of `clockCounterPotential_drift_affine`).
+
+We reuse `Phase0Window`'s pair-sum infrastructure (`lintegral_transitionKernel_eq_sum`,
+`sum_fst/snd_interactionProb`) verbatim: the seam potential is also a `Config.sumOf`,
+so the one-step lintegral collapses to the same two coordinate marginals, each
+`= Φ_s(c)/card`.  The per-pair output bound is the seam analogue of
+`clockSummand_pair_le`; its content is the protocol-structural fact that any
+post-step at-risk clock summand is `≤ eˢ·(its source summand)` PLUS the fresh
+immigration value `M = exp(−s·50(L+1))` (a phase-`p` clock epidemic-infected into the
+counter-RESET phase `p+1 ∈ {1,5,6,7,8}` enters at FULL counter, summand `= M`).  Per
+the blueprint, `2·M` per pair is a safe immigration ceiling.  The per-pair bound is
+carried as `hpair` — exactly the seam analogue of the FROZEN-protocol case analysis
+behind `clockSummand_pair_le`, restricted to a counter-reset destination phase. -/
+
+/-- **Source-side potential split** (clone of
+`Phase0Window.clockCounterPotential_eq_base_add_pair`). -/
+theorem seamClockPotential_eq_base_add_pair (p : ℕ) (s : ℝ)
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c) :
+    seamClockPotential (L := L) (K := K) p s c
+      = Config.sumOf (seamClockSummand (L := L) (K := K) p s) (c - {r₁, r₂})
+        + (seamClockSummand (L := L) (K := K) p s r₁
+           + seamClockSummand (L := L) (K := K) p s r₂) := by
+  unfold seamClockPotential Config.sumOf
+  conv_lhs => rw [← Multiset.sub_add_cancel hle]
+  rw [Multiset.map_add, Multiset.sum_add]
+  congr 1
+  show seamClockSummand (L := L) (K := K) p s r₁
+         + (seamClockSummand (L := L) (K := K) p s r₂ + 0) = _
+  rw [add_zero]
+
+/-- **Post-step potential split** (clone of
+`Phase0Window.clockCounterPotential_stepOrSelf_eq_base_add_pair`). -/
+theorem seamClockPotential_stepOrSelf_eq_base_add_pair (p : ℕ) (s : ℝ)
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (happ : Protocol.Applicable c r₁ r₂) :
+    seamClockPotential (L := L) (K := K) p s
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      = Config.sumOf (seamClockSummand (L := L) (K := K) p s) (c - {r₁, r₂})
+        + (seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).1
+           + seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).2) := by
+  unfold seamClockPotential Protocol.stepOrSelf
+  rw [if_pos happ]
+  show Config.sumOf _ (c - {r₁, r₂} + {_, _}) = _
+  unfold Config.sumOf
+  rw [Multiset.map_add, Multiset.sum_add]
+  congr 1
+  show seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).1
+         + (seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).2 + 0) = _
+  rw [add_zero]
+
+/-- The immigration ceiling `M = ofReal(exp(−s·50(L+1)))`. -/
+noncomputable def freshVal (s : ℝ) : ℝ≥0∞ :=
+  ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ))))
+
+/-- **Per-pair potential bound on the window** (clone of
+`Phase0Window.clockCounterPotential_stepOrSelf_le`, with the `2·M` immigration).
+The per-pair OUTPUT-block bound `hpair`
+`seamClockSummand δ.1 + seamClockSummand δ.2 ≤ eˢ·(source block) + 2M` is the
+protocol-structural input (seam analogue of `clockSummand_pair_le`); from it the
+localized splits give the additive-bump form. -/
+theorem seamClockPotential_stepOrSelf_le (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hpair : ∀ a b : AgentState L K,
+      seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+        + seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+        ≤ ENNReal.ofReal (Real.exp s)
+            * (seamClockSummand (L := L) (K := K) p s a
+               + seamClockSummand (L := L) (K := K) p s b)
+          + 2 * freshVal (L := L) s) :
+    seamClockPotential (L := L) (K := K) p s
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ seamClockPotential (L := L) (K := K) p s c
+        + ENNReal.ofReal (Real.exp s - 1)
+            * (seamClockSummand (L := L) (K := K) p s r₁
+               + seamClockSummand (L := L) (K := K) p s r₂)
+        + 2 * freshVal (L := L) s := by
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c := happ
+    rw [seamClockPotential_stepOrSelf_eq_base_add_pair p s c r₁ r₂ happ]
+    rw [seamClockPotential_eq_base_add_pair p s c r₁ r₂ hle]
+    set base := Config.sumOf (seamClockSummand (L := L) (K := K) p s) (c - {r₁, r₂})
+    set S := seamClockSummand (L := L) (K := K) p s r₁
+      + seamClockSummand (L := L) (K := K) p s r₂
+    set M := freshVal (L := L) s
+    have hpair' := hpair r₁ r₂
+    have hofeq : ENNReal.ofReal (Real.exp s) = 1 + ENNReal.ofReal (Real.exp s - 1) := by
+      rw [← ENNReal.ofReal_one,
+          ← ENNReal.ofReal_add (by norm_num) (by linarith [Real.one_le_exp hs])]
+      congr 1; ring
+    have hexp_split : ENNReal.ofReal (Real.exp s) * S
+        = S + ENNReal.ofReal (Real.exp s - 1) * S := by
+      rw [hofeq, add_mul, one_mul]
+    calc base + (seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).1
+            + seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).2)
+        ≤ base + (ENNReal.ofReal (Real.exp s) * S + 2 * M) := by gcongr
+      _ = base + (S + ENNReal.ofReal (Real.exp s - 1) * S + 2 * M) := by rw [hexp_split]
+      _ = base + S + ENNReal.ofReal (Real.exp s - 1) * S + 2 * M := by ring
+  · rw [Protocol.stepOrSelf, if_neg happ]
+    calc seamClockPotential (L := L) (K := K) p s c
+        ≤ seamClockPotential (L := L) (K := K) p s c
+          + ENNReal.ofReal (Real.exp s - 1)
+              * (seamClockSummand (L := L) (K := K) p s r₁
+                 + seamClockSummand (L := L) (K := K) p s r₂) :=
+          le_add_right le_rfl
+      _ ≤ _ := le_add_right le_rfl
+
+/-- **Affine one-step drift for the seam clock potential** (clone of
+`Phase0Window.clockCounterPotential_drift_affine`).  Summing the per-pair bound
+against the interaction law and collapsing the two coordinate marginals
+(`sum_fst/snd_interactionProb`, each `= Φ_s(c)/card`) yields
+
+  `∫ Φ_s dK(c) ≤ ofReal(1 + 2(eˢ−1)/n)·Φ_s(c) + ofReal(2·e^{−s·50(L+1)})`.
+
+The `2/n` factor is the two marginals; the additive `2·M` is the per-step
+epidemic immigration ceiling (`∑ interactionProb = 1`). -/
+theorem seamClockPotential_drift_affine (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (n : ℕ) (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n) (hc2 : 2 ≤ Multiset.card c)
+    (hpair : ∀ a b : AgentState L K,
+      seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+        + seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+        ≤ ENNReal.ofReal (Real.exp s)
+            * (seamClockSummand (L := L) (K := K) p s a
+               + seamClockSummand (L := L) (K := K) p s b)
+          + 2 * freshVal (L := L) s) :
+    ∫⁻ c', seamClockPotential (L := L) (K := K) p s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+          * seamClockPotential (L := L) (K := K) p s c
+        + 2 * freshVal (L := L) s := by
+  classical
+  set Φ := seamClockPotential (L := L) (K := K) p s c with hΦ
+  set M := freshVal (L := L) s with hM
+  rw [Phase0Window.lintegral_transitionKernel_eq_sum (NonuniformMajority L K) c hc2]
+  have hpp : ∀ pair : AgentState L K × AgentState L K,
+      seamClockPotential (L := L) (K := K) p s
+          (Protocol.stepOrSelf (NonuniformMajority L K) c pair.1 pair.2)
+        * c.interactionProb pair.1 pair.2
+      ≤ (Φ + ENNReal.ofReal (Real.exp s - 1)
+            * (seamClockSummand (L := L) (K := K) p s pair.1
+               + seamClockSummand (L := L) (K := K) p s pair.2) + 2 * M)
+          * c.interactionProb pair.1 pair.2 := by
+    intro pair
+    gcongr
+    exact seamClockPotential_stepOrSelf_le p s hs c pair.1 pair.2 hpair
+  refine le_trans (Finset.sum_le_sum (fun pair _ => hpp pair)) ?_
+  simp_rw [add_mul]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  have hsumprob : (∑ pair : AgentState L K × AgentState L K,
+      c.interactionProb pair.1 pair.2) = 1 := by
+    have := (c.interactionPMF hc2).tsum_coe
+    rw [tsum_eq_sum (s := Finset.univ) (by intro x hx; exact absurd (Finset.mem_univ x) hx)] at this
+    convert this using 1
+  have hΦsum : (∑ pair : AgentState L K × AgentState L K,
+      Φ * c.interactionProb pair.1 pair.2) = Φ := by
+    rw [← Finset.mul_sum, hsumprob, mul_one]
+  have hMsum : (∑ pair : AgentState L K × AgentState L K,
+      (2 * M) * c.interactionProb pair.1 pair.2) = 2 * M := by
+    rw [← Finset.mul_sum, hsumprob, mul_one]
+  have hmid : (∑ pair : AgentState L K × AgentState L K,
+      ENNReal.ofReal (Real.exp s - 1)
+        * (seamClockSummand (L := L) (K := K) p s pair.1
+           + seamClockSummand (L := L) (K := K) p s pair.2)
+        * c.interactionProb pair.1 pair.2)
+      = ENNReal.ofReal (Real.exp s - 1) * (Φ / (n : ℝ≥0∞) + Φ / (n : ℝ≥0∞)) := by
+    simp_rw [mul_assoc]
+    rw [← Finset.mul_sum]
+    congr 1
+    have hsplit : ∀ pair : AgentState L K × AgentState L K,
+        (seamClockSummand (L := L) (K := K) p s pair.1
+           + seamClockSummand (L := L) (K := K) p s pair.2)
+          * c.interactionProb pair.1 pair.2
+          = seamClockSummand (L := L) (K := K) p s pair.1 * c.interactionProb pair.1 pair.2
+            + seamClockSummand (L := L) (K := K) p s pair.2 * c.interactionProb pair.1 pair.2 := by
+      intro pair; rw [add_mul]
+    rw [Finset.sum_congr rfl (fun pair _ => hsplit pair), Finset.sum_add_distrib]
+    rw [Phase0Window.sum_fst_interactionProb c hc2 (seamClockSummand (L := L) (K := K) p s),
+        Phase0Window.sum_snd_interactionProb c hc2 (seamClockSummand (L := L) (K := K) p s)]
+    rw [hcard]; rfl
+  rw [hΦsum, hMsum, hmid]
+  refine le_of_eq ?_
+  congr 1
+  have hnpos : (0 : ℝ) < (n : ℝ) := by
+    have : 2 ≤ n := by rw [← hcard]; exact hc2
+    exact_mod_cast (by omega : 0 < n)
+  have hnne : (n : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by positivity : (n:ℝ) ≠ 0)
+  have hntop : (n : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top n
+  have he1 : (0 : ℝ) ≤ Real.exp s - 1 := by linarith [Real.one_le_exp hs]
+  have hofac : ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+      = 1 + ENNReal.ofReal (Real.exp s - 1) * ((2 : ℝ≥0∞) / (n : ℝ≥0∞)) := by
+    rw [ENNReal.ofReal_add (by norm_num) (by positivity)]
+    rw [ENNReal.ofReal_one]
+    congr 1
+    rw [show 2 * (Real.exp s - 1) / (n : ℝ) = (Real.exp s - 1) * (2 / (n : ℝ)) by ring]
+    rw [ENNReal.ofReal_mul he1]
+    congr 1
+    rw [ENNReal.ofReal_div_of_pos hnpos, ENNReal.ofReal_natCast]
+    norm_num
+  rw [hofac, add_mul, one_mul]
+  congr 1
+  rw [mul_assoc]
+  congr 1
+  rw [ENNReal.div_add_div_same, ← two_mul]
+  rw [mul_comm (2 : ℝ≥0∞) Φ, mul_div_assoc, mul_comm ((2:ℝ≥0∞)/(n:ℝ≥0∞)) Φ,
+      ← mul_div_assoc]
+
 end SeamNoOvershoot
 
 end ExactMajority

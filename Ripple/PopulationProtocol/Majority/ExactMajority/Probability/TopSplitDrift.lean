@@ -510,5 +510,81 @@ theorem coshExpVal_drift_real (s : ℝ) (hs : 0 ≤ s)
   rw [← hX]
   exact hcombine
 
+/-! ## Stage 3c — the `ℝ≥0∞` cosh potential and its multiplicative drift. -/
+
+/-- The `ℝ≥0∞` cosh potential `Φ_s c = ofReal (cosh (s·X c))`, the engine-facing
+form of `coshExpVal` (`coshExpVal ≥ 1`, so the `ofReal` is faithful). -/
+noncomputable def coshPot (s : ℝ) (c : Config (AgentState L K)) : ℝ≥0∞ :=
+  ENNReal.ofReal (coshExpVal (L := L) (K := K) s c)
+
+/-- `coshPot` is measurable (discrete σ-algebra on `Config`). -/
+theorem coshPot_measurable (s : ℝ) :
+    Measurable (coshPot (L := L) (K := K) s) := Measurable.of_discrete
+
+/-- `1 ≤ coshPot` (so `{1 ≤ coshPot}` is the whole space; the threshold link uses
+the genuine super-level set `{ofReal (cosh (s·δn)) ≤ coshPot}`). -/
+theorem one_le_coshPot (s : ℝ) (c : Config (AgentState L K)) :
+    1 ≤ coshPot (L := L) (K := K) s c := by
+  unfold coshPot
+  rw [show (1 : ℝ≥0∞) = ENNReal.ofReal 1 from (ENNReal.ofReal_one).symm]
+  exact ENNReal.ofReal_le_ofReal (one_le_coshExpVal s c)
+
+/-- **`ℝ≥0∞`/`ℝ` bridge for the one-step cosh expectation.**  Computing both the
+`lintegral` of `ofReal ∘ coshExpVal` and the real integral of `coshExpVal` as the
+same interaction pair-sum (and using `coshExpVal ≥ 0`, `prob ≥ 0`), the lintegral
+equals `ofReal` of the real integral — no integrability side-goal needed. -/
+theorem lintegral_coshPot_eq_ofReal_integral (s : ℝ)
+    (c : Config (AgentState L K)) (hc2 : 2 ≤ Multiset.card c) :
+    ∫⁻ c', coshPot (L := L) (K := K) s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      = ENNReal.ofReal (∫ c', coshExpVal (L := L) (K := K) s c'
+          ∂((NonuniformMajority L K).transitionKernel c)) := by
+  classical
+  -- LHS as a pair sum (lintegral).
+  rw [Phase0Window.lintegral_transitionKernel_eq_sum (NonuniformMajority L K) c hc2]
+  -- RHS integral as a pair sum, then ofReal of the finite sum.
+  rw [integral_transitionKernel_eq_pairSum (coshExpVal (L := L) (K := K) s) c hc2]
+  rw [ENNReal.ofReal_sum_of_nonneg (fun pair _ => ?_)]
+  · -- termwise: ofReal(coshPot c')·prob = ofReal(prob.toReal · coshExpVal c').
+    apply Finset.sum_congr rfl
+    intro pair _
+    rw [coshPot]
+    rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg]
+    rw [mul_comm]
+    congr 1
+    -- ofReal(prob.toReal) = prob  (prob ≠ ⊤ on card ≥ 2)
+    have htpne : c.totalPairs ≠ 0 := by
+      unfold Config.totalPairs
+      have h2 : 2 ≤ c.card := hc2
+      exact Nat.mul_ne_zero (by omega) (by omega)
+    have htp0 : (c.totalPairs : ℝ≥0∞) ≠ 0 := by exact_mod_cast htpne
+    have hpne : Config.interactionProb c pair.1 pair.2 ≠ ⊤ := by
+      unfold Config.interactionProb
+      exact ENNReal.div_ne_top (ENNReal.natCast_ne_top _) htp0
+    rw [ENNReal.ofReal_toReal hpne]
+  · -- nonneg of each summand of the real pair sum.
+    have : 0 ≤ coshExpVal (L := L) (K := K) s
+        (Protocol.stepOrSelf (NonuniformMajority L K) c pair.1 pair.2) :=
+      le_trans zero_le_one (one_le_coshExpVal s _)
+    positivity
+
+/-- **The kernel-level cosh drift (multiplicative).**  On the Phase-0 region with
+the inward residual and `2 ≤ card`, `s ≥ 0`, the `ℝ≥0∞` cosh potential contracts
+with rate `r = ofReal (cosh s)`:
+
+  `∫⁻ coshPot s dK(c) ≤ ofReal (cosh s) · coshPot s c`. -/
+theorem coshPot_drift (s : ℝ) (hs : 0 ≤ s)
+    (c : Config (AgentState L K)) (hc2 : 2 ≤ Multiset.card c)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hinw : InwardResidual (L := L) (K := K) s c) :
+    ∫⁻ c', coshPot (L := L) (K := K) s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (Real.cosh s) * coshPot (L := L) (K := K) s c := by
+  rw [lintegral_coshPot_eq_ofReal_integral s c hc2]
+  unfold coshPot
+  rw [← ENNReal.ofReal_mul (le_trans zero_le_one (one_le_cosh' s))]
+  apply ENNReal.ofReal_le_ofReal
+  exact coshExpVal_drift_real s hs c hc2 hall hinw
+
 end RoleSplitConcentration
 end ExactMajority
