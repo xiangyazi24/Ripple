@@ -1031,9 +1031,42 @@ theorem sampledClass_lower_mgf_drift (σ : Sign) (i : Fin (L + 1)) (hiL : i.val 
   have := EarlyDripMarked.mgf_one_step_lower μ s hs N n₀ hmono r hr0 hr1 hprob_rise
   rw [hKμ]; exact this
 
-/-! ### The Phase-5 post predicate and the assembled `PhaseConvergenceW`.
+/-! ### The builder-shaped MGF drift and the campaign assembly note.
 
-`ReserveSampleGood i K₀ c` is the honest rendering of the paper's Phase-5 output for Phase 6:
+The lower-MGF contraction `sampledClass_lower_mgf_drift` rephrases into the
+`WindowConcentration.windowDrift_PhaseConvergence` `hdrift` shape `∫ Φ dK(c) ≤ ρ · Φ(c)` with
+`Φ(c) = ofReal(exp(−s·sampledReserveClassU i c))` and `ρ = ofReal(1 − r(1 − e^{−s}))`.  We
+expose the builder-shaped drift (`sampledClass_windowDrift_contraction`) and the threshold link
+to `sampledFloor`; the remaining assembly into `phase5Convergence`'s carried `hConc` requires an
+**absorbing** window on which `sampledReserveClassU i` is monotone.  `Phase5AllWin` carries the
+monotonicity (proved) but is NOT absorbing (clocks advance), and the genuinely-closed
+superwindow `PhaseGE5Win` breaks monotonicity (Phase-6 `doSplit` converts a class-`i` Reserve to
+a Main, consuming it).  This is the paper's footnote-11 *separation* (Phase 5 finishes before
+Phase 6 begins): the faithful window is "phase 5 ∧ clocks unfired", whose absorption is the
+clock-timing ingredient (Lemma 5.2), tracked as the precise campaign gap. -/
+
+/-- **Builder-shaped MGF drift.**  Rephrases `sampledClass_lower_mgf_drift` into the
+`windowDrift_PhaseConvergence` `hdrift` contraction `∫ Φ dK(c) ≤ ρ · Φ(c)` for the deficit
+potential `Φ(c) = ofReal(exp(−s·sampledReserveClassU i c))`. -/
+theorem sampledClass_windowDrift_contraction (σ : Sign) (i : Fin (L + 1)) (hiL : i.val < L)
+    (n : ℕ) (hn : 2 ≤ n) (s : ℝ) (hs : 0 ≤ s) (r : ℝ) (hr0 : 0 ≤ r) (hr1 : r ≤ 1)
+    (c : Config (AgentState L K)) (hInv : Phase5AllWin n c)
+    (hrfloor : ENNReal.ofReal r ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | sampledReserveClassU (L := L) (K := K) i c + 1
+          ≤ sampledReserveClassU (L := L) (K := K) i c'}) :
+    ∫⁻ c', ENNReal.ofReal
+        (Real.exp (-(s * (sampledReserveClassU (L := L) (K := K) i c' : ℝ))))
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (1 - r * (1 - Real.exp (-s)))
+          * ENNReal.ofReal
+              (Real.exp (-(s * (sampledReserveClassU (L := L) (K := K) i c : ℝ)))) := by
+  refine le_trans (sampledClass_lower_mgf_drift σ i hiL n hn s hs r hr0 hr1 c hInv hrfloor) ?_
+  rw [← ENNReal.ofReal_mul (by
+    have h1e : Real.exp (-s) ≤ 1 := Real.exp_le_one_iff.mpr (by linarith)
+    nlinarith [Real.exp_pos (-s), mul_nonneg hr0 (by linarith : (0:ℝ) ≤ 1 - Real.exp (-s))])]
+
+/-! ### The Phase-5 post predicate and the assembled `PhaseConvergenceW`.
 
 `ReserveSampleGood i K₀ c` is the honest rendering of the paper's Phase-5 output for Phase 6:
 *every Reserve has sampled* (`ReserveSampled`) AND *enough Reserves sampled the useful level*
@@ -1043,6 +1076,22 @@ level index `i` and required count `K₀` parameterise both case-split branches 
 /-- The sampled-class floor at level `i`: at least `K₀` Reserves recorded sample `i`. -/
 def sampledFloor (i : Fin (L + 1)) (K₀ : ℕ) (c : Config (AgentState L K)) : Prop :=
   K₀ ≤ sampledReserveClassU (L := L) (K := K) i c
+
+/-- **The threshold link.**  Failing the sampled-class floor (`sampledReserveClassU i < K₀`)
+forces the deficit potential `Φ` above the threshold `θ = ofReal(exp(−s·K₀))` (since `s ≥ 0` and
+`N < K₀` give `exp(−s·N) ≥ exp(−s·K₀)`).  The `hlink` for `windowDrift_PhaseConvergence`. -/
+theorem sampledFloor_link (i : Fin (L + 1)) (K₀ : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (c : Config (AgentState L K)) (hfail : ¬ sampledFloor (L := L) (K := K) i K₀ c) :
+    ENNReal.ofReal (Real.exp (-(s * (K₀ : ℝ))))
+      ≤ ENNReal.ofReal
+          (Real.exp (-(s * (sampledReserveClassU (L := L) (K := K) i c : ℝ)))) := by
+  apply ENNReal.ofReal_le_ofReal
+  apply Real.exp_le_exp.mpr
+  unfold sampledFloor at hfail
+  have hlt : sampledReserveClassU (L := L) (K := K) i c < K₀ := by omega
+  have hcast : (sampledReserveClassU (L := L) (K := K) i c : ℝ) ≤ (K₀ : ℝ) := by
+    exact_mod_cast le_of_lt hlt
+  nlinarith [hs, hcast]
 
 /-- **Phase-5 output predicate** (`ReserveSampleGood`): all Reserves sampled, and at least
 `K₀` of them at the useful level `i` (the Chernoff floor Phase 6 needs). -/
