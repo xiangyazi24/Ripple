@@ -1201,6 +1201,49 @@ theorem wtAt_std_le (p : ℕ) (hp10 : p < 10) (a : AgentState L K) (ha : a.role 
       omega
     · exact Nat.zero_le _
 
+/-- For two clocks at phase EXACTLY `p ∈ {0,1,5,6,7,8}`, the dispatched per-phase rule
+reduces to the standard counter subroutine on each component, so the full `Transition`'s
+outputs have `counter`/`role`/`phase` equal to `(stdCounterSubroutine r₁, stdCounterSubroutine r₂)`
+(the epidemic is inert at a common phase, and `finishPhase10Entry` preserves those
+fields).  Hence each output's `wtAt p` is `≤` the corresponding input counter. -/
+theorem transition_clock_clock_at_p_wtAt_le (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ))
+    (r₁ r₂ : AgentState L K)
+    (h1c : r₁.role = .clock) (h2c : r₂.role = .clock)
+    (h1p : r₁.phase.val = p) (h2p : r₂.phase.val = p) :
+    wtAt (L := L) (K := K) p (Transition L K r₁ r₂).1 ≤ r₁.counter.val ∧
+      wtAt (L := L) (K := K) p (Transition L K r₁ r₂).2 ≤ r₂.counter.val := by
+  classical
+  have hp10 : p < 10 := by fin_cases hp <;> omega
+  -- epidemic inert at a common phase
+  have hep := epidemic_inert_same_phase (L := L) (K := K) r₁.phase (by omega) r₁ r₂
+      rfl (by rw [Fin.ext_iff]; omega)
+  -- compute the dispatch output as (std r₁, std r₂) for clock-clock
+  have hphaseeq : r₁.phase = ⟨p, by omega⟩ := by rw [Fin.ext_iff]; exact h1p
+  have hstd : Transition L K r₁ r₂
+      = (finishPhase10Entry L K r₁ (stdCounterSubroutine L K r₁),
+         finishPhase10Entry L K r₂ (stdCounterSubroutine L K r₂)) := by
+    conv_lhs => unfold Transition
+    rw [hep]
+    simp only []
+    rw [hphaseeq]
+    fin_cases hp <;>
+      simp_all [Phase0Transition, Phase1Transition, Phase5Transition, Phase6Transition,
+        Phase7Transition, Phase8Transition, clockCounterStep, h1c, h2c]
+  rw [hstd]
+  -- finishPhase10Entry preserves role/phase/counter, so wtAt sees std r_i
+  have hwt1 : wtAt (L := L) (K := K) p (finishPhase10Entry L K r₁ (stdCounterSubroutine L K r₁))
+      = wtAt (L := L) (K := K) p (stdCounterSubroutine L K r₁) := by
+    unfold wtAt
+    rw [finishPhase10Entry_role, finishPhase10Entry_phase_val, finishPhase10Entry_counter]
+  have hwt2 : wtAt (L := L) (K := K) p (finishPhase10Entry L K r₂ (stdCounterSubroutine L K r₂))
+      = wtAt (L := L) (K := K) p (stdCounterSubroutine L K r₂) := by
+    unfold wtAt
+    rw [finishPhase10Entry_role, finishPhase10Entry_phase_val, finishPhase10Entry_counter]
+  rw [hwt1, hwt2]
+  exact ⟨wtAt_std_le (L := L) (K := K) p hp10 r₁ h1c h1p,
+    wtAt_std_le (L := L) (K := K) p hp10 r₂ h2c h2p⟩
+
 theorem transition_pair_wtAt_le (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ))
     (r₁ r₂ : AgentState L K)
     (h1c : r₁.role = .clock) (h2c : r₂.role = .clock)
@@ -1208,7 +1251,100 @@ theorem transition_pair_wtAt_le (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Fins
     wtAt (L := L) (K := K) p (Transition L K r₁ r₂).1
         + wtAt (L := L) (K := K) p (Transition L K r₁ r₂).2
       ≤ wtAt (L := L) (K := K) p r₁ + wtAt (L := L) (K := K) p r₂ := by
-  sorry
+  classical
+  by_cases hboth : r₁.phase.val = p ∧ r₂.phase.val = p
+  · -- both at phase exactly p: per-component via the std reduction
+    obtain ⟨e1, e2⟩ := hboth
+    have hcl := transition_clock_clock_at_p_wtAt_le (L := L) (K := K) p hp r₁ r₂ h1c h2c e1 e2
+    have hr1 : wtAt (L := L) (K := K) p r₁ = r₁.counter.val := by
+      unfold wtAt; rw [if_pos ⟨h1c, e1⟩]
+    have hr2 : wtAt (L := L) (K := K) p r₂ = r₂.counter.val := by
+      unfold wtAt; rw [if_pos ⟨h2c, e2⟩]
+    rw [hr1, hr2]; omega
+  · -- not both at p: epidemic raises both outputs above p, so both outputs have wtAt = 0
+    have hmax : p < max r₁.phase.val r₂.phase.val := by
+      rcases not_and_or.mp hboth with h | h <;>
+        [(have := lt_of_le_of_ne h1p (Ne.symm h)); (have := lt_of_le_of_ne h2p (Ne.symm h))] <;>
+        omega
+    have hge1 := phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) r₁ r₂
+    have hge2 := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) r₁ r₂
+    have hle := phaseEpidemicUpdate_phase_le_Transition_phase (L := L) (K := K) r₁ r₂
+    have hout1 : p < (Transition L K r₁ r₂).1.phase.val := lt_of_lt_of_le hmax (le_trans hge1 hle.1)
+    have hout2 : p < (Transition L K r₁ r₂).2.phase.val := lt_of_lt_of_le hmax (le_trans hge2 hle.2)
+    have hw1 : wtAt (L := L) (K := K) p (Transition L K r₁ r₂).1 = 0 := by
+      unfold wtAt; rw [if_neg]; rintro ⟨_, hpe⟩; omega
+    have hw2 : wtAt (L := L) (K := K) p (Transition L K r₁ r₂).2 = 0 := by
+      unfold wtAt; rw [if_neg]; rintro ⟨_, hpe⟩; omega
+    rw [hw1, hw2]; exact Nat.zero_le _
+
+/-- One-step monotonicity on the kernel support: from an `AllClockGEp p`-state, the
+`clockCounterSumAt p` never rises.  Per-pair additivity (`Multiset.sum` over `map`)
+plus `transition_pair_wtAt_le`. -/
+theorem clockCounterSumAt_stepDistOrSelf_le (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (c c' : Config (AgentState L K))
+    (hw : AllClockGEp p c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    clockCounterSumAt p c' ≤ clockCounterSumAt p c := by
+  classical
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    subst hr
+    by_cases happ : Protocol.Applicable c r₁ r₂
+    · obtain ⟨h1c, h1p⟩ := hw r₁ (ClockRealKernel.mem_of_applicable_left happ)
+      obtain ⟨h2c, h2p⟩ := hw r₂ (ClockRealKernel.mem_of_applicable_right happ)
+      have hsub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := happ
+      have hsc : Protocol.scheduledStep (NonuniformMajority L K) c (r₁, r₂)
+          = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+        unfold Protocol.scheduledStep Protocol.stepOrSelf
+        rw [if_pos happ]; rfl
+      rw [hsc]
+      set D : Multiset (AgentState L K) := c - {r₁, r₂} with hD
+      have hcD : c = ({r₁, r₂} : Multiset (AgentState L K)) + D := by
+        rw [hD, Multiset.add_comm, tsub_add_cancel_of_le hsub]
+      have hpairle := transition_pair_wtAt_le (L := L) (K := K) p hp r₁ r₂ h1c h2c h1p h2p
+      have hsumD : ∀ X : Multiset (AgentState L K), ∀ a b : AgentState L K,
+          clockCounterSumAt p (({a, b} : Multiset (AgentState L K)) + X)
+            = wtAt (L := L) (K := K) p a + wtAt (L := L) (K := K) p b
+              + (X.map (wtAt (L := L) (K := K) p)).sum := by
+        intro X a b
+        unfold clockCounterSumAt
+        rw [Multiset.map_add, Multiset.sum_add]
+        simp only [Multiset.insert_eq_cons, Multiset.map_cons, Multiset.map_singleton,
+          Multiset.sum_cons, Multiset.sum_singleton]
+        unfold wtAt
+        ring
+      rw [Multiset.add_comm D _, hsumD D (Transition L K r₁ r₂).1 (Transition L K r₁ r₂).2]
+      conv_rhs => rw [hcD, hsumD D r₁ r₂]
+      omega
+    · rw [Protocol.scheduledStep, Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'
+    subst hc'
+    exact le_refl _
+
+/-- **Brick 1 — `PotNonincrOn (AllClockGEp p) K (clockCounterSumAt p)`.**  From an
+`AllClockGEp p`-state the protocol kernel never raises the phase-`p`-restricted
+clock-counter sum, for a timed phase `p ∈ {0,1,5,6,7,8}`.  This is the engine's
+`hmono` ingredient. -/
+theorem clockCounterSumAt_PotNonincrOn (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) :
+    Engine.PotNonincrOn (AllClockGEp (L := L) (K := K) p)
+      (NonuniformMajority L K).transitionKernel (clockCounterSumAt p) := by
+  classical
+  intro b hb
+  show (NonuniformMajority L K).transitionKernel b
+    {x | clockCounterSumAt p b < clockCounterSumAt p x} = 0
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | clockCounterSumAt p b < clockCounterSumAt p x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro c' hsupp hbad
+  have hle := clockCounterSumAt_stepDistOrSelf_le (L := L) (K := K) p hp b c' hb hsupp
+  exact absurd hbad (by simp only [Set.mem_setOf_eq]; omega)
 
 end ConditionalPhaseProgress
 

@@ -1317,6 +1317,8 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
             unfold cancelSplit; simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_pos h1]
           rw [hcs]; simp only [biasClassMass]
           have hexp2 : L - (i.val + 1) = L - j.val := by omega
+          have hmono : (2:ℤ) ^ (L - j.val) ≤ 2 ^ (L - i.val) :=
+            pow_le_pow_right₀ (by norm_num) (by omega)
           rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
             simp_all <;> first | positivity | linarith | omega
         by_cases h1' : j.val + 1 = i.val
@@ -1327,6 +1329,8 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
             simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_pos h1']
           rw [hcs]; simp only [biasClassMass]
           have hexp2 : L - (j.val + 1) = L - i.val := by omega
+          have hmono : (2:ℤ) ^ (L - i.val) ≤ 2 ^ (L - j.val) :=
+            pow_le_pow_right₀ (by norm_num) (by omega)
           rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
             simp_all <;> first | positivity | linarith | omega
         by_cases h2 : i.val + 2 = j.val
@@ -1355,7 +1359,6 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
           have hej : L - j.val = (L - i.val) + 2 := by omega
           have hej1 : L - (j.val + 1) = (L - i.val) + 1 := by omega
           have hej2 : L - (j.val + 2) = L - i.val := by omega
-          have hp : (0:ℤ) < 2 ^ (L - i.val) := pow_pos (by norm_num) _
           rcases ss with _ | _ <;> rcases st with _ | _ <;> rcases σ with _ | _ <;>
             simp_all [hej, hej1, hej2, pow_succ] <;> nlinarith [pow_pos (show (0:ℤ) < 2 by norm_num) (L - i.val)]
         · have hcs : cancelSplit L K s t = (s, t) := by
@@ -1363,6 +1366,142 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
             simp only [hsb, htb, if_pos hnee, dif_neg h0, dif_neg h1, dif_neg h1', dif_neg h2,
               dif_neg h2']
           rw [hcs, hsb, htb]
+
+/-- **Config-level σ-class mass NON-INCREASE under a chosen-pair step** (Phase-7 window).
+On an all-Main phase-7 window every applicable pair is both-Main so `Transition =
+cancelSplit`, and `cancelSplit_classMass_pair_le` lifts through the
+`c − {r₁,r₂} + {out₁,out₂}` step decomposition.  The not-applicable (self) case is the
+identity.  This is the config-level analogue of `phase7SignedSum_stepOrSelf_eq` with `=`
+relaxed to `≤`. -/
+theorem classMass_stepOrSelf_le (σ : Sign) (n : ℕ) (c : Config (AgentState L K))
+    (hw : Phase7AllMain n c) (r₁ r₂ : AgentState L K) :
+    classMass σ (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ classMass σ c := by
+  classical
+  obtain ⟨_, hph⟩ := hw
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left7 happ
+    have hm2 := mem_of_app_right7 happ
+    obtain ⟨h17, h1M⟩ := hph r₁ hm1
+    obtain ⟨h27, h2M⟩ := hph r₂ hm2
+    have hcs := Transition_eq_cancelSplit_of_phase7_main r₁ r₂ h17 h27 h1M h2M
+    have hpair : agentClassMass σ (Transition L K r₁ r₂).1
+          + agentClassMass σ (Transition L K r₁ r₂).2
+        ≤ agentClassMass σ r₁ + agentClassMass σ r₂ := by
+      rw [hcs]; exact cancelSplit_classMass_pair_le σ r₁ r₂
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    have happ_le : (r₁ ::ₘ {r₂} : Multiset (AgentState L K)) ≤ c := happ
+    have hrestore : c - r₁ ::ₘ {r₂} + r₁ ::ₘ {r₂} = c :=
+      Multiset.sub_add_cancel happ_le
+    have hsum_c : classMass σ c
+        = classMass σ (c - r₁ ::ₘ {r₂})
+            + (agentClassMass σ r₁ + agentClassMass σ r₂) := by
+      rw [← hrestore]; simp [classMass, add_left_comm]
+    have hsum_c' : classMass σ
+          (c - r₁ ::ₘ {r₂} +
+            (Transition L K r₁ r₂).1 ::ₘ {(Transition L K r₁ r₂).2})
+        = classMass σ (c - r₁ ::ₘ {r₂})
+            + (agentClassMass σ (Transition L K r₁ r₂).1
+              + agentClassMass σ (Transition L K r₁ r₂).2) := by
+      simp [classMass, add_left_comm]
+    rw [hc']
+    show classMass σ
+        (c - r₁ ::ₘ {r₂} +
+          (Transition L K r₁ r₂).1 ::ₘ {(Transition L K r₁ r₂).2})
+      ≤ classMass σ c
+    rw [hsum_c', hsum_c]
+    linarith [hpair]
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+
+/-- **Support-level σ-class mass non-increase** (Phase-7 window): every successor in the
+kernel's step support has `classMass σ` no larger than the source. -/
+theorem classMass_support_le (σ : Sign) (n : ℕ) (c c' : Config (AgentState L K))
+    (hw : Phase7AllMain n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    classMass σ c' ≤ classMass σ c := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact classMass_stepOrSelf_le σ n c hw r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact le_refl _
+
+/-! ### The ℕ-valued engine potential and the `NoMinority` bridge.
+
+The engine's `Φ : α → ℕ` must be ℕ-valued.  `classMass σ` is `≥ 0`, so
+`classMassN σ := (classMass σ).toNat` is the honest ℕ potential, non-increasing along
+the kernel (toNat is monotone on `ℤ≥0`).  And `classMassN σ c = 0` is EXACTLY
+`NoMinority σ c` on the phase-7 all-Main window: every σ-signed Main contributes mass
+`≥ 1`, so zero total σ-class mass forces zero σ-minority count. -/
+
+/-- The ℕ-valued σ-class mass potential (`= classMass σ` since `classMass σ ≥ 0`). -/
+def classMassN (σ : Sign) (c : Config (AgentState L K)) : ℕ := (classMass σ c).toNat
+
+/-- `classMassN σ` is non-increasing on the one-step kernel support (Phase-7 window). -/
+theorem classMassN_support_le (σ : Sign) (n : ℕ) (c c' : Config (AgentState L K))
+    (hw : Phase7AllMain n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    classMassN σ c' ≤ classMassN σ c := by
+  unfold classMassN
+  exact Int.toNat_le_toNat (classMass_support_le σ n c c' hw hc')
+
+/-- **The engine's `hmono` for `Φ = classMassN σ`** on the genuinely-closed `Inv7Sum`.
+From an `Inv7Sum`-config the kernel never raises `classMassN σ` (the honest one-sided
+potential the relay-5 obstruction left open — `classMassN` drops where `minorityU`
+rises). -/
+theorem potNonincrOn_classMassN (σ : Sign) (n : ℕ) :
+    OneSidedCancel.PotNonincrOn (fun c => Inv7Sum (L := L) (K := K) n c)
+      (NonuniformMajority L K).transitionKernel (fun c => classMassN σ c) := by
+  intro c hInv
+  obtain ⟨hw, _⟩ := hInv
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | classMassN σ c < classMassN σ x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  exact absurd (classMassN_support_le σ n c x hw hsupp) (by
+    simp only [Set.mem_setOf_eq] at hx; omega)
+
+/-- A σ-signed Main contributes σ-class mass `≥ 1` (so `agentClassMass σ a ≠ 0`). -/
+theorem one_le_agentClassMass_of_minoritySt (σ : Sign) (a : AgentState L K)
+    (h : minoritySt σ a) : 1 ≤ agentClassMass σ a := by
+  obtain ⟨_, i, hb⟩ := h
+  unfold agentClassMass biasClassMass
+  rw [hb]
+  simp only [if_true]
+  exact one_le_pow₀ (by norm_num)
+
+/-- **The `NoMinority` bridge.**  On any config, `classMass σ c = 0` forces
+`minorityU σ c = 0` (the converse direction we need for `potDone`).  Each σ-signed Main
+contributes mass `≥ 1`; with all per-agent masses `≥ 0`, a zero total kills the count. -/
+theorem minorityU_eq_zero_of_classMass_zero (σ : Sign) (c : Config (AgentState L K))
+    (h : classMass σ c = 0) : minorityU σ c = 0 := by
+  classical
+  by_contra hne
+  -- some agent is a σ-minority; it contributes `≥ 1`, contradicting total `0`.
+  have hpos : 0 < minorityU σ c := Nat.pos_of_ne_zero hne
+  rw [minorityU, Multiset.countP_pos] at hpos
+  obtain ⟨a, hamem, ha⟩ := hpos
+  have hcontrib : 1 ≤ agentClassMass σ a := one_le_agentClassMass_of_minoritySt σ a ha
+  have hsum_ge : agentClassMass σ a ≤ classMass σ c := by
+    unfold classMass
+    refine Multiset.single_le_sum (fun y hy => ?_) _ (Multiset.mem_map_of_mem _ hamem)
+    rw [Multiset.mem_map] at hy; obtain ⟨b, _, hb⟩ := hy
+    rw [← hb]; exact agentClassMass_nonneg σ b
+  omega
+
+/-- `classMassN σ c = 0 → minorityU σ c = 0` (the `potDone` ⊆ `NoMinority` direction). -/
+theorem minorityU_eq_zero_of_classMassN_zero (σ : Sign) (c : Config (AgentState L K))
+    (h : classMassN σ c = 0) : minorityU σ c = 0 := by
+  apply minorityU_eq_zero_of_classMass_zero σ c
+  have hnn := classMass_nonneg σ c
+  unfold classMassN at h
+  omega
 
 end Phase7Convergence
 

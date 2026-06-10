@@ -2781,5 +2781,53 @@ theorem real_bad_le_janson_add_escape
     (fun y hg => by simpa using hg) t c₀) ?_
   exact killedAliveNotGood_le_janson K G good mp P post_sound c₀ hPre lam hlam t ht
 
+/-! ## Phase C-1 (relay 7) — the concrete role-split `KernelMilestone` witness.
+
+The relay-6 engine (`KernelMilestone` + `real_bad_le_janson_add_escape`) is fully
+abstract.  This section instantiates it for Stage 1 of Doty's Lemma 5.1, closing
+the single atom relay 6 isolated.
+
+**Gate region (`floorGate n a₀`).**  The gate `G` carries *exactly* the three
+hypotheses the floor → rate bridge `phase0_mcrCount_decrease_prob_floor` consumes:
+`c.card = n`, the Chernoff floor `a₀ ≤ assignableCount c`, and the Phase-0 phase
+invariant `∀ a∈c, role=mcr → phase=0`.  On the immediate-kill kernel `killK_now K G`
+every alive (`some`) successor lies in `G` BY CONSTRUCTION (`alive_support_gate`), so
+the bridge fires unconditionally on the killed chain — `inv_closed` dissolved.
+
+**Milestone family (granularity).**  Same `k = n-1` diagonal mcrCount thresholds as
+the plain `phase0MilestonePhase` (milestone `i` = `phase0Milestone n i`, threshold
+`n-1-i`, so `M = n-i` at the unreached frontier), lifted to `Option (Config …)` with
+the cemetery `none` carrying milestone `True` (hence `Post`, absorbing).  The ONLY
+change from the plain engine is the per-step rate: `floorRate n a₀ M = M·a₀/(n(n-1))`
+(the floor-driven `Θ(M/n)` rate) in place of `M(M-1)/(n(n-1))` (the `Θ(M²/n²)` rate
+whose `M=2` worst case gave `pMin = Θ(1/n²)`).  With the floor `a₀ = Θ(n)` this lifts
+`pMin` to `Θ(1/n)` and `pMin·meanTime` to `Θ(log n)` — the quantitative point.  -/
+
+namespace RoleSplitConcentration
+
+open MeasureTheory ProbabilityTheory ExactMajority GatedDrift
+open scoped ENNReal NNReal Real
+
+attribute [local instance] Classical.propDecidable
+
+variable {L K : ℕ}
+
+/-- The floor gate region: the three hypotheses `phase0_mcrCount_decrease_prob_floor`
+consumes (card, the Chernoff floor `a₀`, the Phase-0 phase invariant). -/
+def floorGate (n a₀ : ℕ) : Set (Config (AgentState L K)) :=
+  {c | Multiset.card c = n ∧ a₀ ≤ assignableCount (L := L) (K := K) c ∧
+    (∀ a ∈ c, a.role = .mcr → a.phase.val = 0)}
+
+theorem floorGate_card {n a₀ : ℕ} {c : Config (AgentState L K)}
+    (hc : c ∈ floorGate (L := L) (K := K) n a₀) : Multiset.card c = n := hc.1
+
+theorem floorGate_floor {n a₀ : ℕ} {c : Config (AgentState L K)}
+    (hc : c ∈ floorGate (L := L) (K := K) n a₀) :
+    a₀ ≤ assignableCount (L := L) (K := K) c := hc.2.1
+
+theorem floorGate_phase0 {n a₀ : ℕ} {c : Config (AgentState L K)}
+    (hc : c ∈ floorGate (L := L) (K := K) n a₀) :
+    ∀ a ∈ c, a.role = .mcr → a.phase.val = 0 := hc.2.2
+
 end RoleSplitConcentration
 end ExactMajority
