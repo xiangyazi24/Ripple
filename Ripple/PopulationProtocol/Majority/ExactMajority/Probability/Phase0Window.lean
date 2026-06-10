@@ -763,10 +763,93 @@ theorem clockCounterPotential_drift_affine (s : ℝ) (hs : 0 ≤ s)
   rw [hofac, add_mul, one_mul]
   congr 1
   -- (eˢ-1)·(Φ/n + Φ/n) = ofReal(eˢ-1)·(2/n)·Φ
+  rw [mul_assoc]
+  congr 1
+  -- Φ/n + Φ/n = (2/n)·Φ
   rw [ENNReal.div_add_div_same, ← two_mul]
-  rw [mul_assoc, ENNReal.mul_div_assoc, mul_comm Φ ((2:ℝ≥0∞)/(n:ℝ≥0∞)),
-      ← ENNReal.mul_div_assoc, ← mul_assoc, mul_comm Φ (2:ℝ≥0∞), mul_assoc,
-      ENNReal.mul_div_assoc]
+  rw [mul_comm (2 : ℝ≥0∞) Φ, mul_div_assoc, mul_comm ((2:ℝ≥0∞)/(n:ℝ≥0∞)) Φ,
+      ← mul_div_assoc]
+
+/-! ## The affine-drift tail engine (immigration + multiplicative).
+
+The affine drift `∫ Φ dK(c) ≤ a·Φ(c) + b` on an absorbing window does NOT fit the
+purely-multiplicative `WindowConcentration.windowDrift_tail` (which needs `b = 0`),
+because the per-step fresh-clock immigration `b` keeps the potential from
+contracting to `0` (and at a clock-free start `Φ = 0` while `b > 0`, so no
+multiplicative rate can hold).  We build the affine analogue here, mirroring
+`lintegral_decay_on_absorbing` with the immigration term: iterating
+`∫ Φ dK ≤ a·Φ + b` gives `∫ Φ d(Kᵗ)c₀ ≤ aᵗ·Φ(c₀) + b·∑_{i<t} aⁱ`, then Markov at
+threshold `θ` yields the tail `(Kᵗ)c₀{¬Post} ≤ (aᵗ·Φ(c₀) + b·∑_{i<t}aⁱ)/θ`. -/
+
+/-- **Affine lintegral decay on an absorbing window.**  Given the affine one-step
+drift `∫ Φ dK(c) ≤ a·Φ(c) + b` on the absorbing window `Q`, the `t`-step
+expectation of `Φ` is bounded by `aᵗ·Φ(c₀) + b·∑_{i<t} aⁱ`. -/
+theorem lintegral_decay_affine_on_absorbing (P : Protocol (AgentState L K))
+    (Φ : Config (AgentState L K) → ℝ≥0∞) (hΦ : Measurable Φ)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c → c' ∈ (P.stepDistOrSelf c).support → Q c')
+    (a b : ℝ≥0∞)
+    (hdrift : ∀ c, Q c → ∫⁻ c', Φ c' ∂(P.transitionKernel c) ≤ a * Φ c + b)
+    (t : ℕ) (c₀ : Config (AgentState L K)) (hQ0 : Q c₀) :
+    ∫⁻ c', Φ c' ∂((P.transitionKernel ^ t) c₀)
+      ≤ a ^ t * Φ c₀ + b * ∑ i ∈ Finset.range t, a ^ i := by
+  induction t generalizing c₀ with
+  | zero =>
+    simp only [pow_zero, one_mul, Finset.range_zero, Finset.sum_empty, mul_zero, add_zero]
+    change ∫⁻ c', Φ c' ∂(Kernel.id c₀) ≤ Φ c₀
+    rw [Kernel.id_apply, lintegral_dirac' c₀ hΦ]
+  | succ t ih =>
+    change ∫⁻ c', Φ c' ∂(((P.transitionKernel ^ t) ∘ₖ P.transitionKernel) c₀)
+      ≤ a ^ (t + 1) * Φ c₀ + b * ∑ i ∈ Finset.range (t + 1), a ^ i
+    rw [Kernel.lintegral_comp _ _ c₀ hΦ]
+    have hae : ∀ᵐ d ∂(P.transitionKernel c₀),
+        ∫⁻ c', Φ c' ∂((P.transitionKernel ^ t) d)
+          ≤ a ^ t * Φ d + b * ∑ i ∈ Finset.range t, a ^ i := by
+      have hsupp_ae : ∀ᵐ d ∂(P.transitionKernel c₀), Q d := by
+        have h1 := Protocol.ae_of_stepDistOrSelf_support_preserved P Q hQ_abs c₀ hQ0 1
+        simpa [pow_one] using h1
+      filter_upwards [hsupp_ae] with d hd
+      exact ih d hd
+    calc ∫⁻ d, ∫⁻ c', Φ c' ∂((P.transitionKernel ^ t) d) ∂(P.transitionKernel c₀)
+        ≤ ∫⁻ d, (a ^ t * Φ d + b * ∑ i ∈ Finset.range t, a ^ i)
+            ∂(P.transitionKernel c₀) := lintegral_mono_ae hae
+      _ = a ^ t * (∫⁻ d, Φ d ∂(P.transitionKernel c₀))
+            + b * (∑ i ∈ Finset.range t, a ^ i) := by
+          rw [lintegral_add_right _ measurable_const, lintegral_const_mul _ hΦ,
+              lintegral_const, measure_univ, mul_one]
+      _ ≤ a ^ t * (a * Φ c₀ + b) + b * (∑ i ∈ Finset.range t, a ^ i) := by
+          gcongr; exact hdrift c₀ hQ0
+      _ = a ^ (t + 1) * Φ c₀ + b * ∑ i ∈ Finset.range (t + 1), a ^ i := by
+          rw [Finset.sum_range_succ, mul_add, mul_add]
+          rw [show a ^ t * (a * Φ c₀) = a ^ (t + 1) * Φ c₀ by rw [pow_succ]; ring]
+          rw [show a ^ t * b = b * a ^ t by ring]
+          ring
+
+/-- **Affine window tail.**  From the affine drift `∫ Φ dK(c) ≤ a·Φ(c) + b` on the
+absorbing window `Q`, with threshold link `¬Post c → θ ≤ Φ c` (`θ ≠ 0, ⊤`), the
+`t`-step failure probability is bounded by `(aᵗ·Φ(c₀) + b·∑_{i<t}aⁱ)/θ`. -/
+theorem phase0_window_tail_affine (P : Protocol (AgentState L K))
+    (Φ : Config (AgentState L K) → ℝ≥0∞) (hΦ : Measurable Φ)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c → c' ∈ (P.stepDistOrSelf c).support → Q c')
+    (a b : ℝ≥0∞)
+    (hdrift : ∀ c, Q c → ∫⁻ c', Φ c' ∂(P.transitionKernel c) ≤ a * Φ c + b)
+    (Post : Config (AgentState L K) → Prop)
+    (θ : ℝ≥0∞) (hθ : θ ≠ 0) (hθ_top : θ ≠ ⊤)
+    (hlink : ∀ c, ¬ Post c → θ ≤ Φ c)
+    (t : ℕ) (c₀ : Config (AgentState L K)) (hQ0 : Q c₀) :
+    (P.transitionKernel ^ t) c₀ {c | ¬ Post c}
+      ≤ (a ^ t * Φ c₀ + b * ∑ i ∈ Finset.range t, a ^ i) / θ := by
+  have hsubset : {c | ¬ Post c} ⊆ {c | θ ≤ Φ c} := fun c hc => hlink c hc
+  refine (measure_mono hsubset).trans ?_
+  -- Markov at θ + affine decay.
+  have hmarkov := mul_meas_ge_le_lintegral₀ (μ := (P.transitionKernel ^ t) c₀)
+    hΦ.aemeasurable θ
+  have hdecay := lintegral_decay_affine_on_absorbing P Φ hΦ Q hQ_abs a b hdrift t c₀ hQ0
+  have hchain : θ * (P.transitionKernel ^ t) c₀ {c | θ ≤ Φ c}
+      ≤ a ^ t * Φ c₀ + b * ∑ i ∈ Finset.range t, a ^ i := le_trans hmarkov hdecay
+  rw [ENNReal.le_div_iff_mul_le (Or.inl hθ) (Or.inl hθ_top), mul_comm]
+  exact hchain
 
 /-! ## The kernel-level tail from a supplied one-step drift.
 
