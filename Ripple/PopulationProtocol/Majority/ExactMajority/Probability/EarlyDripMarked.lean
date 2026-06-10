@@ -4996,8 +4996,322 @@ theorem recurrence_checkpoint (T θn n : ℕ) (cc : ℝ) (w aM : ℕ) (haM : n �
       (fun hP3 hX => hB mc hmc hP3 hX))
     KK mc₀ h0
 
+/-! ## Part 32 — the per-level recurrence (STEP 3): combine the recurrence invariant
+(`cleanAbove ≤ cc·X²/n`) with the taint tail (`taintedCount ≤ tt`) through the decomposition
+`rBeyond(T+1)∘erase = taintedCount + cleanAbove`. -/
+
+/-- **A region is a.s.-preserved through kernel powers** (generic stay-in-region): if `R` is a.s.
+absorbing one-step, then from a start in `R` the chain stays in `R` a.s. for every horizon. -/
+theorem region_ae_pow {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+    (Kk : Kernel α α) [IsMarkovKernel Kk] (R : Set α)
+    (hRstep : ∀ x ∈ R, ∀ᵐ y ∂(Kk x), y ∈ R)
+    (t : ℕ) (x : α) (hxR : x ∈ R) :
+    ∀ᵐ z ∂((Kk ^ t) x), z ∈ R := by
+  classical
+  induction t generalizing x with
+  | zero =>
+      simp only [pow_zero]
+      change ∀ᵐ z ∂(Kernel.id x), z ∈ R
+      rw [Kernel.id_apply,
+        MeasureTheory.ae_dirac_iff (DiscreteMeasurableSpace.forall_measurableSet _)]
+      exact hxR
+  | succ t ih =>
+      rw [MeasureTheory.ae_iff]
+      have hbad_meas : MeasurableSet {z : α | ¬ z ∈ R} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral Kk 1 t x hbad_meas, pow_one,
+        MeasureTheory.lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad_meas)]
+      filter_upwards [hRstep x hxR] with y hyR
+      have h := ih y hyR
+      rwa [MeasureTheory.ae_iff] at h
+
+/-- **MarkInv is a.s.-preserved one-step** (lift of `markInv_step` to the kernel). -/
+theorem markInv_ae_step (T θn : ℕ) (mc : Config (MarkedAgent L K))
+    (hinv : MarkInv (L := L) (K := K) T mc) :
+    ∀ᵐ mc' ∂(markedK (L := L) (K := K) T θn mc), MarkInv (L := L) (K := K) T mc' :=
+  ae_markedStep (L := L) (K := K) T θn mc _
+    (fun mc' hsupp => markInv_step (L := L) (K := K) T θn mc mc' hinv hsupp)
+
+/-- **MarkInv stays through kernel powers** from a MarkInv start. -/
+theorem markInv_ae_pow (T θn : ℕ) (t : ℕ) (mc₀ : Config (MarkedAgent L K))
+    (hinv : MarkInv (L := L) (K := K) T mc₀) :
+    ∀ᵐ mc ∂((markedK (L := L) (K := K) T θn) ^ t) mc₀, MarkInv (L := L) (K := K) T mc :=
+  region_ae_pow (markedK (L := L) (K := K) T θn) {mc | MarkInv (L := L) (K := K) T mc}
+    (fun x hx => markInv_ae_step (L := L) (K := K) T θn x hx) t mc₀ hinv
+
+/-- **The deterministic recurrence combine** (count form): at a checkpoint config under the mark
+invariant in the P3 window, with the clean part obeying the recurrence and the taint bounded by
+`tt`, the erased front: `rBeyond(T+1)∘erase ≤ cc·X²/n + tt`. -/
+theorem recurrence_combine (T n : ℕ) (cc : ℝ) (tt : ℕ) (mc : Config (MarkedAgent L K))
+    (hcard : mc.card = n)
+    (hP3 : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hinv : MarkInv (L := L) (K := K) T mc)
+    (hrec : (cleanAbove (L := L) (K := K) T mc : ℝ)
+      ≤ cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+    (htaint : taintedCount (L := L) (K := K) mc ≤ tt) :
+    (rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ)
+      ≤ cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+        + (tt : ℝ) := by
+  have hdecomp : rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc)
+      = taintedCount (L := L) (K := K) mc + cleanAbove (L := L) (K := K) T mc := by
+    rw [rBeyond_erase_eq_aboveCount (L := L) (K := K) T mc hP3,
+      aboveCount_eq_tainted_add_clean (L := L) (K := K) T mc hinv]
+  rw [hdecomp]
+  push_cast
+  have htaint' : (taintedCount (L := L) (K := K) mc : ℝ) ≤ (tt : ℝ) := by exact_mod_cast htaint
+  linarith
+
+/-- **The count-form per-level recurrence**: under the recurrence-combine hypotheses plus the
+negligibility `cc·X²/n + tt ≤ X²/n` (the `d`-term small at window scales), the erased front squares
+in count form: `rBeyond(T+1)·n ≤ X²` (i.e. `frac(T+1) ≤ (frac T)²` on `card = n`). -/
+theorem front_squares_count (T n : ℕ) (hn : 0 < n) (cc : ℝ) (tt : ℕ)
+    (mc : Config (MarkedAgent L K))
+    (hcard : mc.card = n)
+    (hP3 : AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hinv : MarkInv (L := L) (K := K) T mc)
+    (hrec : (cleanAbove (L := L) (K := K) T mc : ℝ)
+      ≤ cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+    (htaint : taintedCount (L := L) (K := K) mc ≤ tt)
+    (hneg : cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+        + (tt : ℝ)
+      ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)) :
+    (rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ) * (n : ℝ)
+      ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 := by
+  have hnℝ : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have hcomb := recurrence_combine (L := L) (K := K) T n cc tt mc hcard hP3 hinv hrec htaint
+  have hX1 : (rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ)
+      ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ) :=
+    le_trans hcomb hneg
+  rw [le_div_iff₀ hnℝ] at hX1
+  linarith
+
+/-! ## Part 33 — the probabilistic per-level recurrence (STEP 3 capstone): the front squares whp
+at a checkpoint.  The bad event (in the recurrence window, the front does NOT square) is covered by
+`{¬recInv} ∪ {taintedCount ≥ tt+1} ∪ {¬MarkInv}` — the recurrence-checkpoint failure, the taint
+tail, and the (null, from a clean start) mark-invariant failure. -/
+
+/-- **The deterministic bad-event cover**: if at config `mc` we are in the recurrence window
+(`card = n ∧ P3 ∧ 10X ≤ n`), the negligibility holds, yet the front does NOT square, then `recInv`
+fails, or the taint exceeds `tt`, or the mark invariant fails. -/
+theorem front_bad_subset (T θn n : ℕ) (hn : 0 < n) (cc : ℝ) (tt : ℕ)
+    (mc : Config (MarkedAgent L K))
+    (hwin : mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n ∧
+      cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+          + (tt : ℝ)
+        ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+    (hns : ¬ ((rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ) * (n : ℝ)
+      ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2)) :
+    ¬ recInv (L := L) (K := K) T θn n cc mc ∨ tt + 1 ≤ taintedCount (L := L) (K := K) mc ∨
+      ¬ MarkInv (L := L) (K := K) T mc := by
+  classical
+  obtain ⟨hcard, hP3, hX, hneg⟩ := hwin
+  by_contra hcon
+  push Not at hcon
+  obtain ⟨hrec, htaint, hinv⟩ := hcon
+  -- recInv + window ⟹ clean ≤ cc·X²/n.
+  obtain ⟨_, _, himpl⟩ := hrec
+  obtain ⟨_, hclean⟩ := himpl hP3 hX
+  have htaint' : taintedCount (L := L) (K := K) mc ≤ tt := by omega
+  exact hns (front_squares_count (L := L) (K := K) T n hn cc tt mc hcard hP3 hinv
+    hclean htaint' hneg)
+
+/-- **STEP 3 capstone — the per-level recurrence whp at a checkpoint.**  From a `recInv` ∧ `MarkInv`
+start, at horizon `t = w·KK`, the probability that the level is in the recurrence window yet the
+front fails to square is at most the recurrence-checkpoint failure `KK·δ` plus the taint tail.  The
+mark-invariant failure mode is null (a.s.-preserved from the start). -/
+theorem front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM : ℕ) (haM : n ≤ 10 * aM)
+    (δ : ℝ≥0∞)
+    (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ)
+    (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * KK) ≤ 1 / 2)
+    (tt : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : MarkInv (L := L) (K := K) T mc₀) :
+    ((markedK (L := L) (K := K) T θn) ^ (w * KK)) mc₀
+        {mc | (mc.card = n ∧
+            AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+            10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n ∧
+            cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+                + (tt : ℝ)
+              ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+          ∧ ¬ ((rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ) * (n : ℝ)
+            ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2)}
+      ≤ (KK : ℝ≥0∞) * δ
+        + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+            (taintedGate (L := L) (K := K) n) ^ (w * KK)) (some mc₀) {none}
+          + ENNReal.ofReal
+            (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * KK)
+                * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+              + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * KK) * ((θn : ℝ) / (n : ℝ)) ^ 2 * ((w * KK : ℕ) : ℝ)
+              - σ * ((tt + 1 : ℕ) : ℝ)))) := by
+  classical
+  -- the bad event is covered by {¬recInv} ∪ {taint ≥ tt+1} ∪ {¬MarkInv}.
+  set bad : Set (Config (MarkedAgent L K)) :=
+    {mc | (mc.card = n ∧
+        AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+        10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n ∧
+        cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            + (tt : ℝ)
+          ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+      ∧ ¬ ((rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ) * (n : ℝ)
+        ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2)}
+    with hbad
+  have hsub : bad ⊆ {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ∪
+      ({mc | tt + 1 ≤ taintedCount (L := L) (K := K) mc} ∪
+        {mc | ¬ MarkInv (L := L) (K := K) T mc}) := by
+    intro mc hmc
+    rw [hbad, Set.mem_setOf_eq] at hmc
+    obtain ⟨hwin, hns⟩ := hmc
+    rcases front_bad_subset (L := L) (K := K) T θn n (by omega) cc tt mc hwin hns with h | h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr h)
+  refine le_trans (measure_mono hsub) ?_
+  refine le_trans (measure_union_le _ _) ?_
+  refine add_le_add ?_ ?_
+  · -- the recurrence-checkpoint failure ≤ KK·δ.
+    exact recurrence_checkpoint (L := L) (K := K) T θn n cc w aM haM δ hB KK mc₀ h0
+  · refine le_trans (measure_union_le _ _) ?_
+    -- the MarkInv-failure mass is 0 (null), so the union ≤ taint tail + 0.
+    have hmarknull : ((markedK (L := L) (K := K) T θn) ^ (w * KK)) mc₀
+        {mc | ¬ MarkInv (L := L) (K := K) T mc} = 0 := by
+      have h := markInv_ae_pow (L := L) (K := K) T θn (w * KK) mc₀ hmark
+      rwa [MeasureTheory.ae_iff] at h
+    rw [hmarknull, add_zero]
+    exact tainted_marked_tail_explicit (L := L) (K := K) T θn n hn σ hσ (w * KK)
+      hsmall mc₀ (tt + 1)
+
+/-! ## Part 34 — the real-kernel transfer and the level union (STEP 4).
+
+`front_squares_whp` bounds a MARKED-world probability whose EVENT depends only on the erased config
+(`card`, `AllClockP3`, `rBeyond` are all functions of `erase mc`).  So the bad event is exactly the
+`erase`-preimage of a real-config set, and `markedK_pow_erase` transfers it to the REAL kernel
+verbatim.  Then a union over the levels `T < capMinute` yields the run-long windowed recurrence
+failure on the real kernel. -/
+
+/-- The real-config per-level bad set (in the recurrence window, the front fails to square). -/
+def realFrontBad (T n : ℕ) (cc : ℝ) (tt : ℕ) : Set (Config (AgentState L K)) :=
+  {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+      10 * rBeyond (L := L) (K := K) T c ≤ n ∧
+      cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+        ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ))
+    ∧ ¬ ((rBeyond (L := L) (K := K) (T + 1) c : ℝ) * (n : ℝ)
+      ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2)}
+
+/-- The marked bad event of `front_squares_whp` is the `erase`-preimage of `realFrontBad`. -/
+theorem markedFrontBad_eq_preimage (T n : ℕ) (cc : ℝ) (tt : ℕ) :
+    {mc : Config (MarkedAgent L K) | (mc.card = n ∧
+        AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∧
+        10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n ∧
+        cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+            + (tt : ℝ)
+          ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ))
+      ∧ ¬ ((rBeyond (L := L) (K := K) (T + 1) (eraseConfig (L := L) (K := K) mc) : ℝ) * (n : ℝ)
+        ≤ (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2)}
+      = eraseConfig (L := L) (K := K) ⁻¹' realFrontBad (L := L) (K := K) T n cc tt := by
+  ext mc
+  simp only [realFrontBad, Set.mem_preimage, Set.mem_setOf_eq, eraseConfig_card]
+
+/-- **STEP 4 — the real-kernel per-level transfer.**  The real kernel's probability of the per-level
+recurrence failure (in the window) is bounded by `KK·δ` plus the (marked-world) hour-escape and
+taint tail.  Via `markedK_pow_erase`, the bound on the marked world transfers verbatim, since the
+event is erase-measurable. -/
+theorem real_front_squares_whp (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w aM : ℕ) (haM : n ≤ 10 * aM)
+    (δ : ℝ≥0∞)
+    (hB : ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ)
+    (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * KK) ≤ 1 / 2)
+    (tt : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : MarkInv (L := L) (K := K) T mc₀) :
+    ((NonuniformMajority L K).transitionKernel ^ (w * KK))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (realFrontBad (L := L) (K := K) T n cc tt)
+      ≤ (KK : ℝ≥0∞) * δ
+        + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+            (taintedGate (L := L) (K := K) n) ^ (w * KK)) (some mc₀) {none}
+          + ENNReal.ofReal
+            (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * KK)
+                * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+              + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * KK) * ((θn : ℝ) / (n : ℝ)) ^ 2 * ((w * KK : ℕ) : ℝ)
+              - σ * ((tt + 1 : ℕ) : ℝ)))) := by
+  rw [← markedK_pow_erase (L := L) (K := K) T θn (w * KK) mc₀
+    (realFrontBad (L := L) (K := K) T n cc tt),
+    ← markedFrontBad_eq_preimage (L := L) (K := K) T n cc tt]
+  exact front_squares_whp (L := L) (K := K) T θn n hn cc w aM haM δ hB σ hσ KK hsmall tt
+    mc₀ h0 hmark
+
+/-! ## Part 35 — the level union (STEP 4 continued): union the per-level real-kernel failure over
+`T < capMinute`.  The complement of the union is the windowed recurrence holding at every level in
+the window, run-long. -/
+
+/-- **The union over levels** of the real per-level recurrence failure.  With a start that is
+`recInv T` ∧ `MarkInv T` for every level `T` (e.g. the all-clean, all-window-open initial config),
+and the per-level checkpoint inputs, the real-kernel probability that SOME level `< Tcap` is in its
+recurrence window yet fails to square is at most the sum of the per-level bounds. -/
+theorem real_front_union (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ)
+    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
+    (δ : ℕ → ℝ≥0∞)
+    (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ T)
+    (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * KK) ≤ 1 / 2)
+    (tt : ℕ) (Tcap : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : ∀ T < Tcap, recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : ∀ T < Tcap, MarkInv (L := L) (K := K) T mc₀) :
+    ∀ T₀, T₀ = w * KK →
+    ((NonuniformMajority L K).transitionKernel ^ T₀) (eraseConfig (L := L) (K := K) mc₀)
+        (⋃ T ∈ Finset.range Tcap, realFrontBad (L := L) (K := K) T n cc tt)
+      ≤ ∑ T ∈ Finset.range Tcap,
+          ((KK : ℝ≥0∞) * δ T
+            + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+                (taintedGate (L := L) (K := K) n) ^ (w * KK)) (some mc₀) {none}
+              + ENNReal.ofReal
+                (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * KK)
+                    * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+                  + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * KK) * ((θn : ℝ) / (n : ℝ)) ^ 2
+                      * ((w * KK : ℕ) : ℝ)
+                  - σ * ((tt + 1 : ℕ) : ℝ))))) := by
+  intro T₀ hT₀
+  subst hT₀
+  refine le_trans (measure_biUnion_finset_le _ _) ?_
+  apply Finset.sum_le_sum
+  intro T hT
+  rw [Finset.mem_range] at hT
+  exact real_front_squares_whp (L := L) (K := K) T θn n hn cc w (aM T) (haM T) (δ T)
+    (hB T) σ hσ KK hsmall tt mc₀ (h0 T hT) (hmark T hT)
+
 end EarlyDripMarked
 
 end ExactMajority
-
-#print axioms ExactMajority.EarlyDripMarked.recurrence_checkpoint

@@ -467,3 +467,46 @@ shrinking w shrinks both margins proportionally. The widening levers are ε↓ (
 ratio G↓ (drip overcount), NOT w. The m=0 slice is intrinsically the tight one (~1e-4 at ε=0.02);
 ε = 1/200 buys the comfortable −8e-4. The growth δ ~1e-4 is the residual tightest margin — it is the
 0.14wp structural gap and cannot be widened without sharpening growth_rate_ge from 1.8 to 2(1−x).
+
+## 3.5e SESSION LEDGER (2026-06-09 late; steps 1–2 machinery COMPLETE, conditional on hB)
+Compiled, 0-sorry, axiom-clean, in EarlyDripMarked.lean (commits 16f28552, 00e0276d, 5268d45f,
+11155bed, b8461bd5, 1cfc400d, 55acacac/3.5e-8; a parallel session then added 3.5e-9):
+- slice_growth_tail_up (Part 27b): the UPWARD growth tail (the 11th-shape fix) — increasing
+  backward slope s_j = σ + (w−j)·c, c = 1.8(1−e^{−σ})/n RETAINS the contraction;
+  tail = exp(−(σ+w·c)X₀ + σ·a), small even for a = g·X₀, g > 1.
+- per_window_ladder_up (Part 28b): per_window_ladder with the upward floor.
+- window_constants_slice / window_constants_growth (Part 29): the two norm_num closing gates at
+  the locked rationals (wp = 3/200, cc = 9/10, ε = 1/200, g = 5123/5000, G = 201/200, sg = 1/10).
+- floor_exp_le + slice_exp_le + slice_sum_le + per_window_delta (Parts 29–30, step 1 capstone):
+  per-window failure from an invariant start ≤ exp(−δg·X₀+σg) + M·exp(σ·Q·(A−B)), Q = X₀²/n.
+- hourRegion(+ae_step) / notP3_ae_step / recInv / window_failure_le / recurrence_checkpoint
+  (Part 31, step 2): Inv := card ∧ GE3 ∧ (P3 → 10X≤n → (θn≤X ∧ Y≤ccX²/n)); the window-exit and
+  region-exit failure modes are NULL (ae_notG_pow instances: region-absorbing, X-monotone,
+  phase-4 permanence); checkpoint failure ≤ K·δ GIVEN hB (the per-mc₀ bad-event bound).
+
+## 3.5e THE hB DISCHARGE — the TWO-REGIME design (numerically verified this session; NOT yet in Lean)
+hB (recurrence_checkpoint's input) must bound, for every Inv window-open start (θn ≤ X₀ ≤ n/10,
+Y₀ ≤ cc·X₀²/n), the bad event at the LADDER for that X₀. The ceiling a0 = ⌈g·X₀⌉ breaks
+ha0 : 10·a0 ≤ n near the window top (g > 1!). RESOLUTION = split at X₀ ⋚ 4n/41 (= n/10.25):
+- REGIME 1 (θn ≤ X₀ ≤ 4n/41): full ladder a_m = ⌈G^m·g·X₀⌉, M with a_M ≥ n/10
+  (M = ⌈log_G(n/(10·g·θn))⌉ fixed, ladder-monotone). ha0: 10(g·(4n/41)+1) ≤ n ⟺ n ≥ 25641
+  (scale hyp). hYt: Yt_m := ⌊cc·a_m²/n⌋ ≤ cc·a_m²/n + 1 ✓. hfloor: floor_exp_le +
+  window_constants_growth (margin 1.05e-4). hslice: slice_exp_le + window_constants_slice;
+  the ⌈⌉ rounding inflates the drip cap by (1+1/(g·θn))² ≤ 1+3/θn — absorbed by scale hyp
+  θn ≥ 30000 (3/θn ≤ 1e-4 ≪ slice margin 3.65e-4). RW ≤ RWb via (1+x)^w ≤ e^{wx} ≤ 1/(1−wx)
+  (Real.add_one_le_exp pow + exp_bound_div_one_sub_of_interval), needs w/n ≤ 3/200 i.e.
+  w := ⌊3n/200⌋.
+- REGIME 2 (4n/41 < X₀ ≤ n/10): the band is thinner than one growth factor — X exits the window
+  (10X > n) whp within w steps, so M := 0, single floor a0 := aM := ⌊n/10⌋ (ha0 ✓ trivially).
+  Floor exponent ≤ n·[σg(1/10 − 4/41) − (3/200)(18/10)(19/200)(4/41)] = n·(1/4100 − 4104/16400000)
+  = −6.34e-6·n < 0 — pure-rational norm_num (uses 1−e^{−1/10} ≥ 19/200 from sg − sg²/2).
+  Regimes OVERLAP (n/10.257 < n/10.246): both are covered at the boundary.
+- The uniform δconst := ofReal(exp(−δg·θn + σg)) + M·ofReal(exp(σ·(θn²/n)·(A−B)))
+  + ofReal(exp(−(63/10^7)·n + σg)), bounding both regimes (X₀ ≥ θn, Q ≥ θn²/n, A−B < 0).
+REMAINING (in order): (i) the hB lemma per the regimes above (the last big arithmetic);
+(ii) step 3 wiring INTO recurrence_checkpoint + tainted_marked_tail_explicit (a parallel session
+committed front_squares_count/recurrence_combine — check before duplicating); (iii) step 4: union
+over T ≤ capMinute + horizon, transfer through markedK_pow_erase, bridge counts → frac form of
+ClockFrontProfile.WindowedFrontProfile (frac = rBeyond/card; 10X ≤ n ↔ frac ≤ 1/10 at card = n).
+NOTE 2026-06-09: TWO sessions wrote this file tonight (3.5e-8/-9 overlap was benign but real);
+keep the single-line discipline — check git log -3 BEFORE each append.
