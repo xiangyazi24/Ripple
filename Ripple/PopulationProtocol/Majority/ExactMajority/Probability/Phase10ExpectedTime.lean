@@ -492,6 +492,40 @@ theorem occLevel_le [DiscreteMeasurableSpace α]
   refine iSup_le (fun t => ?_)
   exact occLevelUpTo_le K Φ hmono m q hdrop t c
 
+/-- High levels carry no occupation from a start at level `≤ M`: for `M < m`,
+`occLevel K Φ m c = 0`.  Immediate from `pow_above_eq_zero_of_start_le`
+(`{Φ = m} ⊆ {M < Φ}` is null at every time for a start with `Φ c ≤ M`). -/
+theorem occLevel_eq_zero_of_high [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) (m : ℕ) (hm : M < m) :
+    occLevel K Φ m c = 0 := by
+  rw [occLevel, ENNReal.tsum_eq_zero]
+  intro t
+  refine measure_mono_null ?_ (pow_above_eq_zero_of_start_le K Φ hmono M c hc t)
+  intro x hx
+  simp only [Set.mem_setOf_eq] at hx ⊢
+  omega
+
+/-- **Generic coupon capstone (fully discharged).** Under non-increasing `Φ`, a
+per-level drop family `q : ℕ → ℝ≥0∞` with `K b (potBelow Φ m)ᶜ ≤ q m` at every
+level-`m` state, and a start `c` at level `≤ M`, the expected hitting time of
+`Done = {Φ < 1} = {Φ = 0}` is bounded by the harmonic coupon sum
+`∑_{m=1}^{M} (1 - q m)⁻¹`.
+
+This is `coupon_expectedHitting_le_of_occBounds` with both hypotheses discharged:
+`hocc` by the arbitrary-start `occLevel_le` and `hhi` by `occLevel_eq_zero_of_high`.
+It is the protocol-agnostic `O(coupon sum)` interaction-count bound; the Phase-10
+stages instantiate it with `q m = 1 - m/(n(n-1))`. -/
+theorem coupon_expectedHitting_le [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) :
+    expectedHitting K c (potBelow Φ 1) ≤ ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹ :=
+  coupon_expectedHitting_le_of_occBounds K Φ q M c
+    (fun m _ _ => occLevel_le K Φ hmono m (q m) (hdrop m) c)
+    (fun m hm => occLevel_eq_zero_of_high K Φ hmono M c hc m hm)
+
 /-! ### Phase-10 instantiation target
 
 For the real protocol `K := (NonuniformMajority L K).transitionKernel` and the
