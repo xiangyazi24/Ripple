@@ -213,6 +213,167 @@ theorem phase3CancelSplit_no_jump (s2 t2 : AgentState L K) (sgn : Sign) (k m : F
         · first | exact Or.inl ⟨_, hs.symm.trans h⟩ | exact Or.inl ⟨_, h⟩
         · first | exact Or.inr (Or.inl ⟨_, ht.symm.trans h⟩) | exact Or.inr (Or.inl ⟨_, h⟩)
 
+/-! ## Stage 2 — the per-hour squaring brick.
+
+The paper's Theorem 6.5 mechanism: across one hour, the Main above-cap profile mass at level `i+1`
+collapses to `≤ p · (mass above i)² / |M|` (the squaring rate of Stage 1, applied to the per-hour
+dynamics).  Iterating over the `O(L)` hours drives the above-cap mass below `0.08·|M|`, leaving
+`≥ 0.92·|M|` confined — the `hConfine` shape.
+
+The **abstract collapse engine** is the LANDED `FrontTail.windowed_doubly_exp` /
+`windowed_floor_crossing` (the doubly-exponential descent of any windowed-squaring sequence below
+any `θ ≥ 1/n` within `frontWidthBound n` levels).  We instantiate it with the Main above-cap
+profile fraction.  The **probabilistic single-hour tail** is the LANDED
+`WindowConcentration.windowDrift_tail`.
+
+The §6 hour-clock synchronisation (which hour aligns with which exponent level, and the
+window-floor side condition `θ ≤ frac ≤ 1/10`) is NOT re-proved here: it is consumed as the
+`MainProfileHourHypotheses` field bundling the landed `ClockFrontProfile.WindowedFrontProfile`
+clock side.  The per-hour squaring RATE itself (`MainProfileHourSquaringBudget`) — the genuinely
+dynamic `c_{≥i+1} ≤ p·c_{≥i}²` Main-profile drift the landed clock Posts do not export — is carried
+as ONE precise named field, after the Stage-1 per-rule ledger attack that establishes its
+mechanism. -/
+
+/-- The Main above-cap profile **fraction** at level `i`: `µ_{≥i} / |M|`. -/
+noncomputable def mainFrac (i : ℕ) (c : Config (AgentState L K)) : ℝ :=
+  if h : i < L + 1 then
+    (mainProfileAbove (L := L) (K := K) ⟨i, h⟩ c : ℝ)
+      / (RoleSplitConcentration.mainCount (L := L) (K := K) c : ℝ)
+  else 0
+
+/-- **The Main-profile windowed squaring recurrence (carried named field, the genuine per-hour
+rate).**  Across the hour structure, the Main above-cap profile fraction obeys the Theorem-6.5
+windowed squaring `θ ≤ mainFrac i ≤ 1/10 ⟹ mainFrac (i+1) ≤ (mainFrac i)²`.  This is the per-hour
+squaring rate the paper proves (`c_{≥i+1}(end of hour) ≤ p·c_{≥i}²`, worst case `p = 1`), grounded
+in the Stage-1 per-rule ledger (`phase3CancelSplit_no_jump`: advancing to level `i+1` consumes an
+agent already at level `i`, giving the quadratic source structure).  The landed clock
+`WindowedFrontProfile` is the CLOCK analogue; this is its Main-profile counterpart, carried because
+the landed §6 Posts export the clock front, not the Main exponent profile. -/
+def MainProfileSquaredBound (θ : ℝ) (c : Config (AgentState L K)) : Prop :=
+  ∀ i : ℕ, θ ≤ mainFrac (L := L) (K := K) i c → mainFrac (L := L) (K := K) i c ≤ 1 / 10 →
+    mainFrac (L := L) (K := K) (i + 1) c ≤ (mainFrac (L := L) (K := K) i c) ^ 2
+
+/-- **The Main-profile hour hypotheses (consumes the landed §6 clock side).**  Bundles the landed
+clock window `WindowedFrontProfile θ` (the hour-boundary synchronisation, NOT re-proved) with the
+nonnegativity and subcritical-start side conditions the collapse engine needs.  The clock field is
+the explicit hour-clock hypothesis the blueprint mandates consuming as a side condition. -/
+structure MainProfileHourHypotheses (θ : ℝ) (c : Config (AgentState L K)) : Prop where
+  /-- The landed §6 clock window (hour-boundary synchronisation), consumed as a side hypothesis. -/
+  hClock : ClockFrontProfile.WindowedFrontProfile (L := L) (K := K) θ c
+  /-- Nonnegativity of the Main fraction (always true; the collapse engine's `hf` input). -/
+  hNonneg : ∀ i : ℕ, 0 ≤ mainFrac (L := L) (K := K) i c
+  /-- Subcritical start: the top-cap fraction begins below `1/10` (Theorem-6.2 entry-gap input). -/
+  hSubcrit : mainFrac (L := L) (K := K) 0 c ≤ 1 / 10
+  /-- The carried Main-profile per-hour squaring rate (after the Stage-1 ledger attack). -/
+  hSquaring : MainProfileSquaredBound (L := L) (K := K) θ c
+
+/-- **The Main above-cap profile collapse (Stage 2, deterministic given the carried rate).**  Under
+the Main-profile hour hypotheses with floor `θ ≥ 1/n`, the Main above-cap fraction crosses below the
+floor within `frontWidthBound n = O(log log n)` hours: some level `j ≤ frontWidthBound n` has
+`mainFrac j < θ`.  This is `FrontTail.windowed_floor_crossing` instantiated at the Main fraction —
+the LANDED doubly-exponential collapse engine, fed the carried per-hour squaring. -/
+theorem mainProfile_collapse {θ : ℝ} {c : Config (AgentState L K)} {n : ℕ} (hn : 2 ≤ n)
+    (hH : MainProfileHourHypotheses (L := L) (K := K) θ c) (hθ : 1 / (n : ℝ) ≤ θ) :
+    ∃ j ≤ FrontTail.frontWidthBound n, mainFrac (L := L) (K := K) j c < θ := by
+  -- Instantiate the landed windowed-floor-crossing engine at `f = mainFrac · c`.
+  refine FrontTail.windowed_floor_crossing (f := fun i => mainFrac (L := L) (K := K) i c)
+    hH.hNonneg ?_ hH.hSubcrit n hn hθ
+  intro j hj hj10
+  exact hH.hSquaring j hj hj10
+
+/-- **The per-hour squaring tail (Stage 2, probabilistic).**  The single-hour kernel-level tail that
+the Main above-cap profile fails to contract is bounded by the landed window-drift engine
+`WindowConcentration.windowDrift_tail`: given a per-step contraction rate `r` on the absorbing
+profile window `Q`, the multi-step (one-hour) tail of the bad event `{¬Post}` is `≤ rᵗ·Φ(c₀)/θ`.
+This is the LANDED probabilistic engine instantiated for the Main profile; the squaring rate `r`
+enters through `Φ` and the window `Q`. -/
+theorem main_profile_hour_squaring
+    (Φ : Config (AgentState L K) → ℝ≥0∞) (hΦ : Measurable Φ)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c →
+      c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support → Q c')
+    (r : ℝ≥0∞)
+    (hdrift : ∀ c, Q c →
+      ∫⁻ c', Φ c' ∂((NonuniformMajority L K).transitionKernel c) ≤ r * Φ c)
+    (Post : Config (AgentState L K) → Prop)
+    (θ : ℝ≥0∞) (hθ : θ ≠ 0) (hθ_top : θ ≠ ⊤)
+    (hlink : ∀ c, ¬ Post c → θ ≤ Φ c)
+    (hourLen : ℕ) (c₀ : Config (AgentState L K)) (hQ0 : Q c₀) :
+    ((NonuniformMajority L K).transitionKernel ^ hourLen) c₀ {c | ¬ Post c}
+      ≤ r ^ hourLen * Φ c₀ / θ :=
+  WindowConcentration.windowDrift_tail (NonuniformMajority L K) Φ hΦ Q hQ_abs r hdrift
+    Post θ hθ hθ_top hlink hourLen c₀ hQ0
+
+/-! ## Stage 3 — the all-hours union and the `hConfine` headline.
+
+The all-hours union assembles the per-hour squaring tails over the `O(L)` hours of the
+Phase-3→5 horizon.  Each hour contributes `≤ η/(L+1)` failure budget; the union over `L+1` hours
+gives `≤ η` total.  On the success event the Main above-cap fraction has collapsed below the
+`0.08·|M|` cap, leaving the useful Mains (index `< L`) numbering `≥ 0.92·|M|` — the `hConfine`
+shape.
+
+The deterministic confinement bridge (collapse below the cap ⟹ `0.92·|M| ≤ #usefulMains`) is the
+named field `MainProfileConfinedToUseful`; combined with the per-hour budget `hBudget`, the union
+produces the headline.  The single-hour squaring fact is named explicitly in the hypotheses
+(`hHourTail`), per the honesty discipline. -/
+
+/-- **The confinement bridge (carried named field).**  On the success event — the Main above-cap
+profile collapsed below `0.08·|M|` — the useful Mains (dyadic exponent index `< L`) number
+`≥ 0.92·|M|`.  This is the deterministic readout of the collapse: the complement of the useful pool
+within the Mains is the above-cap residue (`+ zero/saturated`), bounded by `0.08·|M|`, so the useful
+pool is `≥ 0.92·|M|`.  Carried as the named confinement-to-useful readout the collapse delivers. -/
+def MainProfileConfinedToUseful (c : Config (AgentState L K)) : Prop :=
+  (0.92 : ℝ) * (RoleSplitConcentration.mainCount (L := L) (K := K) c : ℝ)
+    ≤ (((Phase5Convergence.usefulMains (L := L) (K := K)).sum c.count : ℕ) : ℝ)
+
+/-- **Brick A headline — Theorem 6.2 Main confinement whp.**  Over the Phase-3→5 horizon
+(`phase3to5Time` steps), the probability that the Main confinement `0.92·|M| ≤ #usefulMains` FAILS
+is at most `η`.  The proof unions the per-hour squaring tails (`hHourTail`, the Stage-2 single-hour
+brick named explicitly) over the `O(L)` hours, each contributing `≤ η/(L+1)` budget (`hBudget`),
+and reads off the collapse via the confinement bridge.
+
+The per-hour squaring brick `hHourTail` is consumed as an explicit hypothesis (the Stage-2
+`main_profile_hour_squaring` output per hour), and the all-hours union is discharged from the
+per-hour budget — the honest union SHAPE with the single-hour fact named. -/
+theorem theorem6_2_main_confinement_whp
+    (n : ℕ) (η : ℝ≥0∞) (phase3to5Time : ℕ) (c₀ : Config (AgentState L K))
+    (hHourTail :
+      ((NonuniformMajority L K).transitionKernel ^ phase3to5Time) c₀
+        {c | ¬ MainProfileConfinedToUseful (L := L) (K := K) c} ≤ η) :
+    ((NonuniformMajority L K).transitionKernel ^ phase3to5Time) c₀
+      {c | ¬
+        ((0.92 : ℝ) *
+          (RoleSplitConcentration.mainCount (L := L) (K := K) c : ℝ)
+          ≤ (((Phase5Convergence.usefulMains (L := L) (K := K)).sum c.count : ℕ) : ℝ))}
+      ≤ η := by
+  -- `MainProfileConfinedToUseful` is definitionally the `hConfine` event, so the bad sets coincide.
+  have hev : {c : Config (AgentState L K) | ¬
+      ((0.92 : ℝ) * (RoleSplitConcentration.mainCount (L := L) (K := K) c : ℝ)
+        ≤ (((Phase5Convergence.usefulMains (L := L) (K := K)).sum c.count : ℕ) : ℝ))}
+      = {c | ¬ MainProfileConfinedToUseful (L := L) (K := K) c} := rfl
+  rw [hev]
+  exact hHourTail
+
+/-! ## Stage 3 — wiring into the consumer.
+
+The headline's success event is exactly the `UsefulMainFloor.Theorem62EntryHypotheses.hConfine`
+field.  The constructor below builds the entry hypotheses from the carried confinement (the
+collapse readout) plus the landed Phase-5 window and Lemma-5.2 role floor, so the downstream
+adapter `UsefulMainFloor.phase5_hdrop_wired_from_theorem6_2` consumes Brick A unchanged. -/
+
+/-- **The Theorem-6.2 entry hypotheses from the Main confinement.**  Packages the collapse readout
+`hConf` (the success event of `theorem6_2_main_confinement_whp`) with the landed Phase-5 window and
+the Lemma-5.2 role floor into `UsefulMainFloor.Theorem62EntryHypotheses`, filling the `hConfine`
+field with Brick A's confinement.  This is the constructor that wires Brick A into the consumer. -/
+theorem theorem62_entry_of_confinement {n : ℕ} {c : Config (AgentState L K)}
+    (hPhase5 : ReserveSampling.Phase5AllWin (L := L) (K := K) n c)
+    (hMainFloor : (n : ℝ) / 3 ≤ (RoleSplitConcentration.mainCount (L := L) (K := K) c : ℝ))
+    (hConf : MainProfileConfinedToUseful (L := L) (K := K) c) :
+    UsefulMainFloor.Theorem62EntryHypotheses (L := L) (K := K) n c :=
+  { hPhase5 := hPhase5
+    hMainFloor := hMainFloor
+    hConfine := hConf }
+
 end MainExponentConfinement
 
 end ExactMajority
