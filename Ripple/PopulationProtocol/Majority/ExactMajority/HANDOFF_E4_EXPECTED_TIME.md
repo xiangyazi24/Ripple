@@ -443,3 +443,66 @@ condition is `hrecmass : (1/n)·(2·Brecover)·(1−1/2)⁻¹ ≤ ((4·Cbad·n·
 4. **`doty_expected_time` proof body**: the blueprint's `let K0 := …` / `set Tgood := …` rewrites
    inside `phases`'s kernel-indexed type, producing a `phases✝` application mismatch. Fixed by
    computing the headline `hhead` BEFORE any abbreviation and inlining the kernel literally.
+
+---
+
+## E4 RecoveryBridges — the two `DotyExpectedTime` residuals attacked (append-only)
+
+New append-only file `Probability/RecoveryBridges.lean` (imports `DotyExpectedTime`).
+Single-file `lake env lean … RecoveryBridges.lean` EXIT 0; all 9 headlines
+`#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]`; 0 sorry / 0 admit /
+0 axiom / 0 native_decide. Commits (main): Stage1 `da04fda5`, Stage2 `76901cc1`,
+Stage3 `0330a8c8`, Stage4 `f58c45d8`.
+
+### Did the sequential-composition engine exist? YES (partly).
+- E1 already had the band-occupation engine `occupation_mid_le` / `occupation_mid_le_on`
+  (the invariant-relative `_on` ladder) and `Phase10ExpectedTime.expectedHitting_le_through_mid`
+  (the band *tower* with cross-term left explicit, carrying a defensive `Done ⊆ Mid`).
+- What was MISSING and built in Stage 1: the **collapsed uniform seqcomp cap**
+  `expectedHitting_seqcomp : E[T→Done] ≤ E[T→Mid] + B` (`B = sup_{Mid} E[T→Done]`),
+  composing the band tower with `occupation_mid_le`; plus the pre-bounded-`Mid`-time
+  form `_of_uniform`, the invariant-relative `_seqcomp_on` / `_seqcomp_on_of_uniform`,
+  and the hypothesis-free band tower `expectedHitting_le_band_free` (no `Done ⊆ Mid`).
+
+### Honest clock-preservation fact (Stage 2).
+`AllClockGEpCard p n` (every agent a clock at phase `≥ p`, card `n` — the
+POST-role-split regime, NOT an arbitrary reachable state) is one-step support closed
+(`allClockGEpCard_support_step_closed`, re-exporting `AllClockGEp_absorbing` + card
+conservation) and hence a.e. preserved under every kernel power
+(`allClockGEpCard_pow_preserved`). The kernel `InvClosed` form
+`ConditionalPhaseProgress.AllClockGEpCard_InvClosed` already existed and is exactly
+what the `_on` telescope engine consumes. clockCount itself is `private` in
+`DeterministicChain`; the public clock fact there is `clock_pair_preserved_by_reachable_any`
+(clock pairs persist), not in the `DotyExpectedTime` import closure.
+
+### The telescope (Stage 3) — the progress-set ⟹ StableDone transfer.
+`expectedHitting_ladder_le`: a descending ladder `S:ℕ→Set` with `S k = Done`
+(absorbing) and per-link caps `E[T→S(i+1)] ≤ β i` gives
+`E[T→Done from S i] ≤ ∑_{i≤j<k} β j` (downward induction; base = absorption-0,
+step = `expectedHitting_seqcomp` with the cross-term supplied by the IH at the next
+rung). `expectedHitting_telescope_from_start`: the `S 0`-start form
+`E[T→Done] ≤ ∑_{j<k} β j`. This IS the honest progress-set→StableDone transfer:
+instantiate `Done = StableDone`, `S j` = the per-phase progress sets ending at
+StableDone, `β j` = the E3/E2 per-phase bounds.
+
+### hClassify (Stage 4) — how far it got.
+- `recoveryClass_of_ladder` / `recoveryClass_of_ladderData`: DERIVE a `RecoveryClass`
+  witness (theorem, not constructor data) from a per-phase ladder `LadderData` via the
+  telescope. `LadderData` bundles the explicit ladder (`k`, `S`, `β`, links, sum cap).
+- `doty_recovery_bound_via_ladder`: reduces the uniform recovery cap to `hLadder`
+  ("every not-done state admits a bounded ladder to StableDone"), strictly weaker than
+  the carried-witness `hClassify` — it exposes the recovery ROUTE as data subject to the
+  proven telescope, isolating the reachability classification as the sole protocol input.
+- **The genuine residual** carried forward is `hLadder` (= deterministic phase-regime
+  classification of arbitrary reachable not-done states + per-phase clock floors). The
+  per-link caps EXIST from E3/E2 within the `AllClockGEpCard` regime; the gap is that an
+  arbitrary reachable not-done state need not be in that regime (may be pre-role-split /
+  mid-phase), and the clock floor (`n/5 ≤ mC ≤ posClockCount`) is whp (Lemma 5.2), not a
+  deterministic invariant. Stated precisely in the file's Stage-4 `hClassify`-residual note.
+
+### Final E4 surface.
+`doty_expected_time_via_ladder`: same concrete conclusion as `doty_expected_time_concrete`
+(`E[T] ≤ (21·C0 + 4·Cbad)·n·(L+1)`) but the recovery cap is SUPPLIED by
+`doty_recovery_bound_via_ladder` from `hLadder`, not assumed. Remaining protocol
+residual = `hLadder` + the numeric `hrecmass`; the seqcomp/telescope transfer, the whp
+composition, and the expected-time arithmetic are all discharged.

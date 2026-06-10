@@ -1521,6 +1521,80 @@ theorem Transition_right_advance_imp_source (a b : AgentState L K) (p : ℕ)
   obtain ⟨hfrole, hfctr⟩ := hfcz
   exact ep_right_clock_zero_imp_source a b p hq hfrole hep2 hfctr
 
+/-! ## Stage 4 — the bridge under `Wf` and the wire-up. -/
+
+/-- A membership fact: an agent in the one-step update is either an unchanged agent of
+`c` (a member of `c - {r₁,r₂}`, hence of `c`) or one of the two transition outputs. -/
+theorem mem_stepOrSelf_cases (c : Config (AgentState L K)) (r₁ r₂ x : AgentState L K)
+    (happ : Protocol.Applicable c r₁ r₂)
+    (hx : x ∈ Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) :
+    x ∈ c - {r₁, r₂} ∨ x = (Transition L K r₁ r₂).1 ∨ x = (Transition L K r₁ r₂).2 := by
+  rw [Protocol.stepOrSelf, if_pos happ] at hx
+  rw [Multiset.mem_add] at hx
+  rcases hx with h | h
+  · exact Or.inl h
+  · -- x ∈ {T.1, T.2}
+    have : (NonuniformMajority L K).δ r₁ r₂ = Transition L K r₁ r₂ := rfl
+    rw [this] at h
+    rcases Multiset.mem_cons.mp h with h | h
+    · exact Or.inr (Or.inl h)
+    · rw [Multiset.mem_singleton] at h; exact Or.inr (Or.inr h)
+
+/-- **The honest deterministic seam overshoot bridge** (counter-reset destination, under
+`Wf`).  Under config well-formedness `Wf c` and `CounterResetDest (p+1)`, a one-step
+update out of `NoOvershoot p` that creates an agent at phase `≥ p+2` forces an
+`AtRiskClockZero p c`.  This DISCHARGES `DetSeamOvershootBridge p` from the well-formedness
+side condition the obstruction (`HANDOFF_SEAM_NOOVERSHOOT.md` finding 2) requires. -/
+theorem det_seam_overshoot_bridge_of_wf (p : ℕ)
+    (hq : CounterResetDest (p + 1))
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hwf : Wf (L := L) (K := K) c)
+    (hno : NoOvershoot (L := L) (K := K) p c)
+    (hexit : ¬ NoOvershoot (L := L) (K := K) p
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)) :
+    AtRiskClockZero (L := L) (K := K) p c := by
+  -- Applicable, else stepOrSelf = c and ¬NoOvershoot c, contradicting hno.
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · -- r₁, r₂ ∈ c: well-formed and phase ≤ p+1.
+    have hr1mem : r₁ ∈ c := Multiset.mem_of_le happ (by simp)
+    have hr2mem : r₂ ∈ c := Multiset.mem_of_le happ (by simp)
+    have hwf1 : WfAgent (L := L) (K := K) r₁ := hwf r₁ hr1mem
+    have hwf2 : WfAgent (L := L) (K := K) r₂ := hwf r₂ hr2mem
+    have hr1le : r₁.phase.val ≤ p + 1 := by have := hno r₁ hr1mem; omega
+    have hr2le : r₂.phase.val ≤ p + 1 := by have := hno r₂ hr2mem; omega
+    -- the overshooting agent
+    obtain ⟨x, hxmem, hxphase⟩ := by
+      rw [NoOvershoot] at hexit; push_neg at hexit; exact hexit
+    rcases mem_stepOrSelf_cases c r₁ r₂ x happ hxmem with hxc | hxT1 | hxT2
+    · -- x unchanged: x ∈ c ⟹ phase < p+2, contradiction
+      exfalso
+      have : x ∈ c := Multiset.mem_of_le (Multiset.sub_le_self _ _) hxc
+      have := hno x this; omega
+    · -- x = T.1: left advance ⟹ r₁ clock at p+1 counter 0
+      subst hxT1
+      have hadv : (Transition L K r₁ r₂).1.phase.val > p + 1 := by
+        rw [NoOvershoot] at hxphase; omega
+      have hep1 : (phaseEpidemicUpdate L K r₁ r₂).1.phase.val = max r₁.phase.val r₂.phase.val :=
+        phaseEpidemicUpdate_left_phase_eq_max_of_wf r₁ r₂ hwf1 hwf2 (by omega) (by omega)
+      have hle1 := Transition_left_phase_le_ep_succ_of_wf r₁ r₂ hwf1 hwf2 (by omega) (by omega)
+      have hepeq : (phaseEpidemicUpdate L K r₁ r₂).1.phase.val = p + 1 := by
+        rw [hep1]; rw [hep1] at hle1; omega
+      have hcz := Transition_left_advance_imp_ep_clock_zero r₁ r₂ p hq hwf1 hwf2 hr1le hr2le
+        hepeq hadv
+      obtain ⟨hrole, hph, hctr⟩ :=
+        ep_left_clock_zero_imp_source r₁ r₂ p hq hcz.1 hepeq hcz.2
+      exact ⟨r₁, hr1mem, hrole, hph, hctr⟩
+    · -- x = T.2: right advance ⟹ r₂ clock at p+1 counter 0
+      subst hxT2
+      have hadv : (Transition L K r₁ r₂).2.phase.val > p + 1 := by
+        rw [NoOvershoot] at hxphase; omega
+      obtain ⟨hrole, hph, hctr⟩ :=
+        Transition_right_advance_imp_source r₁ r₂ p hq hwf1 hwf2 hr1le hr2le hadv
+      exact ⟨r₂, hr2mem, hrole, hph, hctr⟩
+  · -- not applicable: stepOrSelf = c, so ¬NoOvershoot c, contradicting hno.
+    rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ] at hexit
+    exact absurd hno hexit
+
 end SeamNoOvershoot
 
 end ExactMajority

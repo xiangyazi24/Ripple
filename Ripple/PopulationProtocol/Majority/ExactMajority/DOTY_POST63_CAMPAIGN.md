@@ -3342,3 +3342,32 @@ into the `t·(t+1)` prefactor), supplied as the explicit numeric input where the
 route used it. The closed-form headline is left in the explicit `b·∑aⁱ` shape so downstream
 consumers pick the exact prefactor; no exponent was weakened to close — the closure is the
 exact decomposition, not an estimate.
+
+---
+
+## E4 RecoveryBridges — seqcomp engine + telescope + honest hClassify (append-only)
+
+`Probability/RecoveryBridges.lean` (append-only; imports `DotyExpectedTime`) attacks the
+two `DotyExpectedTime` residuals. Single-file EXIT 0; 9 headlines axiom-clean ⊆
+`[propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide.
+Commits: `da04fda5` (S1), `76901cc1` (S2), `0330a8c8` (S3), `f58c45d8` (S4).
+
+- **S1 seqcomp cap.** `expectedHitting_seqcomp : E[T→Done] ≤ E[T→Mid] + sup_{Mid}E[T→Done]`
+  collapses the existing band tower (`Phase10ExpectedTime.expectedHitting_le_through_mid`)
+  with the existing band occupation (`occupation_mid_le`/`_on`). The engine partly
+  existed; the collapsed uniform form (+ `_of_uniform`, `_on`, hypothesis-free
+  `expectedHitting_le_band_free`) was new.
+- **S2 clock preservation.** `AllClockGEpCard p n` (post-role-split: all-clocks-at-phase-≥p,
+  card n) one-step support closed → a.e. preserved for all kernel time
+  (`allClockGEpCard_pow_preserved`). NOT a property of arbitrary reachable states.
+- **S3 telescope.** `expectedHitting_ladder_le` / `expectedHitting_telescope_from_start`:
+  iterated seqcomp down a ladder to an absorbing `Done` gives `E[T→Done] ≤ ∑ β j` — the
+  progress-set ⟹ StableDone transfer, deriving each RecoveryClass cap from E3/E2 facts.
+- **S4 hClassify + final surface.** `recoveryClass_of_ladder` derives the RecoveryClass
+  witness (theorem, not data); `doty_recovery_bound_via_ladder` reduces the recovery cap
+  to `hLadder` (every not-done state starts a bounded ladder), strictly weaker than the
+  carried `hClassify`. `doty_expected_time_via_ladder` is the final E4 surface (same
+  `(21·C0+4·Cbad)·n·(L+1)` bound, recovery cap supplied not assumed). The sole remaining
+  protocol residual is `hLadder` = deterministic phase-regime classification of reachable
+  not-done states + per-phase clock floors (whp via Lemma 5.2, not a deterministic
+  invariant). Everything above it is discharged.
