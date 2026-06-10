@@ -372,40 +372,191 @@ theorem Phase7Transition_minorityU_eq_of_not_both_main (σ : Sign) (s t : AgentS
   simp only [if_neg h]
   rw [hside s, hside t]
 
-/-- **Per-pair `Transition` minority non-increase.**  Combines the two cases: both
-Main (reduce to `cancelSplit`, apply `cancelSplit_minorityU_pair_le` under the pair
-index hypothesis) and not both Main (`Phase7Transition` leaves Mains untouched).
-The full `Transition` reduces to `Phase7Transition` whenever both are phase-7 (the
-epidemic and phase-10 finish are identities at phase 7). -/
-theorem Transition_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
+/-- **Per-pair `Transition` minority non-increase, both-Main case.**  Reduce to
+`cancelSplit` (epidemic and phase-10 finish are identities at phase 7, the counter
+branch is skipped for Mains) and apply `cancelSplit_minorityU_pair_le` under the
+pair index hypothesis.  This is the per-pair input to the global step bound on the
+(eliminator, minority) interactions that actually drain the pool — the pairs the
+drift counts.
+
+For pairs that are **not** both Main, the Main side's bias is untouched by
+`Phase7Transition` (`Phase7Transition_minorityU_eq_of_not_both_main`); the global
+lift folds both, with the `MinorityHiIdx` config invariant supplying the pair
+hypothesis on every both-Main pair (`hidx_of_MinorityHiIdx`). -/
+theorem Transition_minorityU_pair_le_of_both_main (σ : Sign) (s t : AgentState L K)
     (hs7 : s.phase.val = 7) (ht7 : t.phase.val = 7)
+    (hsM : s.role = Role.main) (htM : t.role = Role.main)
     (hidx : ∀ ss i st j, s.bias = Bias.dyadic ss i → t.bias = Bias.dyadic st j →
       ss ≠ st → (ss = σ → j.val ≤ i.val) ∧ (st = σ → i.val ≤ j.val)) :
     Multiset.countP (fun a => minoritySt σ a)
         ({(Transition L K s t).1, (Transition L K s t).2} : Multiset (AgentState L K))
       ≤ Multiset.countP (fun a => minoritySt σ a) ({s, t} : Multiset (AgentState L K)) := by
-  by_cases hboth : s.role = Role.main ∧ t.role = Role.main
-  · obtain ⟨hsM, htM⟩ := hboth
-    rw [Transition_eq_cancelSplit_of_phase7_main s t hs7 ht7 hsM htM]
-    exact cancelSplit_minorityU_pair_le σ s t hsM htM hidx
-  · -- not both Main: `Transition` reduces to `Phase7Transition` (epidemic/finish = id).
-    have hepi := phaseEpidemicUpdate_eq_self_of_phase7 (L := L) (K := K) s t hs7 ht7
-    have hsp : s.phase = ⟨7, by decide⟩ := Fin.ext hs7
-    -- Phase7Transition preserves phase 7 ⇒ finishPhase10Entry = id.
-    have hp7nd := Phase7Transition_phase_nondec (L := L) (K := K) s t
-    have hge1 := (Phase7Transition_phase_nondec (L := L) (K := K) s t).1
-    have hge2 := (Phase7Transition_phase_nondec (L := L) (K := K) s t).2
-    -- phase of outputs is ≥ 7; and we need ≠ 10 for finishPhase10Entry to be id.
-    -- Phase7Transition only runs cancelSplit (phase-preserving) or the clock counter.
-    have hTr : Transition L K s t = Phase7Transition L K s t := by
-      unfold Transition
-      rw [hepi]; simp only [hsp]
-      rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) s _
-            (Phase7Transition_after_ne_10_fst s t hs7 ht7),
-          finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) t _
-            (Phase7Transition_after_ne_10_snd s t hs7 ht7)]
-    rw [hTr]
-    exact le_of_eq (Phase7Transition_minorityU_eq_of_not_both_main σ s t hboth)
+  rw [Transition_eq_cancelSplit_of_phase7_main s t hs7 ht7 hsM htM]
+  exact cancelSplit_minorityU_pair_le σ s t hsM htM hidx
+
+/-! ## Part E — the config-level non-increase over an all-Main phase-7 window.
+
+We deliver the engine's `hmono` (`PotNonincrOn`) ingredient over the window where
+every agent is a phase-7 **Main** (`Inv7Main σ n` below) and the minority-index
+ordering `MinorityHiIdx σ` holds.  On such a config every applicable interacting
+pair is both-Main and phase-7, so `Transition_minorityU_pair_le_of_both_main`
+applies with the pair hypothesis from `hidx_of_MinorityHiIdx`, and the standard
+`stepOrSelf = c − {r₁,r₂} + {out₁,out₂}` decomposition (as in
+`Phase4Convergence.advancedU_stepOrSelf_ge`) lifts it to the global count. -/
+
+/-- The all-Main phase-7 window with the minority-index ordering: the honest
+carried Phase-6 output under which the minority pool only shrinks.  (Clocks are
+absent in this window; the clock-mixed extension needs the
+`Phase7Transition`-output phase `≠ 10` bound — see file foot.) -/
+def Inv7Main (σ : Sign) (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  c.card = n ∧ (∀ a ∈ c, a.phase.val = 7 ∧ a.role = Role.main) ∧ MinorityHiIdx σ c
+
+private theorem mem_of_app_left7 {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₁ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+private theorem mem_of_app_right7 {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₂ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+/-- `minorityU σ` is non-increasing under any chosen-pair update on an all-Main
+phase-7 window with the index ordering. -/
+theorem minorityU_stepOrSelf_le (σ : Sign) (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Inv7Main σ n c) (r₁ r₂ : AgentState L K) :
+    minorityU σ (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ minorityU σ c := by
+  obtain ⟨_, hph, hmh⟩ := hInv
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left7 happ
+    have hm2 := mem_of_app_right7 happ
+    obtain ⟨h17, h1M⟩ := hph r₁ hm1
+    obtain ⟨h27, h2M⟩ := hph r₂ hm2
+    have hsub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := happ
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    unfold minorityU
+    rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+    have hpair := Transition_minorityU_pair_le_of_both_main σ r₁ r₂ h17 h27 h1M h2M
+      (hidx_of_MinorityHiIdx σ c hmh r₁ r₂ hm1 hm2 h1M h2M)
+    have hpair_le : Multiset.countP (fun a => minoritySt σ a)
+        ({r₁, r₂} : Multiset (AgentState L K))
+          ≤ Multiset.countP (fun a => minoritySt σ a) c := Multiset.countP_le_of_le _ hsub
+    omega
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+
+/-- `minorityU σ` is non-increasing on the one-step kernel support (from an
+`Inv7Main`-config).  Mirror of `Phase4Convergence.advancedU_ge_monotone`. -/
+theorem minorityU_le_on_support (σ : Sign) (n : ℕ) (m : ℕ)
+    (c c' : Config (AgentState L K)) (hInv : Inv7Main σ n c)
+    (hle : minorityU σ c ≤ m)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    minorityU σ c' ≤ m := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]
+    exact le_trans (minorityU_stepOrSelf_le σ n c hInv r₁ r₂) hle
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'
+    subst hc'; exact hle
+
+/-- **The engine's `hmono` (PotNonincrOn) ingredient.**  From an `Inv7Main`-config,
+the one-step kernel puts zero mass on configs with a *strictly larger* minority
+count: `minorityU σ` is non-increasing.  This is exactly
+`OneSidedCancel.PotNonincrOn (Inv7Main σ n) K (minorityU σ)` at the point `b = c`. -/
+theorem minorityU_kernel_noincr (σ : Sign) (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Inv7Main σ n c) :
+    (NonuniformMajority L K).transitionKernel c
+      {x | minorityU σ c < minorityU σ x} = 0 := by
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | minorityU σ c < minorityU σ x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  simp only [Set.mem_setOf_eq] at hx
+  have hle : minorityU σ x ≤ minorityU σ c :=
+    minorityU_le_on_support σ n (minorityU σ c) c x hInv le_rfl hsupp
+  omega
+
+/-- Packaged as the engine's `PotNonincrOn` predicate. -/
+theorem potNonincrOn_minorityU (σ : Sign) (n : ℕ) :
+    OneSidedCancel.PotNonincrOn (fun c => Inv7Main σ n c)
+      (NonuniformMajority L K).transitionKernel (fun c => minorityU σ c) :=
+  fun c hInv => minorityU_kernel_noincr σ n c hInv
+
+/-! ## Part F — the structural (card + phase-7 + role-Main) closure of `Inv7Main`.
+
+On the all-Main phase-7 window every applicable pair is both-Main, so `Transition`
+reduces to `cancelSplit`, which preserves both phase (`cancelSplit_phase`) and role
+(`cancelSplit_role_fst/snd`).  Hence the structural conjuncts of `Inv7Main`
+(`card = n`, all phase-7, all Main) are one-step closed.  The remaining conjunct
+`MinorityHiIdx σ` — the index ordering — is the one whose closure is non-trivial
+(cancelSplit mutates exponent indices); its preservation is the precise remaining
+atom for the full `InvClosed`, documented at the file foot. -/
+
+/-- The phase-7 + all-Main structural core (drops `MinorityHiIdx`). -/
+def Phase7AllMain (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  c.card = n ∧ ∀ a ∈ c, a.phase.val = 7 ∧ a.role = Role.main
+
+/-- The structural core is preserved by a chosen-pair update: phase and role are
+preserved because every applicable pair is both-Main (so `Transition` =
+`cancelSplit`, which fixes phase and role). -/
+theorem Phase7AllMain_stepOrSelf (n : ℕ) (c : Config (AgentState L K))
+    (hw : Phase7AllMain n c) (r₁ r₂ : AgentState L K) :
+    Phase7AllMain n (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  obtain ⟨hcard, hph⟩ := hw
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left7 happ
+    have hm2 := mem_of_app_right7 happ
+    obtain ⟨h17, h1M⟩ := hph r₁ hm1
+    obtain ⟨h27, h2M⟩ := hph r₂ hm2
+    have hcs := Transition_eq_cancelSplit_of_phase7_main r₁ r₂ h17 h27 h1M h2M
+    have hcsphase := cancelSplit_phase (L := L) (K := K) r₁ r₂
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    refine ⟨?_, ?_⟩
+    · have hcard' := Protocol.reachable_card_eq
+        (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) c r₁ r₂)
+      rw [hcard']; exact hcard
+    · intro a ha
+      rw [hc'] at ha
+      rcases Multiset.mem_add.mp ha with hold | hnew
+      · exact hph a (Multiset.mem_of_le (Multiset.sub_le_self _ _) hold)
+      · rw [show ({(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+              : Multiset (AgentState L K))
+            = (Transition L K r₁ r₂).1 ::ₘ (Transition L K r₁ r₂).2 ::ₘ 0 from rfl] at hnew
+        simp only [Multiset.mem_cons, Multiset.notMem_zero, or_false] at hnew
+        rw [hcs] at hnew
+        rcases hnew with h | h
+        · subst h
+          refine ⟨?_, ?_⟩
+          · have := hcsphase.1; rw [this]; exact h17
+          · rw [cancelSplit_role_fst]; exact h1M
+        · subst h
+          refine ⟨?_, ?_⟩
+          · have := hcsphase.2; rw [this]; exact h27
+          · rw [cancelSplit_role_snd]; exact h2M
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]; exact ⟨hcard, hph⟩
+
+/-- The structural core is one-step-support closed. -/
+theorem Phase7AllMain_support_closed (n : ℕ) (c c' : Config (AgentState L K))
+    (hw : Phase7AllMain n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    Phase7AllMain n c' := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact Phase7AllMain_stepOrSelf n c hw r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact hw
 
 end Phase7Convergence
 

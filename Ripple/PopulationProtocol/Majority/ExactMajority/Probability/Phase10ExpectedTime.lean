@@ -2542,6 +2542,61 @@ theorem stage3_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
     (qLevel n) (hdrop_S3 n hn) M c hM hc
     ((n * (n - 1) : ℕ) : ℝ≥0∞) (qLevel_uniform_ceiling n M hMle)
 
+/-! ### Refined (harmonic) stage bounds — `O(n² log n)` interactions per stage
+
+Same engine, same per-level drop hypotheses, but the coupon sum is evaluated by the
+harmonic bound `∑_{m=1}^{M} n(n−1)/m ≤ n(n−1)·(1+log M)` (`qLevel_coupon_sum_harmonic_le`)
+rather than the crude uniform ceiling `M·n(n−1)`.  Each refined bound is
+`≤ n(n−1)·ofReal(1+log M)`. -/
+
+/-- **Refined stage 1 bound** (cancel, harmonic): `≤ n(n−1)·(1+log M)`. -/
+theorem stage1_expectedHitting_le' (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S1 (L := L) (K := K) n c)
+    (M : ℕ) (hM : activeBCount c ≤ M) (hM1 : 1 ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => activeBCount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log M) :=
+  le_trans
+    (coupon_expectedHitting_le_on
+      (NonuniformMajority L K).transitionKernel
+      (fun c => S1 (L := L) (K := K) n c) (invClosed_S1 n)
+      (fun c => activeBCount c)
+      (potNonincrOn_weaken potNonincrOn_activeBCount (fun _ h => h.1))
+      (qLevel n) (hdrop_S1 n hn) M c hM hc)
+    (qLevel_coupon_sum_harmonic_le n M hn hM1 hMle)
+
+/-- **Refined stage 2 bound** (absorb-T, harmonic): `≤ n(n−1)·(1+log M)`. -/
+theorem stage2_expectedHitting_le' (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S2 (L := L) (K := K) n c)
+    (M : ℕ) (hM : activeTCount c ≤ M) (hM1 : 1 ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => activeTCount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log M) :=
+  le_trans
+    (coupon_expectedHitting_le_on
+      (NonuniformMajority L K).transitionKernel
+      (fun c => S2 (L := L) (K := K) n c) (invClosed_S2 n)
+      (fun c => activeTCount c)
+      (potNonincrOn_weaken potNonincrOn_activeTCount (fun _ h => inv2_of_S2 h))
+      (qLevel n) (hdrop_S2 n hn) M c hM hc)
+    (qLevel_coupon_sum_harmonic_le n M hn hM1 hMle)
+
+/-- **Refined stage 3 bound** (convert-passive, harmonic): `≤ n(n−1)·(1+log M)`. -/
+theorem stage3_expectedHitting_le' (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S3 (L := L) (K := K) n c)
+    (M : ℕ) (hM : wrongACount c ≤ M) (hM1 : 1 ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongACount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log M) :=
+  le_trans
+    (coupon_expectedHitting_le_on
+      (NonuniformMajority L K).transitionKernel
+      (fun c => S3 (L := L) (K := K) n c) (invClosed_S3 n)
+      (fun c => wrongACount c)
+      (potNonincrOn_weaken potNonincrOn_wrongACount (fun _ h => inv3_of_S3 h))
+      (qLevel n) (hdrop_S3 n hn) M c hM hc)
+    (qLevel_coupon_sum_harmonic_le n M hn hM1 hMle)
+
 end StageBounds
 
 /-! ## Capstone: Phase-10 backup expected stabilization (majority case)
@@ -2768,6 +2823,74 @@ theorem phase10_expected_stabilization (n : ℕ) (hn : 2 ≤ n)
     have hzB : activeBCount z = 0 := by
       simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
     exact stage23_expectedHitting_le n hn z ⟨hzS1, hzB⟩
+
+/-! ### Refined (harmonic) majority headline — `O(n² log n)` interactions
+
+Same additive stage chaining as `phase10_expected_stabilization`, but each stage is
+evaluated by its harmonic refinement (`stageᵢ_expectedHitting_le'`), so the total is
+`≤ 3·n(n−1)·(1 + log(n(n−1)))` interactions.  Since `log(n(n−1)) ≤ log(n²) = 2 log n`,
+this is `O(n²·log n)` interactions = `O(n·log n)` parallel time (the paper's Lemma
+7.7 rate), versus the crude `O(n⁴)` of the un-primed version. -/
+
+/-- Refined stages 2+3 from an `S2` start: `≤ 2·n(n−1)·(1 + log(n(n−1)))`. -/
+theorem stage23_expectedHitting_le' (n : ℕ) (hn : 2 ≤ n)
+    (y : Config (AgentState L K)) (hy : S2 (L := L) (K := K) n y) :
+    expectedHitting (NonuniformMajority L K).transitionKernel y
+        (potBelow (fun c => wrongACount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ))
+        + ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ)) := by
+  obtain ⟨⟨hphase, hcard, hpos⟩, hB⟩ := hy
+  have hP1 : 1 ≤ n * (n - 1) :=
+    Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (by omega))
+  refine le_trans
+    (expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel
+      (done3_subset_done2) y) ?_
+  refine add_le_add ?_ ?_
+  · exact stage2_expectedHitting_le' n hn y ⟨⟨hphase, hcard, hpos⟩, hB⟩
+      (n * (n - 1)) (activeTCount_le_nn hn hcard) hP1 le_rfl
+  · refine occupation_mid_le_on (NonuniformMajority L K).transitionKernel
+      (fun c => S2 (L := L) (K := K) n c) (invClosed_S2 n)
+      (potBelow_measurable (fun c => activeTCount c) 1)
+      (potBelow_measurable (fun c => wrongACount c) 1)
+      _ ?_ y ⟨⟨hphase, hcard, hpos⟩, hB⟩
+    intro z hzS2 hzMid
+    obtain ⟨⟨hzphase, hzcard, hzpos⟩, hzB⟩ := hzS2
+    have hzT : activeTCount z = 0 := by
+      simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
+    exact stage3_expectedHitting_le' n hn z ⟨⟨⟨hzphase, hzcard, hzpos⟩, hzB⟩, hzT⟩
+      (n * (n - 1)) (wrongACount_le_nn hn hzcard) hP1 le_rfl
+
+/-- **Refined Phase-10 backup expected stabilization (majority, `S1` start).**
+`≤ 3·n(n−1)·(1 + log(n(n−1)))` interactions = `O(n² log n)`, the paper-faithful
+Lemma 7.7 rate (vs the crude `O(n⁴)` of `phase10_expected_stabilization`). -/
+theorem phase10_expected_stabilization' (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S1 (L := L) (K := K) n c) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongACount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ))
+        + (((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ))
+            + ((n * (n - 1) : ℕ) : ℝ≥0∞)
+                * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ))) := by
+  obtain ⟨hphase, hcard, hpos⟩ := hc
+  have hP1 : 1 ≤ n * (n - 1) :=
+    Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (by omega))
+  refine le_trans
+    (expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel
+      (done3_subset_done1) c) ?_
+  refine add_le_add ?_ ?_
+  · exact stage1_expectedHitting_le' n hn c ⟨hphase, hcard, hpos⟩
+      (n * (n - 1)) (countP_le_n _ hcard |>.trans (by
+        calc n = n * 1 := (Nat.mul_one n).symm
+          _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))) hP1 le_rfl
+  · refine occupation_mid_le_on (NonuniformMajority L K).transitionKernel
+      (fun c => S1 (L := L) (K := K) n c) (invClosed_S1 n)
+      (potBelow_measurable (fun c => activeBCount c) 1)
+      (potBelow_measurable (fun c => wrongACount c) 1)
+      _ ?_ c ⟨hphase, hcard, hpos⟩
+    intro z hzS1 hzMid
+    have hzB : activeBCount z = 0 := by
+      simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
+    exact stage23_expectedHitting_le' n hn z ⟨hzS1, hzB⟩
 
 end Capstone
 
@@ -3323,6 +3446,77 @@ theorem phase10_expected_stabilization_tie (n : ℕ) (hn : 2 ≤ n)
           _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))
     exact tie_stage2_expectedHitting_le n hn z ⟨⟨⟨hzphase, hzcard, hzsum⟩, hzB⟩, hzact⟩
       (n * (n - 1)) hWle le_rfl
+
+/-! ### Refined (harmonic) tie stage bounds + headline — `O(n² log n)` interactions -/
+
+/-- **Refined tie cancel stage** (harmonic): `≤ n(n−1)·(1 + log M)`. -/
+theorem tie_stage1_expectedHitting_le' (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : Tie1 (L := L) (K := K) n c)
+    (M : ℕ) (hM : activeBCount c ≤ M) (hM1 : 1 ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => activeBCount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log M) :=
+  le_trans
+    (coupon_expectedHitting_le_on
+      (NonuniformMajority L K).transitionKernel
+      (fun c => Tie1 (L := L) (K := K) n c) (invClosed_Tie1 n)
+      (fun c => activeBCount c)
+      (potNonincrOn_weaken potNonincrOn_activeBCount (fun _ h => h.1))
+      (qLevel n) (hdrop_Tie1 n hn) M c hM hc)
+    (qLevel_coupon_sum_harmonic_le n M hn hM1 hMle)
+
+/-- **Refined tie T-spread stage** (harmonic): `≤ n(n−1)·(1 + log M)`. -/
+theorem tie_stage2_expectedHitting_le' (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : Tie2plus (L := L) (K := K) n c)
+    (M : ℕ) (hM : wrongTCount c ≤ M) (hM1 : 1 ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongTCount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log M) :=
+  le_trans
+    (coupon_expectedHitting_le_on
+      (NonuniformMajority L K).transitionKernel
+      (fun c => Tie2plus (L := L) (K := K) n c) (invClosed_Tie2plus n)
+      (fun c => wrongTCount c)
+      (potNonincrOn_weaken (potNonincrOn_wrongTCount n) (fun _ h => tie2_of_Tie2plus h))
+      (qLevel n) (hdrop_Tie2plus n hn) M c hM hc)
+    (qLevel_coupon_sum_harmonic_le n M hn hM1 hMle)
+
+/-- **Refined Phase-10 backup expected stabilization (TIE case, `Tie1plus` start).**
+`≤ 2·n(n−1)·(1 + log(n(n−1)))` interactions = `O(n² log n)` (paper Lemma 7.7 rate),
+vs the crude `O(n⁴)` of `phase10_expected_stabilization_tie`. -/
+theorem phase10_expected_stabilization_tie' (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : Tie1plus (L := L) (K := K) n c) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongTCount c) 1) ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ))
+        + ((n * (n - 1) : ℕ) : ℝ≥0∞)
+            * ENNReal.ofReal (1 + Real.log ((n * (n - 1) : ℕ) : ℝ)) := by
+  obtain ⟨⟨hphase, hcard, hsum⟩, hact⟩ := hc
+  have hP1 : 1 ≤ n * (n - 1) :=
+    Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (by omega))
+  refine le_trans
+    (expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel
+      (doneT_subset_done1) c) ?_
+  refine add_le_add ?_ ?_
+  · exact tie_stage1_expectedHitting_le' n hn c ⟨hphase, hcard, hsum⟩
+      (n * (n - 1)) (countP_le_n _ hcard |>.trans (by
+        calc n = n * 1 := (Nat.mul_one n).symm
+          _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))) hP1 le_rfl
+  · refine occupation_mid_le_on (NonuniformMajority L K).transitionKernel
+      (fun c => Tie1plus (L := L) (K := K) n c) (invClosed_Tie1plus n)
+      (potBelow_measurable (fun c => activeBCount c) 1)
+      (potBelow_measurable (fun c => wrongTCount c) 1)
+      _ ?_ c ⟨⟨hphase, hcard, hsum⟩, hact⟩
+    intro z hzT1p hzMid
+    obtain ⟨⟨hzphase, hzcard, hzsum⟩, hzact⟩ := hzT1p
+    have hzB : activeBCount z = 0 := by
+      simp only [potBelow, Set.mem_setOf_eq, Nat.lt_one_iff] at hzMid; exact hzMid
+    have hWle : wrongTCount z ≤ n * (n - 1) :=
+      (countP_le_n (fun a => a.output ≠ Output.T) hzcard).trans (by
+        calc n = n * 1 := (Nat.mul_one n).symm
+          _ ≤ n * (n - 1) := Nat.mul_le_mul_left n (by omega))
+    exact tie_stage2_expectedHitting_le' n hn z ⟨⟨⟨hzphase, hzcard, hzsum⟩, hzB⟩, hzact⟩
+      (n * (n - 1)) hWle hP1 le_rfl
 
 end TieStages
 
