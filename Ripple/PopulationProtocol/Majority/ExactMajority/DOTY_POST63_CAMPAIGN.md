@@ -2905,3 +2905,74 @@ bound, seam analogue of `clockSummand_pair_le` on `{1,5,6,7,8}`) and
 `DetSeamOvershootBridge` (deterministic bridge; needs the Analysis-layer well-formedness
 because `phaseInit 1` can error an `mcr` to phase 10 without a counter-0 clock).  See
 `HANDOFF_SEAM_NOOVERSHOOT.md` STATUS section for the full verdict + blueprint corrections.
+
+---
+
+## εfloor protocol masses — `Probability/FloorMasses.lean` COMPLETE (2026-06-10, opus line)
+
+New append-only file `Probability/FloorMasses.lean` (734 lines, namespace
+`ExactMajority.FloorMasses`) discharging the three named protocol-mass residuals that
+`FloorPrefix.pool_expNeg_one_step_drift` left as inputs (`hstep`, `hbirth`, `hdeath`).
+Single-file `lake env lean` EXIT_0; every headline `#print axioms ⊆ [propext,
+Classical.choice, Quot.sound]`; no sorry / admit / axiom / native_decide.  Four commits
+(one per stage), each pushed to `origin main` + mirrored to `xiangyazi24/Ripple opus-wip`.
+
+### Per-stage verdict
+
+**Stage 1 — `hstep` (±2 per-step pool range): FULLY DISCHARGED (unconditional).**
+`assignableCount_stepOrSelf_ge` + `pool_step_ge_ae`.  `assignableCount = countP isAssignableBool`
+is definitional, so `HourCouplingV2.countP_stepOrSelf_diff_le_two` (the bounded-difference
+atom) gives the `−2` lower bound per chosen pair; the support reduction of `hour_bdd` lifts
+it to the a.e. kernel statement.  No region hypothesis needed — strictly stronger than the
+FloorPrefix `hstep` shape.
+
+**Stage 2 — `hbirth` (R1 birth rectangle): DISCHARGED (honest fresh-MCR count).**
+`Transition_eq_phase0_of_fresh_mcr_pair` (full Transition=Phase0Transition bridge for a
+fresh-MCR pair, via `phaseEpidemicUpdate_eq_self_of_both_phase0` + `finishPhase10Entry`
+identity on phase-0 outputs) → `birthR1_config_eq` (config-level `+2`) → the `freshMcrF×ˢfreshMcrF`
+rectangle (`sum_interactionCount_freshMcr = freshMcrCount(freshMcrCount−1)`) →
+`interactionPMF_toMeasure_freshMcr_ge` → `birthR1Mass_ge_freshMcr` (via
+`stepDistOrSelf_toMeasure_ge`) → `hbirth_of_freshMcr_floor` (the FloorPrefix `hbirth` shape).
+**Honest mismatch flagged:** the R1 birth count is `freshMcrCount` (unassigned phase-0 MCR),
+NOT bare `mcrCount`.  `cardPhaseShell` only pins `role = mcr → phase 0`, not unassigned, and
+no MCR-unassigned invariant exists in the repo.  `hbirth` holds verbatim once `uMin ≤
+freshMcrCount` (the adapter's hypothesis).
+
+**Stage 3 — `hdeath` (R4 drain rectangle, upper bound): INFRASTRUCTURE + ADAPTER.**
+`stepDist_toMeasure_eq_preimage` (kernel↔preimage dual of `stepDistOrSelf_toMeasure_ge`) +
+`block_pair_prob_le_sq` (AgentState clone of `EarlyDripMarked.pair_block_prob_le_sq`, with
+`sum_block_interactionCount`) + `pair_block_sq_le_buffer` (the `(X/n)² ≤ Ahi²/(n(n−1))`
+arithmetic) → `hdeath_of_block` (the FloorPrefix `hdeath` shape, given a drain block).
+**Honest mismatch flagged (two reasons hdeath is NOT verbatim true on the region):**
+(a) R4 fires on *any* two `RoleCR`; an assignable CR can drop the pool paired with a
+*non-assignable* CR, so the drop preimage is contained in the `RoleCR×RoleCR` block, giving
+`(crCount/n)²` with `crCount` the TOTAL CR count — not the pool `≤ Ahi`.  (b) the full
+`Transition`'s `phaseEpidemicUpdate` prefix is a second drain path (advancing a phase-0
+assignable out of phase 0), which `cardPhaseShell` does not forbid.  The honest provable
+bound is `(drainBlockCount/n)²`; `hdeath_of_block` consumes the containment `drainPreimage ⊆
+CR×CR` and `crCount ≤ Ahi` as the documented residual protocol facts.
+
+**Stage 4 — wire-up: `pool_expNeg_one_step_drift_floorMasses`.**  Instantiates
+`FloorPrefix.pool_expNeg_one_step_drift` at `s = 1/10` feeding hstep (unconditional),
+hbirth (via the fresh-MCR floor), hdeath (via the drain block), and the **fully-discharged**
+favorability `scalarPoolFav_instance` (proven `< 1`).  The remaining inputs are the
+pure-scalar count-fraction arithmetic (`hb0/hd0/hb1/hbd1`, calibration-dependent) and the two
+documented protocol-count facts (fresh-MCR floor + drain block).
+
+### Engine note (unchanged from FloorPrefix finding 3)
+
+`midBand_gated_tail` was NOT instantiated: it requires `1 ≤ r` (the killed potential must
+dominate the cemetery transition), incompatible with our genuinely-contractive `r < 1`
+favorability.  This is the documented absorbing-window vs gated-engine mismatch — a property
+of the engine layer, not of the protocol masses; the masses are now discharged.
+
+### Remaining work (for a follow-up line)
+
+The two residual protocol-count facts are: (i) `uMin ≤ freshMcrCount` on the region — needs
+the MCR-always-unassigned invariant (a fresh Transition-preservation argument; no such
+invariant exists yet); (ii) the drain-block containment `drainPreimage ⊆ CR×CR` + `crCount ≤
+Ahi` — needs the `Transition`-level "strict pool drop ⟹ both inputs CR" enumeration AND a
+phase-synchronisation condition to neutralise `phaseEpidemicUpdate`.  Fact (ii) is not
+verbatim true on `PoolDriftRegion` as currently defined (see Stage-3 reasons a/b); the region
+or `r4FreshCRDrainMass` would need strengthening (e.g. an all-phase-0 / `crCount ≤ Ahi`
+region invariant) for a clean verbatim `hdeath`.

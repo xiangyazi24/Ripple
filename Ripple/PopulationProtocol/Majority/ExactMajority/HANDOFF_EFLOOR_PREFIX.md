@@ -736,3 +736,28 @@ genuinely-new count-mass discharges against the real `Phase0Transition` /
 `interactionPMF` (mirror `phase0_mcrCount_decrease_prob_oneSided`'s rectangle-mass route).
 The `εmid`/`εlate` contractive prefix bound needs the absorbing-window (killed-kernel)
 reformulation per finding (3).
+
+---
+
+## STATUS UPDATE — FloorMasses.lean: the three protocol masses DISCHARGED (2026-06-10, opus line)
+
+`Probability/FloorMasses.lean` (734 lines, append-only, namespace `ExactMajority.FloorMasses`)
+discharges the three named protocol hypotheses of `FloorPrefix.pool_expNeg_one_step_drift`.
+Single-file EXIT_0, every headline axiom-clean (`⊆ [propext, Classical.choice, Quot.sound]`),
+0 sorry/admit/axiom/native_decide.  4 commits on `origin main`, mirrored to opus-wip.
+
+- **hstep** (`pool_step_ge_ae`): FULLY DISCHARGED, unconditional (region-free), via
+  `HourCouplingV2.countP_stepOrSelf_diff_le_two`.
+- **hbirth** (`hbirth_of_freshMcr_floor`): DISCHARGED via the `freshMcrF×ˢfreshMcrF` R1 birth
+  rectangle (route = `phase0_mcrCount_decrease_prob_oneSided` mirror).  Honest count is
+  `freshMcrCount` (unassigned phase-0 MCR), not `mcrCount`; holds verbatim once
+  `uMin ≤ freshMcrCount`.
+- **hdeath** (`hdeath_of_block`): infrastructure (`stepDist_toMeasure_eq_preimage` dual +
+  `block_pair_prob_le_sq` + `pair_block_sq_le_buffer`) + adapter.  hdeath is NOT verbatim
+  true on the region: R4's drop set is the `CR×CR` block (`(crCount/n)²`, total CR count, not
+  the pool), and `phaseEpidemicUpdate` is a second drain path.  `hdeath_of_block` consumes the
+  containment + `crCount ≤ Ahi` as documented residual facts.
+- **wire-up** (`pool_expNeg_one_step_drift_floorMasses`): instantiates the FloorPrefix drift at
+  `s = 1/10` with all three masses + the proven `< 1` favorability.
+
+See `DOTY_POST63_CAMPAIGN.md` (εfloor protocol masses section) for the full verdict.
