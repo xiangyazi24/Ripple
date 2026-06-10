@@ -356,6 +356,310 @@ theorem coupon_expectedHitting_le_uniform [DiscreteMeasurableSpace α]
   le_trans (coupon_expectedHitting_le K Φ hmono q hdrop M c hc)
     (coupon_sum_le_of_uniform q M r hq)
 
+/-! ### Invariant-relative coupon engine (lifted)
+
+The unconditional `PotNonincr K Φ` above is **false** for `Φ = clock-counter sum`
+on the real protocol kernel, because the phase-advance event (a clock whose counter
+hits `0` runs `advancePhaseWithInit`, which **resets** the counter to `counterMax`)
+raises the sum.  The honest engine must therefore be scoped to a within-one-phase
+invariant `Inv` (all clocks at a fixed timed phase, so no clock advances and no
+reset fires).  We lift the invariant-relative chain — verbatim the generic version
+in `Phase10ExpectedTime.lean` (whose `.olean` is absent / mid-edit, so it cannot be
+imported) — into the same `Engine` namespace.  The only change from the
+unconditional lemmas above is intersecting the relevant null sets with `{¬ Inv}`
+(itself null on an `Inv`-start by `InvClosed`). -/
+
+/-- `Inv` is closed under one kernel step: from an `Inv`-state the next-step mass on
+`¬ Inv` is `0`. -/
+def InvClosed (K : Kernel α α) (Inv : α → Prop) : Prop :=
+  ∀ b : α, Inv b → K b {x | ¬ Inv x} = 0
+
+/-- `Φ` is non-increasing along `K` **from every `Inv`-state**: one step from an
+`Inv`-state never strictly raises `Φ`. -/
+def PotNonincrOn (Inv : α → Prop) (K : Kernel α α) (Φ : α → ℕ) : Prop :=
+  ∀ b : α, Inv b → K b {x | Φ b < Φ x} = 0
+
+/-- From an `Inv`-start the `(K^t)`-mass on `¬ Inv` stays `0` (the invariant holds
+a.e. at every time). -/
+theorem pow_not_inv_eq_zero [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (c : α) (hc : Inv c) (t : ℕ) :
+    (K ^ t) c {x | ¬ Inv x} = 0 := by
+  induction t generalizing c with
+  | zero =>
+      rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+        Measure.dirac_apply' c (DiscreteMeasurableSpace.forall_measurableSet _)]
+      have : c ∉ {x | ¬ Inv x} := by simp only [Set.mem_setOf_eq, not_not]; exact hc
+      simp [this]
+  | succ t ih =>
+      have hbad : MeasurableSet {x : α | ¬ Inv x} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral K 1 t c hbad, pow_one,
+        lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad)]
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨{y | Inv y}, ?_, ?_⟩
+      · rw [mem_ae_iff]
+        have hcompl : ({y | Inv y}ᶜ : Set α) = {x | ¬ Inv x} := by
+          ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+        rw [hcompl]; exact hClosed c hc
+      · intro y hy; exact ih y hy
+
+/-- **Invariant-relative absorption of `{Φ < m}`.** -/
+theorem potBelow_absorbing_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) (Inv : α → Prop) (Φ : α → ℕ)
+    (hmono : PotNonincrOn Inv K Φ) (m : ℕ) :
+    ∀ x ∈ potBelow Φ m, Inv x → K x (potBelow Φ m)ᶜ = 0 := by
+  intro x hx hInv
+  have hsub : ((potBelow Φ m)ᶜ : Set α) ⊆ {y | Φ x < Φ y} := by
+    intro y hy
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hy
+    have hxlt : Φ x < m := hx
+    exact Set.mem_setOf_eq ▸ (lt_of_lt_of_le hxlt hy)
+  exact measure_mono_null hsub (hmono x hInv)
+
+/-- The `(K^t)`-mass on strictly-above-`m` stays `0` for an `Inv`-start at level
+`≤ m` (invariant-relative). -/
+theorem pow_above_eq_zero_of_start_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (m : ℕ) (c : α) (hc : Φ c ≤ m) (hInvc : Inv c) (t : ℕ) :
+    (K ^ t) c {x | m < Φ x} = 0 := by
+  induction t generalizing c with
+  | zero =>
+      rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+        Measure.dirac_apply' c (DiscreteMeasurableSpace.forall_measurableSet _)]
+      have : c ∉ {x | m < Φ x} := by simp only [Set.mem_setOf_eq, not_lt]; exact hc
+      simp [this]
+  | succ t ih =>
+      have hbad : MeasurableSet {x : α | m < Φ x} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral K 1 t c hbad, pow_one,
+        lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad)]
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨{y | Φ y ≤ m} ∩ {y | Inv y}, ?_, ?_⟩
+      · rw [mem_ae_iff]
+        have hcompl : (({y | Φ y ≤ m} ∩ {y | Inv y})ᶜ : Set α)
+            ⊆ {x | m < Φ x} ∪ {x | ¬ Inv x} := by
+          intro y hy
+          simp only [Set.mem_compl_iff, Set.mem_inter_iff, Set.mem_setOf_eq,
+            not_and_or, not_le] at hy
+          rcases hy with hy | hy
+          · exact Or.inl hy
+          · exact Or.inr hy
+        refine measure_mono_null hcompl ?_
+        rw [measure_union_null_iff]
+        have hinv1 : (K c) {x | ¬ Inv x} = 0 := by
+          have := pow_not_inv_eq_zero K Inv hClosed c hInvc 1
+          rwa [pow_one] at this
+        refine ⟨?_, hinv1⟩
+        refine measure_mono_null ?_ (hmono c hInvc)
+        intro y hy
+        simp only [Set.mem_setOf_eq] at hy ⊢
+        exact lt_of_le_of_lt hc hy
+      · intro y hy
+        simp only [Set.mem_inter_iff, Set.mem_setOf_eq] at hy
+        exact ih y hy.1 hy.2
+
+/-- **Invariant-relative one-step level-`m` occupation contraction.** -/
+theorem level_occ_contract_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) (hInvc : Inv c) (t : ℕ) :
+    (K ^ (t + 1)) c (potBelow Φ m)ᶜ ≤ q * (K ^ t) c (potBelow Φ m)ᶜ := by
+  classical
+  have hbad : MeasurableSet ((potBelow Φ m)ᶜ : Set α) :=
+    (potBelow_measurable Φ m).compl
+  rw [Kernel.pow_succ_apply_eq_lintegral K t c hbad]
+  calc ∫⁻ b, K b (potBelow Φ m)ᶜ ∂((K ^ t) c)
+      ≤ ∫⁻ b, q * Set.indicator ((potBelow Φ m)ᶜ) (fun _ => (1 : ℝ≥0∞)) b
+          ∂((K ^ t) c) := by
+        apply lintegral_mono_ae
+        have hnull_above : (K ^ t) c {x | m < Φ x} = 0 :=
+          pow_above_eq_zero_of_start_le_on K Inv hClosed Φ hmono m c hc hInvc t
+        have hnull_inv : (K ^ t) c {x | ¬ Inv x} = 0 :=
+          pow_not_inv_eq_zero K Inv hClosed c hInvc t
+        rw [Filter.eventually_iff_exists_mem]
+        refine ⟨{x | Φ x ≤ m} ∩ {x | Inv x}, ?_, ?_⟩
+        · rw [mem_ae_iff]
+          have hcompl : (({x | Φ x ≤ m} ∩ {x | Inv x})ᶜ : Set α)
+              ⊆ {x | m < Φ x} ∪ {x | ¬ Inv x} := by
+            intro y hy
+            simp only [Set.mem_compl_iff, Set.mem_inter_iff, Set.mem_setOf_eq,
+              not_and_or, not_le] at hy
+            rcases hy with hy | hy
+            · exact Or.inl hy
+            · exact Or.inr hy
+          refine measure_mono_null hcompl ?_
+          rw [measure_union_null_iff]
+          exact ⟨hnull_above, hnull_inv⟩
+        · intro b hb
+          simp only [Set.mem_inter_iff, Set.mem_setOf_eq] at hb
+          obtain ⟨hbm, hbInv⟩ := hb
+          rcases lt_or_eq_of_le hbm with hlt | heq
+          · have hbb : b ∈ potBelow Φ m := hlt
+            rw [potBelow_absorbing_on K Inv Φ hmono m b hbb hbInv]; exact zero_le'
+          · have hbmem : b ∈ ((potBelow Φ m)ᶜ : Set α) := by
+              simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+              exact heq.ge
+            rw [Set.indicator_of_mem hbmem, mul_one]
+            exact hdrop b hbInv heq
+    _ = q * (K ^ t) c (potBelow Φ m)ᶜ := by
+        rw [lintegral_const_mul q (measurable_const.indicator hbad)]
+        congr 1
+        rw [lintegral_indicator hbad]; simp
+
+/-- **Invariant-relative geometric decay** of the level-`m` occupation mass. -/
+theorem level_occ_geometric_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) (hInvc : Inv c) (t : ℕ) :
+    (K ^ t) c (potBelow Φ m)ᶜ ≤ q ^ t := by
+  induction t with
+  | zero =>
+      simp only [pow_zero]
+      calc (K ^ 0) c (potBelow Φ m)ᶜ ≤ (K ^ 0) c Set.univ :=
+            measure_mono (Set.subset_univ _)
+        _ = 1 := by
+            rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply, measure_univ]
+  | succ t ih =>
+      calc (K ^ (t + 1)) c (potBelow Φ m)ᶜ
+          ≤ q * (K ^ t) c (potBelow Φ m)ᶜ :=
+            level_occ_contract_on K Inv hClosed Φ hmono m q hdrop c hc hInvc t
+        _ ≤ q * q ^ t := by gcongr
+        _ = q ^ (t + 1) := by rw [pow_succ]; ring
+
+/-- **Invariant-relative constrained-start level occupation.** -/
+theorem occLevel_le_of_start_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hc : Φ c ≤ m) (hInvc : Inv c) :
+    occLevel K Φ m c ≤ (1 - q)⁻¹ := by
+  have hsub : ({x : α | Φ x = m} : Set α) ⊆ (potBelow Φ m)ᶜ := by
+    intro x hx
+    simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, not_lt]
+    exact (Set.mem_setOf_eq ▸ hx).ge
+  rw [occLevel]
+  calc ∑' t : ℕ, (K ^ t) c {x | Φ x = m}
+      ≤ ∑' t : ℕ, (K ^ t) c (potBelow Φ m)ᶜ :=
+        ENNReal.tsum_le_tsum (fun t => measure_mono hsub)
+    _ ≤ ∑' t : ℕ, q ^ t :=
+        ENNReal.tsum_le_tsum
+          (fun t => level_occ_geometric_on K Inv hClosed Φ hmono m q hdrop c hc hInvc t)
+    _ = (1 - q)⁻¹ := ENNReal.tsum_geometric q
+
+/-- **Invariant-relative uniform truncated occupation bound.** -/
+theorem occLevelUpTo_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (t : ℕ) (c : α) (hInvc : Inv c) :
+    occLevelUpTo K Φ m t c ≤ (1 - q)⁻¹ := by
+  induction t generalizing c with
+  | zero => simp only [occLevelUpTo, Finset.range_zero, Finset.sum_empty]; exact zero_le'
+  | succ t ih =>
+      by_cases hc : Φ c ≤ m
+      · calc occLevelUpTo K Φ m (t + 1) c
+            ≤ occLevel K Φ m c := by
+              rw [occLevelUpTo, occLevel]; exact ENNReal.sum_le_tsum _
+          _ ≤ (1 - q)⁻¹ :=
+              occLevel_le_of_start_le_on K Inv hClosed Φ hmono m q hdrop c hc hInvc
+      · rw [not_le] at hc
+        have hmeasm : MeasurableSet {x : α | Φ x = m} :=
+          DiscreteMeasurableSpace.forall_measurableSet _
+        have hzero : (K ^ 0) c {x | Φ x = m} = 0 := by
+          rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+            Measure.dirac_apply' c hmeasm]
+          have : c ∉ {x : α | Φ x = m} := by
+            simp only [Set.mem_setOf_eq]; omega
+          simp [this]
+        have hsplit : occLevelUpTo K Φ m (t + 1) c
+            = ∑ j ∈ Finset.range t, (K ^ (j + 1)) c {x | Φ x = m} := by
+          rw [occLevelUpTo, Finset.sum_range_succ']
+          simp only [hzero, add_zero]
+        rw [hsplit]
+        have hCK : ∀ j : ℕ, (K ^ (j + 1)) c {x | Φ x = m}
+            = ∫⁻ b, (K ^ j) b {x | Φ x = m} ∂(K c) := by
+          intro j
+          rw [show j + 1 = 1 + j from by ring,
+            Kernel.pow_add_apply_eq_lintegral K 1 j c hmeasm, pow_one]
+        simp only [hCK]
+        rw [← lintegral_finsetSum (Finset.range t)
+          (fun j _ => Kernel.measurable_coe (K ^ j) hmeasm)]
+        have hinv_ae : (K c) {x | ¬ Inv x} = 0 := hClosed c hInvc
+        calc ∫⁻ b, (∑ j ∈ Finset.range t, (K ^ j) b {x | Φ x = m}) ∂(K c)
+            ≤ ∫⁻ _ : α, (1 - q)⁻¹ ∂(K c) := by
+              apply lintegral_mono_ae
+              rw [Filter.eventually_iff_exists_mem]
+              refine ⟨{x | Inv x}, ?_, ?_⟩
+              · rw [mem_ae_iff]
+                have : ({x | Inv x}ᶜ : Set α) = {x | ¬ Inv x} := by
+                  ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+                rw [this]; exact hinv_ae
+              · intro b hb
+                simp only [Set.mem_setOf_eq] at hb
+                simpa only [occLevelUpTo] using ih b hb
+          _ = (1 - q)⁻¹ := by
+              rw [lintegral_const, measure_univ, mul_one]
+
+/-- **Invariant-relative arbitrary-start level occupation bound.** -/
+theorem occLevel_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (m : ℕ) (q : ℝ≥0∞)
+    (hdrop : ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q)
+    (c : α) (hInvc : Inv c) :
+    occLevel K Φ m c ≤ (1 - q)⁻¹ := by
+  rw [occLevel, ENNReal.tsum_eq_iSup_nat]
+  refine iSup_le (fun t => ?_)
+  exact occLevelUpTo_le_on K Inv hClosed Φ hmono m q hdrop t c hInvc
+
+/-- **Invariant-relative high-level vanishing.** -/
+theorem occLevel_eq_zero_of_high_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) (hInvc : Inv c) (m : ℕ) (hm : M < m) :
+    occLevel K Φ m c = 0 := by
+  rw [occLevel, ENNReal.tsum_eq_zero]
+  intro t
+  refine measure_mono_null ?_
+    (pow_above_eq_zero_of_start_le_on K Inv hClosed Φ hmono M c hc hInvc t)
+  intro x hx
+  simp only [Set.mem_setOf_eq] at hx ⊢
+  omega
+
+/-- **Invariant-relative coupon capstone (fully discharged).** -/
+theorem coupon_expectedHitting_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) (hInvc : Inv c) :
+    expectedHitting K c (potBelow Φ 1) ≤ ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹ :=
+  coupon_expectedHitting_le_of_occBounds K Φ q M c
+    (fun m _ _ => occLevel_le_on K Inv hClosed Φ hmono m (q m) (hdrop m) c hInvc)
+    (fun m hm => occLevel_eq_zero_of_high_on K Inv hClosed Φ hmono M c hc hInvc m hm)
+
+/-- **Invariant-relative coupon capstone with crude uniform evaluation.** -/
+theorem coupon_expectedHitting_le_uniform_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Inv : α → Prop)
+    (hClosed : InvClosed K Inv) (Φ : α → ℕ) (hmono : PotNonincrOn Inv K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Inv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) (hInvc : Inv c) (r : ℝ≥0∞)
+    (hq : ∀ m : ℕ, 1 ≤ m → m ≤ M → (1 - q m)⁻¹ ≤ r) :
+    expectedHitting K c (potBelow Φ 1) ≤ (M : ℝ≥0∞) * r :=
+  le_trans (coupon_expectedHitting_le_on K Inv hClosed Φ hmono q hdrop M c hc hInvc)
+    (coupon_sum_le_of_uniform q M r hq)
+
 end Engine
 
 /-! ## Part 1 — The uniform per-step drop rate arithmetic
@@ -445,6 +749,28 @@ theorem timed_phase_expected_progress [DiscreteMeasurableSpace α]
     (fun _ => 1 - clockPairRate mC n) (fun m => hdrop m)
     (counterMax * mC) c hc
   -- per-level ceiling: `(1 - (1 - clockPairRate))⁻¹ = (clockPairRate)⁻¹ ≤ r` (with equality).
+  intro m _ _
+  rw [one_sub_one_sub_clockPairRate_inv mC n hmC]
+
+/-- **Invariant-relative headline.**  The honest version for the real protocol
+kernel: the clock-counter sum is `PotNonincr` only on the within-one-phase
+invariant `Inv` (no clock advances ⇒ no counter reset), and the clock-clock drop
+fires only at `Inv`-states.  Under `InvClosed K Inv`, `PotNonincrOn Inv K Φ`, the
+`Inv`-relative drop `hdrop`, and an `Inv`-start `c` at level `≤ counterMax · mC`,
+
+    expectedHitting K c {Φ = 0} ≤ (counterMax · mC) · (clockPairRate mC n)⁻¹. -/
+theorem timed_phase_expected_progress_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (Inv : α → Prop)
+    (hClosed : Engine.InvClosed K Inv) (hmono : Engine.PotNonincrOn Inv K Φ)
+    (mC n counterMax : ℕ) (hmC : mC ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Inv b → Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    (c : α) (hInvc : Inv c) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c (Engine.potBelow Φ 1)
+      ≤ ((counterMax * mC : ℕ) : ℝ≥0∞) * (clockPairRate mC n)⁻¹ := by
+  apply Engine.coupon_expectedHitting_le_uniform_on K Inv hClosed Φ hmono
+    (fun _ => 1 - clockPairRate mC n) (fun m => hdrop m)
+    (counterMax * mC) c hc hInvc
   intro m _ _
   rw [one_sub_one_sub_clockPairRate_inv mC n hmC]
 
@@ -542,6 +868,62 @@ theorem timed_phase_progress_bigClock [DiscreteMeasurableSpace α]
   -- counterMax·n(n−1)/(mC−1) ≤ counterMax·(11n) via div_le_of_le_mul on the ℕ core.
   apply ENNReal.div_le_of_le_mul
   -- counterMax·n(n−1) ≤ (counterMax·11n)·(mC−1)
+  have hcore : n * (n - 1) ≤ 11 * n * (mC - 1) := by
+    have hkey : n - 1 ≤ 11 * (mC - 1) := by omega
+    calc n * (n - 1) ≤ n * (11 * (mC - 1)) := Nat.mul_le_mul_left n hkey
+      _ = 11 * n * (mC - 1) := by ring
+  have hnat : counterMax * (n * (n - 1)) ≤ counterMax * (11 * n) * (mC - 1) := by
+    calc counterMax * (n * (n - 1)) ≤ counterMax * (11 * n * (mC - 1)) :=
+          Nat.mul_le_mul_left counterMax hcore
+      _ = counterMax * (11 * n) * (mC - 1) := by ring
+  calc ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+      = ((counterMax * (n * (n - 1)) : ℕ) : ℝ≥0∞) := by push_cast; ring
+    _ ≤ ((counterMax * (11 * n) * (mC - 1) : ℕ) : ℝ≥0∞) := by exact_mod_cast hnat
+    _ = ((counterMax : ℕ) : ℝ≥0∞) * ((11 * n : ℕ) : ℝ≥0∞) * ((mC - 1 : ℕ) : ℝ≥0∞) := by
+        push_cast; ring
+
+/-- **Invariant-relative tiny-clock corollary.**  The `_on` analogue of
+`timed_phase_progress_tinyClock`: `E ≤ counterMax · n²`. -/
+theorem timed_phase_progress_tinyClock_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (Inv : α → Prop)
+    (hClosed : Engine.InvClosed K Inv) (hmono : Engine.PotNonincrOn Inv K Φ)
+    (mC n counterMax : ℕ) (hmC : 2 ≤ mC) (hmCn : mC ≤ n) (hn : 2 ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Inv b → Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    (c : α) (hInvc : Inv c) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c (Engine.potBelow Φ 1)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
+  refine le_trans
+    (timed_phase_expected_progress_on K Φ Inv hClosed hmono mC n counterMax hmCn hdrop
+      c hInvc hc) ?_
+  rw [headline_product_eq counterMax mC n hmC hn]
+  calc ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) / ((mC - 1 : ℕ) : ℝ≥0∞)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) / ((1 : ℕ) : ℝ≥0∞) := by
+        apply ENNReal.div_le_div_left
+        exact_mod_cast (by omega : (1 : ℕ) ≤ mC - 1)
+    _ = ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+        rw [Nat.cast_one, div_one]
+    _ ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
+        gcongr
+        · exact_mod_cast (by omega : n - 1 ≤ n)
+
+/-- **Invariant-relative big-clock corollary.**  The `_on` analogue of
+`timed_phase_progress_bigClock`: `E ≤ counterMax · 11 n`. -/
+theorem timed_phase_progress_bigClock_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (Inv : α → Prop)
+    (hClosed : Engine.InvClosed K Inv) (hmono : Engine.PotNonincrOn Inv K Φ)
+    (mC n counterMax : ℕ) (hfloor : n / 5 ≤ mC) (hmCn : mC ≤ n) (hn : 18 ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Inv b → Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    (c : α) (hInvc : Inv c) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c (Engine.potBelow Φ 1)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((11 * n : ℕ) : ℝ≥0∞) := by
+  have hmC : 2 ≤ mC := by omega
+  refine le_trans
+    (timed_phase_expected_progress_on K Φ Inv hClosed hmono mC n counterMax hmCn hdrop
+      c hInvc hc) ?_
+  rw [headline_product_eq counterMax mC n hmC (by omega)]
+  apply ENNReal.div_le_of_le_mul
   have hcore : n * (n - 1) ≤ 11 * n * (mC - 1) := by
     have hkey : n - 1 ≤ 11 * (mC - 1) := by omega
     calc n * (n - 1) ≤ n * (11 * (mC - 1)) := Nat.mul_le_mul_left n hkey

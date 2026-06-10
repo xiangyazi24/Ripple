@@ -313,6 +313,44 @@ theorem cancelSplit_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
               dif_neg h2']
           rw [hcs]; simp only [hsb, htb]; exact le_rfl
 
+/-- **Per-pair strict drain under `cancelSplit` (gap-1 one-sided drain).**  `s` is a
+`σ.flip` (majority / eliminator) Main at index `i`, `t` is a `σ`-minority Main at the
+gap-1 higher index `j = i + 1`.  `cancelSplit`'s gap-1 branch zeroes the larger-index
+agent `t` (the minority), so the pair's `σ`-Main count strictly drops (output `+ 1 ≤`
+input).  This is the per-pair seed of the Phase-7 drain rectangle: each
+(eliminator@i, minority@i+1) interaction removes one minority agent. -/
+theorem cancelSplit_minorityU_pair_drop (σ ss : Sign) (s t : AgentState L K)
+    (hsM : s.role = Role.main) (htM : t.role = Role.main)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic ss i)
+    (htb : t.bias = Bias.dyadic σ j) (hss : ss ≠ σ) (hg1 : i.val + 1 = j.val) :
+    Multiset.countP (fun a => minoritySt σ a)
+        ({(cancelSplit L K s t).1, (cancelSplit L K s t).2} : Multiset (AgentState L K))
+        + 1
+      ≤ Multiset.countP (fun a => minoritySt σ a)
+          ({s, t} : Multiset (AgentState L K)) := by
+  classical
+  have hsmin_not : ¬ minoritySt σ s := by
+    rw [minoritySt_iff]; rintro ⟨_, hb⟩
+    rw [hsb] at hb; simp only [biasIsSigned] at hb; exact hss hb
+  have htmin : minoritySt σ t := ⟨htM, j, htb⟩
+  -- Identify the gap-1 output: `s ↦ dyadic ss (i+1)`, `t ↦ zero`.
+  have hineq0 : ¬ i.val = j.val := by omega
+  have hcs : cancelSplit L K s t
+      = ({s with bias := .dyadic ss ⟨i.val + 1, by
+            have hj : j.val < L + 1 := j.2; omega⟩}, {t with bias := .zero}) := by
+    unfold cancelSplit
+    rw [hsb, htb]
+    simp only [if_pos (show ss ≠ σ from hss), dif_neg hineq0, dif_pos hg1]
+  rw [countP_minoritySt_pair, countP_minoritySt_pair, hcs]
+  -- Outputs: `s'` keeps sign `ss ≠ σ` (not minority); `t'` is `.zero` (not minority).
+  have ho1 : ¬ minoritySt σ ({s with bias := (Bias.dyadic ss
+      ⟨i.val + 1, by have hj : j.val < L + 1 := j.2; omega⟩ : Bias L)}) := by
+    rw [minoritySt_iff]; rintro ⟨_, hb⟩
+    simp only [biasIsSigned] at hb; exact hss hb
+  have ho2 : ¬ minoritySt σ ({t with bias := (.zero : Bias L)}) :=
+    not_minoritySt_zero σ _ rfl
+  rw [if_neg ho1, if_neg ho2, if_neg hsmin_not, if_pos htmin]
+
 /-! ## Part D — the config-level minority-ordering invariant and global non-increase.
 
 The per-pair non-increase needs the **index ordering**: every minority (`σ`) Main
@@ -557,6 +595,275 @@ theorem Phase7AllMain_support_closed (n : ℕ) (c c' : Config (AgentState L K))
   · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
         unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
     rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact hw
+
+/-- **Config-level strict drain for Phase 7 (gap-1 cell).**  On an all-Main phase-7
+window, an applicable pair `(s,t)` with `s` a `σ.flip` (eliminator) Main at index `i`
+and `t` a `σ`-minority Main at the gap-1 higher index `j = i + 1` drops the global
+minority count by one.  The Phase-7 analogue of `Phase8Convergence`'s config drop;
+the gap-1 one-sided drain is the per-cell drop fact the Phase-7 drain rectangle
+counts (no `MinorityHiIdx` needed for the drop direction — only the gap-1 geometry). -/
+theorem minorityU_stepOrSelf_drop (σ ss : Sign) (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase7AllMain n c) (s t : AgentState L K)
+    (happ : Protocol.Applicable c s t)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic ss i)
+    (htb : t.bias = Bias.dyadic σ j) (hss : ss ≠ σ) (hg1 : i.val + 1 = j.val) :
+    minorityU σ (Protocol.stepOrSelf (NonuniformMajority L K) c s t) + 1
+      ≤ minorityU σ c := by
+  obtain ⟨_, hph⟩ := hInv
+  have hm1 := mem_of_app_left7 happ
+  have hm2 := mem_of_app_right7 happ
+  obtain ⟨h17, h1M⟩ := hph s hm1
+  obtain ⟨h27, h2M⟩ := hph t hm2
+  have hsub : ({s, t} : Multiset (AgentState L K)) ≤ c := happ
+  have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c s t
+      = c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2} := by
+    unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+  unfold minorityU
+  rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+  rw [Transition_eq_cancelSplit_of_phase7_main s t h17 h27 h1M h2M]
+  have hdrop := cancelSplit_minorityU_pair_drop σ ss s t h1M h2M i j hsb htb hss hg1
+  have hpair_le : Multiset.countP (fun a => minoritySt σ a)
+      ({s, t} : Multiset (AgentState L K))
+        ≤ Multiset.countP (fun a => minoritySt σ a) c := Multiset.countP_le_of_le _ hsub
+  omega
+
+/-! ## Part F' — the generic drop-rectangle probability bound (shared engine layer).
+
+The dual of `Phase4Convergence.advanced_advance_prob_of_rect`: for a potential `Φ`
+and a rectangle `R` of pairs each of which, when fired, drops `Φ` by `≥ 1`, the
+one-step probability of the **drop** event `{c' | Φ c' + 1 ≤ Φ c}` is at least
+`N/(n(n−1))` where `N ≤ ∑_R interactionCount`.  Φ-agnostic; the Phase-7 AND Phase-8
+drain rectangles both feed it.  (Lives here, in Phase 7, so Phase 8 — which imports
+Phase 7 — can reuse it without duplication.) -/
+
+private theorem applicable_of_mem_distinct7 {c : Config (AgentState L K)}
+    {x y : AgentState L K} (hx : x ∈ c) (hy : y ∈ c) (hxy : x ≠ y) :
+    Protocol.Applicable c x y := by
+  refine Multiset.le_iff_count.mpr ?_
+  intro a
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl,
+      Multiset.count_cons, Multiset.count_cons, Multiset.count_zero]
+  have hxc : 1 ≤ Multiset.count x c := Multiset.one_le_count_iff_mem.mpr hx
+  have hyc : 1 ≤ Multiset.count y c := Multiset.one_le_count_iff_mem.mpr hy
+  by_cases hax : a = x
+  · subst hax
+    have hay : ¬ a = y := fun h => hxy (h ▸ rfl)
+    rw [if_pos rfl, if_neg hay]; omega
+  · by_cases hay : a = y
+    · subst hay; rw [if_neg hax, if_pos rfl]; omega
+    · rw [if_neg hax, if_neg hay]; omega
+
+/-- For two state-finsets of pairwise-distinct states, the `interactionCount` mass of
+`A ×ˢ B` is `(∑_A count)·(∑_B count)`.  Shared copy. -/
+theorem sum_interactionCount_cross_disjoint7
+    (c : Config (AgentState L K)) (A B : Finset (AgentState L K))
+    (hdisj : ∀ a ∈ A, ∀ b ∈ B, a ≠ b) :
+    (∑ p ∈ A ×ˢ B, c.interactionCount p.1 p.2)
+      = (∑ a ∈ A, c.count a) * (∑ b ∈ B, c.count b) := by
+  rw [Finset.sum_product, Finset.sum_mul]
+  apply Finset.sum_congr rfl
+  intro a ha
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro b hb
+  unfold Config.interactionCount
+  rw [if_neg (hdisj a ha b hb)]
+
+/-- **The generic drop-rectangle probability bound** (Φ-agnostic, shared by Phases
+7 & 8). -/
+theorem drop_prob_of_rect (Φ : Config (AgentState L K) → ℕ) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hcardn : c.card = n)
+    (R : Finset (AgentState L K × AgentState L K)) (N : ℕ)
+    (hdrop : ∀ p ∈ R, 1 ≤ c.count p.1 → 1 ≤ c.count p.2 → (p.1 = p.2 → 2 ≤ c.count p.1) →
+      Φ (Protocol.stepOrSelf (NonuniformMajority L K) c p.1 p.2) + 1 ≤ Φ c)
+    (hcount : (N : ℕ) ≤ ∑ p ∈ R, c.interactionCount p.1 p.2) :
+    ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ Φ c} := by
+  set j := Φ c with hjdef
+  have hcard2 : 2 ≤ c.card := by rw [hcardn]; omega
+  have hmeas : MeasurableSet {c' : Config (AgentState L K) | Φ c' + 1 ≤ j} :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  set S : Finset (AgentState L K × AgentState L K) :=
+    R.filter (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2 ∧ (p.1 = p.2 → 2 ≤ c.count p.1)) with hS
+  have hsub : (↑S : Set (AgentState L K × AgentState L K)) ⊆
+      (Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+        {c' | Φ c' + 1 ≤ j} := by
+    intro p hp
+    simp only [Finset.coe_filter, Set.mem_setOf_eq, hS] at hp
+    obtain ⟨hpc, hp1, hp2, hp3⟩ := hp
+    simp only [Set.mem_preimage, Set.mem_setOf_eq, Protocol.scheduledStep]
+    exact hdrop p hpc hp1 hp2 hp3
+  have hstepDist : (NonuniformMajority L K).stepDistOrSelf c
+      = (NonuniformMajority L K).stepDist c hcard2 := by
+    unfold Protocol.stepDistOrSelf; rw [dif_pos hcard2]
+  have hbase : ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ j}
+      = (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) := by
+    rw [hstepDist]; unfold Protocol.stepDist
+    rw [PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hmeas]
+  rw [hbase]
+  have hmono : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      ≤ (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) :=
+    measure_mono hsub
+  refine le_trans ?_ hmono
+  have hSmeasure : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      = ∑ p ∈ S, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  have hSsum : ∑ p ∈ S, c.interactionProb p.1 p.2
+      = ∑ p ∈ R, c.interactionProb p.1 p.2 := by
+    rw [hS]
+    apply Finset.sum_subset (Finset.filter_subset _ _)
+    intro p hpc hpnot
+    rw [Finset.mem_filter] at hpnot
+    push Not at hpnot
+    have hexcl := hpnot hpc
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases h1 : 1 ≤ c.count p.1
+      · by_cases h2 : 1 ≤ c.count p.2
+        · obtain ⟨hpe, hlt⟩ := hexcl h1 h2
+          rw [if_pos hpe]
+          have hc1 : c.count p.1 = 1 := by omega
+          rw [hc1]
+        · have hz2 : c.count p.2 = 0 := by omega
+          by_cases hpe : p.1 = p.2
+          · rw [if_pos hpe]; rw [hpe, hz2, Nat.zero_mul]
+          · rw [if_neg hpe, hz2, Nat.mul_zero]
+      · have hz1 : c.count p.1 = 0 := by omega
+        by_cases hpe : p.1 = p.2
+        · rw [if_pos hpe, hz1, Nat.zero_mul]
+        · rw [if_neg hpe, hz1, Nat.zero_mul]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hSmeasure, hSsum]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum]
+  set M := ∑ p ∈ R, c.interactionCount p.1 p.2 with hM
+  have htp : c.totalPairs = n * (n - 1) := by rw [Config.totalPairs, hcardn]
+  rw [htp, ← div_eq_mul_inv]
+  have hden_pos : (0 : ℝ) < ((n * (n - 1) : ℕ) : ℝ) := by
+    have : 0 < n * (n - 1) := Nat.mul_pos (by omega) (by omega)
+    exact_mod_cast this
+  have hdenR : ((n * (n - 1) : ℕ) : ℝ) = (n : ℝ) * ((n : ℝ) - 1) := by
+    rw [Nat.cast_mul, Nat.cast_sub (by omega)]; push_cast; ring
+  have hstep1 : ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))
+      ≤ ENNReal.ofReal (((M : ℕ) : ℝ) / ((n * (n - 1) : ℕ) : ℝ)) := by
+    apply ENNReal.ofReal_le_ofReal
+    rw [hdenR]
+    have hNM : (N : ℝ) ≤ (M : ℝ) := by exact_mod_cast hcount
+    have hposden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by rw [← hdenR]; exact hden_pos
+    gcongr
+  refine le_trans hstep1 ?_
+  rw [← ENNReal.ofReal_natCast M, ← ENNReal.ofReal_natCast (n * (n - 1)),
+      ← ENNReal.ofReal_div_of_pos hden_pos]
+
+/-! ## Part F'' — the Phase-7 eliminator × minority gap-1 rectangle.
+
+Fix a minority level `j`.  The minority states at index `j` interacting with
+eliminator states at the gap-1 LOWER index `j−1` (non-`σ` Mains) form a rectangle
+each cell of which drops `minorityU σ` by one (`minorityU_stepOrSelf_drop`, gap-1).
+Note the pair order: the eliminator `s` is first, the minority `t` second (matching
+`minorityU_stepOrSelf_drop`'s `(s = elim, t = minority)` convention). -/
+
+/-- The `σ`-minority states at index `j`. -/
+def minorityAt7 (σ : Sign) (j : Fin (L + 1)) : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => a.role = Role.main ∧ a.bias = Bias.dyadic σ j)
+
+/-- The eliminator states at the gap-1 lower index `i` with `i + 1 = j`: non-`σ`
+Mains at index `i`. -/
+def elimGap1 (σ : Sign) (i : Fin (L + 1)) : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => a.role = Role.main ∧
+    ∃ ss, ss ≠ σ ∧ a.bias = Bias.dyadic ss i)
+
+/-- Cross pairs `(elim@i, minority@j)` (gap-1, `i+1=j`) are distinct (biases differ:
+index `i` vs `j`, and `i ≠ j`). -/
+theorem elimGap1_minorityAt7_disjoint (σ : Sign) (i j : Fin (L + 1)) (hg1 : i.val + 1 = j.val)
+    (a : AgentState L K) (ha : a ∈ elimGap1 (L := L) (K := K) σ i)
+    (b : AgentState L K) (hb : b ∈ minorityAt7 (L := L) (K := K) σ j) : a ≠ b := by
+  rw [elimGap1, Finset.mem_filter] at ha
+  rw [minorityAt7, Finset.mem_filter] at hb
+  obtain ⟨-, -, ss, -, hab⟩ := ha
+  obtain ⟨-, -, hbb⟩ := hb
+  intro heq; subst heq
+  have hcomb : (Bias.dyadic ss i : Bias L) = Bias.dyadic σ j := hab.symm.trans hbb
+  injection hcomb with _ hidx
+  rw [hidx] at hg1; omega
+
+/-- **Per-level eliminator×minority gap-1 rectangle drop probability** (Phase 7).
+On a phase-7 all-Main window, the probability that one step drops `minorityU σ` is at
+least `(#elim@i)·(#minority@j)/(n(n−1))`, for any gap-1 level pair `i+1 = j`. -/
+theorem minorityU_drop_prob_rect7 (σ : Sign) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : Phase7AllMain n c)
+    (i j : Fin (L + 1)) (hg1 : i.val + 1 = j.val) :
+    ENNReal.ofReal
+        (((elimGap1 (L := L) (K := K) σ i).sum c.count *
+          (minorityAt7 (L := L) (K := K) σ j).sum c.count : ℕ) /
+          ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | minorityU σ c' + 1 ≤ minorityU σ c} := by
+  have hcardn : c.card = n := hInv.1
+  refine drop_prob_of_rect (fun c => minorityU σ c) n hn c hcardn
+    ((elimGap1 (L := L) (K := K) σ i) ×ˢ (minorityAt7 (L := L) (K := K) σ j))
+    _ ?_ (le_of_eq ?_)
+  · rintro ⟨s, t⟩ hp hcs hct _
+    rw [Finset.mem_product] at hp
+    obtain ⟨hsmem, htmem⟩ := hp
+    simp only [elimGap1, Finset.mem_filter] at hsmem
+    simp only [minorityAt7, Finset.mem_filter] at htmem
+    obtain ⟨_, hsM, ss, hss, hsb⟩ := hsmem
+    obtain ⟨_, htM, htb⟩ := htmem
+    have happ : Protocol.Applicable c s t := by
+      have hsm : s ∈ c := Multiset.one_le_count_iff_mem.mp hcs
+      have htm : t ∈ c := Multiset.one_le_count_iff_mem.mp hct
+      have hne : s ≠ t :=
+        elimGap1_minorityAt7_disjoint σ i j hg1 s
+          (by simp only [elimGap1, Finset.mem_filter]
+              exact ⟨Finset.mem_univ _, hsM, ss, hss, hsb⟩) t
+          (by simp only [minorityAt7, Finset.mem_filter]; exact ⟨Finset.mem_univ _, htM, htb⟩)
+      exact applicable_of_mem_distinct7 hsm htm hne
+    exact minorityU_stepOrSelf_drop σ ss n c hInv s t happ i j hsb htb hss hg1
+  · rw [sum_interactionCount_cross_disjoint7 c _ _ (elimGap1_minorityAt7_disjoint σ i j hg1)]
+
+/-- **The engine `hdrop` from a drop-probability floor (Phase 7).**  Mirror of
+Phase 8's bridge: failure mass `= 1 − drop-success ≤ 1 − p`. -/
+theorem minorityU_hdrop_of_floor7 (σ : Sign) (n : ℕ) (m : ℕ)
+    (p : ℝ≥0∞) (b : Config (AgentState L K)) (hbm : minorityU σ b = m)
+    (hfloor : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        {c' | minorityU σ c' + 1 ≤ minorityU σ b}) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (minorityU σ) m)ᶜ ≤ 1 - p := by
+  classical
+  have hKb : (NonuniformMajority L K).transitionKernel b
+      = ((NonuniformMajority L K).stepDistOrSelf b).toMeasure := rfl
+  have hsucc_eq : {c' : Config (AgentState L K) | minorityU σ c' + 1 ≤ minorityU σ b}
+      = OneSidedCancel.potBelow (minorityU σ) m := by
+    ext c'; simp only [OneSidedCancel.potBelow, Set.mem_setOf_eq, hbm]; omega
+  have hmeas : MeasurableSet (OneSidedCancel.potBelow (minorityU σ) m) :=
+    OneSidedCancel.potBelow_measurable (minorityU (L := L) (K := K) σ) m
+  haveI hprob : IsProbabilityMeasure
+      (((NonuniformMajority L K).stepDistOrSelf b).toMeasure) := by
+    rw [← hKb]
+    exact (inferInstance :
+      IsMarkovKernel (NonuniformMajority L K).transitionKernel).isProbabilityMeasure b
+  have htot : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure Set.univ = 1 :=
+    hprob.measure_univ
+  have hcompl : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        (OneSidedCancel.potBelow (minorityU σ) m)ᶜ
+      = 1 - ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+          (OneSidedCancel.potBelow (minorityU σ) m) := by
+    rw [measure_compl hmeas (measure_ne_top _ _), htot]
+  rw [hKb, hcompl]
+  have hp_le : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+      (OneSidedCancel.potBelow (minorityU σ) m) := by
+    rw [← hsucc_eq]; exact hfloor
+  exact tsub_le_tsub_left hp_le 1
 
 /-! ## Part G — the Phase-7 `PhaseConvergenceW` from the engine.
 

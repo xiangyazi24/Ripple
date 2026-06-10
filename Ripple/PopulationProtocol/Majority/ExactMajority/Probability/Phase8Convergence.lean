@@ -642,16 +642,16 @@ theorem minorityU_hdrop_of_floor (σ : Sign) (n : ℕ) (m : ℕ)
     (hfloor : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
         {c' | minorityU σ c' + 1 ≤ minorityU σ b}) :
     (NonuniformMajority L K).transitionKernel b
-        (OneSidedCancel.potBelow (fun c => minorityU σ c) m)ᶜ ≤ 1 - p := by
+        (OneSidedCancel.potBelow (minorityU σ) m)ᶜ ≤ 1 - p := by
   classical
   -- The drop-success event equals `potBelow (minorityU σ) m` (using `minorityU b = m`).
   have hKb : (NonuniformMajority L K).transitionKernel b
       = ((NonuniformMajority L K).stepDistOrSelf b).toMeasure := rfl
   have hsucc_eq : {c' : Config (AgentState L K) | minorityU σ c' + 1 ≤ minorityU σ b}
-      = OneSidedCancel.potBelow (fun c => minorityU σ c) m := by
+      = OneSidedCancel.potBelow (minorityU σ) m := by
     ext c'; simp only [OneSidedCancel.potBelow, Set.mem_setOf_eq, hbm]; omega
-  have hmeas : MeasurableSet (OneSidedCancel.potBelow (fun c => minorityU σ c) m) :=
-    OneSidedCancel.potBelow_measurable _ _
+  have hmeas : MeasurableSet (OneSidedCancel.potBelow (minorityU σ) m) :=
+    OneSidedCancel.potBelow_measurable (minorityU (L := L) (K := K) σ) m
   -- total mass 1 (Markov), so complement = 1 − success.
   haveI hprob : IsProbabilityMeasure
       (((NonuniformMajority L K).stepDistOrSelf b).toMeasure) := by
@@ -661,13 +661,13 @@ theorem minorityU_hdrop_of_floor (σ : Sign) (n : ℕ) (m : ℕ)
   have htot : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure Set.univ = 1 :=
     hprob.measure_univ
   have hcompl : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
-        (OneSidedCancel.potBelow (fun c => minorityU σ c) m)ᶜ
+        (OneSidedCancel.potBelow (minorityU σ) m)ᶜ
       = 1 - ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
-          (OneSidedCancel.potBelow (fun c => minorityU σ c) m) := by
+          (OneSidedCancel.potBelow (minorityU σ) m) := by
     rw [measure_compl hmeas (measure_ne_top _ _), htot]
   rw [hKb, hcompl]
   have hp_le : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
-      (OneSidedCancel.potBelow (fun c => minorityU σ c) m) := by
+      (OneSidedCancel.potBelow (minorityU σ) m) := by
     rw [← hsucc_eq]; exact hfloor
   exact tsub_le_tsub_left hp_le 1
 

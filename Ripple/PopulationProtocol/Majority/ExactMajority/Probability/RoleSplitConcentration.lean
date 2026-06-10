@@ -1389,6 +1389,82 @@ theorem phase0_mcrCount_decrease_prob_combined
                 assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
             (n * (n - 1) : ℝ)) := by rw [h_card]
 
+/-- **Floor → rate bridge (the keystone of task (i)).**  Carrying an abstract
+floor `assignableCount c ≥ a₀`, the combined decrease mass is at least
+`mcrCount·a₀/(n(n−1))`.  This is the arithmetic that turns the Chernoff floor
+(`a₀ = ⌈n/5⌉`-shape) into the `Θ(M/n)` progress rate the `MilestonePhaseOn`
+engine consumes: dropping the diagonal `M(M−1) ≥ 0` term and keeping only the
+floor-driven `M·assignable ≥ M·a₀` term.  No floor *establishment* here — that is
+the genuinely probabilistic Gap (B); this lemma is the mechanical wiring that
+*consumes* a floor once supplied. -/
+theorem phase0_mcrCount_decrease_prob_floor
+    (c : Config (AgentState L K)) (n a₀ : ℕ)
+    (h_card : c.card = n) (hn2 : 2 ≤ n)
+    (h_phase0 : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0)
+    (h_floor : a₀ ≤ assignableCount (L := L) (K := K) c) :
+    ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+          ExactMajority.mcrCount (L := L) (K := K) c} ≥
+      ENNReal.ofReal
+        (((ExactMajority.mcrCount (L := L) (K := K) c * a₀ : ℕ) : ℝ) /
+          (n * (n - 1) : ℝ)) := by
+  refine le_trans ?_ (phase0_mcrCount_decrease_prob_combined c n h_card hn2 h_phase0)
+  apply ENNReal.ofReal_le_ofReal
+  have hn1 : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by
+    have : (1 : ℝ) ≤ (n : ℝ) - 1 := by
+      have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn2
+      linarith
+    positivity
+  have hnum : (((ExactMajority.mcrCount (L := L) (K := K) c * a₀ : ℕ)) : ℝ) ≤
+      ((ExactMajority.mcrCount (L := L) (K := K) c *
+          (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+        ExactMajority.mcrCount (L := L) (K := K) c *
+          assignableCount (L := L) (K := K) c : ℕ) : ℝ) := by
+    have hmul : ExactMajority.mcrCount (L := L) (K := K) c * a₀ ≤
+        ExactMajority.mcrCount (L := L) (K := K) c *
+          (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+        ExactMajority.mcrCount (L := L) (K := K) c *
+          assignableCount (L := L) (K := K) c := by
+      have := Nat.mul_le_mul_left (ExactMajority.mcrCount (L := L) (K := K) c) h_floor
+      omega
+    exact_mod_cast hmul
+  gcongr
+
+/-- The floor-driven per-milestone rate `M·a₀/(n(n−1))` (the `Θ(M/n)` rate the
+`MilestonePhaseOn` engine consumes once the Chernoff floor `a₀` is supplied). -/
+noncomputable def floorRate (n a₀ M : ℕ) : ℝ :=
+  ((M * a₀ : ℕ) : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))
+
+/-- The floor rate is positive when `M ≥ 1`, `a₀ ≥ 1`, `n ≥ 2`.  (`hp_pos` field.) -/
+theorem floorRate_pos {n a₀ M : ℕ} (hn : 2 ≤ n) (hM : 1 ≤ M) (ha : 1 ≤ a₀) :
+    0 < floorRate n a₀ M := by
+  unfold floorRate
+  have hnum : 0 < ((M * a₀ : ℕ) : ℝ) := by
+    have : 0 < M * a₀ := Nat.mul_pos hM ha
+    exact_mod_cast this
+  have hden : 0 < (n : ℝ) * ((n : ℝ) - 1) := by
+    have : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+    have : (1 : ℝ) ≤ (n : ℝ) - 1 := by linarith
+    positivity
+  exact div_pos hnum hden
+
+/-- The floor rate is `≤ 1` when `M ≤ n` and `a₀ ≤ n−1` (the floor `a₀ ≈ n/5`
+satisfies `a₀ ≤ n−1` for `n ≥ 2`).  (`hp_le_one` field.) -/
+theorem floorRate_le_one {n a₀ M : ℕ} (hn : 2 ≤ n) (hM : M ≤ n) (ha : a₀ ≤ n - 1) :
+    floorRate n a₀ M ≤ 1 := by
+  unfold floorRate
+  have hden_pos : 0 < (n : ℝ) * ((n : ℝ) - 1) := by
+    have h2 : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+    have : (1 : ℝ) ≤ (n : ℝ) - 1 := by linarith
+    positivity
+  rw [div_le_one hden_pos]
+  have hnum_le : M * a₀ ≤ n * (n - 1) := Nat.mul_le_mul hM ha
+  have hcast : ((M * a₀ : ℕ) : ℝ) ≤ ((n * (n - 1) : ℕ) : ℝ) := by exact_mod_cast hnum_le
+  have hrw : ((n * (n - 1) : ℕ) : ℝ) = (n : ℝ) * ((n : ℝ) - 1) := by
+    have h1 : 1 ≤ n := by omega
+    push_cast [Nat.cast_sub h1]; ring
+  rw [hrw] at hcast; exact hcast
+
 /-! ## Gap (A): the invariant-relative milestone engine `MilestonePhaseOn`.
 
 `JansonHitting.MilestonePhase.progress` (JansonHitting.lean L48–51) demands the

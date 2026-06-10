@@ -1244,3 +1244,59 @@ the ONE irreducible probabilistic ingredient flagged since relay 1.  This is now
         family, same diagonal pattern; chain stages via composition.
 All per-step *mass/rate* obligations and the *engine* (Gap A) are now discharged;
 the genuine open work is (ii) the Chernoff floor + (i) wiring it as `inv_closed`.
+
+### Phase C-1 (relay 5) — FLOOR→RATE BRIDGE DELIVERED + INV_CLOSED WALL PROVEN STRUCTURAL
+
+Commits: C-1n 69a8e2af (floor→rate bridge) · C-1o 7421b90b (floorRate p-field validity).
+
+**Task (i) mechanical core — DELIVERED (0-sorry, axiom-clean ⊆ [propext,Classical.choice,Quot.sound]).**
+- `phase0_mcrCount_decrease_prob_floor (c n a₀) (card=n) (n≥2) (mcr⇒phase0)
+  (a₀ ≤ assignableCount c) : stepDistOrSelf-mass {mcrCount drops} ≥
+  ofReal((mcrCount·a₀)/(n(n−1)))`.  Drops the diagonal `M(M−1) ≥ 0` term off
+  `phase0_mcrCount_decrease_prob_combined` and keeps the floor-driven `M·a₀` term.
+  This is EXACTLY the `progress_on` rate the `MilestonePhaseOn` engine consumes —
+  the mechanical wiring that *consumes* a floor once supplied.  The floor enters
+  as an abstract `a₀ ≤ assignableCount c` hypothesis (no `n/5` baked in).
+- `floorRate n a₀ M := (M·a₀)/(n(n−1))` + `floorRate_pos` (M≥1,a₀≥1,n≥2) +
+  `floorRate_le_one` (M≤n, a₀≤n−1).  These are the `MilestonePhaseOn.hp_pos` /
+  `hp_le_one` fields for the floor-driven `p i`.  (`a₀ ≈ n/5 ≤ n−1` for n≥2, so
+  `floorRate_le_one` covers the Chernoff floor; the high-M milestones where
+  M·a₀ might exceed n(n−1) are carried by the diagonal term, not floorRate.)
+
+**THE `inv_closed` WALL IS STRUCTURAL — PROVEN, NOT A GUESS.**  The inherited
+`MilestonePhaseOn.inv_closed` demands DETERMINISTIC one-step closure
+(`transitionKernel c {c'|¬Inv c'} = 0`).  A whp Chernoff floor CANNOT satisfy this:
+1. **No deterministic floor exists.**  `Phase0Initial` ⟹ ALL n agents are MCR ⟹
+   `assignableCount = 0` at t=0 (`IsAssignable` needs role∈{main,cr}, but all are mcr).
+   The assignable pool is *created* by R1 (+2 per firing), so it grows from 0 — there
+   is no deterministic relation `mcrCount large ⟹ assignableCount ≥ a₀` to lean on.
+   Combined with relay-4's proven non-monotonicity (R3 `assignable_rule3_s_assigned`
+   marks the converted MCR ASSIGNED, Δassignable = −1), `assignableCount ≥ a₀` is
+   neither initially-true nor deterministically-closed for any a₀ ≥ 1.
+2. **The leak-relaxation does NOT reduce to a union bound.**  Relaxing `inv_closed`
+   to a per-step leak ε (mass ≤ ε on ¬Inv) FAILS cleanly because `truncMGF` is NOT
+   bounded by 1 off `Inv`: `partialMGF = ∏ mgfFactor` with each factor ≥ 1, so the
+   leak set carries the FULL (unbounded) MGF, not ε.  Bounding the leak contribution
+   needs the chain to not re-enter ¬Inv with large MGF — a genuine coupling/absorption
+   argument (the paper's actual Lemma 5.1 joint-process Chernoff), NOT mechanical wiring.
+
+**PRECISE REMAINING GAP (the irreducible probabilistic core, unchanged in nature
+from relay 1, now bounded tightly).**  To finish Lemma 5.2 one needs a NEW engine
+that threads the floor probabilistically — either:
+  (a) a joint (mcrCount, assignableCount) Chernoff/Azuma showing
+      `assignableCount ≥ n/5 whp throughout the Stage-1 horizon`, fed as a separate
+      union-bound budget term `εfloor ≤ exp(−Θ(n))` ADDED to the `1/n²` Janson tail
+      (NOT through `Inv`); the `MilestonePhaseOn` engine then runs on the EVENT
+      `{floor holds throughout}` where `progress_on` is valid by C-1n; or
+  (b) a coupling absorbing the ¬Inv excursions.
+Both are the paper's Lemma 5.1 probabilistic content; neither is assemblable from
+the delivered count/rate atoms.  C-1n + C-1o discharge the ENTIRE rate side: given
+the floor as a hypothesis (`a₀ ≤ assignableCount c`), the `Θ(M/n)` progress rate
+and its `hp_pos`/`hp_le_one` validity are now mechanical.  The open atom is the
+SINGLE Chernoff floor (`assignableCount ≥ n/5 whp`), and its wiring is now (a):
+a union term, because the engine's deterministic `inv_closed` provably cannot host it.
+
+**Stage 2 (task 3) — NOT STARTED** (blocked behind Stage-1 floor for the chained
+assembly; the crCount milestone family is mechanically analogous to Stage-1's
+diagonal R1 part once the Stage-1 floor route is fixed, but the crCount floor
+itself flows from the Stage-1 assignable→cr output, so it sits downstream of (a)).
