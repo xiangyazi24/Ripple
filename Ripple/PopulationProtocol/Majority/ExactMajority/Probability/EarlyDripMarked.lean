@@ -5496,6 +5496,34 @@ theorem recInv_of_floor (T θn n : ℕ) (cc : ℝ) (mc : Config (MarkedAgent L K
     recInv (L := L) (K := K) T θn n cc mc := by
   exact ⟨hcard, hge3, fun _ _ => ⟨hθ, hrec⟩⟩
 
+/-! ## Part 39 — the negligibility step (item 2): `cc·X²/n + tt ≤ X²/n` at window scales.
+
+The `d`-term `tt` (the tainted tail, `n^{0.15}` whp) is negligible against the recurrence slack
+`(1−cc)·X²/n`: with `cc < 1` and the feeder past the floor (`θn ≤ X`), the slack is at least
+`(1−cc)·(θn)²/n`, which dominates `tt` once the scale hypothesis `tt·n ≤ (1−cc)·(θn)²` holds.
+At the paper scales (`θ = n^{-0.4}`, `tt = n^{0.15}`, `cc = 9/10`): `(1−cc)(θn)² = n^{1.2}/10 ≫
+n^{1.15} = tt·n`.  Pure scale arithmetic; the multiplicative scale fact is carried as a hypothesis. -/
+
+/-- **The negligibility inequality** (generic, real-valued): from `0 ≤ cc ≤ 1`, `0 < n`, the feeder
+floor `θn ≤ X`, and the scale fact `tt·n ≤ (1−cc)·(θn)²`, the `d`-term is absorbed:
+`cc·X²/n + tt ≤ X²/n`.  This is exactly `windowedFrontProfile_of_not_bad`'s `hneg` per level. -/
+theorem negligibility_le (n : ℕ) (hn : 0 < n) (cc : ℝ) (hcc1 : cc ≤ 1)
+    (θn : ℕ) (X : ℕ) (tt : ℕ) (hθ : θn ≤ X)
+    (hscale : (tt : ℝ) * (n : ℝ) ≤ (1 - cc) * (θn : ℝ) ^ 2) :
+    cc * (X : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ) ≤ (X : ℝ) ^ 2 / (n : ℝ) := by
+  have hnℝ : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have hθX : (θn : ℝ) ≤ (X : ℝ) := by exact_mod_cast hθ
+  have hθ0 : (0 : ℝ) ≤ (θn : ℝ) := by positivity
+  -- (1−cc)·(θn)² ≤ (1−cc)·X²  (monotone in the squared feeder).
+  have hsq : (θn : ℝ) ^ 2 ≤ (X : ℝ) ^ 2 := by nlinarith [hθX, hθ0]
+  have hslack : (tt : ℝ) * (n : ℝ) ≤ (1 - cc) * (X : ℝ) ^ 2 := by
+    refine le_trans hscale ?_
+    have h1cc : (0 : ℝ) ≤ 1 - cc := by linarith
+    exact mul_le_mul_of_nonneg_left hsq h1cc
+  -- divide by n: tt ≤ (1−cc)·X²/n, i.e. cc·X²/n + tt ≤ X²/n.
+  rw [div_add' _ _ _ (ne_of_gt hnℝ), div_le_div_iff_of_pos_right hnℝ]
+  nlinarith [hslack]
+
 end EarlyDripMarked
 
 end ExactMajority
