@@ -37,7 +37,7 @@ open scoped ENNReal NNReal Real BigOperators Classical
 
 namespace ClockBudgets
 
-open ClockUnconditional ClockRealKernel HabsDischarge ClockFrontShape
+open ClockUnconditional ClockRealKernel ClockKilledMinute HabsDischarge ClockFrontShape
 open ClockFrontSyncFromWidth ClockFrontProfile
 
 variable {L K : ℕ}
@@ -92,6 +92,28 @@ theorem phaseGateFail_le (τ : ℕ) (c₀ : Config (AgentState L K))
   calc (realκ L K ^ τ) c₀ {c | PhaseGateFail (L := L) (K := K) c}
       ≤ (εge3 + εno3) + (εcpos + εsucc) := hbound
     _ = εge3 + εno3 + εcpos + εsucc := by ring
+
+/-! ## Part 2 — the `εsync` wiring to the §6 width engine.
+
+`ClockFrontSyncFromWidth.frontSync_whp_of_goodFrontWidth` bounds `{¬ FrontSync}` at horizon `τ`
+by `εW + εP + εB` — the width-failure-on-side mass `εW` (supplied by the §6 engine
+`goodFrontWidth_whp`), the side-event failure `εP`, and the bulk-arrival mass `εB`.  `SyncFail`
+(from `ClockUnconditional`) is exactly `{c | ¬ FrontSync c}`, and `realκ L K` is definitionally
+`(NonuniformMajority L K).transitionKernel`, so the bridge applies directly. -/
+
+/-- **`syncFail_le`** — the per-`τ` `SyncFail` (`{¬ FrontSync}`) mass is `≤ εW + εP + εB`, the
+§6 width / side-event / bulk-arrival split.  Direct restatement of
+`frontSync_whp_of_goodFrontWidth` in the `realκ`/`SyncFail` shape used by `sidePrefix_le`. -/
+theorem syncFail_le (τ W : ℕ) (c₀ : Config (AgentState L K))
+    (P : Config (AgentState L K) → Prop) (εW εP εB : ℝ≥0∞)
+    (hwidth : (realκ L K ^ τ) c₀
+        {c | P c ∧ ¬ GoodFrontWidth (L := L) (K := K) W c} ≤ εW)
+    (hP : (realκ L K ^ τ) c₀ {c | ¬ P c} ≤ εP)
+    (hbulk : (realκ L K ^ τ) c₀
+        {c | ¬ (10 * rBeyond (L := L) (K := K)
+            (capMinute (L := L) (K := K) - W) c < c.card)} ≤ εB) :
+    (realκ L K ^ τ) c₀ (SyncFail (L := L) (K := K)) ≤ εW + εP + εB :=
+  frontSync_whp_of_goodFrontWidth (L := L) (K := K) τ W c₀ P εW εP εB hwidth hP hbulk
 
 end ClockBudgets
 

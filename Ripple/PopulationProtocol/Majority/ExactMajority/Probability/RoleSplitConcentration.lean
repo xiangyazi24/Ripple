@@ -1866,8 +1866,13 @@ theorem milestone_hitting_time_bound_on (mp : MilestonePhaseOn (L := L) (K := K)
   · have hzero : -mp.pMin * mp.meanTime * (lam - 1 - Real.log lam) = 0 := by
       rw [hlam_eq, Real.log_one]; ring
     rw [hzero, Real.exp_zero, ENNReal.ofReal_one]
-    haveI : IsMarkovKernel (P.transitionKernel ^ t) := by
-      rw [← Kernel.pow_eq]; infer_instance
+    have hMK : ∀ s : ℕ, IsMarkovKernel (P.transitionKernel ^ s) := by
+      intro s; induction s with
+      | zero => rw [pow_zero]
+                exact inferInstanceAs (IsMarkovKernel (Kernel.id : Kernel (Config (AgentState L K)) _))
+      | succ s ih => haveI := ih; rw [pow_succ]
+                     exact inferInstanceAs (IsMarkovKernel ((P.transitionKernel ^ s) ∘ₖ _))
+    haveI := hMK t
     haveI : IsProbabilityMeasure ((P.transitionKernel ^ t) c₀) :=
       IsMarkovKernel.isProbabilityMeasure _
     calc (P.transitionKernel ^ t) c₀ {c | ¬ mp.Post c}

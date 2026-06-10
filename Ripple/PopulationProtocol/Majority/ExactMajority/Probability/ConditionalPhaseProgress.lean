@@ -382,6 +382,26 @@ theorem clockPairRate_le_one (mC n : ℕ) (hmC : mC ≤ n) :
         exact_mod_cast hnum
     _ ≤ 1 := ENNReal.div_self_le_one
 
+/-- The per-level waiting time `(1 - (1 - p))⁻¹ = p⁻¹` for the uniform drop
+`q m = 1 - p`, where `p = clockPairRate mC n ≤ 1`.  This is the reciprocal of the
+clock-clock meeting rate: `n(n−1)/(mC(mC−1))` interactions per counter tick. -/
+theorem one_sub_one_sub_clockPairRate_inv (mC n : ℕ) (hmC : mC ≤ n) :
+    (1 - (1 - clockPairRate mC n))⁻¹ = (clockPairRate mC n)⁻¹ := by
+  rw [ENNReal.sub_sub_cancel (by norm_num) (clockPairRate_le_one mC n hmC)]
+
+/-- The clock-clock waiting-time reciprocal in closed form:
+`(clockPairRate mC n)⁻¹ = (n(n−1)) / (mC(mC−1))` interactions per counter decrement.
+Valid whenever there are at least two clocks (`2 ≤ mC`), so the denominator
+`mC(mC−1)` is positive and the division is genuine. -/
+theorem clockPairRate_inv_eq (mC n : ℕ) (hmC : 2 ≤ mC) (hn : 2 ≤ n) :
+    (clockPairRate mC n)⁻¹ = (n * (n - 1) : ℕ) / (mC * (mC - 1) : ℕ) := by
+  unfold clockPairRate
+  have hnum0 : ((mC * (mC - 1) : ℕ) : ℝ≥0∞) ≠ 0 := by
+    simp only [ne_eq, Nat.cast_eq_zero, Nat.mul_eq_zero]; omega
+  have hden0 : ((n * (n - 1) : ℕ) : ℝ≥0∞) ≠ 0 := by
+    simp only [ne_eq, Nat.cast_eq_zero, Nat.mul_eq_zero]; omega
+  rw [ENNReal.inv_div (Or.inl (ENNReal.natCast_ne_top _)) (Or.inl hden0)]
+
 end ConditionalPhaseProgress
 
 end ExactMajority
