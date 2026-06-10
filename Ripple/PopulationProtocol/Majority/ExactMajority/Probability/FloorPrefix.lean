@@ -488,5 +488,45 @@ theorem pool_expNeg_one_step_drift_abstract
         apply mul_le_mul' hfav
         unfold poolExpNeg; rw [hβ, hp]
 
+/-- **The one-step pool drift on the drift region** (blueprint §3 headline).  A thin,
+rate-parametric wrapper over `pool_expNeg_one_step_drift_abstract`: from the protocol-rate
+birth/death masses (`hbirth`, `hdeath`) and the `±2`-range step bound (`hstep`) plus the
+`ScalarPoolFav` favorability, the tilted one-step expectation contracts at rate `r` on
+every configuration in `PoolDriftRegion`.  The protocol facts `hbirth`/`hdeath`/`hstep`
+are the genuinely-new count-mass content; they are supplied as hypotheses here (see the
+status section for the precise honest statements and the discharge difficulty against the
+real `Phase0Transition`). -/
+theorem pool_expNeg_one_step_drift
+    (n uMin Ahi : ℕ) (s : ℝ) (r : ℝ≥0∞) (hs : 0 < s)
+    (hb0 : 0 ≤ ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    (hd0 : 0 ≤ ((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    (hb1 : ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ) ≤ 1)
+    (hbd1 : ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)
+        + ((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ) ≤ 1)
+    -- protocol-rate facts (parametric; the genuinely-new count-mass content):
+    (hbirth : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      ENNReal.ofReal (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+        ≤ birthR1Mass (L := L) (K := K) c)
+    (hdeath : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      r4FreshCRDrainMass (L := L) (K := K) c
+        ≤ ENNReal.ofReal (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)))
+    (hstep : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      ∀ᵐ c' ∂((NonuniformMajority L K).transitionKernel c),
+        (assignableCount (L := L) (K := K) c : ℤ) - 2
+          ≤ (assignableCount (L := L) (K := K) c' : ℤ))
+    -- scalar favorability (proven for the concrete constants, `scalarPoolFav_instance`):
+    (hfav : ScalarPoolFav s n uMin Ahi r) :
+    ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      ∫⁻ c', poolExpNeg (L := L) (K := K) s c'
+          ∂((NonuniformMajority L K).transitionKernel c)
+        ≤ r * poolExpNeg (L := L) (K := K) s c := by
+  intro c hc
+  refine pool_expNeg_one_step_drift_abstract s hs c
+    (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    hb0 hd0 hb1 hbd1 (hstep c hc) (hbirth c hc) (hdeath c hc) r ?_
+  -- `ScalarPoolFav` is definitionally the favorability inequality the abstract core needs.
+  exact hfav
+
 end FloorPrefix
 end ExactMajority
