@@ -3144,3 +3144,56 @@ DELIVERED 0-sorry axiom-clean; the cleanest decaying object `phase0_killed_clock
 absorbing-Q substitute.  Consumers 2/3 adapters delivered at the strongest reachable hypothesis-free
 engine-shape; their final whp instantiation re-cuts the existing `windowDrift_tail`/`gated_real_tail`
 call-sites against the killed tail (mechanical, no new math).
+
+## SESSION HANDOFF 2026-06-10 evening (usage cutoff)
+
+Nine relay agents landed today, three IN FLIGHT at cutoff. Each landed agent
+appended its own completion record above; this is the session-level map.
+
+### Landed (all 0-sorry, axiom-clean, pushed + mirrored to opus-wip)
+| File | Delivered | Residual it left |
+|---|---|---|
+| DrainThreading.lean | D-7: all 5 phases' hdrop/hstep threaded | assembly supplies numeric floors |
+| Phase0Window.lean (cont.) | Gap-1 affine scheduler drift + tail engine | absorbing-Q → SOLVED by KilledAffineTail |
+| TopSplit.lean | §5.1 skeleton: defs + det. conversion + Azuma brick | hjump/hdrift → both discharged below |
+| TopSplitDrift.lean | hjump (|ΔX|≤1) + cosh-MGF (X=0 boundary solved) | InwardResidual → discharged below |
+| TopSplitInward.lean | LedgerInv: Mf−Sf=2X (the honest Lemma 5.1 ledger) | RectangleResidual → discharged below |
+| RectangleResidualProof.lean | joint double-marginal; §5.1 counting CLOSED | absorbing-Q → solved by KilledAffineTail |
+| FloorPrefix.lean | εfloor 3-region structure + capstone | 3 masses → discharged below; engine 1≤r → solved |
+| FloorMasses.lean | hstep/hbirth(freshMcr)/hdeath(containment) | uMin≤freshMcrCount region fact |
+| SeamNoOvershoot.lean | hNoOvershoot chain + seamEpidemicExactW fix | hpair → SeamPairBound; honest set {1,6,7,8} |
+| SeamPairBound.lean | per-side bounds; found 2·eˢ·freshVal + phase-5 exclusion | adapter → SeamPairAdapter (in flight) |
+| KilledAffineTail.lean | THE engine: killed affine tail, a≥0 arbitrary; absorbing-Q eliminated; 1≤r was spurious | consumers' final re-cut (in flight) |
+
+### IN FLIGHT at cutoff (opus subagents; if killed, re-dispatch from these briefs)
+1. SeamPairAdapter.lean — honest hpair adapter: missing {1,6,7,8} advance-regime
+   dispatch reductions, two-sided bound w/ 2·eˢ·freshVal, corrected drift+numerics
+   (check e^{-40(L+1)} still closes), end-to-end hNoOvershoot for {1,6,7,8}.
+   Brief is reconstructible from SeamPairBound's HANDOFF status + this row.
+2. WidthTransport.lean — HANDOFF_WFP_TRANSPORT.md blueprint (ChatGPT letter,
+   network-delivered): deterministic scalar front transport (only equal-minute
+   DRIP raises global max, +1/step), CrossEmptyClimbGood/Bad, profile transport
+   NOT deterministic, widthFail_between_checkpoints_concrete assembly.
+3. KilledTailConsumers.lean — final re-cut: (a) §5.1 hypothesis-free top-split
+   tail (Phase0Initial + NoAssignedMcrConfig + arithmetic, explicit T+budget);
+   (b) Gap-2 assembly vs allPhase0_window_whp (reachability may be unnecessary
+   in killed formalism); (c) εmid final form via midBand_real_contractive_tail.
+
+### Remaining queue after the in-flight three
+- E4 assembly (expectation half, Phase E4) — re-ask the E4 letter on
+  family/family2/family3 (NOT cron — wrong repo); blueprint shape was drafted
+  in the lost cron letter b1ec23eb (text in /api/result, 0-byte answer).
+- DetSeamOvershootBridge (needs validInitial well-formedness; mcr→phase-10
+  epidemic path is the obstruction — see SeamNoOvershoot findings).
+- Phase 2/3/4/5/9 seam guards (untimed or no-counter-reset destinations).
+- Phase-D composition: wire prior-phase Posts into per-phase numeric floors
+  (n/5, 4n/15, n/3, 23n/75, ρ₆n) for DrainThreading + levels-engine re-target
+  for Phases 1/5/7/8 (crude m=1 hstep is vacuous for Φ≥2).
+- Budget tightening to paper-rate 1−O(1/n²) (cleanup queue, dad-approved).
+- Phase F: audit refresh + uisai2 explicit-module full build + 推平 main.
+
+### Bridge (for the research loop)
+WS path SOLVED end-to-end (see chatgpt-bridge-pr3/UNDERSTANDING.md 06-10
+section). Ask letters with scripts/ask-gpt.py <channel> — banner + runs.log
+ledger discipline in .claude/skills/chatgpt/SKILL.md. Ripple letters ONLY on
+family/family2/family3.

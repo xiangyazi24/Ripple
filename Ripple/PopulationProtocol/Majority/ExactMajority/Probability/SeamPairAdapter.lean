@@ -485,6 +485,91 @@ theorem seamClockSummand_Transition_left_le_of_ep_advance (p : ℕ)
       exact seamClockSummand_stdCounterSubroutine_advance_le p s ep1 hepclock1 hqT hlt
   exact hdisp_summ.trans (freshVal_le_exp_mul_add s hs _)
 
+/-- Dispatch-strip for the RIGHT output in the ADVANCE regime (`ep.1.phase = p`). -/
+theorem seamClockSummand_Transition_right_eq_dispatch_advance (p : ℕ) (s : ℝ)
+    (a b : AgentState L K)
+    (hepsrc1 : (phaseEpidemicUpdate L K a b).1.phase.val = p)
+    (hp : CounterResetDest (p + 1)) :
+    seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+      = seamClockSummand (L := L) (K := K) p s
+          ((if p = 0 then Phase0Transition L K (phaseEpidemicUpdate L K a b).1
+                                              (phaseEpidemicUpdate L K a b).2
+            else if p = 5 then Phase5Transition L K (phaseEpidemicUpdate L K a b).1
+                                              (phaseEpidemicUpdate L K a b).2
+            else if p = 6 then Phase6Transition L K (phaseEpidemicUpdate L K a b).1
+                                              (phaseEpidemicUpdate L K a b).2
+            else Phase7Transition L K (phaseEpidemicUpdate L K a b).1
+                                              (phaseEpidemicUpdate L K a b).2).2) := by
+  rw [Transition, seamClockSummand_finishPhase10Entry]
+  rcases hp with h | h | h | h
+  · have hp0 : p = 0 := by omega
+    have hpe : (phaseEpidemicUpdate L K a b).1.phase = (⟨0, by decide⟩ : Fin 11) :=
+      Fin.ext (by rw [hepsrc1, hp0])
+    simp only [hpe, hp0]; rfl
+  · have hp5 : p = 5 := by omega
+    have hpe : (phaseEpidemicUpdate L K a b).1.phase = (⟨5, by decide⟩ : Fin 11) :=
+      Fin.ext (by rw [hepsrc1, hp5])
+    simp only [hpe, hp5]; rfl
+  · have hp6 : p = 6 := by omega
+    have hpe : (phaseEpidemicUpdate L K a b).1.phase = (⟨6, by decide⟩ : Fin 11) :=
+      Fin.ext (by rw [hepsrc1, hp6])
+    simp only [hpe, hp6]; rfl
+  · have hp7 : p = 7 := by omega
+    have hpe : (phaseEpidemicUpdate L K a b).1.phase = (⟨7, by decide⟩ : Fin 11) :=
+      Fin.ext (by rw [hepsrc1, hp7])
+    simp only [hpe, hp7]; rfl
+
+/-- **RIGHT-side ADVANCE per-side bound.**  When the dispatch is selected by `ep.1.phase
+= p` and the responder `ep.2` is a clock at phase `p` (one below the counter-reset
+destination `p+1 ∈ {1,6,7,8}`), the dispatch advances `ep.2` into `p+1` with a FULL
+counter, so the RIGHT output summand is `≤ freshVal ≤ eˢ·(summand b + freshVal)`. -/
+theorem seamClockSummand_Transition_right_le_of_ep_advance (p : ℕ)
+    (hq : CounterResetDest (p + 1)) (s : ℝ) (hs : 0 ≤ s) (a b : AgentState L K)
+    (hepsrc1 : (phaseEpidemicUpdate L K a b).1.phase.val = p)
+    (hepclock2 : (phaseEpidemicUpdate L K a b).2.role = .clock)
+    (hepsrc2 : (phaseEpidemicUpdate L K a b).2.phase.val = p) :
+    seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+      ≤ ENNReal.ofReal (Real.exp s)
+          * (seamClockSummand (L := L) (K := K) p s b + freshVal (L := L) s) := by
+  set ep1 := (phaseEpidemicUpdate L K a b).1 with hep1
+  set ep2 := (phaseEpidemicUpdate L K a b).2 with hep2
+  have hqT : CounterTimedPhase (p + 1) := CounterTimedPhase_of_CounterResetDest hq
+  rw [seamClockSummand_Transition_right_eq_dispatch_advance p s a b hepsrc1 hq]
+  have hlt2 : ep2.phase.val < p + 1 := by rw [hepsrc2]; omega
+  have hdisp_summ : seamClockSummand (L := L) (K := K) p s
+        ((if p = 0 then Phase0Transition L K ep1 ep2
+          else if p = 5 then Phase5Transition L K ep1 ep2
+          else if p = 6 then Phase6Transition L K ep1 ep2
+          else Phase7Transition L K ep1 ep2).2)
+      ≤ freshVal (L := L) s := by
+    rcases hq with h | h | h | h
+    · have hp0 : p = 0 := by omega
+      rw [if_pos hp0]
+      obtain ⟨chat, hcr, hcp, hdisj⟩ := Phase0Transition_right_clock_eq ep1 ep2 hepclock2
+      have hcplt : chat.phase.val < p + 1 := by rw [hcp, hepsrc2]; omega
+      rcases hdisj with hd | hd
+      · rw [hd]
+        exact seamClockSummand_stdCounterSubroutine_advance_le p s chat hcr hqT hcplt
+      · rw [hd]
+        have : seamClockSummand (L := L) (K := K) p s chat = 0 := by
+          unfold seamClockSummand; rw [if_neg]; rintro ⟨_, hp⟩
+          rw [hcp, hepsrc2] at hp; omega
+        rw [this]; exact zero_le'
+    · have hp5 : p = 5 := by omega
+      rw [if_neg (by omega : ¬ p = 0), if_pos hp5]
+      rw [Phase5Transition_right_clock ep1 ep2 hepclock2]
+      exact seamClockSummand_stdCounterSubroutine_advance_le p s ep2 hepclock2 hqT hlt2
+    · have hp6 : p = 6 := by omega
+      rw [if_neg (by omega : ¬ p = 0), if_neg (by omega : ¬ p = 5), if_pos hp6]
+      rw [Phase6Transition_right_clock ep1 ep2 hepclock2]
+      exact seamClockSummand_stdCounterSubroutine_advance_le p s ep2 hepclock2 hqT hlt2
+    · have hp7 : p = 7 := by omega
+      rw [if_neg (by omega : ¬ p = 0), if_neg (by omega : ¬ p = 5),
+          if_neg (by omega : ¬ p = 6)]
+      rw [Phase7Transition_right_clock ep1 ep2 hepclock2]
+      exact seamClockSummand_stdCounterSubroutine_advance_le p s ep2 hepclock2 hqT hlt2
+  exact hdisp_summ.trans (freshVal_le_exp_mul_add s hs _)
+
 end SeamNoOvershoot
 
 end ExactMajority
