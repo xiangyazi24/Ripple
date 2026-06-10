@@ -526,6 +526,49 @@ theorem coupon_expectedHitting_le [DiscreteMeasurableSpace α]
     (fun m _ _ => occLevel_le K Φ hmono m (q m) (hdrop m) c)
     (fun m hm => occLevel_eq_zero_of_high K Φ hmono M c hc m hm)
 
+/-! ### Harmonic / coupon-sum evaluation (generic bookkeeping)
+
+The capstone RHS is the coupon sum `∑_{m=1}^{M} (1 - q m)⁻¹`.  For the Phase-10
+shape `(1 - q m)⁻¹ = n(n-1)/m`, the exact value is `n(n-1)·H_M`, but the engine
+only needs an upper bound.  We record the crude per-level-uniform bound: if every
+active level's waiting time is `≤ r`, the sum is `≤ M·r` (here `r = n(n-1)` since
+`n(n-1)/m ≤ n(n-1)` for `m ≥ 1`), which already gives the `O(n²·M)` interaction
+count; for the coupon stages `M = O(n)`, i.e. `O(n³)`, dominated by — and in the
+paper sharpened to — the `n(n-1)·H_n = O(n² log n)` harmonic form.  The crude
+bound is what the chained stage argument consumes; recorded here so the harmonic
+constant is not on the critical path. -/
+
+/-- **Crude coupon-sum bound.** If every active-level waiting time `(1 - q m)⁻¹`
+(`1 ≤ m ≤ M`) is bounded by a common `r`, then the coupon sum is `≤ M · r`.  Feeds
+the capstone RHS with `r = (per-level waiting-time ceiling) = n(n-1)`. -/
+theorem coupon_sum_le_of_uniform (q : ℕ → ℝ≥0∞) (M : ℕ) (r : ℝ≥0∞)
+    (hq : ∀ m : ℕ, 1 ≤ m → m ≤ M → (1 - q m)⁻¹ ≤ r) :
+    ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹ ≤ (M : ℝ≥0∞) * r := by
+  calc ∑ m ∈ Finset.Icc 1 M, (1 - q m)⁻¹
+      ≤ ∑ _m ∈ Finset.Icc 1 M, r := by
+        apply Finset.sum_le_sum
+        intro m hm
+        rw [Finset.mem_Icc] at hm
+        exact hq m hm.1 hm.2
+    _ = (M : ℝ≥0∞) * r := by
+        rw [Finset.sum_const, Nat.card_Icc, Nat.add_sub_cancel, nsmul_eq_mul]
+
+/-- **Generic coupon capstone with crude harmonic evaluation.** Combines
+`coupon_expectedHitting_le` with `coupon_sum_le_of_uniform`: under the engine
+hypotheses plus a uniform per-level waiting-time ceiling `r`, the expected hitting
+time of `Done = {Φ = 0}` is `≤ M · r` interactions.  For the Phase-10 coupon
+stages (`M = O(n)`, `r = n(n-1)`) this is the `O(n³)` crude form; the harmonic
+`O(n² log n)` is a constant sharpening orthogonal to the engine. -/
+theorem coupon_expectedHitting_le_uniform [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ) (hmono : PotNonincr K Φ)
+    (q : ℕ → ℝ≥0∞)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m)
+    (M : ℕ) (c : α) (hc : Φ c ≤ M) (r : ℝ≥0∞)
+    (hq : ∀ m : ℕ, 1 ≤ m → m ≤ M → (1 - q m)⁻¹ ≤ r) :
+    expectedHitting K c (potBelow Φ 1) ≤ (M : ℝ≥0∞) * r :=
+  le_trans (coupon_expectedHitting_le K Φ hmono q hdrop M c hc)
+    (coupon_sum_le_of_uniform q M r hq)
+
 /-! ### Phase-10 instantiation target
 
 For the real protocol `K := (NonuniformMajority L K).transitionKernel` and the

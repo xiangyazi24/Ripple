@@ -130,6 +130,70 @@ theorem checkpoint_composition_prefix {α : Type*} [MeasurableSpace α] [Discret
       ≤ δr + (j : ℝ≥0∞) * δ := add_le_add hbound0 hbound1
     _ = (j : ℝ≥0∞) * δ + δr := by rw [add_comm]
 
+/-! ## Deliverable 2 — the `KK := j` checkpoint wrapper of `windowedFrontProfile_whp`.
+
+`windowedFrontProfile_whp` is stated at a free `KK` (the number of windows); its horizon is `w * KK`.
+For a prefix at `j ≤ KK` windows it is the SAME theorem with `KK := j`.  The only hypothesis that
+depends on the window count is `hsmall : σ·(1+4/n)^(w·KK) ≤ 1/2`.  At `j ≤ KK` the LHS is SMALLER
+(the base `1 + 4/n ≥ 1`, the exponent `w·j ≤ w·KK`), so `hsmall` at `w·j` is DERIVED from the one at
+`w·KK`. -/
+
+/-- **The pow-monotone bridge** for `hsmall`: with `0 ≤ σ` and `j ≤ KK`, the scale smallness
+`σ·(1+4/n)^(w·KK) ≤ 1/2` implies `σ·(1+4/n)^(w·j) ≤ 1/2` (the base `1 + 4/n ≥ 1`). -/
+theorem hsmall_mono (n : ℕ) (σ : ℝ) (hσ : 0 ≤ σ) (w j KK : ℕ) (hjKK : j ≤ KK)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * KK) ≤ 1 / 2) :
+    σ * (1 + 4 / (n : ℝ)) ^ (w * j) ≤ 1 / 2 := by
+  have hbase : (1 : ℝ) ≤ 1 + 4 / (n : ℝ) := by
+    have : (0 : ℝ) ≤ 4 / (n : ℝ) := by positivity
+    linarith
+  have hpow : (1 + 4 / (n : ℝ)) ^ (w * j) ≤ (1 + 4 / (n : ℝ)) ^ (w * KK) :=
+    pow_le_pow_right₀ hbase (Nat.mul_le_mul_left w hjKK)
+  calc σ * (1 + 4 / (n : ℝ)) ^ (w * j)
+      ≤ σ * (1 + 4 / (n : ℝ)) ^ (w * KK) := mul_le_mul_of_nonneg_left hpow hσ
+    _ ≤ 1 / 2 := hsmall
+
+open ClockFrontProfile in
+/-- **STEP 4 capstone at a free window count `j ≤ KK`** — the `KK := j` checkpoint wrapper of
+`windowedFrontProfile_whp`.  The horizon is `w * j`; the scale smallness at `w * j` is derived from
+the one at `w * KK` via `hsmall_mono`.  Everything else is `windowedFrontProfile_whp` verbatim at
+`KK := j`. -/
+theorem windowedFrontProfile_whp_checkpoint (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ) (θ : ℝ)
+    (hθpos : 0 < θ) (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T) (δ : ℕ → ℝ≥0∞)
+    (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ T)
+    (σ : ℝ) (hσ : 0 < σ) (j KK : ℕ) (hjKK : j ≤ KK)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * KK) ≤ 1 / 2)
+    (tt : ℕ) (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : ∀ T < Tcap, recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : ∀ T < Tcap, MarkInv (L := L) (K := K) T mc₀) :
+    ((NonuniformMajority L K).transitionKernel ^ (w * j)) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c}
+      ≤ ∑ T ∈ Finset.range Tcap,
+          ((j : ℝ≥0∞) * δ T
+            + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+                (taintedGate (L := L) (K := K) n) ^ (w * j)) (some mc₀) {none}
+              + ENNReal.ofReal
+                (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * j)
+                    * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+                  + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * j) * ((θn : ℝ) / (n : ℝ)) ^ 2
+                      * ((w * j : ℕ) : ℝ)
+                  - σ * ((tt + 1 : ℕ) : ℝ))))) :=
+  windowedFrontProfile_whp (L := L) (K := K) θn n hn cc w θ hθpos aM haM δ hB σ hσ j
+    (hsmall_mono n σ hσ.le w j KK hjKK hsmall) tt Tcap hcap mc₀ h0 hmark
+
 end EarlyDripMarked
 
 end ExactMajority

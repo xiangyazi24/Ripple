@@ -249,3 +249,24 @@ j·δWin T + δRem T r + killK-none at τ + tainted MGF at τ) + climbPrefixBoun
 Pure-wrapper facts: climbBound side free in t; markedK_pow_erase free; neg conjunct droppable via
 neg_params. The only open engineering point: supplying hBrem (r-horizon per-window engine at the
 scale hypotheses, or a coarse uniform δRem for partial windows).
+
+## Phase B step 3 — letter 2 full version addenda (2026-06-10)
+
+- DONE already: kill_escape_le_prefix_union (B-7, single side-set S form — instantiate S :=
+  W ∧ B ∧ P and split the prefix sums by set-inclusion at the caller), PhaseConvergenceW (B-3b),
+  endpoint bridges (B-3a), prefix machinery (WidthPrefix brick in flight).
+- OPTIONAL polish (not on critical path): exact survivor projection
+  `killK_pow_someSet_eq_liveK_pow` via sub-Markov `liveK := piecewise G K (const 0)` — the Option
+  analogue of markedK_pow_erase; our killed_alive_le_real is the inequality version and suffices.
+- The killed minute phase skeleton (names locked): Qgate/κQ abbrevs, killedMinutePre/Post (none ∈
+  Post — escape paid separately, drift never bounds it), clock_killed_stepW :
+  PhaseConvergenceW (κQ n mC T) via composeW_two_phases of killed seed/bulk legs (alive branch =
+  rSeedPot_contracts_seed / rSeedPot_contracts_bulk; off-gate successor = none ∈ Post),
+  clock_real_step_gated (real_le_killed + split none ∪ alive-bad + hesc), clock_real_step_gatedW
+  (PhaseConvergenceW on the REAL kernel, ε = εseed+εbulk+εesc as ℝ≥0) — feeds composeW_n_phases
+  exactly where faithfulMinutePhases sat. ε_leg := M·qQ + ∑_{τ<M}(εW+εP+εB)(τ); qQ = 0 if the
+  phase/counter side gates are deterministic on the good event, else folded into εP.
+- HIGH-RISK unknown still open (letter 3, family2, in flight): whether
+  WindowConcentration.windowDrift_PhaseConvergence and the seed/bulk drift lemmas are
+  kernel-parametric (instantiable at κQ) or hard-code the real kernel (→ minimal generalization
+  needed).
