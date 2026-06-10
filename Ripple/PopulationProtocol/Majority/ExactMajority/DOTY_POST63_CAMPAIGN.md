@@ -3439,3 +3439,54 @@ touches only this new file).  All 7 theorems 0-sorry, 0-native_decide,
 
 **Commit** (pushed to origin main): `Doty Phase-D PhaseFloors: wire prior-phase Posts into
 per-phase drain floors`.
+
+---
+
+## Theorem 6.2 useful-Main floor (Phase-5 entry) — DELIVERED 2026-06-10
+
+NEW append-only file `Probability/UsefulMainFloor.lean` (namespace
+`ExactMajority.UsefulMainFloor`; touches only this new file). Delivers the highest-leverage
+missing count floor of the four-floors handoff: the Phase-5 `usefulMains ≥ P` floor consumed by
+`PhaseFloors.phase5_hdrop_wired` (`hmain : P ≤ usefulMains.sum count`).
+
+Single-file `lake env lean` EXIT_0. All 5 headlines axiom-clean
+(`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`); 0 sorry/admit/axiom/native_decide.
+
+### Provenance audit — no landed export confines Main exponents
+
+| candidate source | what it carries | confinement count? |
+|---|---|---|
+| `ReserveSampling.Phase5AllWin n c` | `card = n ∧ ∀ a, phase = 5` (pure phase window) | NO — no bias/exponent profile |
+| Phase-3/4 `Post` (`advFinished`/`StableTie4`) | `phaseBelowCount 5 = 0` / `noBigBias` for ALL (tie = OPPOSITE extreme, all at cap index `= L`) | NO — Thm 6.2 is the non-tie branch |
+| `mainCount_lower_of_RoleSplitGood` | `n/3 ≤ mainCount` (Lemma 5.2 role split) | NO — silent on exponent distribution |
+| §6 width machinery (`ClockFrontProfile`/`WidthTransport`/`CrossHourSide`/`FrontTailDecay`) | CLOCK minute-front concentration `O(log log n)` (Thm 6.5/6.9/6.12) | NO — clock field, not Main bias-exponent count (it is the enabling mechanism, not the count) |
+
+Genuine attack (documented in file header): deriving `0.92·|M| ≤ #usefulMains` from the landed
+clock-front exports alone is not possible — it requires the full Phase-3 bias-ledger collapse
+(Thm 6.5 `c≥(i+1) < p·c≥i²` squaring applied to the *Main* exponent profile, plus the
+total-mass-above `µ(>−l) ≤ 0.002|M|2^{−l}` and minority-mass `β⁻ ≤ 0.004|M|2^{−l}` bounds,
+union-bounded over `O(log n)` hours). That inductive collapse is the genuinely-new probabilistic
+content of Theorem 6.2.
+
+### Closed vs carried
+
+- **CLOSED (proven, axiom-clean):**
+  - `main_iff_useful_or_satExp` — a Main is exactly `biasedMainLtL` (index `< L`) xor
+    `satExpMain` (unbiased / cap index `= L`).
+  - `usefulMains_satExpMains_disjoint`, `mainCount_eq_usefulMains_add_satExp` — the genuine Main
+    decomposition `mainCount = #usefulMains + #satExpMains` (Phase-5 analogue of
+    `PhaseFloors.mainCount_eq_pullPos_add_saturatedPos`).
+  - `theorem6_2_usefulMains_floor` — the blueprint-shape headline: from `Theorem62EntryHypotheses`
+    + `(P ≤ 23n/75)`, conclude `P ≤ #usefulMains`, via `23n/75 = 0.92·(n/3) ≤ 0.92·|M| ≤ #usefulMains`.
+- **CARRIED (ONE named fact, paper provenance):** the Theorem-6.2 confinement
+  `0.92·|M| ≤ #usefulMains`, as the `hConfine` field of the `structure Theorem62EntryHypotheses`
+  (other fields `hPhase5`, `hMainFloor` are the landed chain facts). Provenance:
+  arXiv:2106.10201v2 Theorem 6.2 — `|M'| ≥ 0.92|M|` whp `1−O(1/n²)`, where
+  `M' = {majority Mains at exponents −l,−(l+1),−(l+2)} ⊆ usefulMains` since the confined exponents
+  `l, l+1, l+2` are all `< L`.
+
+### Wired adapter
+
+`phase5_hdrop_wired_from_theorem6_2` supplies the `PhaseFloors.phase5_hdrop_wired` floor directly
+from `Theorem62EntryHypotheses` + `P ≤ 23n/75`. The blueprint's `Theorem62EntryHypotheses`
+placeholder is now a concrete `structure`, with the chain mapping documented in the file header.
