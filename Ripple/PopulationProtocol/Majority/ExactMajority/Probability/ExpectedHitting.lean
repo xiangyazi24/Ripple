@@ -393,4 +393,56 @@ theorem expectedHitting_split_geometric (K : Kernel α α) [IsMarkovKernel K]
         expectedHitting_split K c₀ Done t₀
     _ ≤ (t₀ : ℝ≥0∞) + δ * s * (1 - q)⁻¹ := by gcongr
 
+/-! ## Part 5 — Per-single-step progress (coupon-collector engine)
+
+The lemmas below specialize the block engine to **single steps** (`s = 1`). They are
+the form Phase E2 consumes: a uniform *one-step* success probability `p` over the
+not-done class `Doneᶜ` (i.e. from every not-done state the kernel reaches `Done` in
+one step with probability `≥ p`, equivalently fails with probability `≤ 1 - p`)
+yields the expected-hitting bound `E[T] ≤ p⁻¹`. For a stage potential that strictly
+decreases per useful interaction, `p` is the lower bound on the per-step probability
+that the useful interaction fires; `p⁻¹` is then the expected number of interactions
+for that potential level (the per-level term of the coupon-collector / harmonic sum).
+-/
+
+/-- **One-step success ⇒ expected hitting `≤ p⁻¹`.** If `Done` is absorbing and
+from every not-done state the kernel reaches `Done` in a single step with
+probability `≥ p` (`K b Doneᶜ ≤ 1 - p`), then `E[T] ≤ p⁻¹`.
+
+This is `expectedHitting_geometric` at block length `s = 1` with failure `q = 1 - p`,
+using `(1 - (1 - p))⁻¹ = p⁻¹`. -/
+theorem expectedHitting_one_step (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (p : ℝ≥0∞) (hp : p ≤ 1)
+    (hstep : ∀ b ∈ (Doneᶜ : Set α), K b Doneᶜ ≤ 1 - p)
+    (c₀ : α) :
+    expectedHitting K c₀ Done ≤ p⁻¹ := by
+  have hblock : ∀ b ∈ (Doneᶜ : Set α), (K ^ 1) b Doneᶜ ≤ 1 - p := by
+    intro b hb; rw [pow_one]; exact hstep b hb
+  calc expectedHitting K c₀ Done
+      ≤ ((1 : ℕ) : ℝ≥0∞) * (1 - (1 - p))⁻¹ :=
+        expectedHitting_geometric K hDone hAbs 1 (by norm_num) (1 - p) hblock c₀
+    _ = p⁻¹ := by
+        rw [Nat.cast_one, one_mul, ENNReal.sub_sub_cancel (by norm_num) hp]
+
+/-- **Monotone-potential one-step bound (general `p` form).** Same conclusion as
+`expectedHitting_one_step` but stated with the success probability supplied as a
+hypothesis `q := 1 - p` directly, avoiding the `p > 1` corner: from `Done`
+absorbing and `∀ b ∈ Doneᶜ, K b Doneᶜ ≤ q` with `q < 1`,
+`E[T] ≤ (1 - q)⁻¹`. -/
+theorem expectedHitting_one_step_q (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (q : ℝ≥0∞)
+    (hstep : ∀ b ∈ (Doneᶜ : Set α), K b Doneᶜ ≤ q)
+    (c₀ : α) :
+    expectedHitting K c₀ Done ≤ (1 - q)⁻¹ := by
+  have hblock : ∀ b ∈ (Doneᶜ : Set α), (K ^ 1) b Doneᶜ ≤ q := by
+    intro b hb; rw [pow_one]; exact hstep b hb
+  calc expectedHitting K c₀ Done
+      ≤ ((1 : ℕ) : ℝ≥0∞) * (1 - q)⁻¹ :=
+        expectedHitting_geometric K hDone hAbs 1 (by norm_num) q hblock c₀
+    _ = (1 - q)⁻¹ := by rw [Nat.cast_one, one_mul]
+
 end ExactMajority
