@@ -224,6 +224,83 @@ theorem clockCounterPotential_init_le (s : ℝ)
     _ = (n : ℝ≥0∞) * M := by
         rw [Multiset.card_map, hcard, nsmul_eq_mul]
 
+/-! ## The numerics at the concrete constants (`s = 1`, `k = 50(L+1)`).
+
+The drift rate is `r = 1 + 2(e−1)/n`; the window is `t ≤ n·(L+1)` interactions
+(`δ ≤ 1`); the initial potential is `≤ n·e^{−50(L+1)}`.  We show the geometric
+tail closes to `e^{−45(L+1)} ≤ n^{−45}`.
+
+The chain (over ℝ):
+* `(1 + 2(e−1)/n)^t ≤ exp(t·2(e−1)/n) ≤ exp(2(e−1)(L+1))`  (`1+x ≤ e^x`,
+  then `t ≤ n(L+1)`);
+* `n ≤ exp(L+1)`  (`ln n ≤ L+1`);
+* product `≤ exp((2(e−1) + 1 − 50)(L+1)) = exp((2e − 51)(L+1)) ≤ exp(−45(L+1))`
+  since `2e ≤ 6`. -/
+
+/-- **Phase-0 window numerics (real).**  With the drift rate `1 + 2(e−1)/n`, a
+window of `t ≤ n·(L+1)` interactions, and initial potential `n·e^{−50(L+1)}`,
+the geometric tail is at most `e^{−45(L+1)}`.  Requires `n ≥ 1`,
+`ln n ≤ (L+1)`, and `t ≤ n·(L+1)`. -/
+theorem phase0_numerics_real (n L t : ℕ) (hn : 1 ≤ n)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ)) (ht : t ≤ n * (L + 1)) :
+    (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ t
+        * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+      ≤ Real.exp (-(45 * (L + 1) : ℕ)) := by
+  have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have he1 : (0 : ℝ) ≤ Real.exp 1 - 1 := by
+    have : (1 : ℝ) ≤ Real.exp 1 := by
+      have := Real.add_one_le_exp (0 : ℝ); simp at this; linarith
+    linarith
+  set x : ℝ := 2 * (Real.exp 1 - 1) / (n : ℝ) with hx
+  have hx0 : 0 ≤ x := by rw [hx]; positivity
+  -- (1+x)^t ≤ exp(t·x)
+  have hstep1 : (1 + x) ^ t ≤ Real.exp ((t : ℝ) * x) := by
+    rw [Real.exp_nat_mul]
+    exact pow_le_pow_left₀ (by linarith) (by rw [add_comm]; exact Real.add_one_le_exp x) t
+  -- t·x ≤ 2(e−1)(L+1)
+  have hLpos : (0 : ℝ) ≤ (L + 1 : ℕ) := by positivity
+  have htx : (t : ℝ) * x ≤ 2 * (Real.exp 1 - 1) * (L + 1 : ℕ) := by
+    have htn : (t : ℝ) ≤ (n : ℝ) * (L + 1 : ℕ) := by
+      have : (t : ℝ) ≤ ((n * (L + 1) : ℕ) : ℝ) := by exact_mod_cast ht
+      rwa [Nat.cast_mul] at this
+    rw [hx]
+    rw [show (t : ℝ) * (2 * (Real.exp 1 - 1) / (n : ℝ))
+          = (2 * (Real.exp 1 - 1)) * ((t : ℝ) / (n : ℝ)) by ring]
+    have hdiv : (t : ℝ) / (n : ℝ) ≤ (L + 1 : ℕ) := by
+      rw [div_le_iff₀ hnpos]; rw [mul_comm]; exact htn
+    have h2e : 0 ≤ 2 * (Real.exp 1 - 1) := by linarith
+    calc (2 * (Real.exp 1 - 1)) * ((t : ℝ) / (n : ℝ))
+        ≤ (2 * (Real.exp 1 - 1)) * (L + 1 : ℕ) := by
+          exact mul_le_mul_of_nonneg_left hdiv h2e
+      _ = 2 * (Real.exp 1 - 1) * (L + 1 : ℕ) := rfl
+  -- n ≤ exp(L+1)
+  have hn_exp : (n : ℝ) ≤ Real.exp (L + 1 : ℕ) := by
+    have hlogle : Real.log (n : ℝ) ≤ (L + 1 : ℕ) := hlog
+    calc (n : ℝ) = Real.exp (Real.log (n : ℝ)) := (Real.exp_log hnpos).symm
+      _ ≤ Real.exp (L + 1 : ℕ) := Real.exp_le_exp.mpr hlogle
+  -- assemble
+  have hpow_nonneg : (0 : ℝ) ≤ (1 + x) ^ t := by positivity
+  calc (1 + x) ^ t * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+      ≤ Real.exp ((t : ℝ) * x) * (Real.exp (L + 1 : ℕ) * Real.exp (-(50 * (L + 1) : ℕ))) := by
+        apply mul_le_mul hstep1 ?_ ?_ (by positivity)
+        · exact mul_le_mul_of_nonneg_right hn_exp (by positivity)
+        · positivity
+    _ ≤ Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ))
+          * (Real.exp (L + 1 : ℕ) * Real.exp (-(50 * (L + 1) : ℕ))) := by
+        apply mul_le_mul_of_nonneg_right (Real.exp_le_exp.mpr htx) (by positivity)
+    _ = Real.exp ((2 * (Real.exp 1 - 1) + 1 - 50) * (L + 1 : ℕ)) := by
+        rw [← Real.exp_add, ← Real.exp_add]
+        congr 1
+        push_cast
+        ring
+    _ ≤ Real.exp (-(45 * (L + 1) : ℕ)) := by
+        apply Real.exp_le_exp.mpr
+        have he3 : Real.exp 1 ≤ 3 := by
+          have := Real.exp_one_lt_d9; linarith
+        have hcoef : (2 * (Real.exp 1 - 1) + 1 - 50) ≤ -45 := by nlinarith [he3]
+        push_cast
+        nlinarith [hLpos, hcoef, mul_le_mul_of_nonneg_right hcoef hLpos]
+
 end Phase0Window
 
 end ExactMajority

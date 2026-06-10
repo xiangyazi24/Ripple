@@ -914,6 +914,110 @@ minute boundary inside the hour (`τ ≤ w·KK`), explicit closed form `εWAt`. 
 NOT a §6 width gap: it is (i) the eight independent non-width side-feeder engines, and (ii) the
 post-hour absorbed width mode (`τ > w·KK`), both honestly named inside `hside`.
 
+## PHASE D-1 — uniform FrontSync side-budget `sideB` DISCHARGED (2026-06-10, 3 commits, 0-sorry axiom-clean)
+_(record copied here from `claude-code/memory/project_pp_exact_majority.md` where the D-1 agent misfiled it.)_
+
+NEW file `Probability/SideBudget.lean` (361 lines). Discharges the single FrontSync side-prefix
+feeder that BOTH consumers carry: the §6 hour-escape (`HourEscape.heB_of_sideB`, B-14) and the
+clock chain's `εsync` slice (`ClockBudgets`/`WidthPrefixConcrete.clock_unconditional_final`).
+- f9933a6f D-1a: `frontSyncFail_concrete` — per-τ `(realκ^τ)(erase mc₀){¬FrontSync} ≤ εWAt + εP +
+  εB` via `ClockFrontSyncFromWidth.frontSync_whp_of_goodFrontWidth`, WIDTH slice substituted by the
+  concrete `εWAt` (`widthFail_at_concrete`, B-13). `frontSyncFail_at_free` — same at free τ < w·KK
+  via canonical decomp j=τ/w, r=τ%w (`w_pos_of_N₀`: w n = 3n/200 > 0 at n ≥ N₀ = 10⁴⁰).
+- da6362e7 D-1b: `sideB_concrete` — `∑_{τ<w·KK} (realκ^τ)(erase mc₀){HourSideBad} ≤ εsync` where
+  `εsync = ∑_{τ<M} (εWAt(τ/w,τ%w) + εP τ + εB τ)` (HourSideBad = {¬FrontSync} def-eq). `heB_concrete`
+  — `heB` FULLY NUMERIC: killK cemetery mass after one hour ≤ εsync, via `heB_of_sideB ∘ sideB_concrete`.
+- 24398f38 D-1c: `Sgood_compl_le_uniform` — per-τ `Sgood(T)ᶜ ≤ sideEps` (width slice = concrete εWAt)
+  via `sidePrefix_concrete_width` + gcongr to uniform width majorant. `clock_unconditional_wired` —
+  εside fed into `clock_unconditional_final` (conclusion `εclock = (K(L+1)−1)(εbulk+tbulk·εside)`).
+εB RESOLUTION (honest): εB = bulk-below failure {¬(10·rBeyond(capMinute−W) < card)} stays a NAMED
+per-τ input. It is the bulk-ARRIVAL/hour-completion event — the §6 width engine bounds the FRONT,
+not the bulk progress, so εB is the legitimate hour-boundary event, carried with precise shape (not
+faked, not absorbed). εP = {¬WidthSideP n} also NAMED, exactly as ClockBudgets.sidePrefix_le_assembled
+carries it (card+AllClockP3 preserved by gate; recurrence conjunct not absorbing).
+SURVIVING GAPS for the chain: (1) εP/εB per-τ bounds (the named hour residuals — εB is genuinely
+the bulk-arrival/hour-completion event; εP the side-event failure); (2) the τ-uniform majorant of
+εWAt over the hour + the eight ClockBudgets feeders + the post-hour absorbed mode — all carried as
+explicit hypotheses, not faked. Pushed origin main + xiangyazi24/Ripple opus-wip.
+
+## PHASE D-2 — the per-hour composition: `phase3Convergence` DELIVERED (2026-06-10, 4 commits, 0-sorry axiom-clean)
+
+NEW file `Probability/HourComposition.lean` (namespace `ExactMajority.HourComposition`; imports
+`SideBudget` + `HourCouplingV2`). All theorems `#print axioms ⊆ [propext, Classical.choice,
+Quot.sound]`, single-file `lake env lean` EXIT_0, zero sorry / zero native_decide / zero new axiom.
+SHAs on main: D-2a 29bc1123 · D-2b a4378f4f · D-2c 4f7d4ff3 · D-2d 01f2183a.
+(synced to xiangyazi24/Ripple opus-wip ba670b3.)
+
+### Lemma 6.10 — what it couples (verified against `HourCouplingV2.hour_coupling_v2`).
+`Φ h = mAbove h / M − 1.1·cAbove h / C` where `mAbove h = |{Main : hour > h}|`, `cAbove h =
+|{Clock : clock-hour > h}|` (so it couples the MAIN-agent hour advance with the CLOCK-agent hour
+advance). On the synchronous window `c_{>h} ≤ 1/11` it is a genuine supermartingale (drag/epidemic
+pair-counting + the bracket `(1−m_{>h}) − 1.1(1−c_{>h}) ≤ 0`); Azuma gives the tail `(K^t) c₀ {Φ ≥
+Φ c₀ + lam} ≤ exp(−lam²/(2t·c₀²))`, i.e. `m_{>h}(t) ≤ 1.2·c_{>h}` whp — the **Main agents do not
+run ahead of the clock's hour**.
+
+### THE DESIGN (settled — the union-bound reality, NOT a deterministic chain).
+The phase-3 run = `K(L+1) = O(log n)` minutes; the §6 width engine + the Phase-B killed-minute
+chain certify per minute `T` that the bulk crosses (`BulkPost T`) within `tseed+tbulk`
+interactions, failure charged to the per-minute side prefix `∑_τ Sgood(T)ᶜ`. Summed over the
+`K(L+1)−1` bulk minutes (`clock_unconditional_concrete`, the UNION bound — NOT a deterministic
+composed chain, per the B-10/B-11 deviation: NUMERICAL-only `BulkPost` lacks the full `Q_mix` for a
+`Q_mix_succ_of_post` chain), total failure `≤ εclock = (K(L+1)−1)·(εbulk + tbulk·εside)`.
+
+### DELIVERABLES (theorems, signatures abbreviated).
+1. **`final_minute_le_clock`** (D-2a) — the FINAL bulk minute (`Fin`-index `K(L+1)−2`, minute
+   `T_last = K(L+1)−1`) hour-completion failure `(realκ^phase3Horizon) c₀ {¬HourComplete} ≤ εclock`,
+   by single-term domination of the non-negative `clock_unconditional_concrete` sum. `HourComplete =
+   BulkPost (K(L+1)−1)` (the bulk arrived at the clock's last hour — the hour-completion event).
+   `phase3Horizon = (K(L+1)−2)·(tseed+tbulk) + tseed + tbulk = O(log n)·n` interactions.
+2. **`phase3Convergence`** (D-2b) — the phase-3 CLOCK timed instance as a `PhaseConvergenceW
+   (NonuniformMajority L K).transitionKernel`: `Pre = {c₀}`, `Post = HourComplete`, `t =
+   phase3Horizon`, `ε = εtot` (an `ℝ≥0` upper bound on `εclock`). `convergence = final_minute_le_clock`.
+   Matches `composeW_n_phases`'s interface (the `Phase2Convergence.phase2Convergence` template).
+3. **`main_not_ahead_of_clock`** (D-2c) — Lemma 6.10 wired as the hour-ENTRY re-establishment: on
+   the synchronous `Regime`, `(K^t) c₀ {Φ ≥ Φ c₀ + lam} ≤ exp(…)` — the Main population tracks the
+   clock across hours, so the next hour's gated start re-establishes faithfully from the previous
+   hour's completion. (= `HourCouplingV2.hour_coupling_v2`, exposed in the composition namespace.)
+4. **`phase3Convergence_explicit`** (D-2d) — the explicit-budget variant: `εside := sideEps εQ
+   εfloor εWu εP εB εge3 εno3 εcpos εsucc` (the §6 nine named feeders, width slice the concrete
+   `εWAt`-majorant `εWu`), `ε = εclock(…, sideEps)`. The single carried input `hside` (τ-uniform
+   `Sgood(T)ᶜ ≤ sideEps`) is supplied per-`τ` over the hour by `SideBudget.Sgood_compl_le_uniform`.
+
+### THE BURN-IN / HOUR-ENTRY RE-ESTABLISHMENT — resolved precisely (no separate analysis needed).
+* **No separate deterministic cross-hour chaining lemma.** The per-hour/minute composition is the
+  UNION bound (B-10/B-11); each hour's marked chain starts fresh from the gated `mc₀ ∈ taintedGate n`
+  (`recInv` hour-entry), the union sums per-hour budgets.
+* **The burn-in IS the §6 width engine, already inside `εside`.** The per-hour marked-chain escape
+  budget `heB` (`HourEscape.heB_of_sideB`) is discharged concretely by `SideBudget.heB_concrete` to
+  `εsync = ∑_{τ<w·KK}(εWAt + εP + εB)`; `heB` feeds `EarlyDripMarked.windowedFrontProfile_whp_concrete`
+  / `DotyParams.goodFrontWidth_whp_*` → the §6 width whp → the `εWAt` slice of the clock's `Sgood(T)ᶜ`
+  prefix (`Sgood_compl_le_uniform`). The recurrence-invariant restart is thus already part of `εside`.
+* **What hour-completion gives the next hour.** `HourComplete = BulkPost (K(L+1)−1)` is the GOOD
+  branch of D-1's named `εB` residual: within hour `h`, either the bulk stays below (side budgets
+  apply, charged in `εclock`) or the bulk arrives (`BulkPost` — hour completes, next hour re-establishes
+  from `recInv`). The composition charges NOTHING extra for the boundary (the `εB` slice is inside
+  `εside`); Lemma 6.10 (`main_not_ahead_of_clock`) guarantees the Mains do not run ahead.
+
+### FINAL phase3 INSTANCE STATUS.
+`phase3Convergence` / `phase3Convergence_explicit` ARE the deliverable `PhaseConvergenceW` for the
+phase-3 (CLOCK) timed phase, on the real protocol kernel, matching `composeW_n_phases`'s interface.
+`t = O(log n)·n` interactions (`/n = O(log n)` parallel), `ε = εclock = O(#minutes)·(bulk + side)`.
+
+### PRECISE GAPS (surviving named inputs into `phase3Convergence`'s `hside`, all carried honestly).
+The ONLY open input is `hside : ∀ T τ, (realκ^τ) c₀ Sgood(T)ᶜ ≤ εside` — the τ-uniform side bound.
+Its provenance (per `SideBudget.Sgood_compl_le_uniform` + `ClockBudgets.sidePrefix_le_assembled`):
+- the §6 WIDTH feeder `εWAt` — DISCHARGED concretely at every prefix horizon `τ = w·j+r ≤ w·KK`
+  (B-13 + D-1); the only residual is the τ-uniform MAJORANT over the run (the documented
+  sup-over-the-hour boundary) + the post-hour (`τ > w·KK`) absorbed width mode;
+- the EIGHT non-width §-engine feeders `εQ εfloor εP εB εge3 εno3 εcpos εsucc` (distinct
+  Qmix/floor/side-event/bulk-arrival/four-phase-gate masses), each its own §-engine, carried as
+  named uniform whp inputs — the same eight residuals B-12/B-13/D-1 flagged.
+These are NOT new gaps: they are exactly the surviving residuals from B-12/B-13/D-1, now threaded
+through the phase-3 timed instance. Everything ABOVE `hside` (the final-minute domination, the
+`PhaseConvergenceW` packaging, the Lemma-6.10 hour coupling, the explicit `sideEps`/`εclock` budget)
+is FULLY PROVEN and axiom-clean. The phase-3 instance is ready for `compose_n_phases` (Phase D step 2)
+once the other ten instances + the uniform `hside` discharge land.
+
 ## Phase C-1 — RoleSplitConcentration witness (Lemma 5.2 progress field) — STATUS
 
 `RoleSplitConcentration.lean` `roleSplitTail_le` (Phase0Initial + RoleSplitMilestone ⟹
