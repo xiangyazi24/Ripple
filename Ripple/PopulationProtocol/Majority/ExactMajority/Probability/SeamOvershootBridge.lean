@@ -1553,6 +1553,7 @@ theorem det_seam_overshoot_bridge_of_wf (p : ℕ)
     (hexit : ¬ NoOvershoot (L := L) (K := K) p
       (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)) :
     AtRiskClockZero (L := L) (K := K) p c := by
+  have hp8 : p + 1 ≤ 8 := by rcases hq with h | h | h | h <;> omega
   -- Applicable, else stepOrSelf = c and ¬NoOvershoot c, contradicting hno.
   by_cases happ : Protocol.Applicable c r₁ r₂
   · -- r₁, r₂ ∈ c: well-formed and phase ≤ p+1.
@@ -1572,13 +1573,12 @@ theorem det_seam_overshoot_bridge_of_wf (p : ℕ)
       have := hno x this; omega
     · -- x = T.1: left advance ⟹ r₁ clock at p+1 counter 0
       subst hxT1
-      have hadv : (Transition L K r₁ r₂).1.phase.val > p + 1 := by
-        rw [NoOvershoot] at hxphase; omega
+      have hadv : (Transition L K r₁ r₂).1.phase.val > p + 1 := by omega
       have hep1 : (phaseEpidemicUpdate L K r₁ r₂).1.phase.val = max r₁.phase.val r₂.phase.val :=
         phaseEpidemicUpdate_left_phase_eq_max_of_wf r₁ r₂ hwf1 hwf2 (by omega) (by omega)
       have hle1 := Transition_left_phase_le_ep_succ_of_wf r₁ r₂ hwf1 hwf2 (by omega) (by omega)
       have hepeq : (phaseEpidemicUpdate L K r₁ r₂).1.phase.val = p + 1 := by
-        rw [hep1]; rw [hep1] at hle1; omega
+        rw [hep1]; omega
       have hcz := Transition_left_advance_imp_ep_clock_zero r₁ r₂ p hq hwf1 hwf2 hr1le hr2le
         hepeq hadv
       obtain ⟨hrole, hph, hctr⟩ :=
@@ -1586,14 +1586,48 @@ theorem det_seam_overshoot_bridge_of_wf (p : ℕ)
       exact ⟨r₁, hr1mem, hrole, hph, hctr⟩
     · -- x = T.2: right advance ⟹ r₂ clock at p+1 counter 0
       subst hxT2
-      have hadv : (Transition L K r₁ r₂).2.phase.val > p + 1 := by
-        rw [NoOvershoot] at hxphase; omega
+      have hadv : (Transition L K r₁ r₂).2.phase.val > p + 1 := by omega
       obtain ⟨hrole, hph, hctr⟩ :=
         Transition_right_advance_imp_source r₁ r₂ p hq hwf1 hwf2 hr1le hr2le hadv
       exact ⟨r₂, hr2mem, hrole, hph, hctr⟩
   · -- not applicable: stepOrSelf = c, so ¬NoOvershoot c, contradicting hno.
     rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ] at hexit
     exact absurd hno hexit
+
+/-- **Wire-up: discharge `DetSeamOvershootBridge p` from the seam-region well-formedness.**
+For a counter-reset destination `p+1 ∈ {1,6,7,8}`, if every configuration in the seam
+region is well-formed (`Wf` — no `mcr`, in-range biases; supplied by the `Analysis`-layer
+reachability invariants `reachable_preserves_well_formed_agent_quota` / the phase-0 EXIT
+`RoleSplitStage2Good`, both preserved on the seam), then the deterministic overshoot bridge
+`DetSeamOvershootBridge p` holds — exactly the `hdet` that `SeamNoOvershoot`'s and
+`SeamPairAdapter`'s no-overshoot tails carry as a guard. -/
+theorem detSeamOvershootBridge_of_wf (p : ℕ)
+    (hq : CounterResetDest (p + 1))
+    (hWf : ∀ c : Config (AgentState L K), Wf (L := L) (K := K) c) :
+    DetSeamOvershootBridge (L := L) (K := K) p :=
+  fun c r₁ r₂ hno hexit =>
+    det_seam_overshoot_bridge_of_wf p hq c r₁ r₂ (hWf c) hno hexit
+
+/-- **The fully-discharged honest per-seam no-overshoot budget** (counter-reset
+destination, under seam-region `Wf`).  This is `hNoOvershoot_one_seam_honest` with the
+carried bridge `hdet` ELIMINATED — discharged by `detSeamOvershootBridge_of_wf` from the
+well-formedness invariant.  The remaining surface is: seam timing/initial-potential (folded
+into `hbound`) + `Wf`-region + `CounterResetDest (p+1)` + the budget inequality `hε`. -/
+theorem hNoOvershoot_one_seam_wf (p tseam : ℕ) (εovershoot : ℝ≥0)
+    (hq : CounterResetDest (p + 1))
+    (hWf : ∀ c : Config (AgentState L K), Wf (L := L) (K := K) c)
+    (hbound : ∀ c₀ : Config (AgentState L K),
+      NoOvershoot (L := L) (K := K) p c₀ →
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+          {c | ¬ NoOvershoot (L := L) (K := K) p c}
+        ≤ ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))))
+    (hε : ENNReal.ofReal (Real.exp (-(40 * (L + 1) : ℕ))) ≤ (εovershoot : ℝ≥0∞)) :
+    ∀ c₀ : Config (AgentState L K),
+      NoOvershoot (L := L) (K := K) p c₀ →
+      ((NonuniformMajority L K).transitionKernel ^ tseam) c₀
+          {c | ¬ NoOvershoot (L := L) (K := K) p c}
+        ≤ (εovershoot : ℝ≥0∞) :=
+  hNoOvershoot_one_seam p tseam εovershoot hbound hε
 
 end SeamNoOvershoot
 
