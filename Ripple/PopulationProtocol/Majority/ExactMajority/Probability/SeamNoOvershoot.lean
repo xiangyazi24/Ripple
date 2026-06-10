@@ -36,16 +36,22 @@ immigration is bounded by `2·exp(−s·50(L+1))`).
 
 After reading `Protocol/Transition.lean` (FROZEN), the destination phases whose entry
 is driven by a clock's counter (`stdCounterSubroutine` on a clock) are
-`{1, 3, 5, 6, 7, 8}`:
+`{1, 3, 5, 6, 7, 8}`.  BUT the no-overshoot DRIFT additionally needs the epidemic
+"fresh clock" immigration term to be small — a phase-`p` clock dragged into phase
+`p+1` by the epidemic enters with FULL counter `50(L+1)` (summand `= M`) ONLY when
+`phaseInit (p+1)` RESETS the clock counter.  Checking `phaseInit` (FROZEN): the
+counter is reset to `50(L+1)` exactly for phases `{1, 5, 6, 7, 8}`; phase 3's init
+sets `minute`, NOT `counter`.  A fresh phase-3 clock therefore keeps a possibly-zero
+counter (summand up to `1`, not `M`), which breaks the affine immigration tail.
 
-* phase 1 (`clockCounterStep`), phases 5/6/7/8 (clock runs `stdCounterSubroutine`
-  after the work rule), phase 3 (gated at the hour boundary).
-
-Phases 2/9 advance by opinion-union (`Phase2Transition`/`Phase9Transition`'s
-`advancePhaseWithInit` when both signs present) and phase 4 advances by big-bias
-(`Phase4Transition`'s `advancePhase`) — these are UNTIMED; their seams are handled
-by their own work-phase guards, NOT by the clock-counter lemma.  `CounterTimedPhase`
-below is exactly `{1,3,5,6,7,8}`.
+So the honest `CounterTimedPhase` set for THIS clock-counter no-overshoot tail is
+`{1, 5, 6, 7, 8}` (`q = 1 ∨ q = 5 ∨ q = 6 ∨ q = 7 ∨ q = 8`).  Phase 3's seam is
+counter-timed but its no-overshoot must come from the dedicated minute/hour width
+machinery (`ClockOLogN`/`ClockReal*`), not this generic lemma.  Phases 2/9 advance by
+opinion-union and phase 4 by big-bias — UNTIMED; their seams are handled by their own
+work-phase guards.  This is a CORRECTION to the blueprint, which listed
+`{1,3,5,6,7,8}`: phase 3 is excluded here (fresh-clock immigration not at full
+counter).
 
 ## What is built (0 sorry / 0 axiom / no native_decide)
 
@@ -146,6 +152,84 @@ theorem seamClockPotential_ge_one_of_not_noAtRisk (p : ℕ) (s : ℝ)
     1 ≤ seamClockPotential (L := L) (K := K) p s c := by
   rw [not_not] at hc
   exact seamClockPotential_ge_one_of_atRiskClockZero p s c hc
+
+/-! ## Stage 2 — the deterministic overshoot → at-risk-clock bridge.
+
+The honest counter-timed destination set (`phaseInit` resets the clock counter to
+full exactly here, so the epidemic immigration is at full counter, AND the only
+phase-advance into `p+1` is the clock's `stdCounterSubroutine`): -/
+
+/-- **The honest counter-timed destination set** `{1, 5, 6, 7, 8}`.  These are the
+phases whose entry both (i) is driven by a clock's counter (`stdCounterSubroutine`)
+and (ii) RESETS the clock counter to full `50(L+1)` on entry via `phaseInit`.  Phase
+3 is counter-timed but does NOT reset the counter on entry (its `phaseInit` sets
+`minute`), so it is excluded — its no-overshoot comes from the minute/hour width
+machinery.  Phases 2/4/9 are untimed (opinion-union / big-bias). -/
+def CounterTimedPhase (q : ℕ) : Prop :=
+  q = 1 ∨ q = 5 ∨ q = 6 ∨ q = 7 ∨ q = 8
+
+instance (q : ℕ) : Decidable (CounterTimedPhase q) := by
+  unfold CounterTimedPhase; infer_instance
+
+/-- **The deterministic single-step overshoot bridge (full kernel), as a named
+structural fact.**  In the real Doty kernel, for a COUNTER-TIMED destination phase
+`p+1`, a single scheduled interaction taking a `NoOvershoot p` configuration (every
+agent at phase `< p+2`) out of `NoOvershoot p` forces a SOURCE-config clock at phase
+`p+1` with `counter = 0` (a witness to `AtRiskClockZero p c`).
+
+JUSTIFICATION (verified in `Protocol/Transition.lean`, FROZEN; carried as a hypothesis
+for the assembly because the full per-phase upper-bound case analysis through the
+epidemic + 11-phase dispatcher + `finishPhase10Entry` is the same magnitude as the
+existing `Transition_*_phase_le_two_*` lemmas and is out of scope for this seam file):
+
+* The phase epidemic (`phaseEpidemicUpdate`) raises both outputs to `max` of the two
+  input phases (`phaseEpidemicUpdate_*_phase_ge_max_api`), so on a `NoOvershoot` pair
+  (both phases `≤ p+1`) the post-epidemic phase is `≤ p+1` — the epidemic alone cannot
+  create `p+2`.
+* The work transition at phase `p+1 ∈ {1,5,6,7,8}` advances a clock ONLY via
+  `stdCounterSubroutine` (phase 1 = `clockCounterStep`; phases 5–8 run
+  `stdCounterSubroutine` on clocks after the work rule), and that subroutine advances
+  phase ONLY when `counter = 0`.  A clock dragged UP into phase `p+1` by the epidemic
+  has its counter RESET to full `≠ 0` (`phaseInit` Rule for `{1,5,6,7,8}`), so it
+  cannot advance further the same step.  Hence the only `p+2`-creating event is a
+  SOURCE clock already at phase `p+1` with `counter = 0`.
+
+IMPORTANT SCOPING FINDING (verified, supersedes the blueprint's optimism): the bridge
+is FALSE without a well-formedness side condition, because of the ERROR-TO-10 path.
+`phaseInit 1` sends an `mcr` agent to phase 10 (`enterPhase10`); so at the `p = 0`
+seam an `mcr` epidemic-dragged into phase 1 errors to phase `10 ≥ 2 = p+2` — an
+overshoot creation with NO counter-`0` clock involved.  (For phases `{5,6,7,8}`
+`phaseInit` never errors to 10, and a CLOCK is never `mcr`, so a clock-entry never
+errors; the leak is only NON-clock agents whose `phaseInit` can error.)  The honest
+bridge therefore requires the seam `Pre`'s well-formedness (no remaining `mcr`,
+in-range biases) so that `phaseInit` does not error during the seam — exactly the
+`validInitial`/quota invariants threaded by the `Analysis` layer
+(`reachable_preserves_well_formed_agent_quota`).  We carry the bridge as
+`DetSeamOvershootBridge p`, to be discharged per-seam from those invariants; this
+mirrors `Phase0Window.det_phase0_exit` (which carries `allPhase0` as its window). -/
+def DetSeamOvershootBridge (p : ℕ) : Prop :=
+  ∀ (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K),
+    NoOvershoot (L := L) (K := K) p c →
+    ¬ NoOvershoot (L := L) (K := K) p
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) →
+    AtRiskClockZero (L := L) (K := K) p c
+
+/-- **Kernel-level overshoot-step bound from the deterministic bridge.**  Given the
+deterministic bridge, from a `NoOvershoot p` configuration the one-step probability of
+LEAVING `NoOvershoot p` is bounded by the probability of being `AtRiskClockZero` —
+i.e. the kernel mass of `{¬ NoOvershoot}` from a `NoOvershoot` start equals the
+preimage of the at-risk event.  Concretely: the set of NEXT configs that overshoot is
+contained, after one step from a `NoOvershoot` config, in the configs reachable from
+an `AtRiskClockZero` source.  We expose the per-pair containment used by the prefix
+union in Stage 5. -/
+theorem stepOrSelf_overshoot_imp_atRisk (p : ℕ)
+    (hdet : DetSeamOvershootBridge (L := L) (K := K) p)
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hno : NoOvershoot (L := L) (K := K) p c)
+    (hexit : ¬ NoOvershoot (L := L) (K := K) p
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)) :
+    AtRiskClockZero (L := L) (K := K) p c :=
+  hdet c r₁ r₂ hno hexit
 
 end SeamNoOvershoot
 

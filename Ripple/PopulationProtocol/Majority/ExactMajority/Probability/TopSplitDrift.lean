@@ -387,6 +387,7 @@ def InwardResidual (s : ℝ) (c : Config (AgentState L K)) : Prop :=
         (Config.interactionProb c pair.1 pair.2).toReal
           * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)) ≤ 0
 
+set_option maxHeartbeats 1200000 in
 /-- **The cosh one-step drift (real form).**  On the Phase-0 region with `s ≥ 0`,
 `2 ≤ card`, and the inward residual, the cosh MGF contracts multiplicatively:
 `∫ coshExpVal s dK(c) ≤ cosh s · coshExpVal s c`.  No additive immigration term —
@@ -438,19 +439,20 @@ theorem coshExpVal_drift_real (s : ℝ) (hs : 0 ≤ s)
     rw [tsum_eq_sum (s := Finset.univ)
         (by intro x hx; exact absurd (Finset.mem_univ x) hx)] at this
     convert this using 1
+  have htp0 : (c.totalPairs : ℝ≥0∞) ≠ 0 := by
+    have : 0 < c.totalPairs := by
+      unfold Config.totalPairs; have : 2 ≤ c.card := hc2
+      have : 1 ≤ c.card - 1 := by omega
+      positivity
+    exact_mod_cast Nat.pos_iff.mp this |>.symm ▸ (by exact_mod_cast (by omega : c.totalPairs ≠ 0))
+  have hfin : ∀ pair ∈ (Finset.univ : Finset (AgentState L K × AgentState L K)),
+      Config.interactionProb c pair.1 pair.2 ≠ ⊤ := by
+    intro pair _
+    unfold Config.interactionProb
+    exact ENNReal.div_ne_top (ENNReal.natCast_ne_top _) htp0
   have hsumprob : (∑ pair : AgentState L K × AgentState L K, probR pair) = 1 := by
-    have hcast : (∑ pair : AgentState L K × AgentState L K, probR pair)
-        = ((∑ pair : AgentState L K × AgentState L K,
-            Config.interactionProb c pair.1 pair.2)).toReal := by
-      rw [ENNReal.toReal_sum (fun pair _ => ?_)]
-      · rfl
-      · -- interactionProb pair ≠ ⊤ : it is a PMF coefficient (≤ 1).
-        have : Config.interactionProb c pair.1 pair.2 ≤ 1 := by
-          rw [← hsumENN]
-          exact Finset.single_le_sum (f := fun p => Config.interactionProb c p.1 p.2)
-            (fun _ _ => zero_le') (Finset.mem_univ pair)
-        exact ne_top_of_le_ne_top one_ne_top this
-    rw [hcast, hsumENN, ENNReal.one_toReal]
+    rw [hprobR]
+    rw [← ENNReal.toReal_sum hfin, hsumENN, ENNReal.toReal_one]
   -- COSH part: each term ≤ cosh s · cosh(sX) · prob.
   have hcoshpart : (∑ pair : AgentState L K × AgentState L K,
         probR pair * (Real.cosh (s * X)
