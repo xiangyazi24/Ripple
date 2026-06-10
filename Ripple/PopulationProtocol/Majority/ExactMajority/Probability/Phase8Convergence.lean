@@ -158,9 +158,51 @@ theorem absorbConsume_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
     | (split_ifs <;> simp_all <;> omega)
     | simp_all)
 
-/-- When the pair is **not** both Main, `Phase8Transition` leaves every Main's bias
-unchanged (`absorbConsume` not invoked; the clock subroutine touches only the clock
-side, not a Main).  So the minority count is unchanged. -/
+/-- **Per-pair strict drain.**  The canonical eliminator-consumes-minority event:
+`s` is a `σ`-minority Main at exponent index `i`, `t` is a `σ.flip` (majority /
+eliminator) Main at the strictly higher index `j > i` and is not yet `full`.  Then
+`absorbConsume` fires the second consume branch, zeroing the minority `s`'s bias, so
+the pair's `σ`-Main count strictly drops (output `+ 1 ≤` input).  This is the
+per-pair seed of the drain rectangle: each (eliminator, minority) interaction with
+the eliminator at the higher index removes one minority agent. -/
+theorem absorbConsume_minorityU_pair_drop (σ st : Sign) (s t : AgentState L K)
+    (hsM : s.role = Role.main) (htM : t.role = Role.main)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic σ i)
+    (htb : t.bias = Bias.dyadic st j) (hst : st ≠ σ) (hlt : i.val < j.val)
+    (htf : ¬ t.full) :
+    Multiset.countP (fun a => minoritySt σ a)
+        ({(absorbConsume L K s t).1, (absorbConsume L K s t).2} : Multiset (AgentState L K))
+        + 1
+      ≤ Multiset.countP (fun a => minoritySt σ a)
+          ({s, t} : Multiset (AgentState L K)) := by
+  classical
+  -- `s` is a `σ`-minority; `t` is a `st`-Main with `st ≠ σ` hence NOT a `σ`-minority.
+  have hsmin : minoritySt σ s := ⟨hsM, i, hsb⟩
+  have htnotmin : ¬ minoritySt σ t := by
+    rw [minoritySt_iff]; rintro ⟨_, hb⟩
+    rw [htb] at hb; simp only [biasIsSigned] at hb
+    exact hst hb
+  -- `σ` and `st` are the two distinct signs.  Identify the consume output: the
+  -- second branch (`j > i ∧ ¬ t.full`) zeroes `s` (the minority).
+  have hcs : absorbConsume L K s t = ({s with bias := .zero}, {t with full := true}) := by
+    unfold absorbConsume
+    rw [hsb, htb]
+    rcases hσ : σ with _ | _ <;> rcases hst' : st with _ | _ <;>
+      simp only [] <;>
+      first
+      | (exact absurd (hst'.trans hσ.symm) hst)
+      | (rw [if_neg (by rintro ⟨h, _⟩; omega), if_pos ⟨hlt, htf⟩])
+  rw [countP_minoritySt_pair, countP_minoritySt_pair, hcs]
+  -- Outputs: `{s with bias := .zero}` is not a minority; `{t with full := true}` is
+  -- not a `σ`-minority (its bias is still `st ≠ σ`).
+  have ho1 : ¬ minoritySt σ ({s with bias := (.zero : Bias L)}) := by
+    rw [minoritySt_iff]; rintro ⟨_, hb⟩
+    simp only [biasIsSigned] at hb
+  have ho2 : ¬ minoritySt σ ({t with full := true}) := by
+    rw [minoritySt_iff]; rintro ⟨_, hb⟩
+    simp only at hb; rw [htb] at hb; simp only [biasIsSigned] at hb
+    exact hst hb
+  rw [if_neg ho1, if_neg ho2, if_pos hsmin, if_neg htnotmin]
 theorem Phase8Transition_minorityU_eq_of_not_both_main (σ : Sign) (s t : AgentState L K)
     (h : ¬ (s.role = Role.main ∧ t.role = Role.main)) :
     Multiset.countP (fun a => minoritySt σ a)
@@ -212,6 +254,38 @@ theorem Transition_minorityU_pair_le_of_both_main (σ : Sign) (s t : AgentState 
       ≤ Multiset.countP (fun a => minoritySt σ a) ({s, t} : Multiset (AgentState L K)) := by
   rw [Transition_eq_absorbConsume_of_phase8_main s t hs8 ht8 hsM htM]
   exact absorbConsume_minorityU_pair_le σ s t hsM htM
+
+/-- **Config-level strict drain.**  On an all-Main phase-8 window, an applicable
+pair `(s,t)` where `s` is a `σ`-minority at index `i`, `t` is an opposite-sign Main
+at the strictly higher index `j > i` and is not `full`, drops the global minority
+count by one (`minorityU (step) + 1 ≤ minorityU c`).  The eliminator-consumes-minority
+rectangle's per-cell drop fact (the Phase-4 `advancedU_stepOrSelf_advance` analogue,
+in the draining direction). -/
+theorem minorityU_stepOrSelf_drop (σ st : Sign) (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase8AllMain n c) (s t : AgentState L K)
+    (happ : Protocol.Applicable c s t)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic σ i)
+    (htb : t.bias = Bias.dyadic st j) (hst : st ≠ σ) (hlt : i.val < j.val)
+    (htf : ¬ t.full) :
+    minorityU σ (Protocol.stepOrSelf (NonuniformMajority L K) c s t) + 1
+      ≤ minorityU σ c := by
+  obtain ⟨_, hph⟩ := hInv
+  have hm1 := mem_of_app_left8 happ
+  have hm2 := mem_of_app_right8 happ
+  obtain ⟨h18, h1M⟩ := hph s hm1
+  obtain ⟨h28, h2M⟩ := hph t hm2
+  have hsub : ({s, t} : Multiset (AgentState L K)) ≤ c := happ
+  have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c s t
+      = c - {s, t} + {(Transition L K s t).1, (Transition L K s t).2} := by
+    unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+  unfold minorityU
+  rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+  rw [Transition_eq_absorbConsume_of_phase8_main s t h18 h28 h1M h2M]
+  have hdrop := absorbConsume_minorityU_pair_drop σ st s t h1M h2M i j hsb htb hst hlt htf
+  have hpair_le : Multiset.countP (fun a => minoritySt σ a)
+      ({s, t} : Multiset (AgentState L K))
+        ≤ Multiset.countP (fun a => minoritySt σ a) c := Multiset.countP_le_of_le _ hsub
+  omega
 
 /-- `minorityU σ` is non-increasing under any chosen-pair update on an all-Main
 phase-8 window. -/

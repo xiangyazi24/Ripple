@@ -643,6 +643,61 @@ theorem Phase0Transition_second_no_mcr_of_cr_mcr
     if_false, if_true, not_false_eq_true, not_true_eq_false,
     ne_eq, Bool.false_eq_true]
 
+/-! ### Per-rule `assignableCount` accounting — the deterministic delta.
+
+These three lemmas pin the *exact* per-step change of the assignable pool, settling
+the floor route (deterministic regime-split vs Chernoff).  In this encoding:
+
+  * **Rule 2** (`s = MCR`, `t = unassigned Main`): `s`→`CR` with `assigned`
+    *untouched*, so the `s`-output is a **fresh unassigned CR** — assignable.  `t`
+    becomes assigned.  Net Δassignable `= 0`  (`assignable_rule2_s_stays`).
+  * **Rule 3** (`s = MCR`, `t = unassigned RoleCR`): `s`→`Main` with
+    `assigned := true` — **NOT** assignable; `t` becomes assigned.  Net Δ `= −1`
+    (`assignable_rule3_s_assigned`).
+  * **Rule 1** (`MCR,MCR`): both outputs `assigned`-untouched, roles `Main`/`CR`
+    — `+2` if the MCRs were unassigned.
+
+So `assignableCount` is **not** monotone in this encoding: Rule 3 (and Rule 4) drop
+it.  This differs from the paper's reaction 3 `Mf,U → Mt,Sf`, which produces a
+*fresh* unassigned `Sf` and keeps the pool conserved.  Consequently the clean
+deterministic floor does NOT transfer; Gap (B) genuinely needs the probabilistic
+Chernoff floor (documented in the campaign note). -/
+
+/-- **Rule 2 keeps the `s`-output assignable.** `s = MCR` meeting an unassigned
+`Main` `t` becomes a `CR` with `assigned` unchanged; if `s` was unassigned and at
+phase 0, the output `s`-agent is a *fresh* assignable (`role = cr`, `¬assigned`,
+phase 0).  This is the conserving half of Rule 2. -/
+theorem assignable_rule2_s_stays
+    (s t : AgentState L K) (hs : s.role = .mcr) (ht : t.role = .main)
+    (ht_un : t.assigned = false) (hs_un : s.assigned = false) (hs_ph : s.phase.val = 0) :
+    IsAssignable (Phase0Transition L K s t).1 := by
+  have hmcr_main : (Role.mcr = Role.main) = False := by simp
+  have hmain_mcr : (Role.main = Role.mcr) = False := by simp
+  have hrole : (Phase0Transition L K s t).1.role = .cr := by
+    unfold Phase0Transition
+    simp [hs, ht, hmcr_main, hmain_mcr, ht_un, hs_un]
+  have hassigned : (Phase0Transition L K s t).1.assigned = false := by
+    unfold Phase0Transition
+    simp [hs, ht, hmcr_main, hmain_mcr, ht_un, hs_un]
+  have hphase : (Phase0Transition L K s t).1.phase.val = 0 := by
+    have : (Phase0Transition L K s t).1.phase = s.phase := by
+      unfold Phase0Transition
+      simp [hs, ht, hmcr_main, hmain_mcr, ht_un, hs_un]
+    rw [this]; exact hs_ph
+  exact ⟨hphase, by rw [hassigned]; simp, Or.inr hrole⟩
+
+/-- **Rule 3 marks the `s`-output assigned.** `s = MCR` meeting an unassigned
+non-Main/non-MCR (i.e. `RoleCR`) `t` becomes a `Main` with `assigned := true`,
+hence **not** assignable.  This is the consuming half of Rule 3 (the reason
+`assignableCount` is not monotone here). -/
+theorem assignable_rule3_s_assigned
+    (s t : AgentState L K) (hs : s.role = .mcr)
+    (ht_nm : t.role ≠ .main) (ht_nmcr : t.role ≠ .mcr) (ht_un : t.assigned = false) :
+    (Phase0Transition L K s t).1.assigned = true := by
+  have hmcr_main : (Role.mcr = Role.main) = False := by simp
+  unfold Phase0Transition
+  simp [hs, hmcr_main, ht_nm, ht_nmcr, ht_un]
+
 /-- `mcrCount` of a singleton (re-derived locally; the upstream lemma is private). -/
 private lemma mcrCount_singleton' (a : AgentState L K) :
     ExactMajority.mcrCount (L := L) (K := K) ({a} : Config (AgentState L K)) =

@@ -402,6 +402,88 @@ theorem clockPairRate_inv_eq (mC n : ℕ) (hmC : 2 ≤ mC) (hn : 2 ≤ n) :
     simp only [ne_eq, Nat.cast_eq_zero, Nat.mul_eq_zero]; omega
   rw [ENNReal.inv_div (Or.inl (ENNReal.natCast_ne_top _)) (Or.inl hden0)]
 
+/-! ## Part 2 — The parameterized headline
+
+The combined clock-counter potential `Φ` (the *sum* of the clock counters, picked
+because it is `PotNonincr`-friendly: each clock-clock decrement lowers the sum by
+`≥ 1` while it is positive, and non-clock interactions leave it untouched) descends
+to `0` at the uniform per-step rate `clockPairRate mC n = mC(mC−1)/(n(n−1))`,
+independent of the current level.  Starting from `Φ c ≤ counterMax · mC`, the
+expected time to hit `{Φ = 0}` (phase advanced — all clock counters at `0`) is
+`≤ (counterMax · mC) · (clockPairRate mC n)⁻¹` interactions.
+
+This is the **single parameterized bound** that yields both Phase-E regimes
+(Part 3).  It is abstract over the kernel and the drop rate; the protocol-level
+discharge of (i) `PotNonincr K Φ` for the clock-counter sum and (ii) the per-level
+drop `≥ clockPairRate mC n` (the clock-clock rectangle aggregation) is the consuming
+brick's obligation — the clock-clock analogue of E2's
+`activeABPairs`/`sum_interactionProb_presentActiveAB` machinery. -/
+
+variable {α : Type*} [MeasurableSpace α]
+
+/-- **Headline: counter-timed phase expected progress.**  Let `Φ : α → ℕ` be the
+combined clock-counter potential, non-increasing along `K` (`hmono`), and suppose
+from every state at level exactly `m ≥ 1` a single interaction drops `Φ` below `m`
+with probability at least `clockPairRate mC n` (a clock-clock meeting fires the
+decrement), i.e. the not-yet-dropped mass is `≤ 1 - clockPairRate mC n` (`hdrop`).
+Then from a start `c` with `Φ c ≤ counterMax · mC` the expected number of
+interactions to all-counters-zero is
+
+    expectedHitting K c {Φ = 0} ≤ (counterMax · mC) · (clockPairRate mC n)⁻¹.
+
+(`Engine.potBelow Φ 1 = {Φ < 1} = {Φ = 0}` is the phase-advance trigger.) -/
+theorem timed_phase_expected_progress [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ)
+    (hmono : Engine.PotNonincr K Φ)
+    (mC n counterMax : ℕ) (hmC : mC ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    (c : α) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c (Engine.potBelow Φ 1)
+      ≤ ((counterMax * mC : ℕ) : ℝ≥0∞) * (clockPairRate mC n)⁻¹ := by
+  apply Engine.coupon_expectedHitting_le_uniform K Φ hmono
+    (fun _ => 1 - clockPairRate mC n) (fun m => hdrop m)
+    (counterMax * mC) c hc
+  -- per-level ceiling: `(1 - (1 - clockPairRate))⁻¹ = (clockPairRate)⁻¹ ≤ r` (with equality).
+  intro m _ _
+  rw [one_sub_one_sub_clockPairRate_inv mC n hmC]
+
+/-! ## Part 3 — The two regime instantiations
+
+One headline, two regimes, separated only by the lower bound carried on the (fixed,
+post-Phase-0) clock count `mC`.  The whole difference is an upper bound on the
+waiting-time reciprocal `(clockPairRate mC n)⁻¹ = n(n−1)/(mC(mC−1))`. -/
+
+/-- **Waiting-time reciprocal, closed form, bounded by the clock floor.**  Using the
+closed form `(clockPairRate mC n)⁻¹ = n(n−1)/(mC(mC−1))` and a floor `d ≤ mC(mC−1)`
+on the clock-pair count (`d ≥ 1`), the waiting time is `≤ n(n−1)/d`.  Both regime
+corollaries are this with the appropriate `d`. -/
+theorem clockPairRate_inv_le_div (mC n d : ℕ) (hmC : 2 ≤ mC) (hn : 2 ≤ n)
+    (hfloor : d ≤ mC * (mC - 1)) :
+    (clockPairRate mC n)⁻¹ ≤ (n * (n - 1) : ℕ) / (d : ℕ) := by
+  rw [clockPairRate_inv_eq mC n hmC hn]
+  apply ENNReal.div_le_div_left
+  exact_mod_cast hfloor
+
+/-- **Headline product, simplified by the `mC`-cancellation.**  The headline RHS
+`(counterMax · mC) · (clockPairRate mC n)⁻¹` equals `counterMax · n(n−1) / (mC − 1)`:
+the `mC` factor in the prefactor cancels one of the two factors in the clock-pair
+count `mC(mC−1)`.  This is the key algebraic identity for both regimes. -/
+theorem headline_product_eq (counterMax mC n : ℕ) (hmC : 2 ≤ mC) (hn : 2 ≤ n) :
+    ((counterMax * mC : ℕ) : ℝ≥0∞) * (clockPairRate mC n)⁻¹
+      = ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) / ((mC - 1 : ℕ) : ℝ≥0∞) := by
+  rw [clockPairRate_inv_eq mC n hmC hn]
+  have hmc0 : ((mC : ℕ) : ℝ≥0∞) ≠ 0 := by simp; omega
+  have hmctop : ((mC : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+  have hcast1 : ((mC * (mC - 1) : ℕ) : ℝ≥0∞)
+      = ((mC : ℕ) : ℝ≥0∞) * ((mC - 1 : ℕ) : ℝ≥0∞) := by push_cast; ring
+  have hcast2 : ((counterMax * mC : ℕ) : ℝ≥0∞)
+      = ((counterMax : ℕ) : ℝ≥0∞) * ((mC : ℕ) : ℝ≥0∞) := by push_cast; ring
+  rw [hcast1, hcast2, ← mul_div_assoc]
+  rw [show ((counterMax : ℕ) : ℝ≥0∞) * ((mC : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+       = ((mC : ℕ) : ℝ≥0∞) * (((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)) by ring]
+  rw [ENNReal.mul_div_mul_left _ _ hmc0 hmctop]
+
 end ConditionalPhaseProgress
 
 end ExactMajority
