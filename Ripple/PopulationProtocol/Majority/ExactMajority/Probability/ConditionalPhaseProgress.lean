@@ -1777,21 +1777,75 @@ theorem clockCounterSumAt_hdrop_of_floor (p : ℕ)
     rw [MeasureTheory.prob_compl_eq_one_sub hmeas]
     have hmono := clockPairRate_mono_left mC (posClockCount (L := L) (K := K) p b) b.card
       (hfloor b hb)
-    rw [hcard] at hmono
+    -- hmono : clockPairRate mC b.card ≤ clockPairRate posCount b.card
+    -- hdrop : kernel ≥ clockPairRate posCount b.card
     have hrate : clockPairRate mC n
         ≤ (NonuniformMajority L K).transitionKernel b
-            (Engine.potBelow (clockCounterSumAt p) m) :=
-      le_trans hmono (by rw [← hcard] at hdrop ⊢; exact hdrop)
+            (Engine.potBelow (clockCounterSumAt p) m) := by
+      rw [← hcard]
+      exact le_trans hmono hdrop
     exact tsub_le_tsub_left hrate 1
-  · -- card < 2: only with n < 2; then mC ≤ posCount ≤ card < 2 ≤ ... rate uses n = card < 2
-    -- clockPairRate mC n with n = card; 1 - clockPairRate mC n ≤ 1 trivially when card < 2
-    have hn : n < 2 := by rw [← hcard]; omega
+  · -- card < 2: the floor forces mC ≤ posCount ≤ card < 2, so mC ≤ 1 ⇒ rate numerator = 0.
+    have hposle : posClockCount (L := L) (K := K) p b ≤ b.card := by
+      unfold posClockCount
+      exact le_trans (Multiset.countP_le_card _ _) (le_refl _)
+    have hmCle : mC ≤ 1 := le_trans (hfloor b hb) (by omega)
     have hzero : clockPairRate mC n = 0 := by
       unfold clockPairRate
-      have : n * (n - 1) = 0 := by omega
+      have : mC * (mC - 1) = 0 := by interval_cases mC <;> rfl
       rw [this]; simp
     rw [hzero, tsub_zero]
     exact MeasureTheory.prob_le_one
+
+/-- **Real-kernel tiny-clock corollary (E4-ready).**  On the protocol kernel, from an
+`AllClockGEpCard p n`-state at level `≤ counterMax · mC`, with the carried clock floor
+`mC ≤ posClockCount p b` on every invariant state (`mC ≥ 2`), the expected number of
+interactions to advance the timed phase `p ∈ {0,1,5,6,7,8}` is `≤ counterMax · n²`.
+
+All engine ingredients are discharged here: `InvClosed` (`AllClockGEpCard_InvClosed`),
+`PotNonincrOn` (Brick 1), `hdrop` (Brick 2 + floor).  The SINGLE remaining input is the
+protocol-level floor `hfloor` (the clock-count lower bound, supplied by E4 / Lemma 5.2). -/
+theorem timed_phase_progress_real_tinyClock (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (hp3 : 3 ≤ p)
+    (mC n counterMax : ℕ) (hmC : 2 ≤ mC) (hmCn : mC ≤ n) (hn : 2 ≤ n)
+    (hfloor : ∀ b : Config (AgentState L K), AllClockGEpCard (L := L) (K := K) p n b →
+      mC ≤ posClockCount (L := L) (K := K) p b)
+    (c : Config (AgentState L K)) (hInvc : AllClockGEpCard (L := L) (K := K) p n c)
+    (hc : clockCounterSumAt p c ≤ counterMax * mC) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (Engine.potBelow (clockCounterSumAt p) 1)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) :=
+  timed_phase_progress_tinyClock_on (NonuniformMajority L K).transitionKernel
+    (clockCounterSumAt p) (AllClockGEpCard (L := L) (K := K) p n)
+    (AllClockGEpCard_InvClosed (L := L) (K := K) p n hp3)
+    (by
+      -- PotNonincrOn for AllClockGEpCard follows from the AllClockGEp version
+      intro b hb
+      exact clockCounterSumAt_PotNonincrOn (L := L) (K := K) p hp b hb.1)
+    mC n counterMax hmC hmCn hn
+    (clockCounterSumAt_hdrop_of_floor (L := L) (K := K) p hp mC n hfloor)
+    c hInvc hc
+
+/-- **Real-kernel big-clock corollary (E4-ready).**  The linear bound `≤ counterMax · 11 n`
+under the Lemma 5.2 big-clock floor `n/5 ≤ mC ≤ posClockCount p b` (`n ≥ 18`).  Same
+discharge as the tiny-clock corollary; the only input is the protocol-level floor. -/
+theorem timed_phase_progress_real_bigClock (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (hp3 : 3 ≤ p)
+    (mC n counterMax : ℕ) (hfloorN : n / 5 ≤ mC) (hmCn : mC ≤ n) (hn : 18 ≤ n)
+    (hfloor : ∀ b : Config (AgentState L K), AllClockGEpCard (L := L) (K := K) p n b →
+      mC ≤ posClockCount (L := L) (K := K) p b)
+    (c : Config (AgentState L K)) (hInvc : AllClockGEpCard (L := L) (K := K) p n c)
+    (hc : clockCounterSumAt p c ≤ counterMax * mC) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (Engine.potBelow (clockCounterSumAt p) 1)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((11 * n : ℕ) : ℝ≥0∞) :=
+  timed_phase_progress_bigClock_on (NonuniformMajority L K).transitionKernel
+    (clockCounterSumAt p) (AllClockGEpCard (L := L) (K := K) p n)
+    (AllClockGEpCard_InvClosed (L := L) (K := K) p n hp3)
+    (by intro b hb; exact clockCounterSumAt_PotNonincrOn (L := L) (K := K) p hp b hb.1)
+    mC n counterMax hfloorN hmCn hn
+    (clockCounterSumAt_hdrop_of_floor (L := L) (K := K) p hp mC n hfloor)
+    c hInvc hc
 
 end ConditionalPhaseProgress
 
