@@ -237,6 +237,213 @@ theorem block_geom_tie (n : ℕ) (hn : 2 ≤ n) (s : ℕ) (hspos : 0 < s)
   intro b hbTie _
   exact block_half_tie n hn s hspos hsB b hbTie
 
+/-! ## Bridge to the unanimity `Post` and the `PhaseConvergenceW` instance
+
+The whp `Post` is the unanimous-output predicate `∃ o, ∀ a ∈ c, phase = 10 ∧
+output = o`.  On the (a.e.) `S1`/`Tie1plus` trajectory `AllPhase10` holds, so the only
+way `Post` can fail is `wrongACount > 0` (majority) / `wrongTCount > 0` (tie).  Hence
+the not-`Post` mass is bounded by the not-done mass, which the block-geometric tail
+controls. -/
+
+/-- The whp `Post`: every agent is in Phase 10 with a single common output. -/
+def Phase10Post (c : Config (AgentState L K)) : Prop :=
+  ∃ o : Output, ∀ a ∈ c, a.phase.val = 10 ∧ a.output = o
+
+/-- On an `AllPhase10` state, `¬ Phase10Post` forces `wrongACount > 0`: if everyone is
+in Phase 10 but not unanimously `A`, some agent's output is `≠ A`. -/
+theorem wrongACount_pos_of_not_post {c : Config (AgentState L K)}
+    (hphase : AllPhase10 (L := L) (K := K) c) (hnp : ¬ Phase10Post (L := L) (K := K) c) :
+    0 < wrongACount c := by
+  rcases Nat.eq_zero_or_pos (wrongACount c) with hw | hpos
+  · exact absurd ⟨Output.A, unanimousA_of_wrongACount_zero (L := L) (K := K) hphase hw⟩ hnp
+  · exact hpos
+
+/-- On an `AllPhase10` state, `¬ Phase10Post` forces `wrongTCount > 0`. -/
+theorem wrongTCount_pos_of_not_post {c : Config (AgentState L K)}
+    (hphase : AllPhase10 (L := L) (K := K) c) (hnp : ¬ Phase10Post (L := L) (K := K) c) :
+    0 < wrongTCount c := by
+  rcases Nat.eq_zero_or_pos (wrongTCount c) with hw | hpos
+  · exact absurd ⟨Output.T, unanimousT_of_wrongTCount_zero (L := L) (K := K) hphase hw⟩ hnp
+  · exact hpos
+
+/-- **Not-`Post` mass ≤ not-done mass (majority).** From an `S1`-start, the trajectory
+is a.e. `AllPhase10`, and there `¬Post ⟹ wrongACount > 0`. -/
+theorem notPost_le_notDone_maj (n : ℕ) (t : ℕ)
+    (c : Config (AgentState L K)) (hS1 : S1 (L := L) (K := K) n c) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c
+        {y | ¬ Phase10Post (L := L) (K := K) y} ≤
+      ((NonuniformMajority L K).transitionKernel ^ t) c
+        (potBelow (fun c => wrongACount (L := L) (K := K) c) 1)ᶜ := by
+  -- {¬Post} ⊆ {wrongACount > 0} ∪ {¬AllPhase10}; the latter carries 0 mass on S1.
+  have hcover : {y | ¬ Phase10Post (L := L) (K := K) y} ⊆
+      (potBelow (fun c => wrongACount (L := L) (K := K) c) 1)ᶜ ∪
+        {x | ¬ AllPhase10 (L := L) (K := K) x} := by
+    intro y hy
+    by_cases hphase : AllPhase10 (L := L) (K := K) y
+    · left
+      simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, Nat.lt_one_iff]
+      exact (wrongACount_pos_of_not_post (L := L) (K := K) hphase hy).ne'
+    · right; exact hphase
+  have hnull : ((NonuniformMajority L K).transitionKernel ^ t) c
+      {x | ¬ AllPhase10 (L := L) (K := K) x} = 0 := by
+    have hS1c : S1 (L := L) (K := K) n c := hS1
+    -- S1 ⊆ AllPhase10, S1 closed ⇒ ¬AllPhase10 mass ≤ ¬S1 mass = 0.
+    refine le_antisymm ?_ zero_le'
+    calc ((NonuniformMajority L K).transitionKernel ^ t) c
+          {x | ¬ AllPhase10 (L := L) (K := K) x}
+        ≤ ((NonuniformMajority L K).transitionKernel ^ t) c
+          {x | ¬ S1 (L := L) (K := K) n x} := by
+          refine measure_mono ?_
+          intro x hx
+          simp only [Set.mem_setOf_eq] at hx ⊢
+          exact fun hS1x => hx hS1x.1
+      _ = 0 := pow_not_inv_eq_zero (NonuniformMajority L K).transitionKernel
+          (fun c => S1 (L := L) (K := K) n c) (invClosed_S1 n) c hS1c t
+  calc ((NonuniformMajority L K).transitionKernel ^ t) c
+        {y | ¬ Phase10Post (L := L) (K := K) y}
+      ≤ ((NonuniformMajority L K).transitionKernel ^ t) c
+          ((potBelow (fun c => wrongACount (L := L) (K := K) c) 1)ᶜ ∪
+            {x | ¬ AllPhase10 (L := L) (K := K) x}) := measure_mono hcover
+    _ ≤ ((NonuniformMajority L K).transitionKernel ^ t) c
+          (potBelow (fun c => wrongACount (L := L) (K := K) c) 1)ᶜ
+        + ((NonuniformMajority L K).transitionKernel ^ t) c
+          {x | ¬ AllPhase10 (L := L) (K := K) x} := measure_union_le _ _
+    _ = ((NonuniformMajority L K).transitionKernel ^ t) c
+          (potBelow (fun c => wrongACount (L := L) (K := K) c) 1)ᶜ := by
+        rw [hnull, add_zero]
+
+/-- **Not-`Post` mass ≤ not-done mass (tie).** -/
+theorem notPost_le_notDone_tie (n : ℕ) (t : ℕ)
+    (c : Config (AgentState L K)) (hTie : Tie1plus (L := L) (K := K) n c) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c
+        {y | ¬ Phase10Post (L := L) (K := K) y} ≤
+      ((NonuniformMajority L K).transitionKernel ^ t) c
+        (potBelow (fun c => wrongTCount (L := L) (K := K) c) 1)ᶜ := by
+  have hcover : {y | ¬ Phase10Post (L := L) (K := K) y} ⊆
+      (potBelow (fun c => wrongTCount (L := L) (K := K) c) 1)ᶜ ∪
+        {x | ¬ AllPhase10 (L := L) (K := K) x} := by
+    intro y hy
+    by_cases hphase : AllPhase10 (L := L) (K := K) y
+    · left
+      simp only [potBelow, Set.mem_compl_iff, Set.mem_setOf_eq, Nat.lt_one_iff]
+      exact (wrongTCount_pos_of_not_post (L := L) (K := K) hphase hy).ne'
+    · right; exact hphase
+  have hnull : ((NonuniformMajority L K).transitionKernel ^ t) c
+      {x | ¬ AllPhase10 (L := L) (K := K) x} = 0 := by
+    refine le_antisymm ?_ zero_le'
+    calc ((NonuniformMajority L K).transitionKernel ^ t) c
+          {x | ¬ AllPhase10 (L := L) (K := K) x}
+        ≤ ((NonuniformMajority L K).transitionKernel ^ t) c
+          {x | ¬ Tie1plus (L := L) (K := K) n x} := by
+          refine measure_mono ?_
+          intro x hx
+          simp only [Set.mem_setOf_eq] at hx ⊢
+          exact fun hTx => hx hTx.1.1
+      _ = 0 := pow_not_inv_eq_zero (NonuniformMajority L K).transitionKernel
+          (fun c => Tie1plus (L := L) (K := K) n c) (invClosed_Tie1plus n) c hTie t
+  calc ((NonuniformMajority L K).transitionKernel ^ t) c
+        {y | ¬ Phase10Post (L := L) (K := K) y}
+      ≤ ((NonuniformMajority L K).transitionKernel ^ t) c
+          ((potBelow (fun c => wrongTCount (L := L) (K := K) c) 1)ᶜ ∪
+            {x | ¬ AllPhase10 (L := L) (K := K) x}) := measure_mono hcover
+    _ ≤ ((NonuniformMajority L K).transitionKernel ^ t) c
+          (potBelow (fun c => wrongTCount (L := L) (K := K) c) 1)ᶜ
+        + ((NonuniformMajority L K).transitionKernel ^ t) c
+          {x | ¬ AllPhase10 (L := L) (K := K) x} := measure_union_le _ _
+    _ = ((NonuniformMajority L K).transitionKernel ^ t) c
+          (potBelow (fun c => wrongTCount (L := L) (K := K) c) 1)ᶜ := by
+        rw [hnull, add_zero]
+
+/-- Coercion helper: `((1/2 : ℝ≥0)^k : ℝ≥0∞) = (1/2 : ℝ≥0∞)^k`. -/
+theorem coe_half_pow (k : ℕ) :
+    (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) = ((1 / 2 : ℝ≥0∞)) ^ k := by
+  rw [ENNReal.coe_pow]
+  congr 1
+  rw [ENNReal.coe_div (by norm_num)]
+  simp
+
+/-! ## The `PhaseConvergenceW` instances
+
+Per-case (`Pre = S1` majority, `Pre = Tie1plus` tie) and combined (`Pre = S1 ∨
+Tie1plus`).  `t = k·s`, `ε = (1/2)^k`; the block length `s ≥ 2B` and block count `k`
+are parameters, with explicit `s(n)`/`k(n)` corollaries below. -/
+
+/-- **Phase-10 whp convergence (majority case).** From an all-phase-10 majority start
+(`S1 n`), after `k` blocks of `s ≥ 2·(3 n²(1+2 log n))` interactions the configuration
+is unanimous-output with failure probability `≤ (1/2)^k`. -/
+noncomputable def phase10Convergence_maj (n : ℕ) (hn : 2 ≤ n) (s : ℕ) (hspos : 0 < s)
+    (hsB : (3 * (((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n))) * 2
+      ≤ (s : ℝ≥0∞)) (k : ℕ) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel where
+  Pre := fun c => S1 (L := L) (K := K) n c
+  Post := fun c => Phase10Post (L := L) (K := K) c
+  t := k * s
+  ε := (1 / 2) ^ k
+  convergence := by
+    intro c hS1
+    refine le_trans (notPost_le_notDone_maj n (k * s) c hS1) ?_
+    refine le_trans (block_geom_maj n hn s hspos hsB c hS1 k) ?_
+    rw [coe_half_pow k]
+
+/-- **Phase-10 whp convergence (tie case).** -/
+noncomputable def phase10Convergence_tie (n : ℕ) (hn : 2 ≤ n) (s : ℕ) (hspos : 0 < s)
+    (hsB : (2 * (((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n))) * 2
+      ≤ (s : ℝ≥0∞)) (k : ℕ) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel where
+  Pre := fun c => Tie1plus (L := L) (K := K) n c
+  Post := fun c => Phase10Post (L := L) (K := K) c
+  t := k * s
+  ε := (1 / 2) ^ k
+  convergence := by
+    intro c hTie
+    refine le_trans (notPost_le_notDone_tie n (k * s) c hTie) ?_
+    refine le_trans (block_geom_tie n hn s hspos hsB c hTie k) ?_
+    rw [coe_half_pow k]
+
+/-- **Phase-10 whp convergence (combined).** `Pre = S1 ∨ Tie1plus` routes by the
+(fixed) backup-signal sign to the two expectation headlines.  A single block length
+`s ≥ 2·(3 n²(1+2 log n))` works for both cases (the tie budget `2B` is smaller). -/
+noncomputable def phase10Convergence (n : ℕ) (hn : 2 ≤ n) (s : ℕ) (hspos : 0 < s)
+    (hsB : (3 * (((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n))) * 2
+      ≤ (s : ℝ≥0∞)) (k : ℕ) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel where
+  Pre := fun c => S1 (L := L) (K := K) n c ∨ Tie1plus (L := L) (K := K) n c
+  Post := fun c => Phase10Post (L := L) (K := K) c
+  t := k * s
+  ε := (1 / 2) ^ k
+  convergence := by
+    intro c hPre
+    have hcoe := coe_half_pow k
+    rcases hPre with hS1 | hTie
+    · refine le_trans (notPost_le_notDone_maj n (k * s) c hS1) ?_
+      refine le_trans (block_geom_maj n hn s hspos hsB c hS1 k) ?_
+      rw [hcoe]
+    · -- tie case: derive the tie budget bound from the (larger) majority budget bound.
+      have hsB_tie : (2 * (((n ^ 2 : ℕ) : ℝ≥0∞)
+          * ENNReal.ofReal (1 + 2 * Real.log n))) * 2 ≤ (s : ℝ≥0∞) := by
+        refine le_trans ?_ hsB
+        gcongr
+        norm_num
+      refine le_trans (notPost_le_notDone_tie n (k * s) c hTie) ?_
+      refine le_trans (block_geom_tie n hn s hspos hsB_tie c hTie k) ?_
+      rw [hcoe]
+
+/-! ## Stable-`Post` corollary
+
+`Phase10Post` is deterministically absorbing — once reached, the unanimous output is
+preserved forever (`phase10_unanimous_output_isStable` in `Analysis/Invariants.lean`).
+The consumer therefore gets both the whp arrival (`phase10Convergence`) and the
+deterministic stability of the limit. -/
+
+/-- **Stable-`Post` corollary.** Every `Phase10Post` configuration is `IsStable` in the
+generic population-protocol sense (the limit output is preserved under all reachable
+sequences). -/
+theorem phase10Post_isStable (c : Config (AgentState L K))
+    (hp : Phase10Post (L := L) (K := K) c) :
+    (NonuniformMajority L K).IsStable (doutPartition L K) c := by
+  obtain ⟨o, ho⟩ := hp
+  exact phase10_unanimous_output_isStable (L := L) (K := K) c o ho
+
 end Phase10Drop
 
 end ExactMajority

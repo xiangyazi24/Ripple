@@ -368,6 +368,64 @@ theorem biasedMainClassU_support_eq (σ : Sign) (i : Fin (L + 1)) (n : ℕ)
         unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
     rw [PMF.mem_support_pure_iff] at hc'; subst hc'; rfl
 
+/-! ## Part D' — the drain rectangle: per-step drop of `unsampledReserveU`.
+
+The eliminator pool is the **useful biased Mains** — Mains with exponent index `< L`
+(`biasedMainLtL`).  When an unsampled Reserve `r` (`hour = L`) meets such a Main `m`
+(`bias = .dyadic σ i`, `i.val < L`), `Phase5Transition` writes `r.hour := i < L`, so `r`
+leaves the unsampled pool: `unsampledReserveU` drops by 1.  The rectangle
+`unsampledReserves × biasedMainLtL` (ordered Reserve-first, matching the drop convention)
+feeds the shared `Phase7Convergence.drop_prob_of_rect` engine, yielding the per-step
+drop-probability floor `(#unsampled · #usefulMains)/(n(n−1))`. -/
+
+/-- The **useful eliminator** Mains: a Main with dyadic bias of index `i.val < L`.  Sampling
+against such a Main lands the Reserve at index `< L`, strictly draining the unsampled pool. -/
+def biasedMainLtL (a : AgentState L K) : Prop :=
+  a.role = Role.main ∧ ∃ (σ : Sign) (i : Fin (L + 1)), i.val < L ∧ a.bias = Bias.dyadic σ i
+
+instance (a : AgentState L K) : Decidable (biasedMainLtL a) := by
+  unfold biasedMainLtL; infer_instance
+
+/-- **Per-pair drop of `unsampled`-count under `Phase5Transition`.**  An unsampled Reserve `r`
+(role `.reserve`, `hour = L`) interacting with a useful biased Main `m` (index `< L`) leaves
+exactly zero unsampled agents in the output pair (it was the only unsampled one, and it samples
+to index `< L`). -/
+theorem Phase5Transition_unsampled_pair_drop (r m : AgentState L K)
+    (hr : unsampled r) (hm : biasedMainLtL m) :
+    Multiset.countP (fun a => unsampled a)
+        ({(Phase5Transition L K r m).1, (Phase5Transition L K r m).2}
+          : Multiset (AgentState L K)) + 1
+      ≤ Multiset.countP (fun a => unsampled a) ({r, m} : Multiset (AgentState L K)) := by
+  classical
+  obtain ⟨hrole, hhour⟩ := hr
+  obtain ⟨hmrole, σ, i, hiL, hmb⟩ := hm
+  -- RHS: r is unsampled, m is a main (not reserve) so not unsampled ⟹ RHS = 1.
+  have hm_not : ¬ unsampled m := by
+    intro hu; rw [hu.1] at hmrole; exact absurd hmrole (by decide)
+  have hrhs : Multiset.countP (fun a => unsampled a) ({r, m} : Multiset (AgentState L K)) = 1 := by
+    rw [countP_unsampled_pair, if_pos ⟨hrole, hhour⟩, if_neg hm_not]
+  -- LHS outputs: s1 = (doSample r m).1 = {r with hour := i}; output1 not unsampled (hour=i<L).
+  -- output2 = m, not unsampled.
+  have hbias_ne : m.bias ≠ Bias.zero := by rw [hmb]; exact fun h => by simp at h
+  have hguard : r.role = Role.reserve ∧ m.role = Role.main ∧ m.bias ≠ Bias.zero :=
+    ⟨hrole, hmrole, hbias_ne⟩
+  have hr_nc : ¬ ({ r with hour := exponentOf L m.bias } : AgentState L K).role = Role.clock := by
+    show r.role ≠ Role.clock; rw [hrole]; decide
+  have hm_not_clock : ¬ m.role = Role.clock := by rw [hmrole]; decide
+  have hfire : Phase5Transition L K r m
+      = ({ r with hour := exponentOf L m.bias }, m) := by
+    unfold Phase5Transition
+    simp only [if_pos hguard, if_pos hhour]
+    rw [if_neg hr_nc, if_neg hm_not_clock]
+  rw [hfire]
+  -- output1 = {r with hour := exponentOf m.bias}; exponentOf (dyadic σ i) = i, i.val < L.
+  have hexp : exponentOf L m.bias = i := by rw [hmb]; rfl
+  have hout1_not : ¬ unsampled ({ r with hour := exponentOf L m.bias } : AgentState L K) := by
+    intro hu
+    have : (exponentOf L m.bias).val = L := hu.2
+    rw [hexp] at this; omega
+  rw [countP_unsampled_pair, if_neg hout1_not, if_neg hm_not, hrhs]
+
 /-! ### The Phase-5 post predicate and the assembled `PhaseConvergenceW`.
 
 `ReserveSampleGood i K₀ c` is the honest rendering of the paper's Phase-5 output for Phase 6:

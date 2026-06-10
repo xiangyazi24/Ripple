@@ -710,9 +710,10 @@ therefore thread `J` through the Markov tail, mirroring the `_on` occupation
 lemmas: `InvClosed K J`, `J`-relative absorption of `Done`, and `J c`. -/
 
 /-- From a `J`-start the `(K^t)`-mass on `¬ J` stays `0` (the invariant holds a.e. at
-every time).  Self-contained local copy of `Phase10ExpectedTime.pow_not_inv_eq_zero`
-so this generic file does not depend on the Phase-10 stages. -/
-theorem pow_not_inv_eq_zero [DiscreteMeasurableSpace α]
+every time).  Self-contained copy (under a distinct name to avoid clashing with the
+identical `Phase10ExpectedTime.pow_not_inv_eq_zero` when both are imported) so this
+generic file does not depend on the Phase-10 stages. -/
+theorem pow_compl_inv_eq_zero_eh [DiscreteMeasurableSpace α]
     (K : Kernel α α) [IsMarkovKernel K] (J : α → Prop)
     (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0) (c : α) (hc : J c) (t : ℕ) :
     (K ^ t) c {x | ¬ J x} = 0 := by
@@ -748,7 +749,7 @@ theorem bad_antitone_on [DiscreteMeasurableSpace α]
     (K ^ (t + 1)) c Doneᶜ ≤ (K ^ t) c Doneᶜ := by
   have hbad : MeasurableSet (Doneᶜ : Set α) := hDone.compl
   have hJae : (K ^ t) c {x | ¬ J x} = 0 :=
-    pow_not_inv_eq_zero K J hClosed c hJc t
+    pow_compl_inv_eq_zero_eh K J hClosed c hJc t
   rw [Kernel.pow_succ_apply_eq_lintegral K t c hbad]
   calc ∫⁻ b, K b Doneᶜ ∂((K ^ t) c)
       ≤ ∫⁻ b, Set.indicator Doneᶜ (fun _ => (1 : ℝ≥0∞)) b ∂((K ^ t) c) := by
@@ -931,7 +932,7 @@ theorem bad_block_geometric_on [DiscreteMeasurableSpace α]
             rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply, measure_univ]
   | succ k ih =>
       have hJ_at : (K ^ (k * s)) c {x | ¬ J x} = 0 :=
-        pow_not_inv_eq_zero K J hClosed c hJc (k * s)
+        pow_compl_inv_eq_zero_eh K J hClosed c hJc (k * s)
       calc (K ^ ((k + 1) * s)) c Doneᶜ
           = (K ^ (k * s + s)) c Doneᶜ := by rw [show (k + 1) * s = k * s + s from by ring]
         _ ≤ q * (K ^ (k * s)) c Doneᶜ :=
