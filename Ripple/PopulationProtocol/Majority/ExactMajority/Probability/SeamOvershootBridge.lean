@@ -1376,6 +1376,151 @@ theorem Transition_right_phase_le_ep_succ_of_wf (a b : AgentState L K)
     | n + 9, hn, hn8 => omega
   exact hdisp
 
+/-- **Source-tracing (right).**  If the right epidemic output `ep.2` is a clock at phase
+`p+1 ∈ {1,6,7,8}` with `counter = 0`, then the SOURCE `b` is already a clock at phase
+`p+1` with `counter = 0`. -/
+theorem ep_right_clock_zero_imp_source (a b : AgentState L K) (p : ℕ)
+    (hq : CounterResetDest (p + 1))
+    (hrole : (phaseEpidemicUpdate L K a b).2.role = .clock)
+    (hphase : (phaseEpidemicUpdate L K a b).2.phase.val = p + 1)
+    (hctr : (phaseEpidemicUpdate L K a b).2.counter.val = 0) :
+    b.role = .clock ∧ b.phase.val = p + 1 ∧ b.counter.val = 0 := by
+  have hqT : CounterTimedPhase (p + 1) := CounterTimedPhase_of_CounterResetDest hq
+  have hple : p + 1 ≤ 8 := by rcases hq with h | h | h | h <;> omega
+  set ep2 := (phaseEpidemicUpdate L K a b).2 with hep2
+  rcases lt_trichotomy b.phase.val (p + 1) with hlt | heq | hgt
+  · exfalso
+    have hfull := phaseEpidemicUpdate_right_immigrant_full a b (p + 1) hqT hlt hrole hphase
+    rw [← hep2] at hfull; omega
+  · have hab : a.phase.val ≤ b.phase.val := by
+      by_contra hgt
+      rw [not_le] at hgt
+      have hge : a.phase.val ≤ ep2.phase.val := by
+        rw [hep2]
+        exact le_trans (le_max_left _ _)
+          (phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) a b)
+      rw [hphase] at hge; omega
+    obtain ⟨hctrb, hroleb, hphase_or⟩ := phaseEpidemicUpdate_right_id_of_ge a b hab
+    refine ⟨?_, heq, ?_⟩
+    · rw [← hroleb]; exact hrole
+    · rw [show b.counter.val = ep2.counter.val from by rw [hctrb], hctr]
+  · exfalso
+    have hge : b.phase.val ≤ ep2.phase.val := by
+      rw [hep2]
+      exact le_trans (le_max_right _ _)
+        (phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) a b)
+    rw [hphase] at hge; omega
+
+/-- The phase-`q` RIGHT dispatch output for a clock responder at a counter-reset
+destination `q ∈ {1,6,7,8}` is `stdCounterSubroutine`'s phase (phase 1 = `clockCounterStep`). -/
+theorem dispatch_right_clock_eq_std (e f : AgentState L K) (q : ℕ)
+    (hq : CounterResetDest q) (heq : e.phase.val = q) (hc : f.role = .clock) :
+    ((match e.phase with
+        | ⟨1, _⟩ => Phase1Transition L K e f
+        | ⟨6, _⟩ => Phase6Transition L K e f
+        | ⟨7, _⟩ => Phase7Transition L K e f
+        | ⟨8, _⟩ => Phase8Transition L K e f
+        | _ => (e, f)).2).phase.val = (stdCounterSubroutine L K f).phase.val := by
+  rcases hq with h | h | h | h <;>
+    (have hfe : e.phase = (⟨q, by rcases h with rfl <;> omega⟩ : Fin 11) := Fin.ext heq
+     rw [hfe]; subst h; simp only)
+  · -- phase 1 right = clockCounterStep f (f is a clock, so not main; main–main branch off)
+    have hmain : ¬ (e.role = .main ∧ f.role = .main) := by
+      rintro ⟨-, h⟩; rw [hc] at h; exact absurd h (by decide)
+    rw [show (Phase1Transition L K e f).2 = clockCounterStep L K f from by
+      unfold Phase1Transition; rw [if_neg hmain]]
+    unfold clockCounterStep; rw [if_pos hc]
+  · rw [Phase6Transition_right_clock e f hc]
+  · rw [Phase7Transition_right_clock e f hc]
+  · rw [Phase8Transition_right_clock e f hc]
+
+/-- The phase-`q` RIGHT dispatch output keeps a NON-clock responder's phase. -/
+theorem dispatch_right_not_clock_phase_eq (e f : AgentState L K) (q : ℕ)
+    (hq : CounterResetDest q) (heq : e.phase.val = q) (hc : f.role ≠ .clock) :
+    ((match e.phase with
+        | ⟨1, _⟩ => Phase1Transition L K e f
+        | ⟨6, _⟩ => Phase6Transition L K e f
+        | ⟨7, _⟩ => Phase7Transition L K e f
+        | ⟨8, _⟩ => Phase8Transition L K e f
+        | _ => (e, f)).2).phase.val = f.phase.val := by
+  rcases hq with h | h | h | h
+  · have hfe : e.phase = (⟨1, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    exact Phase1Transition_right_phase_eq_of_not_clock e f hc
+  · have hfe : e.phase = (⟨6, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    exact Phase6Transition_right_phase_eq_of_not_clock e f hc
+  · have hfe : e.phase = (⟨7, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    exact Phase7Transition_right_phase_eq_of_not_clock e f hc
+  · have hfe : e.phase = (⟨8, by omega⟩ : Fin 11) := Fin.ext (by rw [heq, h])
+    rw [hfe]; simp only
+    exact Phase8Transition_right_phase_eq_of_not_clock e f hc
+
+/-- **Right advance ⟹ source clock with zero counter (counter-reset destination).** -/
+theorem Transition_right_advance_imp_source (a b : AgentState L K) (p : ℕ)
+    (hq : CounterResetDest (p + 1))
+    (hwfa : WfAgent (L := L) (K := K) a) (hwfb : WfAgent (L := L) (K := K) b)
+    (ha : a.phase.val ≤ p + 1) (hb : b.phase.val ≤ p + 1)
+    (hadv : (Transition L K a b).2.phase.val > p + 1) :
+    b.role = .clock ∧ b.phase.val = p + 1 ∧ b.counter.val = 0 := by
+  have hp1le8 : p + 1 ≤ 8 := by rcases hq with h | h | h | h <;> omega
+  -- right +1 bound ⟹ ep.2.phase ≥ p+1; ep.2.phase ≤ ep.1.phase = max ≤ p+1 ⟹ = p+1.
+  have hr1 := Transition_right_phase_le_ep_succ_of_wf a b hwfa hwfb (by omega) (by omega)
+  have hep1max : (phaseEpidemicUpdate L K a b).1.phase.val = max a.phase.val b.phase.val :=
+    phaseEpidemicUpdate_left_phase_eq_max_of_wf a b hwfa hwfb (by omega) (by omega)
+  have hep2max : (phaseEpidemicUpdate L K a b).2.phase.val = max a.phase.val b.phase.val :=
+    phaseEpidemicUpdate_right_phase_eq_max_of_wf a b hwfa hwfb (by omega) (by omega)
+  have hep2 : (phaseEpidemicUpdate L K a b).2.phase.val = p + 1 := by
+    rw [hep2max]; omega
+  have hep1 : (phaseEpidemicUpdate L K a b).1.phase.val = p + 1 := by
+    rw [hep1max]; omega
+  set e := (phaseEpidemicUpdate L K a b).1 with hedef
+  set f := (phaseEpidemicUpdate L K a b).2 with hfdef
+  -- Transition.2.phase = dispatch RIGHT output phase
+  have hdispval : (Transition L K a b).2.phase.val =
+      ((match e.phase with
+        | ⟨1, _⟩ => Phase1Transition L K e f
+        | ⟨6, _⟩ => Phase6Transition L K e f
+        | ⟨7, _⟩ => Phase7Transition L K e f
+        | ⟨8, _⟩ => Phase8Transition L K e f
+        | _ => (e, f)).2).phase.val := by
+    rw [show (Transition L K a b).2 = finishPhase10Entry L K f
+          (match e.phase with
+            | ⟨0, _⟩ => Phase0Transition L K e f
+            | ⟨1, _⟩ => Phase1Transition L K e f
+            | ⟨2, _⟩ => Phase2Transition L K e f
+            | ⟨3, _⟩ => Phase3Transition L K e f
+            | ⟨4, _⟩ => Phase4Transition L K e f
+            | ⟨5, _⟩ => Phase5Transition L K e f
+            | ⟨6, _⟩ => Phase6Transition L K e f
+            | ⟨7, _⟩ => Phase7Transition L K e f
+            | ⟨8, _⟩ => Phase8Transition L K e f
+            | ⟨9, _⟩ => Phase9Transition L K e f
+            | ⟨10, _⟩ => Phase10Transition L K e f
+            | _ => (e, f)).2 from rfl]
+    rw [finishPhase10Entry_phase_val]
+    rcases hq with h | h | h | h
+    · rw [show e.phase = (⟨1, by omega⟩ : Fin 11) from Fin.ext (by rw [hep1, h])]
+    · rw [show e.phase = (⟨6, by omega⟩ : Fin 11) from Fin.ext (by rw [hep1, h])]
+    · rw [show e.phase = (⟨7, by omega⟩ : Fin 11) from Fin.ext (by rw [hep1, h])]
+    · rw [show e.phase = (⟨8, by omega⟩ : Fin 11) from Fin.ext (by rw [hep1, h])]
+  rw [hdispval] at hadv
+  -- f advances ⟹ f clock counter 0; then source-trace.
+  have hfcz : f.role = .clock ∧ f.counter.val = 0 := by
+    by_cases hc : f.role = .clock
+    · refine ⟨hc, ?_⟩
+      by_contra hctr
+      rw [dispatch_right_clock_eq_std e f (p + 1) hq hep1 hc] at hadv
+      rw [stdCounterSubroutine_phase_eq_of_counter_ne_zero f hctr, hep2] at hadv
+      omega
+    · exfalso
+      rw [dispatch_right_not_clock_phase_eq e f (p + 1) hq hep1 hc, hep2] at hadv
+      omega
+  -- source-trace the right side
+  obtain ⟨hfrole, hfctr⟩ := hfcz
+  exact ep_right_clock_zero_imp_source a b p hq hfrole hep2 hfctr
+
 end SeamNoOvershoot
 
 end ExactMajority
