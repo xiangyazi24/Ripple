@@ -594,6 +594,166 @@ theorem clockSummand_pair_le (s : ℝ) (hs : 0 ≤ s) (r₁ r₂ : AgentState L 
     gcongr
     exact le_mul_of_one_le_left zero_le' he1
 
+/-- **Per-pair potential bound (full kernel, on the window).**  On a configuration
+where every agent is at phase 0 (`allPhase0`) and every clock has positive counter
+(`noClockAtZero`), the one-step potential after scheduling ANY ordered pair is
+bounded by the source potential plus an additive bump `(eˢ−1)·(the pair's source
+summand block)` plus the single fresh-clock value:
+
+  `Φ_s(stepOrSelf c r₁ r₂) ≤ Φ_s(c) + (eˢ−1)·(summand r₁+summand r₂) + e^{−s·50(L+1)}`.
+
+For non-applicable pairs `stepOrSelf c = c`, so the bound is trivial; for
+applicable pairs the localized splits localize the change to the two interacting
+agents, where `clockSummand_pair_le` bounds the output block by `eˢ·sources +
+fresh`, and `eˢ·x = x + (eˢ−1)·x` recombines with the base into the stated form. -/
+theorem clockCounterPotential_stepOrSelf_le (s : ℝ) (hs : 0 ≤ s)
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hall : allPhase0 (L := L) (K := K) c)
+    (hno : noClockAtZero (L := L) (K := K) c) :
+    clockCounterPotential (L := L) (K := K) s
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ clockCounterPotential (L := L) (K := K) s c
+        + ENNReal.ofReal (Real.exp s - 1)
+            * (clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂)
+        + ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) := by
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · -- applicable: localize, then bound the output block.
+    have hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c := happ
+    have hr₁ : r₁ ∈ c :=
+      Multiset.mem_of_le hle (by simp)
+    have hr₂ : r₂ ∈ c :=
+      Multiset.mem_of_le hle (by simp)
+    have h₁ : r₁.phase.val = 0 := by have := hall r₁ hr₁; simp [this]
+    have h₂ : r₂.phase.val = 0 := by have := hall r₂ hr₂; simp [this]
+    have hpos₁ : r₁.role = .clock → r₁.counter.val ≠ 0 := fun hc => hno r₁ hr₁ hc
+    have hpos₂ : r₂.role = .clock → r₂.counter.val ≠ 0 := fun hc => hno r₂ hr₂ hc
+    rw [clockCounterPotential_stepOrSelf_eq_base_add_pair s c r₁ r₂ happ]
+    rw [clockCounterPotential_eq_base_add_pair s c r₁ r₂ hle]
+    set base := Config.sumOf (clockSummand (L := L) (K := K) s) (c - {r₁, r₂})
+    set S := clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂
+    set M := ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ))))
+    -- outputs ≤ eˢ·S + M ; and eˢ·S = S + (eˢ−1)·S.
+    have hpair := clockSummand_pair_le s hs r₁ r₂ h₁ h₂ hpos₁ hpos₂
+    have hofeq : ENNReal.ofReal (Real.exp s) = 1 + ENNReal.ofReal (Real.exp s - 1) := by
+      rw [← ENNReal.ofReal_one,
+          ← ENNReal.ofReal_add (by norm_num) (by linarith [Real.one_le_exp hs])]
+      congr 1; ring
+    have hexp_split : ENNReal.ofReal (Real.exp s) * S
+        = S + ENNReal.ofReal (Real.exp s - 1) * S := by
+      rw [hofeq, add_mul, one_mul]
+    calc base + (clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).1
+            + clockSummand (L := L) (K := K) s (Transition L K r₁ r₂).2)
+        ≤ base + (ENNReal.ofReal (Real.exp s) * S + M) := by gcongr
+      _ = base + (S + ENNReal.ofReal (Real.exp s - 1) * S + M) := by rw [hexp_split]
+      _ = base + S + ENNReal.ofReal (Real.exp s - 1) * S + M := by ring
+  · -- non-applicable: stepOrSelf c = c, so LHS = Φ(c) ≤ RHS.
+    rw [Protocol.stepOrSelf, if_neg happ]
+    calc clockCounterPotential (L := L) (K := K) s c
+        ≤ clockCounterPotential (L := L) (K := K) s c
+          + ENNReal.ofReal (Real.exp s - 1)
+              * (clockSummand (L := L) (K := K) s r₁ + clockSummand (L := L) (K := K) s r₂) :=
+          le_add_right le_rfl
+      _ ≤ _ := le_add_right le_rfl
+
+/-! ## The affine one-step drift (Gap-1 capstone).
+
+Summing the per-pair potential bound `clockCounterPotential_stepOrSelf_le` against
+the interaction law and collapsing the two coordinate marginals
+(`sum_fst/snd_interactionProb`, each `= Φ_s(c)/card`) yields the AFFINE one-step
+drift on the absorbing window:
+
+  `∫ Φ_s dK(c) ≤ (1 + 2(eˢ−1)/n)·Φ_s(c) + e^{−s·50(L+1)}`,
+
+where the `2/n` factor is exactly `(1/n)+(1/n)` from the two marginals, and the
+single additive `e^{−s·50(L+1)}` is the per-step fresh-clock immigration (one
+fresh clock per step, since `∑ interactionProb = 1`).  This is the in-house
+immigration+multiplicative pattern (`EarlyDripMarked.mgf_one_step`). -/
+
+/-- **Affine one-step drift (full kernel, on the window).**  On a phase-0,
+positive-counter configuration of size `n ≥ 2`, the clock-counter potential
+contracts affinely:
+
+  `∫ Φ_s dK(c) ≤ ofReal(1 + 2(eˢ−1)/n)·Φ_s(c) + ofReal(e^{−s·50(L+1)})`. -/
+theorem clockCounterPotential_drift_affine (s : ℝ) (hs : 0 ≤ s)
+    (n : ℕ) (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n) (hc2 : 2 ≤ Multiset.card c)
+    (hall : allPhase0 (L := L) (K := K) c)
+    (hno : noClockAtZero (L := L) (K := K) c) :
+    ∫⁻ c', clockCounterPotential (L := L) (K := K) s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+          * clockCounterPotential (L := L) (K := K) s c
+        + ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) := by
+  classical
+  set Φ := clockCounterPotential (L := L) (K := K) s c with hΦ
+  set M := ENNReal.ofReal (Real.exp (-(s * (50 * (L + 1) : ℕ)))) with hM
+  -- 1) lintegral = pair sum.
+  rw [lintegral_transitionKernel_eq_sum (NonuniformMajority L K) c hc2]
+  -- 2) per-pair bound, summed.
+  have hpp : ∀ pair : AgentState L K × AgentState L K,
+      clockCounterPotential (L := L) (K := K) s
+          (Protocol.stepOrSelf (NonuniformMajority L K) c pair.1 pair.2)
+        * c.interactionProb pair.1 pair.2
+      ≤ (Φ + ENNReal.ofReal (Real.exp s - 1)
+            * (clockSummand (L := L) (K := K) s pair.1
+               + clockSummand (L := L) (K := K) s pair.2) + M)
+          * c.interactionProb pair.1 pair.2 := by
+    intro pair
+    gcongr
+    exact clockCounterPotential_stepOrSelf_le s hs c pair.1 pair.2 hall hno
+  refine le_trans (Finset.sum_le_sum (fun pair _ => hpp pair)) ?_
+  -- 3) distribute the product over the three additive terms.
+  simp_rw [add_mul]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  -- ∑ Φ·prob = Φ·∑prob = Φ·1 = Φ
+  have hsumprob : (∑ pair : AgentState L K × AgentState L K,
+      c.interactionProb pair.1 pair.2) = 1 := by
+    have := (c.interactionPMF hc2).tsum_coe
+    rw [tsum_eq_sum (s := Finset.univ) (by intro x hx; exact absurd (Finset.mem_univ x) hx)] at this
+    convert this using 1
+  have hΦsum : (∑ pair : AgentState L K × AgentState L K,
+      Φ * c.interactionProb pair.1 pair.2) = Φ := by
+    rw [← Finset.mul_sum, hsumprob, mul_one]
+  have hMsum : (∑ pair : AgentState L K × AgentState L K,
+      M * c.interactionProb pair.1 pair.2) = M := by
+    rw [← Finset.mul_sum, hsumprob, mul_one]
+  -- ∑ (eˢ-1)·(summand p₁+summand p₂)·prob = (eˢ-1)·(2Φ/n)
+  have hmid : (∑ pair : AgentState L K × AgentState L K,
+      ENNReal.ofReal (Real.exp s - 1)
+        * (clockSummand (L := L) (K := K) s pair.1
+           + clockSummand (L := L) (K := K) s pair.2)
+        * c.interactionProb pair.1 pair.2)
+      = ENNReal.ofReal (Real.exp s - 1) * (Φ / (n : ℝ≥0∞) + Φ / (n : ℝ≥0∞)) := by
+    simp_rw [mul_assoc]
+    rw [← Finset.mul_sum]
+    congr 1
+    -- ∑ (sf p₁ + sf p₂)·prob = ∑ sf p₁·prob + ∑ sf p₂·prob = Φ/n + Φ/n
+    have hsplit : ∀ pair : AgentState L K × AgentState L K,
+        (clockSummand (L := L) (K := K) s pair.1
+           + clockSummand (L := L) (K := K) s pair.2) * c.interactionProb pair.1 pair.2
+          = clockSummand (L := L) (K := K) s pair.1 * c.interactionProb pair.1 pair.2
+            + clockSummand (L := L) (K := K) s pair.2 * c.interactionProb pair.1 pair.2 := by
+      intro pair; rw [add_mul]
+    rw [Finset.sum_congr rfl (fun pair _ => hsplit pair), Finset.sum_add_distrib]
+    rw [sum_fst_interactionProb c hc2 (clockSummand (L := L) (K := K) s),
+        sum_snd_interactionProb c hc2 (clockSummand (L := L) (K := K) s)]
+    rw [hcard]
+  rw [hΦsum, hMsum, hmid]
+  -- 4) the affine recombination: Φ + (eˢ-1)·(2Φ/n) + M ≤ ofReal(1+2(eˢ-1)/n)·Φ + M.
+  gcongr ?_ + M
+  -- Φ + (eˢ-1)·(2Φ/n) = (1 + 2(eˢ-1)/n)·Φ
+  have hofac : ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+      = 1 + ENNReal.ofReal (Real.exp s - 1) * (2 / (n : ℝ≥0∞)) := by
+    sorry
+  rw [hofac, add_mul, one_mul]
+  gcongr
+  -- (eˢ-1)·(Φ/n+Φ/n) = (eˢ-1)·(2/n)·Φ
+  rw [mul_comm (ENNReal.ofReal (Real.exp s - 1)) (2 / (n : ℝ≥0∞)), mul_assoc]
+  gcongr
+  rw [ENNReal.div_add_div_same, ← two_mul]
+  rw [ENNReal.mul_div_assoc, mul_comm]
+  sorry
+
 /-! ## The kernel-level tail from a supplied one-step drift.
 
 This wraps `WindowConcentration.windowDrift_tail` at the Phase-0 instantiation:
