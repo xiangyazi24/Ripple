@@ -3593,3 +3593,118 @@ B/C outputs `#check`-verified to be the exact `EliminatorMargins.Phase6To7Struct
 `Phase7To8Structure` consumer shapes; existing adapters consume them unchanged. Constants verified:
 0.92, 0.12, 0.8, 4n/15 = 0.8·(n/3), n/5. Brick A (Theorem 6.2 confinement) stays carried in
 `UsefulMainFloor.hConfine`.
+
+## Phase-1 averaging collapse floor (`Probability/AveragingCollapse.lean`, NEW) — DELIVERED 2026-06-10
+
+The last of the four floors (`HANDOFF_FOUR_FLOORS.md` §1). The Phase-1 saturated-side floor: whp
+over the Phase-1 window the saturated-positive Mains (`smallBias.val ≥ 5`) stay `≤ n/3 − P`, so
+`pullPosSet ≥ P` via the landed `PhaseFloors.mainCount_eq_pullPos_add_saturatedPos` and the wrapper
+`EliminatorMargins.phase1_pullPos_floor_of_mainCount_and_saturated_bound`.
+
+NEW file, append-only; no existing file edited. Single-file `lake env lean` EXIT_0; every headline
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide.
+Four stages, one commit each.
+
+### The honest self-contained route (no [45] import): second-moment contraction
+
+The paper imports the quantitative collapse to `{µ−1,µ,µ+1}` from reference [45] wholesale. Instead
+of formalizing [45]'s variance-decay argument, we use the genuine mechanism the blueprint pointed
+at ("a cosh/variance contraction potential"). The FROZEN `avgFin7` rule
+(`Protocol/Transition.lean`) replaces two Mains' `smallBias` values `x,y : Fin 7` by
+`(⌊(x+y)/2⌋, ⌈(x+y)/2⌉)`.
+
+**The exact per-rule integer ledger** (computed over all 7×7 = 49 pairs, both parities; centred at
+the encoding origin 3 where `smallBiasInt = v − 3`):
+
+- sum preserved: `x' + y' = x + y`;
+- centred second moment drops by EXACTLY `⌊(x.val − y.val)²/2⌋`:
+  `(x−3)² + (y−3)² − (x'−3)² − (y'−3)² = ⌊(x−y)²/2⌋ ≥ 0`.
+  Even parity: drop `= (Δ)²/2`. Odd parity: drop `= ((Δ)²−1)/2`. (The centred drop equals the raw
+  `Σ v²` drop because the linear term cancels under the preserved sum.)
+
+So `Φ = secondMomentN = Σ_{phase-1 Mains}(smallBias.val − 3)²` is **deterministically**
+non-increasing under every averaging interaction — the variance literally never rises. This is a
+per-step ℕ-monotone (NOT merely a supermartingale in expectation), so it plugs straight into the
+SAME `OneSidedCancel` level engine that `Phase1Convergence` already uses for `extremeU`. Which
+potential worked: **the plain centred second moment**; no cosh / exponential change of variable was
+needed because the contraction is already a deterministic ℕ-monotone.
+
+### The saturated-count conversion (fully proved, exact) — and why µ is irrelevant
+
+A saturated-positive Main has `smallBias.val ≥ 5`, hence `(smallBias.val − 3)² ≥ 4`
+(`sqDist3N_ge_four_of_saturated`). Summing, `4·#saturatedPos ≤ secondMomentN`
+(`four_mul_saturatedPos_le_secondMoment`). So `secondMomentN ≤ 4·(n − P)` forces
+`#saturatedPos ≤ n − P`. The blueprint's design question (a) "what IS the mean µ" **dissolves**:
+centring at the fixed encoding origin 3 already gives squared distance `≥ 4` for every saturated
+value, regardless of the true mean — no mean estimate, no `Phase1Convergence.Pre`/initialGap
+reasoning needed. (Design question (b) "two clusters at distance 1 stall the variance" is also moot
+here: the saturated side only needs distance from a FIXED center 3, and distance-1 odd-sum pairs DO
+move mass via floor/ceil, consistent with the exact `⌊(x−y)²/2⌋` drop — but the floor argument never
+relies on a variance-drop RATE, only on the deterministic non-increase + the carried drain rate.)
+
+### The four stages
+
+1. (`avgFin7_sqDist3_pair_le` / `avgFin7_sqDist3_pair_drop`) the exact Fin-7 second-moment ledger,
+   both parities, by exhaustive `decide`. `sqDist3N v := (if v.val ≤ 3 then 3 − v.val else
+   v.val − 3)²`.
+2. (`secondMomentN`, `potNonincrOn_secondMomentN`) the config potential and its deterministic
+   one-step `PotNonincrOn` on the `Phase1AllMain` window — reduces each interaction to
+   `Phase1Convergence.Transition_eq_avg_of_phase1_main` then applies the per-pair ledger; lifted to
+   the kernel exactly as `extremeU_stepOrSelf_le` / `potNonincrOn_extremeU`.
+3. (`four_mul_saturatedPos_le_secondMoment`, `saturatedPos_le_of_secondMoment_le`,
+   `secondMoment_level_tail`) the saturated-count conversion + the whp tail through the landed
+   `OneSidedCancel.level_tail` (potential non-increasing on a closed window, carried per-level drain
+   rate `q`): `(K^t) c {secondMomentN ≥ m}ᶜ-complement ≤ (q m)^t`.
+4. (`mainCount_eq_n_of_window`, `phase1_pullPos_floor_of_secondMoment_le`,
+   `phase1_pullPos_floor_whp`) the wired floor. On the window `mainCount = card = n`; the "good"
+   event `{secondMomentN ≤ 4(n−P)}` deterministically gives `P ≤ pullPosSet` via the wrapper; the
+   failure event `{¬ P ≤ pullPosSet}` is covered by `{¬window} ∪ {secondMomentN ≥ 4(n−P)+1}`, the
+   first having `0` mass (window closure), the second `≤ (q m)^t` (stage 3 tail).
+
+### Carried remainder (exactly one named atom, paper provenance)
+
+The per-level second-moment drain rate `q : ℕ → ℝ≥0∞` (the `hdrop` hypothesis of
+`secondMoment_level_tail` / `phase1_pullPos_floor_whp`). This is the SAME atom
+`Phase1Convergence.phase1Convergence` carries for `extremeU`: the per-interaction probability that a
+distant pair averages strictly inward, `≥ (pair count)/(n(n−1))`-shape, the quantitative content the
+paper imports from reference [45] (Mocquard et al., discrete averaging, Corollary 1). Exposed as a
+hypothesis exactly as Phases 1/7/8 expose theirs; everything STRUCTURAL around it (the ledger, the
+deterministic non-increase, the conversion, the tail, the wiring) is discharged 0-sorry.
+
+Commits: stage 1 `03ecd031`, stage 2 `83557382`, stage 3 `044091ee`, stage 4 `bff5e7f7`.
+
+---
+
+## 2026-06-10 — εlate / `hlate` slot (`Probability/LateFloor.lean`)
+
+New append-only file (309 lines, namespace `ExactMajority.FloorPrefix`) discharging the
+`hlate` slot of `FloorPrefix.floor_prefix_le` — the low-`u` checkpoint completion (blueprint
+§1 Region L, HANDOFF_EFLOOR_PREFIX.md's "only genuinely new probabilistic piece"). Single-file
+`lake env lean … LateFloor.lean` EXIT_0; all 9 headlines axiom-clean
+`[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide. Built on uisai2
+`/dev/shm/xhuan5/Ripple` (uisai1 down; bucket `v4.30.0 @ c5ea00351c28`).
+
+* **Stage 1 — joint `(pool,u)` ledger / dual cover.** `lateBandBad_subset_floorFail`
+  (`⊆ {pool < a₀}`) + `lateBandBad_subset_notDone` (`⊆ {¬roleSplitGoodMile}`): the late-band
+  event requires BOTH floor failure AND Stage-1 incompletion, so it is bounded by either end of
+  the race. `late_pool_step_ge_ae` = the deterministic `±2` pool-fall ledger (reuse of
+  `FloorMasses.pool_step_ge_ae`).
+* **Stage 2 — completion tail (race fast side).** `late_completion_tail` =
+  `real_bad_le_janson_add_escape` at the floor-driven `roleSplitKernelMilestone`
+  (`pMin·meanTime = Θ(log n)`); the generic-checkpoint start condition is the named `hPre_low`.
+* **Stage 3 — race assembly (race slow side, the new low-`u` floor-deficit MGF).**
+  `lateBand_step_contractive` routes through `{pool<a₀}` into the CONTRACTIVE killed engine
+  `midBand_floorFail_step_contractive` (`r<1`, the spurious `1≤r` already dropped in
+  KilledAffineTail). Per-step late mass ≤ `(rᵗ·poolExpNeg + b∑rⁱ)/exp(-s·a₀)` + escape,
+  GENUINELY DECAYING. `lateBand_prefix_contractive` aggregates.
+* **Stage 4 — wire.** `late_prefix_le` (the `hlate`-slot interface) →
+  `floor_prefix_le_with_late` (`floor_prefix_le` with `hlate` discharged by the contractive
+  route, `hshell`/`hmid` their existing feeders). `εlate n := (3n²)⁻¹`; `late_prefix_le_inv` the
+  paper-scale capstone (third of three budgets summing to `εfloor = n⁻²`).
+* **Precisely-named residuals** (Region-L stalled-martingale, after genuine attack): the low-`u`
+  affine pool drift `hdrift_G` (`r<1, b>0` on the late-band gate), the deterministic floor-exit
+  escape bridge (= Gap-2 first-escape pattern), and `hPre_low`.
+
+εlate landed at `1/(3n²)`; the calibration is honest because the killed leading term decays as
+`rᵗ` (no `1≤r`). Build infra: rsync local Ripple source + 58 Probability oleans into shm, `lake
+exe cache get` for mathlib, `lake build … LateFloor` (3572 jobs) then single-file `lake env lean`.

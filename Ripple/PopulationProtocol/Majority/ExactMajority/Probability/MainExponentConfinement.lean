@@ -124,91 +124,94 @@ theorem phase3CancelSplit_output_exp_ledger (s2 t2 : AgentState L K) :
     Bias.toRat (phase3CancelSplit L K s2 t2).1.bias
         + Bias.toRat (phase3CancelSplit L K s2 t2).2.bias
       = Bias.toRat s2.bias + Bias.toRat t2.bias :=
-  phase3CancelSplit_preserves_dyadicBiasSum_pair s2 t2
+  phase3CancelSplit_preserves_dyadicBiasSum_pair (L := L) (K := K) s2 t2
 
 /-- **The split rule is the only exponent-raising rule (FROZEN-rule ledger).**  Reading
-`phase3CancelSplit` exhaustively: in every branch, an output whose bias is `dyadic sgn k` with
-`k.val ≥ 1` arises ONLY from the split branch, whose biased input sat at exponent `k − 1`.  We
-record the contrapositive *structural* fact used by the squaring rate: if NEITHER input is biased
-at exponent `i` (nor `.zero` paired with an exponent-`i` agent), the output carries no NEW mass at
-exponent `i+1`.  Concretely: the output exponents are a subset of `{input exponents} ∪ {input
-exponent + 1 via split}`, so the new high level is sourced from the level immediately below. -/
-theorem phase3CancelSplit_no_jump (s2 t2 : AgentState L K) (sgn : Sign) (k : Fin (L + 1))
+`phase3CancelSplit` exhaustively: an output whose bias is `dyadic sgn k` with exponent `k.val = m+1`
+arises EITHER by an input already at exponent `k` (cancel/no-op preserve exponents) OR by the split
+branch, whose biased input sat at exponent exactly `m = k − 1`.  This is the deterministic squaring
+witness used by the per-hour rate: creating exponent-`(k)` mass with `k ≥ 1` consumes an agent
+already at exponent `m = k − 1` (the split "doubling needs a partner already at the level below").
+Stated with `k.val = m + 1` to avoid an in-type subtraction proof. -/
+theorem phase3CancelSplit_no_jump (s2 t2 : AgentState L K) (sgn : Sign) (k m : Fin (L + 1))
+    (hm : k.val = m.val + 1)
     (hout : (phase3CancelSplit L K s2 t2).1.bias = Bias.dyadic sgn k
       ∨ (phase3CancelSplit L K s2 t2).2.bias = Bias.dyadic sgn k) :
-    -- the output exponent `k` is sourced from an input exponent at `k` (preserve) or `k-1` (split):
     (∃ s, s2.bias = Bias.dyadic s k) ∨ (∃ s, t2.bias = Bias.dyadic s k)
-      ∨ (0 < k.val ∧ ((∃ s, s2.bias = Bias.dyadic s ⟨k.val - 1, by omega⟩)
-          ∨ (∃ s, t2.bias = Bias.dyadic s ⟨k.val - 1, by omega⟩))) := by
+      ∨ (∃ s, s2.bias = Bias.dyadic s m) ∨ (∃ s, t2.bias = Bias.dyadic s m) := by
   classical
   -- exhaustive case split on the two input biases, matching `phase3CancelSplit`'s `match`.
-  unfold phase3CancelSplit at hout
   cases hs : s2.bias with
   | zero =>
     cases ht : t2.bias with
     | zero =>
-      -- no-op: both outputs `.zero`; contradiction with output `dyadic`.
-      rw [hs, ht] at hout; simp at hout
+      simp only [phase3CancelSplit, hs, ht] at hout
+      exact absurd hout (by simp)
     | dyadic tsgn ti =>
-      -- split branch (`.zero, dyadic`): outputs `dyadic tsgn (ti+1)` when `hour > ti`, else no-op.
-      rw [hs, ht] at hout
+      simp only [phase3CancelSplit, hs, ht] at hout
       by_cases hgt : s2.hour.val > ti.val
-      · simp only [hgt, if_pos, dif_pos] at hout
-        -- output bias = dyadic tsgn ⟨ti+1⟩; from hout, k = ti+1, so input t2 at exponent k-1 = ti.
+      · simp only [hgt, dif_pos] at hout
+        -- output bias = dyadic tsgn ⟨ti+1⟩; from hout, k = ti+1, so t2 sits at exponent m = ti.
         rcases hout with h | h <;>
         · injection h with hsig hidx
           subst hsig
-          refine Or.inr (Or.inr ⟨?_, Or.inr ⟨tsgn, ?_⟩⟩)
-          · have : k.val = ti.val + 1 := by rw [← hidx]
-            omega
-          · rw [ht]; congr 1
-            have : k.val = ti.val + 1 := by rw [← hidx]
-            apply Fin.ext; simp; omega
-      · simp only [hgt, if_neg, dif_neg, not_false_iff] at hout
-        rw [hs, ht] at hout
+          refine Or.inr (Or.inr (Or.inr ⟨tsgn, ?_⟩))
+          congr 1
+          apply Fin.ext
+          have : k.val = ti.val + 1 := by rw [← hidx]
+          omega
+      · simp only [hgt, dif_neg, not_false_iff] at hout
         rcases hout with h | h
-        · simp at h
-        · exact Or.inr (Or.inl ⟨tsgn, by rw [ht]; injection h with hsig hidx; subst hsig;
-            congr 1; exact Fin.ext hidx.symm⟩)
+        · simp_all
+        · exact Or.inr (Or.inl ⟨sgn, ht.symm.trans h⟩)
   | dyadic ssgn si =>
     cases ht : t2.bias with
     | zero =>
-      rw [hs, ht] at hout
+      simp only [phase3CancelSplit, hs, ht] at hout
       by_cases hgt : t2.hour.val > si.val
-      · simp only [hgt, if_pos, dif_pos] at hout
+      · simp only [hgt, dif_pos] at hout
         rcases hout with h | h <;>
         · injection h with hsig hidx
           subst hsig
-          refine Or.inr (Or.inr ⟨?_, Or.inl ⟨ssgn, ?_⟩⟩)
-          · have : k.val = si.val + 1 := by rw [← hidx]
-            omega
-          · rw [hs]; congr 1
-            have : k.val = si.val + 1 := by rw [← hidx]
-            apply Fin.ext; simp; omega
-      · simp only [hgt, if_neg, dif_neg, not_false_iff] at hout
-        rw [hs, ht] at hout
+          refine Or.inr (Or.inr (Or.inl ⟨ssgn, ?_⟩))
+          congr 1
+          apply Fin.ext
+          have : k.val = si.val + 1 := by rw [← hidx]
+          omega
+      · simp only [hgt, dif_neg, not_false_iff] at hout
         rcases hout with h | h
-        · exact Or.inl ⟨ssgn, by rw [hs]; injection h with hsig hidx; subst hsig;
-            congr 1; exact Fin.ext hidx.symm⟩
-        · simp at h
+        · exact Or.inl ⟨sgn, hs.symm.trans h⟩
+        · simp_all
     | dyadic tsgn ti =>
-      -- cancel or no-op: outputs are `.zero` (same-exp opposite signs) or the inputs unchanged.
-      rw [hs, ht] at hout
       cases ssgn <;> cases tsgn
-      all_goals (
-        first
-        | (-- same sign: no-op, outputs = inputs.
-            rcases hout with h | h
-            · exact Or.inl ⟨_, by rw [hs]; exact h ▸ rfl⟩
-            · exact Or.inr (Or.inl ⟨_, by rw [ht]; exact h ▸ rfl⟩))
-        | (-- opposite signs: cancel (both `.zero`) if same exp, else no-op.
-            by_cases hij : si.val = ti.val
-            · simp only [hij, dif_pos] at hout
-              rcases hout with h | h <;> simp at h
-            · simp only [hij, dif_neg, not_false_iff] at hout
-              rcases hout with h | h
-              · exact Or.inl ⟨_, by rw [hs]; exact h ▸ rfl⟩
-              · exact Or.inr (Or.inl ⟨_, by rw [ht]; exact h ▸ rfl⟩)))
+      -- pos,pos : same sign no-op
+      · simp only [phase3CancelSplit, hs, ht] at hout
+        rcases hout with h | h
+        · first | exact Or.inl ⟨_, hs.symm.trans h⟩ | exact Or.inl ⟨_, h⟩
+        · first | exact Or.inr (Or.inl ⟨_, ht.symm.trans h⟩) | exact Or.inr (Or.inl ⟨_, h⟩)
+      -- pos,neg : cancel if same exp, else no-op
+      · simp only [phase3CancelSplit, hs, ht] at hout
+        by_cases hij : si.val = ti.val
+        · simp only [hij, dif_pos] at hout
+          rcases hout with h | h <;> simp_all
+        · simp only [hij, dif_neg, not_false_iff] at hout
+          rcases hout with h | h
+          · exact Or.inl ⟨_, hs.symm.trans h⟩
+          · exact Or.inr (Or.inl ⟨_, ht.symm.trans h⟩)
+      -- neg,pos : cancel if same exp, else no-op
+      · simp only [phase3CancelSplit, hs, ht] at hout
+        by_cases hij : si.val = ti.val
+        · simp only [hij, dif_pos] at hout
+          rcases hout with h | h <;> simp_all
+        · simp only [hij, dif_neg, not_false_iff] at hout
+          rcases hout with h | h
+          · exact Or.inl ⟨_, hs.symm.trans h⟩
+          · exact Or.inr (Or.inl ⟨_, ht.symm.trans h⟩)
+      -- neg,neg : same sign no-op
+      · simp only [phase3CancelSplit, hs, ht] at hout
+        rcases hout with h | h
+        · first | exact Or.inl ⟨_, hs.symm.trans h⟩ | exact Or.inl ⟨_, h⟩
+        · first | exact Or.inr (Or.inl ⟨_, ht.symm.trans h⟩) | exact Or.inr (Or.inl ⟨_, h⟩)
 
 end MainExponentConfinement
 

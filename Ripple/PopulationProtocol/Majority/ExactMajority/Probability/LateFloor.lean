@@ -80,6 +80,13 @@ open scoped Real
 
 variable {L K : ℕ}
 
+/-- The cemetery extension carries the discrete (`⊤`) measurable space, matching
+`GatedDrift`'s `instOptionMSaff` / `KilledTailConsumers`' conventions, supplied here so the
+`killK_now …` escape masses `{(none : Option (Config …))}` typecheck in this file. -/
+local instance instOptionMSlate : MeasurableSpace (Option (Config (AgentState L K))) := ⊤
+local instance instOptionDMSlate :
+    DiscreteMeasurableSpace (Option (Config (AgentState L K))) := ⟨fun _ => trivial⟩
+
 /-! ## Stage 1 — the joint `(pool, u)` ledger: the dual pointwise cover of `lateBandBad`.
 
 The late-band event `lateBandBad = shell ∧ u < uMin ∧ pool < a₀ ∧ ¬done` requires BOTH the

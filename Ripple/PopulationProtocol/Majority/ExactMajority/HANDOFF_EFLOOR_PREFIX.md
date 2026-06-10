@@ -844,3 +844,73 @@ construction). `phase0_killed_window_unconditional_closed` (s=1) takes the immig
 `b·∑aⁱ ≤ B` as an explicit hypothesis (the geometric-sum closure to `e^{−44(L+1)}`-scale, same
 arithmetic as `phase0_numerics_real` applied to the immigration tail). Supporting lemmas:
 `clockCounterPotential_eq_zero_of_allMcr`, `phase0Initial_mem_phase0Gate`.
+
+---
+
+## STATUS — LateFloor.lean: the εlate / `hlate` slot DELIVERED (2026-06-10, opus line)
+
+New append-only file `Probability/LateFloor.lean` (namespace `ExactMajority.FloorPrefix`,
+extends it). Single-file `lake env lean … LateFloor.lean` EXIT_0; every headline
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide.
+Built on uisai2 `/dev/shm/xhuan5/Ripple` (bucket `v4.30.0 @ c5ea00351c28`, mathlib via
+`lake exe cache get`); 3572-job module build clean.
+
+### What this discharges
+
+`FloorPrefix.floor_prefix_le`'s named `hlate` hypothesis — the low-`u` checkpoint completion:
+from `LowStartGood` (`shell ∧ mcrCount ≤ uMin ∧ pool ≥ 2a₀`), the run completes Stage 1
+(`roleSplitGoodMile`: mcr drained) before the floor fails, failure ≤ εlate. The slot shape is
+the late-band prefix `∑ τ ∈ range t, (K^(T₀+τ)) c₀ {lateBandBad n a₀ uMin hn2}` where
+`lateBandBad = shell ∧ mcrCount < uMin ∧ pool < a₀ ∧ ¬roleSplitGoodMile`.
+
+### The race-bound structure that WORKED
+
+The honest argument is a **race via a dual pointwise cover** (Stage 1):
+`lateBandBad ⊆ {pool < a₀}` AND `lateBandBad ⊆ {¬roleSplitGoodMile}` — the two ends of the
+race (`lateBandBad_subset_floorFail`, `lateBandBad_subset_notDone`, pure logic). Then:
+
+* **slow side (the genuinely-new low-`u` floor-deficit MGF)** — route through
+  `{pool < a₀}` into the CONTRACTIVE killed engine. `lateBand_step_contractive` =
+  `measure_mono (subset_floorFail)` then `FloorPrefix.midBand_floorFail_step_contractive` (from
+  `KilledAffineTail`/`KilledTailConsumers`, `r < 1` allowed because `killΦ none = 0` made the old
+  `1 ≤ r` spurious). The per-step late-band mass ≤ `(rᵗ·poolExpNeg(x) + b∑rⁱ)/exp(-s·a₀)` +
+  gate-exit escape, a GENUINELY DECAYING `rᵗ` leading term. `lateBand_prefix_contractive` sums it.
+* **fast side (completion tail)** — `late_completion_tail` = `real_bad_le_janson_add_escape` with
+  the floor-driven `roleSplitKernelMilestone` (`pMin·meanTime = Θ(log n)`), exposing the low-`u`
+  milestone start condition as the named `hPre_low` (the generic `LowStartGood` checkpoint, unlike
+  the all-MCR `Phase0Initial`, must carry "no milestone fired yet"). The race's fast alternative.
+
+The key insight the blueprint flagged ("floor martingale stalls, R1 births too weak"): the
+low-`u` drift parameters `(r, b)` are carried as the NAMED `hdrift_G` hypothesis on the late-band
+gate — because in Region L the multiplicative birth contraction stalls, the honest drift has an
+immigration term `b > 0`, but the killed tail still decays when `r < 1`. That is exactly the
+"only genuinely new probabilistic piece" — formalized as the contractive-engine instantiation,
+with the stalled-martingale drift the precisely-named residual.
+
+### Where εlate landed numerically
+
+`εlate n := ofReal((3n²)⁻¹) = 1/(3n²)` (blueprint §4: each of εwarm/εmid/εlate ≤ 1/(3n²) so the
+floor prefix ≤ n⁻² in `floor_prefix_le_inv_sq`). `late_prefix_le_inv` is the paper-scale capstone:
+from a per-prefix late-band bound fitting under `1/(3n²)`, the late prefix ≤ `1/(3n²)`. The
+calibration is honest because the leading term genuinely DECAYS as `rᵗ` (no `1 ≤ r`).
+
+### The final `hlate` surface (what's wired vs named)
+
+* `floor_prefix_le_with_late` — `FloorPrefix.floor_prefix_le` with the `hlate` slot discharged by
+  `late_prefix_le` (the contractive route); `hshell`/`hmid` stay their existing
+  `FloorPrefix`/`KilledTailConsumers` feeders. This is the form the εfloor assembly consumes.
+* PRECISELY-NAMED residuals (the honest Region-L count-mass, after genuine attack):
+  - `hdrift_G : ∀ x ∈ G, ∫ poolExpNeg s d(K x) ≤ r·poolExpNeg s x + b` — the low-`u` affine pool
+    drift `(r, b)` on the late-band gate (the stalled-martingale regime; `r < 1`, `b > 0`);
+  - the gate-exit (cemetery) escape mass — the deterministic floor-exit bridge, structurally the
+    same as `escape_le_threshold_prefix` / the Gap-2 first-escape pattern;
+  - `hPre_low` — the milestone start condition from the generic `LowStartGood` checkpoint (the
+    race's fast-side alternative input).
+
+### Axiom audit (all 9 headlines)
+
+`lateBandBad_subset_floorFail`/`_notDone` ⊆ `[propext, Quot.sound]`; the other 7
+(`late_pool_step_ge_ae`, `late_completion_tail`, `lateBand_step_contractive`,
+`lateBand_prefix_contractive`, `late_prefix_le`, `floor_prefix_le_with_late`,
+`late_prefix_le_inv`) ⊆ `[propext, Classical.choice, Quot.sound]`. No sorry/admit/axiom/
+native_decide.

@@ -23,8 +23,31 @@ Source: ChatGPT Pro (family3, Ripple connector). 16,998 B via network. Verbatim 
   - §3/§4 wirings `phase7_hdrop_wired_from_lemma7_4` / `phase8_hdrop_wired_from_lemma7_6` — CLOSED.
     The Phase-7/8 drop rectangles were already landed, so no new transition-probability content was
     needed (confirms the blueprint "count-structure theorem, rectangle already landed").
-- **Phase-1 saturated-side averaging floor** (§1) — still the genuinely-new probabilistic remainder;
-  the arithmetic wrapper reduces the floor to the saturated-side bound `P + #saturatedPos ≤ mainCount`.
+- **Phase-1 saturated-side averaging floor** (§1) — DELIVERED in NEW
+  `Probability/AveragingCollapse.lean` (0-sorry, axioms ⊆ [propext, Classical.choice, Quot.sound];
+  single-file `lake env lean` EXIT_0). Full record in `DOTY_POST63_CAMPAIGN.md`
+  "Phase-1 averaging collapse floor" section. Summary of the HONEST self-contained route taken
+  (no [45] import): the FROZEN `avgFin7` rule contracts the SECOND MOMENT. The exact Fin-7 integer
+  ledger (computed over all 49 pairs, both parities): centred at the encoding origin 3,
+  `(x−3)²+(y−3)² − (x'−3)²−(y'−3)² = ⌊(x−y)²/2⌋ ≥ 0` (even: `(Δ)²/2`; odd: `((Δ)²−1)/2`). So
+  `Φ = secondMomentN = Σ_{Mains}(smallBias.val−3)²` is **deterministically** non-increasing — the
+  variance literally never rises, a per-step ℕ-monotone (NOT merely a supermartingale), plugging
+  straight into the same `OneSidedCancel` level engine `extremeU` uses.
+  - CLOSED (proven, axiom-clean): the exact per-rule ledger (`avgFin7_sqDist3_pair_le` /
+    `avgFin7_sqDist3_pair_drop`, exhaustive `decide`); the config-kernel `PotNonincrOn` for
+    `secondMomentN` (`potNonincrOn_secondMomentN`, mirroring `extremeU`); the EXACT saturated-count
+    conversion `4·#saturatedPos ≤ secondMomentN` (`four_mul_saturatedPos_le_secondMoment` — a
+    saturated value `≥ 5` is at squared distance `≥ 4` from origin 3, so the "what is the mean µ"
+    design question dissolves: centring at the fixed origin needs no mean estimate); the whp level
+    tail (`secondMoment_level_tail`); `mainCount = n` on the window; and the WIRED floor
+    `phase1_pullPos_floor_whp` → `EliminatorMargins.phase1_pullPos_floor_of_mainCount_and_saturated_bound`
+    → `PhaseFloors.phase1_hdrop_wired`.
+  - CARRIED (exactly one named quantitative input, paper provenance): the per-level second-moment
+    drain rate `q : ℕ → ℝ≥0∞` (the `hdrop` hypothesis). This is the SAME atom
+    `Phase1Convergence.phase1Convergence` carries for `extremeU` — the per-interaction probability
+    that a distant pair averages strictly inward, the content the paper imports from reference [45]
+    (Mocquard et al., Corollary 1). Exposed as a hypothesis exactly as Phases 1/7/8 expose theirs;
+    everything structural around it is discharged.
 
 ---
 
