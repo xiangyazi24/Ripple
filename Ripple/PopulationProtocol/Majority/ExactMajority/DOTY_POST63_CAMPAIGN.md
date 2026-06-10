@@ -318,6 +318,43 @@ Lean bricks:
 - **E3** Conditional progress: from any config with |C| ≥ 2 (post-Phase-0), each timed phase ends
   within expected O(n/|C| · log n)-shape time (counter always ticks); gives both the bad-event
   O(log n) (|C| ≥ 0.24n) and the tiny-clock poly(n) bound from ONE parameterized lemma.
+  **GENERIC + PARAMETERIZED LAYER DONE 2026-06-10** (SHAs 900ef1ba / 8caccd9f / 54c5f030 / f4e67793
+  / 85677466; 0-sorry, axiom-clean = [propext,Classical.choice,Quot.sound] on every theorem, verified
+  `#print axioms`; single-file EXIT_0). NEW file `Probability/ConditionalPhaseProgress.lean`.
+  **Potential choice = SUM of clock counters** (`Φ`), as the doctrine recommended: each clock-clock
+  decrement lowers the sum by ≥1 while positive, non-clock interactions leave it, so `PotNonincr`-
+  friendly and `Φ c ≤ counterMax·mC`. The drop rate is **uniform across levels**
+  `clockPairRate mC n = mC(mC−1)/(n(n−1))` (any positive-counter clock pair fires), so the engine is
+  the *uniform-rate* special case of the coupon collector — `q m = 1−clockPairRate` for all `m`,
+  per-level waiting time `(1−q)⁻¹ = (clockPairRate)⁻¹ = n(n−1)/(mC(mC−1))`. Delivered:
+  - **Lifted generic engine** (`Engine` namespace; the `Phase10ExpectedTime` Coupon chain is verbatim
+    generic over `ExpectedHitting`+Mathlib, lifted because `Phase10ExpectedTime.olean` is absent /
+    mid-edit and cannot be imported): `potBelow`, `PotNonincr`, `level_occ_*`, `occLevel*`,
+    `coupon_expectedHitting_le`, `coupon_sum_le_of_uniform`, `coupon_expectedHitting_le_uniform`.
+  - **Rate arithmetic:** `clockPairRate` (def), `clockPairRate_le_one`,
+    `one_sub_one_sub_clockPairRate_inv` (`(1−(1−p))⁻¹ = p⁻¹`), `clockPairRate_inv_eq`
+    (`p⁻¹ = n(n−1)/(mC(mC−1))` closed form, `2≤mC`), `clockPairRate_inv_le_div`,
+    `headline_product_eq` (**key mC-cancellation:** `(counterMax·mC)·p⁻¹ = counterMax·n(n−1)/(mC−1)`).
+  - **HEADLINE** `timed_phase_expected_progress`: hyps `PotNonincr K Φ`, uniform per-level drop
+    `K b (potBelow Φ m)ᶜ ≤ 1−clockPairRate mC n`, `Φ c ≤ counterMax·mC` ⇒
+    `E[hit {Φ=0}] ≤ (counterMax·mC)·(clockPairRate mC n)⁻¹`.
+  - **Two corollaries from the ONE headline:** (a) `timed_phase_progress_bigClock` (`n/5≤mC`, `n≥18`)
+    ⇒ `E ≤ counterMax·(11·n)` — **linear** (const rate; 11 clears the Nat-floor slack uniformly);
+    (b) `timed_phase_progress_tinyClock` (`mC≥2`) ⇒ `E ≤ counterMax·n²` — **poly fallback** (via the
+    cancellation `counterMax·n(n−1)/(mC−1) ≤ counterMax·n(n−1) ≤ counterMax·n²`).
+  - **E4-shape wrappers** `phase_advance_expectedHitting_{tinyClock,bigClock}`: transport onto an
+    arbitrary phase-advance set `Done = {x | Φ x = 0}` (the `potBelow Φ 1 = {Φ=0}` trigger), so E4
+    consumes `E[hit Done] ≤ …` directly.
+  - **REMAINING = pure protocol instantiation** (the same engine-vs-instantiation split as E1/E2; the
+    forbidden mid-edit files `RoleSplitConcentration`/`Phase7,8Convergence`/`ClockUnconditional` were
+    NOT touched/imported, and `NonuniformMarkovChain.olean` (real kernel) is absent). Precise goals
+    (also in the file's Part-4 doc): with `Φ :=` clock-counter sum, `mC :=` fixed |Clock|:
+    (i) `Engine.PotNonincr K Φ` — clock-counter sum never rises (per-pair via
+    `PhaseProgress.stdCounterSubroutine_counter_strict_descent` + countP-additive support template);
+    (ii) `hdrop` — clock-clock rectangle mass `≥ mC(mC−1)/(n(n−1))` (analogue of E2's
+    `sum_interactionProb_presentActiveAB`, aggregate `interactionPMF` over clock×clock `Finset`) ∘
+    strict descent; (iii) `counterMax` = the protocol clock-counter cap. All probabilistic content
+    is closed; remaining is per-pair monotonicity + drop-mass aggregation, re-derivable in-file.
 - **E4** The time-0 three-event split + summation: good whp event (Phase D headline) + Lemma 5.2
   clock-count concentration (Phase C, phases 0/1 line) + E2 + E3 → `doty_expected_time_O_log_n`.
 Dependencies: E1, E2 are independent of Phases B–D (parallelizable NOW); E4 needs D's headline +

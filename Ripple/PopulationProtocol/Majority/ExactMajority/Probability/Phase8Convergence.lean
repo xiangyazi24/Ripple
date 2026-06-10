@@ -530,6 +530,40 @@ drops `minorityU σ` by one (`minorityU_stepOrSelf_drop`).  The rectangle's
 biases differ, so the states differ).  Feeding it to `drop_prob_of_rect` gives the
 per-step drop probability `≥ (#minority@i)·(#elim@>i)/(n(n−1))`. -/
 
+private theorem applicable_of_mem_distinct {c : Config (AgentState L K)}
+    {x y : AgentState L K} (hx : x ∈ c) (hy : y ∈ c) (hxy : x ≠ y) :
+    Protocol.Applicable c x y := by
+  refine Multiset.le_iff_count.mpr ?_
+  intro a
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl,
+      Multiset.count_cons, Multiset.count_cons, Multiset.count_zero]
+  have hxc : 1 ≤ Multiset.count x c := Multiset.one_le_count_iff_mem.mpr hx
+  have hyc : 1 ≤ Multiset.count y c := Multiset.one_le_count_iff_mem.mpr hy
+  by_cases hax : a = x
+  · subst hax
+    have hay : ¬ a = y := fun h => hxy (h ▸ rfl)
+    rw [if_pos rfl, if_neg hay]; omega
+  · by_cases hay : a = y
+    · subst hay; rw [if_neg hax, if_pos rfl]; omega
+    · rw [if_neg hax, if_neg hay]; omega
+
+/-- For two state-finsets of pairwise-distinct states, the `interactionCount` mass
+of `A ×ˢ B` is `(∑_A count)·(∑_B count)`.  Local copy of
+`Phase4Convergence.sum_interactionCount_cross_disjoint`. -/
+private theorem sum_interactionCount_cross_disjoint
+    (c : Config (AgentState L K)) (A B : Finset (AgentState L K))
+    (hdisj : ∀ a ∈ A, ∀ b ∈ B, a ≠ b) :
+    (∑ p ∈ A ×ˢ B, c.interactionCount p.1 p.2)
+      = (∑ a ∈ A, c.count a) * (∑ b ∈ B, c.count b) := by
+  rw [Finset.sum_product, Finset.sum_mul]
+  apply Finset.sum_congr rfl
+  intro a ha
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro b hb
+  unfold Config.interactionCount
+  rw [if_neg (hdisj a ha b hb)]
+
 /-- The `σ`-minority states at a fixed exponent index `i`. -/
 def minorityAt (σ : Sign) (i : Fin (L + 1)) : Finset (AgentState L K) :=
   Finset.univ.filter (fun a => a.role = Role.main ∧ a.bias = Bias.dyadic σ i)
@@ -587,6 +621,55 @@ theorem minorityU_drop_prob_rect (σ : Sign) (n : ℕ) (hn : 2 ≤ n)
   · -- rectangle interactionCount mass = product of counts.
     rw [sum_interactionCount_cross_disjoint c _ _
       (minorityAt_elimAbove_disjoint σ i)]
+
+/-! ## Part D''' — the engine `hdrop` from the rectangle drop probability.
+
+The level-`m` engine `hdrop` is `K b (potBelow Φ m)ᶜ ≤ q` for `Φ b = m`.  The
+complement of the drop-success event `{Φ c' + 1 ≤ Φ b} = {Φ c' < m} = potBelow Φ m`
+is exactly `(potBelow Φ m)ᶜ`, and `transitionKernel` is Markov (total mass 1), so the
+failure mass is `1 − (drop-success mass) ≤ 1 − p` where `p` is the rectangle floor.
+We package the per-level `hdrop` with `q m = 1 − (#min@i)·(#elim@>i)/(n(n−1))` as the
+honest level-`m` drain bound — the remaining input is the carried eliminator floor
+(`#elim@>i ≥` margin, `#min@i ≥ 1` at level `m`), the documented Doty-Lemma-7.6
+boundary, supplied as the `p`-lower-bound hypothesis. -/
+
+/-- **The engine `hdrop` from a drop-probability floor.**  If from a phase-8 window
+state `b` with `minorityU σ b = m` the one-step drop probability is `≥ p` (the
+rectangle floor at some level), then the engine's level-`m` failure mass is `≤ 1 − p`. -/
+theorem minorityU_hdrop_of_floor (σ : Sign) (n : ℕ) (m : ℕ)
+    (p : ℝ≥0∞) (b : Config (AgentState L K)) (hb8 : Phase8AllMain n b)
+    (hbm : minorityU σ b = m)
+    (hfloor : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        {c' | minorityU σ c' + 1 ≤ minorityU σ b}) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (fun c => minorityU σ c) m)ᶜ ≤ 1 - p := by
+  classical
+  -- The drop-success event equals `potBelow (minorityU σ) m` (using `minorityU b = m`).
+  have hKb : (NonuniformMajority L K).transitionKernel b
+      = ((NonuniformMajority L K).stepDistOrSelf b).toMeasure := rfl
+  have hsucc_eq : {c' : Config (AgentState L K) | minorityU σ c' + 1 ≤ minorityU σ b}
+      = OneSidedCancel.potBelow (fun c => minorityU σ c) m := by
+    ext c'; simp only [OneSidedCancel.potBelow, Set.mem_setOf_eq, hbm]; omega
+  have hmeas : MeasurableSet (OneSidedCancel.potBelow (fun c => minorityU σ c) m) :=
+    OneSidedCancel.potBelow_measurable _ _
+  -- total mass 1 (Markov), so complement = 1 − success.
+  haveI hprob : IsProbabilityMeasure
+      (((NonuniformMajority L K).stepDistOrSelf b).toMeasure) := by
+    rw [← hKb]
+    exact (inferInstance :
+      IsMarkovKernel (NonuniformMajority L K).transitionKernel).isProbabilityMeasure b
+  have htot : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure Set.univ = 1 :=
+    hprob.measure_univ
+  have hcompl : ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+        (OneSidedCancel.potBelow (fun c => minorityU σ c) m)ᶜ
+      = 1 - ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+          (OneSidedCancel.potBelow (fun c => minorityU σ c) m) := by
+    rw [measure_compl hmeas (measure_ne_top _ _), htot]
+  rw [hKb, hcompl]
+  have hp_le : p ≤ ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+      (OneSidedCancel.potBelow (fun c => minorityU σ c) m) := by
+    rw [← hsucc_eq]; exact hfloor
+  exact tsub_le_tsub_left hp_le 1
 
 /-! ## Part E — the Phase-8 `PhaseConvergenceW` from the engine.
 

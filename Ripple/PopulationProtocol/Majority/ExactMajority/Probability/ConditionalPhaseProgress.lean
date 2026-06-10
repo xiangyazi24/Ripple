@@ -556,6 +556,74 @@ theorem timed_phase_progress_bigClock [DiscreteMeasurableSpace α]
     _ = ((counterMax : ℕ) : ℝ≥0∞) * ((11 * n : ℕ) : ℝ≥0∞) * ((mC - 1 : ℕ) : ℝ≥0∞) := by
         push_cast; ring
 
+/-! ## Part 4 — The phase-advance wrapper (E4-consumption shape)
+
+`Engine.potBelow Φ 1 = {Φ < 1} = {Φ = 0}` is exactly the **phase-advance trigger**:
+all clock counters have ticked to `0`, so the deterministic
+`Analysis/PhaseProgress.stdCounterSubroutine_zero_advances` fires and the phase
+advances.  E4 consumes the bound on the expected time to reach an arbitrary
+phase-advance set `Done`; we provide the bridge from `{Φ = 0}` to any such `Done`
+described by `Done = {x | Φ x = 0}`, so the three headline bounds transport directly.
+
+The remaining protocol-instantiation obligations for a concrete timed phase (phases
+0, 1, 5, 6, 7, 8) are, with `Φ :=` the clock-counter *sum* and `mC :=` the fixed
+post-Phase-0 clock count:
+  * `hmono : Engine.PotNonincr K Φ` — the clock-counter sum never rises.  Per-pair:
+    a clock-clock meeting decrements the active counter (`PhaseProgress`'s
+    `stdCounterSubroutine_counter_strict_descent`), and no interaction raises any
+    clock counter, so the sum is non-increasing.  Lift to the kernel via the
+    `countP`-additive support template (E2's `countP_scheduledStep_le` /
+    `potNonincrOn_of_countP_step`).
+  * `hdrop` — at any level `m ≥ 1` (some clock counter positive), a clock-clock
+    meeting fires with probability `≥ clockPairRate mC n = mC(mC−1)/(n(n−1))`, the
+    clock-clock rectangle (`mC(mC−1)` ordered clock pairs / `n(n−1)` ordered pairs),
+    and that meeting strictly drops the sum, so `K b (potBelow Φ m)ᶜ ≤ 1 −
+    clockPairRate mC n`.  Route: the clock-clock analogue of E2's
+    `sum_interactionProb_presentActiveAB` (aggregate `interactionPMF` mass over the
+    clock × clock `Finset`) composed with the deterministic strict descent.
+  * `counterMax` — the protocol's clock-counter cap (the per-phase counter bound; the
+    sum cap is then `counterMax · mC`).  Supplied by `Φ c ≤ counterMax · mC`.
+These are the *only* protocol facts; everything probabilistic is closed above. -/
+
+/-- **Phase-advance wrapper (tiny-clock, E4 shape).**  Transports
+`timed_phase_progress_tinyClock` onto an arbitrary phase-advance set
+`Done = {x | Φ x = 0}` (all clock counters zero ⇒ phase advances).  This is the
+poly(n) fallback E4 multiplies against the super-polynomially-small tiny-clock
+probability. -/
+theorem phase_advance_expectedHitting_tinyClock [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ)
+    (hmono : Engine.PotNonincr K Φ)
+    (mC n counterMax : ℕ) (hmC : 2 ≤ mC) (hmCn : mC ≤ n) (hn : 2 ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    {Done : Set α} (hDone : Done = {x | Φ x = 0})
+    (c : α) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c Done
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
+  have hbridge : Done = Engine.potBelow Φ 1 := by
+    rw [hDone]; ext x; simp only [Engine.potBelow, Set.mem_setOf_eq]; omega
+  rw [hbridge]
+  exact timed_phase_progress_tinyClock K Φ hmono mC n counterMax hmC hmCn hn hdrop c hc
+
+/-- **Phase-advance wrapper (big-clock, E4 shape).**  Transports
+`timed_phase_progress_bigClock` onto an arbitrary phase-advance set
+`Done = {x | Φ x = 0}`.  This is the linear bound E4 uses for the bad-but-big-clock
+event (`n/5 ≤ mC` by Lemma 5.2). -/
+theorem phase_advance_expectedHitting_bigClock [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ)
+    (hmono : Engine.PotNonincr K Φ)
+    (mC n counterMax : ℕ) (hfloor : n / 5 ≤ mC) (hmCn : mC ≤ n) (hn : 18 ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    {Done : Set α} (hDone : Done = {x | Φ x = 0})
+    (c : α) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c Done
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((11 * n : ℕ) : ℝ≥0∞) := by
+  have hbridge : Done = Engine.potBelow Φ 1 := by
+    rw [hDone]; ext x; simp only [Engine.potBelow, Set.mem_setOf_eq]; omega
+  rw [hbridge]
+  exact timed_phase_progress_bigClock K Φ hmono mC n counterMax hfloor hmCn hn hdrop c hc
+
 end ConditionalPhaseProgress
 
 end ExactMajority
