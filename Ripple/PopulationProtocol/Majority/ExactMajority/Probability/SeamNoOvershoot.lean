@@ -438,6 +438,142 @@ theorem seamClockPotential_drift_affine (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
   rw [mul_comm (2 : ℝ≥0∞) Φ, mul_div_assoc, mul_comm ((2:ℝ≥0∞)/(n:ℝ≥0∞)) Φ,
       ← mul_div_assoc]
 
+/-! ## Stage 4 — the tail at the concrete constants (clone of `phase0_numerics_real`).
+
+The affine tail RHS is `aᵗ·Φ(c₀) + b·∑_{i<t} aⁱ` with `a = 1 + 2(e−1)/n`,
+`b = 2·e^{−50(L+1)}`, `t ≤ n(L+1)`, `Φ(c₀) ≤ n·e^{−50(L+1)}`.  The multiplicative
+piece `aᵗ·Φ(c₀)` closes exactly like Phase-0 to `≤ e^{−45(L+1)}`.  The new immigration
+piece `b·∑_{i<t} aⁱ ≤ b·t·aᵗ ≤ 2·e^{−50(L+1)}·n(L+1)·e^{2(e−1)(L+1)}` closes to
+`≤ e^{−40(L+1)}` (`n ≤ e^{L+1}`, `2(L+1) ≤ e^{2(L+1)}`).  Total `≤ e^{−40(L+1)}`. -/
+
+/-- **The seam no-overshoot numerics (real).**  With drift rate `1 + 2(e−1)/n`, window
+`t ≤ n(L+1)`, immigration `b = 2·e^{−50(L+1)}`, and initial potential `n·e^{−50(L+1)}`,
+the affine tail `aᵗ·Φ₀ + b·∑_{i<t} aⁱ` is `≤ e^{−40(L+1)}`.  Requires `n ≥ 1`,
+`ln n ≤ (L+1)`, `t ≤ n(L+1)`. -/
+theorem seam_noOvershoot_numerics_real (n L t : ℕ) (hn : 1 ≤ n)
+    (hlog : Real.log (n : ℝ) ≤ (L + 1 : ℕ)) (ht : t ≤ n * (L + 1)) :
+    (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ t
+        * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+      + (2 * Real.exp (-(50 * (L + 1) : ℕ)))
+          * (∑ i ∈ Finset.range t, (1 + 2 * (Real.exp 1 - 1) / (n : ℝ)) ^ i)
+      ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+  have hnpos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have he1 : (0 : ℝ) ≤ Real.exp 1 - 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
+  set x : ℝ := 2 * (Real.exp 1 - 1) / (n : ℝ) with hx
+  have hx0 : 0 ≤ x := by rw [hx]; positivity
+  have ha1 : (1 : ℝ) ≤ 1 + x := by linarith
+  have hLpos : (0 : ℝ) ≤ (L + 1 : ℕ) := by positivity
+  -- (1+x)^t ≤ exp(t·x) ≤ exp(2(e−1)(L+1))
+  have hstep1 : (1 + x) ^ t ≤ Real.exp ((t : ℝ) * x) := by
+    rw [Real.exp_nat_mul]
+    exact pow_le_pow_left₀ (by linarith) (by rw [add_comm]; exact Real.add_one_le_exp x) t
+  have htx : (t : ℝ) * x ≤ 2 * (Real.exp 1 - 1) * (L + 1 : ℕ) := by
+    have htn : (t : ℝ) ≤ (n : ℝ) * (L + 1 : ℕ) := by
+      have : (t : ℝ) ≤ ((n * (L + 1) : ℕ) : ℝ) := by exact_mod_cast ht
+      rwa [Nat.cast_mul] at this
+    rw [hx,
+      show (t : ℝ) * (2 * (Real.exp 1 - 1) / (n : ℝ))
+          = (2 * (Real.exp 1 - 1)) * ((t : ℝ) / (n : ℝ)) by ring]
+    have hdiv : (t : ℝ) / (n : ℝ) ≤ (L + 1 : ℕ) := by
+      rw [div_le_iff₀ hnpos, mul_comm]; exact htn
+    have h2e : 0 ≤ 2 * (Real.exp 1 - 1) := by linarith
+    calc (2 * (Real.exp 1 - 1)) * ((t : ℝ) / (n : ℝ))
+        ≤ (2 * (Real.exp 1 - 1)) * (L + 1 : ℕ) := mul_le_mul_of_nonneg_left hdiv h2e
+      _ = 2 * (Real.exp 1 - 1) * (L + 1 : ℕ) := rfl
+  have hpowt : (1 + x) ^ t ≤ Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ)) :=
+    le_trans hstep1 (Real.exp_le_exp.mpr htx)
+  have hpow_nonneg : (0 : ℝ) ≤ (1 + x) ^ t := by positivity
+  have hn_exp : (n : ℝ) ≤ Real.exp (L + 1 : ℕ) := by
+    calc (n : ℝ) = Real.exp (Real.log (n : ℝ)) := (Real.exp_log hnpos).symm
+      _ ≤ Real.exp (L + 1 : ℕ) := Real.exp_le_exp.mpr hlog
+  have he3 : Real.exp 1 ≤ 3 := by have := Real.exp_one_lt_d9; linarith
+  -- term 1: aᵗ·Φ₀ ≤ exp(-45(L+1))  (Phase-0 numerics verbatim)
+  have hterm1 : (1 + x) ^ t * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+      ≤ Real.exp (-(45 * (L + 1) : ℕ)) := by
+    have := Phase0Window.phase0_numerics_real n L t hn hlog ht
+    rwa [← hx] at this
+  -- term 2: b·∑ ≤ 2·e^{−50(L+1)}·t·(1+x)^t ≤ exp(-43(L+1))
+  have hsum_le : (∑ i ∈ Finset.range t, (1 + x) ^ i) ≤ (t : ℝ) * (1 + x) ^ t := by
+    calc (∑ i ∈ Finset.range t, (1 + x) ^ i)
+        ≤ ∑ _i ∈ Finset.range t, (1 + x) ^ t := by
+          apply Finset.sum_le_sum
+          intro i hi
+          exact pow_le_pow_right₀ ha1 (le_of_lt (Finset.mem_range.mp hi))
+      _ = (t : ℝ) * (1 + x) ^ t := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  have hb_nonneg : (0 : ℝ) ≤ 2 * Real.exp (-(50 * (L + 1) : ℕ)) := by positivity
+  have hterm2 : (2 * Real.exp (-(50 * (L + 1) : ℕ)))
+        * (∑ i ∈ Finset.range t, (1 + x) ^ i)
+      ≤ Real.exp (-(43 * (L + 1) : ℕ)) := by
+    have htR : (t : ℝ) ≤ (n : ℝ) * (L + 1 : ℕ) := by
+      have : (t : ℝ) ≤ ((n * (L + 1) : ℕ) : ℝ) := by exact_mod_cast ht
+      rwa [Nat.cast_mul] at this
+    calc (2 * Real.exp (-(50 * (L + 1) : ℕ))) * (∑ i ∈ Finset.range t, (1 + x) ^ i)
+        ≤ (2 * Real.exp (-(50 * (L + 1) : ℕ))) * ((t : ℝ) * (1 + x) ^ t) :=
+          mul_le_mul_of_nonneg_left hsum_le hb_nonneg
+      _ ≤ (2 * Real.exp (-(50 * (L + 1) : ℕ)))
+            * (((n : ℝ) * (L + 1 : ℕ)) * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ))) := by
+          apply mul_le_mul_of_nonneg_left _ hb_nonneg
+          apply mul_le_mul htR hpowt hpow_nonneg
+          positivity
+      _ ≤ (2 * Real.exp (-(50 * (L + 1) : ℕ)))
+            * ((Real.exp (L + 1 : ℕ) * (L + 1 : ℕ))
+                * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ))) := by
+          apply mul_le_mul_of_nonneg_left _ hb_nonneg
+          apply mul_le_mul_of_nonneg_right _ (by positivity)
+          exact mul_le_mul_of_nonneg_right hn_exp hLpos
+      _ ≤ Real.exp (-(43 * (L + 1) : ℕ)) := by
+          -- 2·(L+1) ≤ exp(2(L+1)); combine exponents
+          have hL2 : ((L + 1 : ℕ) : ℝ) ≤ Real.exp ((L + 1 : ℕ)) := by
+            have := Real.add_one_le_exp ((L + 1 : ℕ) : ℝ)
+            linarith
+          rw [show (2 * Real.exp (-(50 * (L + 1) : ℕ)))
+                * ((Real.exp (L + 1 : ℕ) * (L + 1 : ℕ))
+                    * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ)))
+              = (2 * (L + 1 : ℕ)) * (Real.exp (-(50 * (L + 1) : ℕ))
+                  * Real.exp (L + 1 : ℕ) * Real.exp (2 * (Real.exp 1 - 1) * (L + 1 : ℕ))) by ring]
+          rw [← Real.exp_add, ← Real.exp_add]
+          have hexp_arg : -(50 * (L + 1) : ℕ) + (L + 1 : ℕ) + 2 * (Real.exp 1 - 1) * (L + 1 : ℕ)
+              ≤ -(45 * (L + 1) : ℕ) := by
+            push_cast
+            nlinarith [hLpos, he3]
+          have h2L : (2 * (L + 1 : ℕ) : ℝ) ≤ Real.exp (2 * (L + 1 : ℕ)) := by
+            have := Real.add_one_le_exp (2 * ((L + 1 : ℕ) : ℝ))
+            nlinarith [Real.exp_pos (2 * ((L + 1 : ℕ) : ℝ)), hLpos]
+          calc (2 * (L + 1 : ℕ) : ℝ)
+                * Real.exp (-(50 * (L + 1) : ℕ) + (L + 1 : ℕ)
+                    + 2 * (Real.exp 1 - 1) * (L + 1 : ℕ))
+              ≤ Real.exp (2 * (L + 1 : ℕ)) * Real.exp (-(45 * (L + 1) : ℕ)) := by
+                apply mul_le_mul h2L (Real.exp_le_exp.mpr hexp_arg) (Real.exp_nonneg _)
+                  (Real.exp_nonneg _)
+            _ = Real.exp (2 * (L + 1 : ℕ) + -(45 * (L + 1) : ℕ)) := by rw [← Real.exp_add]
+            _ ≤ Real.exp (-(43 * (L + 1) : ℕ)) := by
+                apply Real.exp_le_exp.mpr; push_cast; nlinarith [hLpos]
+  -- combine: e^{−45} + e^{−43} ≤ e^{−40}
+  calc (1 + x) ^ t * ((n : ℝ) * Real.exp (-(50 * (L + 1) : ℕ)))
+        + (2 * Real.exp (-(50 * (L + 1) : ℕ)))
+            * (∑ i ∈ Finset.range t, (1 + x) ^ i)
+      ≤ Real.exp (-(45 * (L + 1) : ℕ)) + Real.exp (-(43 * (L + 1) : ℕ)) :=
+        add_le_add hterm1 hterm2
+    _ ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+        -- e^{−45M} + e^{−43M} ≤ 2·e^{−43M} ≤ e^{−40M} since 2 ≤ e^{3M}
+        have hM : (0 : ℝ) ≤ (L + 1 : ℕ) := hLpos
+        have h45_43 : Real.exp (-(45 * (L + 1) : ℕ)) ≤ Real.exp (-(43 * (L + 1) : ℕ)) := by
+          apply Real.exp_le_exp.mpr; push_cast; nlinarith [hM]
+        have h2 : Real.exp (-(43 * (L + 1) : ℕ)) + Real.exp (-(43 * (L + 1) : ℕ))
+            ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+          rw [← two_mul]
+          have hM1 : (1 : ℝ) ≤ (L + 1 : ℕ) := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr (by omega)
+          have hexp3 : (2 : ℝ) ≤ Real.exp (3 * (L + 1 : ℕ)) := by
+            have := Real.add_one_le_exp (3 * ((L + 1 : ℕ) : ℝ))
+            nlinarith [hM, hM1]
+          calc (2 : ℝ) * Real.exp (-(43 * (L + 1) : ℕ))
+              ≤ Real.exp (3 * (L + 1 : ℕ)) * Real.exp (-(43 * (L + 1) : ℕ)) :=
+                mul_le_mul_of_nonneg_right hexp3 (Real.exp_nonneg _)
+            _ = Real.exp (3 * (L + 1 : ℕ) + -(43 * (L + 1) : ℕ)) := by rw [← Real.exp_add]
+            _ ≤ Real.exp (-(40 * (L + 1) : ℕ)) := by
+                apply Real.exp_le_exp.mpr; push_cast; nlinarith [hM]
+        linarith [h45_43, h2]
+
 end SeamNoOvershoot
 
 end ExactMajority

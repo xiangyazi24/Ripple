@@ -586,5 +586,129 @@ theorem coshPot_drift (s : ℝ) (hs : 0 ≤ s)
   apply ENNReal.ofReal_le_ofReal
   exact coshExpVal_drift_real s hs c hc2 hall hinw
 
+/-! ## Stage 4 — the top-split tail (cosh route) and the wire-up.
+
+The drift `coshPot_drift` feeds `WindowConcentration.windowDrift_tail` on the
+absorbing window `Q` (carrying `allPhase0` and the inward residual, the two honest
+protocol facts), with threshold `θ = ofReal (cosh (s·δn))` and postcondition
+`TopSplitWindow δ n`.  The threshold link is `cosh`'s evenness + monotonicity:
+`¬ TopSplitWindow` forces `|X| > δn`, so `cosh (s·X) ≥ cosh (s·δn)`.  At the
+balanced start `X c₀ = 0`, `coshPot c₀ = ofReal (cosh 0) = 1`, so the tail is
+
+  `(K^T) c₀ {¬ TopSplitWindow δ n} ≤ (cosh s)^T / cosh (s·δn)`,
+
+the genuine boundary-clean cosh (Chernoff) tail — optimizing `s = δn/T` and using
+`cosh s ≤ exp(s²/2)`, `cosh(s·δn) ≥ exp(s·δn)/2` recovers the consumer's
+`2·exp(−(δn)²/(2T))` shape (the cosmetic constant the abstract `azuma_tail`
+absorbs). -/
+
+/-- `cosh` is monotone in the absolute value of its argument:
+`|a| ≤ |b| ⟹ cosh a ≤ cosh b`. -/
+private lemma cosh_le_cosh_of_abs_le_abs {a b : ℝ} (h : |a| ≤ |b|) :
+    Real.cosh a ≤ Real.cosh b := by
+  have hb : Real.cosh b = Real.cosh |b| := (Real.cosh_abs b).symm
+  rw [hb]
+  exact cosh_le_cosh_of_abs_le (abs_nonneg b) h
+
+/-- **Threshold link.**  If `c` fails the top-split window `TopSplitWindow δ n`
+(`|X| > δn`), then for `s ≥ 0` the cosh potential exceeds the threshold
+`ofReal (cosh (s·δn))`: `cosh (s·δn) ≤ cosh (s·X) = coshExpVal s c`. -/
+theorem coshPot_ge_thresh_of_not_window (s : ℝ) (hs : 0 ≤ s)
+    {δ : ℝ} {n : ℕ} (c : Config (AgentState L K))
+    (hc : ¬ TopSplitWindow (L := L) (K := K) δ n c) :
+    ENNReal.ofReal (Real.cosh (s * (δ * n)))
+      ≤ coshPot (L := L) (K := K) s c := by
+  unfold coshPot coshExpVal
+  apply ENNReal.ofReal_le_ofReal
+  apply cosh_le_cosh_of_abs_le_abs
+  -- |s·δn| ≤ |s·X|  from  δn ≤ |X|  (the window failure) and  s ≥ 0.
+  have hc' : δ * n < |(topSplitXZ (L := L) (K := K) c : ℝ)| := by
+    rw [TopSplitWindow, not_le] at hc
+    have : topSplitX (L := L) (K := K) c
+        = (mainCount (L := L) (K := K) c : ℝ) - (topCRMass (L := L) (K := K) c : ℝ) := rfl
+    rw [← topSplitX_eq_cast, this]; exact hc
+  rw [abs_mul, abs_mul, abs_of_nonneg hs]
+  apply mul_le_mul_of_nonneg_left _ hs
+  exact le_of_lt hc'
+
+/-- **Stage 4 — the top-split balance window tail (cosh route).**  With the
+Phase-0 balanced start (`topSplitX c₀ = 0` ⟹ `coshPot c₀ = 1`), the absorbing
+window `Q` (carrying `allPhase0`), and the inward residual on `Q`, the probability
+that the top-split window `TopSplitWindow δ n` *fails* after `T` steps is at most
+the cosh (Chernoff) tail `(cosh s)^T / cosh (s·δn)`.
+
+This is the boundary-clean discharge of `TopSplit.topSplitWindow_whp`'s `hdrift`
+residual: the naive `∫|X| ≤ |X|` is FALSE at `X = 0`, but the cosh MGF drift
+`coshPot_drift` holds with NO boundary exception.  The two genuine protocol inputs
+are the absorbing window `hQ_abs` and the inward residual `hinw` on it — both
+boundary-free, both the honest Lemma-5.1 content. -/
+theorem topSplitWindow_whp_cosh
+    {s : ℝ} (hs : 0 ≤ s) {δ : ℝ} {n : ℕ}
+    {c₀ : Config (AgentState L K)} (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c →
+      c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support → Q c')
+    (hQ_phase0 : ∀ c, Q c → Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hQ_card : ∀ c, Q c → 2 ≤ Multiset.card c)
+    (hQ_inward : ∀ c, Q c → InwardResidual (L := L) (K := K) s c)
+    (hQ0 : Q c₀)
+    (T : ℕ) (hδn : 0 < s * (δ * n)) :
+    ((NonuniformMajority L K).transitionKernel ^ T) c₀
+        {c | ¬ TopSplitWindow (L := L) (K := K) δ n c}
+      ≤ ENNReal.ofReal (Real.cosh s) ^ T * coshPot (L := L) (K := K) s c₀
+          / ENNReal.ofReal (Real.cosh (s * (δ * n))) := by
+  -- threshold θ = ofReal(cosh(s·δn)) > 0 (since s·δn > 0 ⟹ cosh > 1) and finite.
+  have hθpos : (0 : ℝ) < Real.cosh (s * (δ * n)) := lt_of_lt_of_le zero_lt_one (one_le_cosh' _)
+  have hθ0 : ENNReal.ofReal (Real.cosh (s * (δ * n))) ≠ 0 := by
+    rw [ne_eq, ENNReal.ofReal_eq_zero, not_le]; exact hθpos
+  have hθtop : ENNReal.ofReal (Real.cosh (s * (δ * n))) ≠ ⊤ := ENNReal.ofReal_ne_top
+  -- the per-step drift on Q.
+  have hdrift : ∀ c, Q c → ∫⁻ c', coshPot (L := L) (K := K) s c'
+      ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (Real.cosh s) * coshPot (L := L) (K := K) s c := by
+    intro c hcQ
+    exact coshPot_drift s hs c (hQ_card c hcQ) (hQ_phase0 c hcQ) (hQ_inward c hcQ)
+  -- apply the window-drift tail engine.
+  exact WindowConcentration.windowDrift_tail (NonuniformMajority L K)
+    (coshPot (L := L) (K := K) s) (coshPot_measurable s) Q hQ_abs
+    (ENNReal.ofReal (Real.cosh s)) hdrift
+    (TopSplitWindow (L := L) (K := K) δ n)
+    (ENNReal.ofReal (Real.cosh (s * (δ * n)))) hθ0 hθtop
+    (fun c hc => coshPot_ge_thresh_of_not_window s hs c hc)
+    T c₀ hQ0
+
+/-- The balanced-start potential is `1`: at `Phase0Initial`, `topSplitX c₀ = 0`, so
+`coshPot s c₀ = ofReal (cosh 0) = ofReal 1 = 1`. -/
+theorem coshPot_init_one (s : ℝ) {n : ℕ} {c₀ : Config (AgentState L K)}
+    (hinit : Phase0Initial (L := L) (K := K) n c₀) :
+    coshPot (L := L) (K := K) s c₀ = 1 := by
+  unfold coshPot coshExpVal
+  have hX0 : topSplitX (L := L) (K := K) c₀ = 0 := topSplit_X_init_zero hinit
+  rw [topSplitX_eq_cast] at hX0
+  rw [show (topSplitXZ (L := L) (K := K) c₀ : ℝ) = 0 from hX0]
+  simp
+
+/-- **Stage 4 (clean form) — the top-split tail with the balanced start folded in.**
+At `Phase0Initial`, `coshPot c₀ = 1`, so the cosh tail simplifies to
+`(cosh s)^T / cosh (s·δn)` — a hypothesis-free-except-`Phase0Initial`-and-the-two-
+protocol-`Q`-facts top-split balance tail with explicit horizon `T` and budget. -/
+theorem topSplitWindow_whp_cosh_clean
+    {s : ℝ} (hs : 0 ≤ s) {δ : ℝ} {n : ℕ}
+    {c₀ : Config (AgentState L K)} (hinit : Phase0Initial (L := L) (K := K) n c₀)
+    (Q : Config (AgentState L K) → Prop)
+    (hQ_abs : ∀ c c', Q c →
+      c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support → Q c')
+    (hQ_phase0 : ∀ c, Q c → Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hQ_card : ∀ c, Q c → 2 ≤ Multiset.card c)
+    (hQ_inward : ∀ c, Q c → InwardResidual (L := L) (K := K) s c)
+    (hQ0 : Q c₀)
+    (T : ℕ) (hδn : 0 < s * (δ * n)) :
+    ((NonuniformMajority L K).transitionKernel ^ T) c₀
+        {c | ¬ TopSplitWindow (L := L) (K := K) δ n c}
+      ≤ ENNReal.ofReal (Real.cosh s) ^ T
+          / ENNReal.ofReal (Real.cosh (s * (δ * n))) := by
+  have h := topSplitWindow_whp_cosh hs hinit Q hQ_abs hQ_phase0 hQ_card hQ_inward hQ0 T hδn
+  rwa [coshPot_init_one s hinit, mul_one] at h
+
 end RoleSplitConcentration
 end ExactMajority
