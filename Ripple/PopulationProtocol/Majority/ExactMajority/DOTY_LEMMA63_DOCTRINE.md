@@ -510,3 +510,73 @@ over T ≤ capMinute + horizon, transfer through markedK_pow_erase, bridge count
 ClockFrontProfile.WindowedFrontProfile (frac = rBeyond/card; 10X ≤ n ↔ frac ≤ 1/10 at card = n).
 NOTE 2026-06-09: TWO sessions wrote this file tonight (3.5e-8/-9 overlap was benign but real);
 keep the single-line discipline — check git log -3 BEFORE each append.
+
+## STEPS 2–4 DONE (2026-06-09 fresh session; commits 55acacac..bafef960; EarlyDripMarked.lean,
+## all 0-sorry axiom-clean [propext, Classical.choice, Quot.sound]; single-file lake env lean GREEN)
+
+The 4-step assembly plan (LEDGER FINAL steps 2,3,4) is now formalized end-to-end on the REAL kernel.
+STEP 1 (`per_window_delta`, the uniform per-window δ) + the previous-session `recInv`/`window_failure_le`
+(Part 31) were the inputs.  New theorems (in build order):
+
+STEP 2 — the checkpoint induction:
+- `region_ae_pow` (generic stay-in-region a.e. through kernel powers) + `markInv_ae_step/_pow`.
+- `recurrence_checkpoint` (Part 31 capstone): chains the previous-session `window_failure_le`
+  (which already handles all three exit modes — region/window/floor — via `ae_notG_pow`, and whose
+  live-window bad event is exactly `per_window_delta`'s) through `checkpoint_composition`.
+  Conclusion: from a `recInv` start, `(markedK^{w·KK}) mc₀ {¬recInv} ≤ KK·δ`, the run-long
+  recurrence-invariant failure bound.  `δ` is the per-window bad-event bound (= `per_window_delta`'s
+  RHS at the live window-open invariant states; supplied as the `hB` hypothesis).
+
+STEP 3 — the per-level recurrence:
+- `recurrence_combine` + `front_squares_count`: the DECOMPOSITION `rBeyond(T+1)∘erase = taintedCount
+  + cleanAbove` (via `rBeyond_erase_eq_aboveCount` on P3 + `aboveCount_eq_tainted_add_clean` under
+  MarkInv) ⟹ `rBeyond(T+1) ≤ cc·X²/n + tt`; with the negligibility hypothesis `cc·X²/n + tt ≤ X²/n`
+  ⟹ count-form squaring `rBeyond(T+1)·n ≤ X²`.
+- `front_bad_subset` + `front_squares_whp` (Part 33 capstone): the bad event {in-window ∧ ¬square}
+  ⊆ {¬recInv} ∪ {taintedCount ≥ tt+1} ∪ {¬MarkInv}; bounded by `KK·δ` (recurrence_checkpoint) +
+  the taint tail `tainted_marked_tail_explicit` (the `{¬MarkInv}` mass is NULL via `markInv_ae_pow`).
+  Conclusion: P[in-window-at-T yet front fails to square] ≤ KK·δ + (hour-escape + taint-tail).
+
+STEP 4 — union + real-kernel transfer:
+- `realFrontBad T` (the real-config per-level bad set) + `markedFrontBad_eq_preimage` (the marked
+  bad event = `erase⁻¹(realFrontBad)`, since every condition is erase-measurable) +
+  `real_front_squares_whp`: transfer `front_squares_whp` to the REAL kernel verbatim via
+  `markedK_pow_erase`.
+- `real_front_union`: union the real per-level failure over `T < Tcap`, bounded by the per-level sum.
+- `windowedFrontProfile_of_not_bad` (the deterministic bridge, imports `ClockFrontProfile`): the
+  union complement (+ region facts + per-floor negligibility) ⟹ `WindowedFrontProfile θ c` (Doty
+  Thm 6.5's windowed recurrence shape).  Uses `ClimbTail.rBeyond_eq_zero_of_cap_lt` for levels past
+  the cap (trivially out of the window since `frac = 0 < θ`).
+- `windowedFrontProfile_whp` (STEP 4 CAPSTONE): assembles the union bound + the bridge into the
+  real-kernel statement
+    P[ card=n ∧ AllClockP3 ∧ (per-floor negligibility) ∧ ¬WindowedFrontProfile θ ]  ≤  Σ_{T<Tcap}
+      ( KK·δ T  +  hour-escape_T  +  taint-tail_T ).
+
+THE EXACT REMAINING GAP (all DETERMINISTIC/SCALE plug-ins; no new probabilistic engine needed):
+1. The per-window δ: discharge `hB` (the `recurrence_checkpoint`/`front_squares_whp` input) from
+   `per_window_delta` at the LOCKED constants — i.e. supply the geometric ladder `a m = ⌈G^m·a0⌉`,
+   `a0 = ⌈g·X₀⌉`, `Yt`, and `δ = exp(−δg·X₀+σg) + M·exp(σ·Q·(A−B))` and show it ≤ a uniform value
+   over `recInv`-states via `floor_exp_le`/`slice_exp_le`/`slice_sum_le`/`window_constants_*` (all
+   already proven; only the scale arithmetic `θn ≤ X₀ ≤ n/10`, `Q = X₀²/n` plug-in remains).  Note
+   `recInv` carries `θn ≤ X` and `10X ≤ n` (the window), and `per_window_delta` needs
+   `card=n ∧ AllClockGE3` — `recInv`'s region — so the wiring is immediate; the floor `a0 > X₀`
+   makes the recurrence-failure bad event's `X ≤ aM` cap honest (aM := a M).
+2. The negligibility `∀ T, θ ≤ frac T → cc·X²/n + tt ≤ X²/n`: at θ = n^{-0.4}, tt = n^{0.15},
+   cc = 9/10: `(1−cc)X² = X²/10 ≥ (θn)²/10 = n^{1.2}/10 ≫ tt·n = n^{1.15}` — pure norm_num/scale
+   arithmetic on the final config (carry as the `hnegc` END-config property; it holds deterministically
+   on every config with `frac T ≥ θ`).
+3. The per-level start hypotheses `∀ T < Tcap, recInv T mc₀ ∧ MarkInv T mc₀`: the all-clean,
+   all-window-open initial config (every agent at minute 0, mark = false) satisfies `MarkInv T`
+   trivially (no tainted agents) and `recInv T` vacuously-or-at-floor; this is the natural Doty
+   start.  (Could be packaged as an `initConfig` lemma.)
+4. The tail-sum is `n^{−ω(1)}`: each `KK·δ T = O(n loglog n)·exp(−Ω(n^{0.1}))`, hour-escape =
+   bulk-not-arrived (ConstantDensityEpidemic, benign), taint-tail = exp(−n^{0.15−o(1)}); summed over
+   `Tcap = O(log n)` levels stays `n^{−ω(1)}` — the doctrine's LOCKED-CONSTANTS margins.
+5. Rewire: feed `WindowedFrontProfile` (whp, from windowedFrontProfile_whp's complement) +
+   `ClimbBound` (whp, the ClimbTail deliverable, escape := the taint tail) into
+   `goodFrontWidth_of_windowed_profile_and_climb` → `GoodFrontWidth` whp →
+   `frontSync_of_goodWidth_of_bulk_below` → drop the FALSE `hwin_all` in the clock.
+
+All five remaining items are scale-arithmetic/wiring with NO new probabilistic content — the coupled
+time-window engine (the genuine core that caught 11 false shapes) is fully formalized and transferred
+to the real kernel.

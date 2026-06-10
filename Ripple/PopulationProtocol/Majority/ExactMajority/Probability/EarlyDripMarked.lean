@@ -47,6 +47,7 @@ the ChatGPT brick-3 consult (route 1a, archived in the doctrine).
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealKernel
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourCoupling
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClimbTail
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFrontProfile
 
 namespace ExactMajority
 
@@ -5311,6 +5312,135 @@ theorem real_front_union (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ)
   rw [Finset.mem_range] at hT
   exact real_front_squares_whp (L := L) (K := K) T θn n hn cc w (aM T) (haM T) (δ T)
     (hB T) σ hσ KK hsmall tt mc₀ (h0 T hT) (hmark T hT)
+
+/-! ## Part 36 — the `WindowedFrontProfile` bridge (STEP 4 deliverable): the complement of the
+level union is the windowed recurrence (Doty Thm 6.5's windowed shape) on the real config. -/
+
+open ClockFrontProfile in
+/-- **The deterministic bridge**: if a real config `c` has full population, all clocks at phase 3,
+and avoids `realFrontBad T` for every level `T < Tcap` where `Tcap` exceeds the cap minute, and the
+negligibility `cc·X²/n + tt ≤ X²/n` holds whenever the floor `θ ≤ frac T` is met, then `c` satisfies
+`WindowedFrontProfile θ` (the front squares on the recurrence window `[θ, 1/10]`).  The floor `θ`
+must be positive so the trivial levels (`frac = 0` past the cap) are out of the window. -/
+theorem windowedFrontProfile_of_not_bad (n Tcap : ℕ) (hn : 0 < n) (cc : ℝ) (tt : ℕ) (θ : ℝ)
+    (hθpos : 0 < θ)
+    (c : Config (AgentState L K)) (hcard : c.card = n)
+    (hP3 : AllClockP3 (L := L) (K := K) c)
+    (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (hneg : ∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+      cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+        ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ))
+    (hnotbad : ∀ T < Tcap, c ∉ realFrontBad (L := L) (K := K) T n cc tt) :
+    WindowedFrontProfile (L := L) (K := K) θ c := by
+  have hnℝ : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have hcardℝ : (0 : ℝ) < (c.card : ℝ) := by rw [hcard]; exact hnℝ
+  intro T hθT hupper
+  -- `frac T ≤ 1/10` ⟺ `10·rBeyond T ≤ card = n`.
+  have hwin10 : 10 * rBeyond (L := L) (K := K) T c ≤ n := by
+    unfold ClockFrontProfile.frac at hupper
+    rw [div_le_iff₀ hcardℝ] at hupper
+    have : (rBeyond (L := L) (K := K) T c : ℝ) * 10 ≤ (c.card : ℝ) := by linarith
+    rw [hcard] at this
+    have h10 : (10 * rBeyond (L := L) (K := K) T c : ℝ) ≤ (n : ℝ) := by push_cast; linarith
+    exact_mod_cast h10
+  -- T must be < Tcap: else frac T = 0 < θ contradicts hθT.
+  have hTlt : T < Tcap := by
+    by_contra hge
+    push Not at hge
+    by_cases hTcapeq : T ≤ ClockFrontShape.capMinute (L := L) (K := K)
+    · omega
+    · push Not at hTcapeq
+      have hz := ClimbTail.rBeyond_eq_zero_of_cap_lt (L := L) (K := K) T hTcapeq c
+      have : ClockFrontProfile.frac (L := L) (K := K) T c = 0 := by
+        unfold ClockFrontProfile.frac; rw [hz]; simp
+      rw [this] at hθT; linarith
+  -- the level is in the window and (by hnotbad) avoids realFrontBad ⟹ the front squares.
+  have hnb := hnotbad T hTlt
+  rw [realFrontBad, Set.mem_setOf_eq] at hnb
+  push Not at hnb
+  have hneg' := hneg T hθT
+  have hsq := hnb ⟨hcard, hP3, hwin10, hneg'⟩
+  -- `rBeyond(T+1)·n ≤ X²` ⟹ `frac(T+1) ≤ (frac T)²`, both sides over `card = n`.
+  have hX1nn : (0 : ℝ) ≤ (rBeyond (L := L) (K := K) (T + 1) c : ℝ) := by positivity
+  have hkey : (rBeyond (L := L) (K := K) (T + 1) c : ℝ) / (c.card : ℝ)
+      ≤ ((rBeyond (L := L) (K := K) T c : ℝ) / (c.card : ℝ)) ^ 2 := by
+    rw [div_pow, div_le_div_iff₀ hcardℝ (by positivity)]
+    have hcsq : (c.card : ℝ) ^ 2 = (n : ℝ) * (c.card : ℝ) := by rw [hcard]; ring
+    rw [hcsq]
+    nlinarith [hsq, hcardℝ, hnℝ, hX1nn]
+  exact hkey
+
+/-! ## Part 37 — the whp `WindowedFrontProfile` (STEP 4 capstone): assemble `real_front_union`
+(union probability ≤ per-level sum) with `windowedFrontProfile_of_not_bad` (the union complement ⟹
+the windowed recurrence).  The final statement bounds, on the REAL kernel, the probability that the
+end config is in the hour region with the negligibility holding yet FAILS the windowed recurrence,
+by the sum of the per-level tails. -/
+
+open ClockFrontProfile in
+/-- **STEP 4 CAPSTONE — whp WindowedFrontProfile on the real kernel.**  From an all-levels-clean,
+all-window-open start (the per-level `recInv`/`MarkInv` hypotheses) and the per-level checkpoint
+inputs, the real-kernel probability that the end config is a full-population all-phase-3 clock config
+on which the negligibility holds at every floor-met level yet the windowed front recurrence
+`WindowedFrontProfile θ` FAILS, is at most the sum of the per-level recurrence tails.  (The region
+and negligibility are carried as properties of the END config; their own whp control is the bulk
+epidemic / scale plug-in, supplied separately.) -/
+theorem windowedFrontProfile_whp (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : ℕ) (θ : ℝ) (hθpos : 0 < θ)
+    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
+    (δ : ℕ → ℝ≥0∞)
+    (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ T)
+    (σ : ℝ) (hσ : 0 < σ) (KK : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * KK) ≤ 1 / 2)
+    (tt : ℕ) (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : ∀ T < Tcap, recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : ∀ T < Tcap, MarkInv (L := L) (K := K) T mc₀) :
+    ((NonuniformMajority L K).transitionKernel ^ (w * KK)) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c}
+      ≤ ∑ T ∈ Finset.range Tcap,
+          ((KK : ℝ≥0∞) * δ T
+            + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+                (taintedGate (L := L) (K := K) n) ^ (w * KK)) (some mc₀) {none}
+              + ENNReal.ofReal
+                (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * KK)
+                    * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+                  + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * KK) * ((θn : ℝ) / (n : ℝ)) ^ 2
+                      * ((w * KK : ℕ) : ℝ)
+                  - σ * ((tt + 1 : ℕ) : ℝ))))) := by
+  classical
+  -- the failure event ⊆ the level union (via the deterministic bridge contrapositive).
+  have hsub : {c : Config (AgentState L K) | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+        (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+          cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+            ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+      ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c}
+      ⊆ ⋃ T ∈ Finset.range Tcap, realFrontBad (L := L) (K := K) T n cc tt := by
+    intro c hc
+    obtain ⟨⟨hcard, hP3, hnegc⟩, hwfp⟩ := hc
+    -- if c avoided every realFrontBad, the bridge gives WindowedFrontProfile — contradiction.
+    by_contra hcon
+    apply hwfp
+    refine windowedFrontProfile_of_not_bad (L := L) (K := K) n Tcap (by omega) cc tt θ hθpos
+      c hcard hP3 hcap hnegc ?_
+    intro T hT hbad
+    apply hcon
+    rw [Set.mem_iUnion₂]
+    exact ⟨T, Finset.mem_range.mpr hT, hbad⟩
+  refine le_trans (measure_mono hsub) ?_
+  exact real_front_union (L := L) (K := K) θn n hn cc w aM haM δ hB σ hσ KK hsmall tt Tcap
+    mc₀ h0 hmark (w * KK) rfl
 
 end EarlyDripMarked
 
