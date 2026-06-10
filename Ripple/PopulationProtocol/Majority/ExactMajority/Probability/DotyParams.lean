@@ -438,6 +438,82 @@ theorem goodFrontWidth_whp_concrete (n : ℕ) (hn : N₀ ≤ n) (W₂ : ℕ) (t 
   goodFrontWidth_whp (L := L) (K := K) n (two_le n hn) (9/10) (θ n) (one_div_le_θ n hn)
     (tt n) W₂ t mc₀ wfpB climbB hwfp hclimb
 
+/-! ## Part 12 — shared `hB` infrastructure: the window MGF scale `σw`, the smallness gate
+`hsmallW`, and the `RW ≤ RWb` bound at the locked rationals.
+
+The per-window engine `per_window_delta` runs at a window MGF scale `σw` (distinct from the global
+gate scale `σ` of Part 5, which couples to `KK`).  `per_window_delta` needs `hsmall :
+σw·(1+2(1+ε)/n)^w ≤ ε/(1+ε)` with `ε = 1/200`, and `slice_discharge` needs `RW ≤ RWb` with
+`RWb = 1/(1−u)`, `u = 2(1+ε)·wp = 603/20000` (the exact `window_constants_slice` constant).  We fix
+`σw := 1/250` and bound `RW = (1+2(1+ε)/n)^w ≤ exp(u) ≤ 1/(1−u) = RWb` via `w·y ≤ u`
+(`y = 2(1+ε)/n`, `w = ⌊3n/200⌋`). -/
+
+/-- The locked window-rung ratio `u := 2·(1+1/200)·(3/200) = 603/20000` (the `RWb = 1/(1−u)`
+denominator of `window_constants_slice`). -/
+noncomputable def uW : ℝ := 603 / 20000
+
+/-- The locked recurrence-window MGF bound `RWb := 1/(1−u)` (`window_constants_slice`'s constant). -/
+noncomputable def RWb : ℝ := 1 / (1 - uW)
+
+/-- The window MGF scale `σw := 1/250` (small enough for `hsmallW`). -/
+noncomputable def σw : ℝ := 1 / 250
+
+theorem σw_pos : (0 : ℝ) < σw := by unfold σw; norm_num
+
+/-- `0 < 1 + 2·(1+1/200)/n` for `n ≥ N₀`. -/
+theorem baseW_pos (n : ℕ) (hn : N₀ ≤ n) : (0 : ℝ) < 1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ) := by
+  have h2 : (0 : ℝ) < (n : ℝ) := by exact_mod_cast N₀_pos n hn
+  positivity
+
+/-- `(w n : ℝ) · (2·(1+1/200)/n) ≤ u = 603/20000` (the rung-ratio bound; `w = ⌊3n/200⌋`). -/
+theorem w_y_le_uW (n : ℕ) (hn : N₀ ≤ n) :
+    (w n : ℝ) * (2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ≤ uW := by
+  have hnpos : 0 < n := N₀_pos n hn
+  have hnℝ : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hnpos
+  -- w n = 3*n/200 ≤ 3n/200 (Nat floor), so (w n : ℝ) ≤ 3*(n:ℝ)/200.
+  have hwle : (w n : ℝ) ≤ 3 * (n : ℝ) / 200 := by
+    unfold w
+    rw [le_div_iff₀ (by norm_num : (0:ℝ) < 200)]
+    have hmul : (3 * n / 200 : ℕ) * 200 ≤ 3 * n := Nat.div_mul_le_self (3 * n) 200
+    calc ((3 * n / 200 : ℕ) : ℝ) * 200 = (((3 * n / 200 : ℕ) * 200 : ℕ) : ℝ) := by push_cast; ring
+      _ ≤ ((3 * n : ℕ) : ℝ) := by exact_mod_cast hmul
+      _ = 3 * (n : ℝ) := by push_cast; ring
+  -- (w n)·(2(1+1/200)/n) ≤ (3n/200)·(201/100/n) = 3·201/20000 = 603/20000.
+  have hy0 : (0 : ℝ) ≤ 2 * (1 + (1/200 : ℝ)) / (n : ℝ) := by positivity
+  calc (w n : ℝ) * (2 * (1 + (1/200 : ℝ)) / (n : ℝ))
+      ≤ (3 * (n : ℝ) / 200) * (2 * (1 + (1/200 : ℝ)) / (n : ℝ)) :=
+        mul_le_mul_of_nonneg_right hwle hy0
+    _ = uW := by unfold uW; field_simp; ring
+
+/-- `RW := (1+2(1+1/200)/n)^w ≤ 1/(1−u) = RWb` for `n ≥ N₀` (the `slice_discharge` MGF bound).
+Chain: `(1+y)^w ≤ exp(y)^w = exp(w·y) ≤ exp(u) ≤ 1/(1−u)` (last step via
+`exp_bound_div_one_sub_of_interval`, `u = 603/20000 < 1`). -/
+theorem RW_le_RWb (n : ℕ) (hn : N₀ ≤ n) :
+    (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ (w n) ≤ RWb := by
+  set y : ℝ := 2 * (1 + (1/200 : ℝ)) / (n : ℝ) with hy
+  have hy0 : (0 : ℝ) ≤ y := by rw [hy]; have := baseW_pos n hn; positivity
+  -- (1+y)^w ≤ exp(y)^w
+  have h1 : (1 + y) ^ (w n) ≤ (Real.exp y) ^ (w n) := by
+    have hcomm : (1 + y) = (y + 1) := by ring
+    rw [hcomm]
+    exact pow_le_pow_left₀ (by linarith) (Real.add_one_le_exp y) (w n)
+  -- exp(y)^w = exp(w·y)
+  have h2 : (Real.exp y) ^ (w n) = Real.exp ((w n : ℝ) * y) := by
+    rw [← Real.exp_nat_mul]
+  -- w·y ≤ u
+  have h3 : (w n : ℝ) * y ≤ uW := w_y_le_uW n hn
+  -- exp(w·y) ≤ exp(u)
+  have h4 : Real.exp ((w n : ℝ) * y) ≤ Real.exp uW := Real.exp_le_exp.mpr h3
+  -- exp(u) ≤ 1/(1−u)
+  have hu0 : (0 : ℝ) ≤ uW := by unfold uW; norm_num
+  have hu1 : uW < 1 := by unfold uW; norm_num
+  have h5 : Real.exp uW ≤ 1 / (1 - uW) := Real.exp_bound_div_one_sub_of_interval hu0 hu1
+  calc (1 + y) ^ (w n) ≤ (Real.exp y) ^ (w n) := h1
+    _ = Real.exp ((w n : ℝ) * y) := h2
+    _ ≤ Real.exp uW := h4
+    _ ≤ 1 / (1 - uW) := h5
+    _ = RWb := rfl
+
 end DotyParams
 
 end ExactMajority

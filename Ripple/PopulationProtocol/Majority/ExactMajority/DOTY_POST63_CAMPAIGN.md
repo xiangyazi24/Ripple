@@ -147,3 +147,30 @@ Line assignments to avoid file races (each line owns its files exclusively):
 - Commit per lemma, push, sync-ripple-wip.sh, 0-sorry/axiom-clean discipline as per the doctrine.
 - ChatGPT consults run from the family line (the family tab holds the repo connector); other lines
   request consults by writing questions into /tmp/gpt_requests_<line>.md and pinging family chat.
+
+## Phase B step 3 — ARCHITECTURE SETTLED (2026-06-10 night, family line)
+
+Findings (verified in code, not speculation):
+1. **post_absorbing is dead weight in composition.** `compose_two_phases`/`compose_n_phases`
+   never USE the field — only re-package it. → `PhaseConvergenceW` (no absorption) +
+   `composeW_two/n_phases` + `PhaseConvergence.toW` landed in
+   `Probability/PhaseConvergenceWeak.lean` (B-3b, identical proofs).
+2. **Endpoint bridge landed** (`Probability/ClockFrontSyncFromWidth.lean`, B-3a): general
+   level-i emptiness `rBeyond_eq_zero_of_goodWidth_of_bulk_below` + measure-union bridges
+   `frontSync_whp_of_goodFrontWidth` / `capFeederEmpty_whp_of_goodFrontWidth` (abstract side
+   event P matching goodFrontWidth_whp's carried conjunct).
+3. **The remaining crux is clock_real_step's INTERNAL habs_mix** (ClockRealBulk ~353/423,
+   ClockRealMixed ~1118: the drift windows must be absorbing ALONG the leg). Route:
+   **killed kernel.** `GatedDrift.real_le_killed` (GatedGeometricDrift.lean:139) is the
+   UNCONDITIONAL coupling `(K^t) x {bad} ≤ (killK^t) (some x) {none ∨ some bad}`; with
+   measure_union_le this gives the master decomposition
+     real {¬Post at leg end} ≤ killed {some ¬Post} + killed {none}
+   — (a) `killed {some ¬Post}`: re-run clock_real_step's seed/bulk MGF on `killK κ Q_mix-gate`
+   where the window is absorbing BY CONSTRUCTION (killK_drift pattern);
+   (b) `killed {none}` = escape mass = Q_mix breach along the leg, bounded by per-step squared
+   cap-seed on width-good configs + per-leg width re-certification (goodFrontWidth_whp_concrete
+   at minute boundaries via the B-3a bridge). NO new coupling machinery needed.
+4. Outstanding for step 3: classify every habs_mix use inside clock_real_step's callees
+   (drift-absorbing vs endpoint-transport — ChatGPT letter 2 in flight, task output
+   /tmp/gpt_a_phaseB2.out), then `clock_real_step_gated` + minuteStepPhaseW instances +
+   composeW. Escape-budget arithmetic at DotyParams' concrete parameters.
