@@ -44,6 +44,7 @@ import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MarkovChain
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.JansonHitting
 import Ripple.PopulationProtocol.Majority.ExactMajority.Protocol.Transition
 import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase0Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.GatedKillNow
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 namespace ExactMajority
@@ -2109,6 +2110,46 @@ theorem roleSplitTail_le_inv_sq_on
       -(mp.pMin * mp.meanTime) * (5 - 1 - Real.log 5) := by ring
   rw [hrw]
   exact jansonExp_le_inv_sq hn hpot_nonneg hpot five_sub_one_sub_log_five_ge_two
+
+/-! ## Gap (B), killed-kernel route: the floor as a UNION term, by construction.
+
+Relay 5 proved the deterministic `MilestonePhaseOn.inv_closed` cannot host the whp
+Chernoff floor (`assignableCount = 0` at `Phase0Initial`, R3 non-monotone).  The fix
+(relay 6) is the killed-kernel coupling `GatedDrift.killK_now`: run the chain on the
+gate-killed kernel where off-gate (floor-breaching) successors die into the cemetery
+`none` IN THE SAME STEP.  On the killed chain the gate `G` (= the floor region) holds at
+EVERY alive (`some`) state BY CONSTRUCTION (`alive_support_gate`), so `inv_closed` is FREE
+— and the milestone progress rate `Θ(M/n)` (the floor → rate bridge `phase0_..._floor`) is
+valid on every alive state.
+
+The transfer `real_le_killed_now` (proven in `GatedKillNow.lean`) dominates the real
+`t`-step bad mass by the killed mass of `{none} ∪ {alive-and-bad}`, splitting it into
+  * `εfloor` := the cemetery mass `(killK_now^t)(some c₀){none}` (the floor was breached
+    within the horizon) — bounded by `kill_now_escape_le_prefix_union`, and
+  * the killed alive-and-bad mass, where the milestone Janson engine runs with a FREE
+    `inv_closed`.
+This is exactly relay-5's "route (a): a union term", now realised structurally. -/
+
+open ExactMajority GatedDrift in
+/-- **Killed-kernel decomposition of the real bad-tail (generic).**  For any Markov kernel
+`K`, gate `G`, predicate `bad`, horizon `t` and start `x`, the real `t`-step mass on
+`{bad}` splits into the cemetery (escape) mass plus the killed alive-and-bad mass:
+`(K^t) x {bad} ≤ (killK_now K G ^ t)(some x){none} + (killK_now K G ^ t)(some x){alive-bad}`.
+Pure structural consequence of `real_le_killed_now` + subadditivity; no drift needed. -/
+theorem real_bad_le_escape_add_killedAliveBad
+    {α : Type*} [MeasurableSpace α] [DiscreteMeasurableSpace α] [Inhabited α]
+    (K : Kernel α α) [IsMarkovKernel K] (G : Set α) (bad : α → Prop) (t : ℕ) (x : α) :
+    (K ^ t) x {y | bad y} ≤
+      (killK_now K G ^ t) (some x) {(none : Option α)} +
+      (killK_now K G ^ t) (some x) {o | ∃ y, o = some y ∧ bad y} := by
+  classical
+  refine (real_le_killed_now (K := K) (G := G) bad t x).trans ?_
+  have hsub : {o : Option α | o = none ∨ (∃ y, o = some y ∧ bad y)}
+      ⊆ {(none : Option α)} ∪ {o | ∃ y, o = some y ∧ bad y} := by
+    rintro o (rfl | h)
+    · exact Or.inl rfl
+    · exact Or.inr h
+  exact (measure_mono hsub).trans (measure_union_le _ _)
 
 end RoleSplitConcentration
 end ExactMajority

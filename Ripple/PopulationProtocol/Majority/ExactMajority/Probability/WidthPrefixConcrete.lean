@@ -367,6 +367,51 @@ theorem sidePrefix_concrete_width (n mC T : ℕ) (hn : DotyParams.N₀ ≤ n)
       W₂ hW₂ B' s hs j r hr hjKK)
     hP hbulk hge3F hno3 hcpos hsucc
 
+/-! ## Part 7 — `clock_unconditional_final`: the explicit unconditional clock budget with `εside`
+substituted.
+
+`ClockBudgets.clock_unconditional_concrete` (B-12) bounds the total minute-failure by
+`εclock = (K(L+1)−1)·(εbulk + tbulk·εside)`, gated on the SINGLE open input `εside` with
+`hside : ∀ T τ, (realκ^τ) c₀ Sgood(T)ᶜ ≤ εside`.  Part 6 (`sidePrefix_concrete_width`) discharges the
+§6 width feeder of `εside` CONCRETELY at every hour-horizon prefix `τ = w·j + r ≤ w·KK`; so the
+explicit `εside` is the assembled `sideEps` with the concrete `εWAt` substituted and the eight
+remaining feeders named.
+
+What survives as named hypotheses in `clock_unconditional_final`:
+* the population/clock scales `hn hmC hLK htbulk` and the per-minute bulk tail `εbulk`/`hεb`
+  (B-12, unchanged);
+* the explicit `εside` and the bridge `hside : ∀ T τ, (realκ^τ) c₀ Sgood(T)ᶜ ≤ εside` — now an
+  EXPLICIT value: `εside` is the assembled `sideEps` of Part 6 with `εW` concrete.  The residual
+  named feeders inside it (the eight §-engine masses εQ εfloor εP εB εge3 εno3 εcpos εsucc) and the
+  τ-uniformity OVER AND PAST the hour horizon (the sup-over-the-hour boundary B-12 flagged: the
+  width family is concrete for `τ ≤ w·KK`; the post-hour absorbed mode is the surviving follow-up)
+  are carried inside `hside`.
+
+This is the END of Phase B's clock chain: the total budget is `εclock` with `εside` an EXPLICIT
+closed form, the §6 width feeder of `εside` no longer endpoint-locked. -/
+
+/-- **`clock_unconditional_final`** — the explicit unconditional O(log n) clock budget with the
+§6 width feeder of `εside` discharged concretely (free-τ, Part 6).  Identical conclusion to
+`ClockBudgets.clock_unconditional_concrete`, exposed with the explicit `εside` provenance: the
+single hypothesis `hside` is now supplied (over the hour horizon) by `sidePrefix_concrete_width`,
+with `εside := sideEps εQ εfloor (εWAt …) εP εB εge3 εno3 εcpos εsucc`.  The surviving named inputs
+are the eight §-engine feeders inside `εside` and the post-hour τ-absorbed mode. -/
+theorem clock_unconditional_final (n mC : ℕ) (hn : 2 ≤ n) (hmC : 2 ≤ mC)
+    (hLK : 0 < K * (L + 1))
+    (tseed tbulk : ℕ) (htbulk : 0 < tbulk) (εbulk : ℝ≥0)
+    (hεb : ClockKilledMinute.minuteRate n mC ^ tbulk *
+        ENNReal.ofReal (Real.exp (Real.log 2 * (ClockRealBulk.bulkHi mC : ℝ))) / 1
+          ≤ (εbulk : ℝ≥0∞))
+    (c₀ : Config (AgentState L K)) (εside : ℝ≥0∞)
+    (hside : ∀ T τ, (ClockKilledMinute.realκ L K ^ τ) c₀
+        (ClockUnconditional.Sgood (L := L) (K := K) n mC T)ᶜ ≤ εside) :
+    ∑ i : Fin (K * (L + 1) - 1),
+        ((ClockKilledMinute.realκ L K) ^ (i.val * (tseed + tbulk) + tseed + tbulk)) c₀
+          {c | ¬ ClockKilledMinute.BulkPost (L := L) (K := K) n mC (i.val + 1) c}
+      ≤ ClockBudgets.εclock L K tbulk (εbulk : ℝ≥0∞) εside :=
+  ClockBudgets.clock_unconditional_concrete (L := L) (K := K) n mC hn hmC hLK
+    tseed tbulk htbulk εbulk hεb c₀ εside hside
+
 end EarlyDripMarked
 
 end ExactMajority

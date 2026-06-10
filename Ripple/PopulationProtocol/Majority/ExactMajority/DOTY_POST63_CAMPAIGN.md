@@ -807,6 +807,79 @@ Everything ABOVE `εside` (the inclusions, the four-feeder split, the FrontSync 
 summation arithmetic, the concrete endpoint `εW`) is FULLY PROVEN and axiom-clean.  Phase B's
 clock chain is now a single explicit budget gated only on the uniform per-`τ` side mass `εside`.
 
+## Phase B-13 — the FREE-τ CONCRETE WIDTH FAMILY: εside's §6 width feeder no longer endpoint-locked (2026-06-10, 0-sorry axiom-clean)
+
+File: `Probability/WidthPrefixConcrete.lean` (new).  B-13a 70f40461 · B-13b 335f5737 ·
+B-13c 6bab9672 · B-13d 3db75694.  All 7 theorems axiom-clean (⊆ {propext, Classical.choice,
+Quot.sound}), single-file compile, ZERO sorry / native_decide / new axiom.
+
+This brick RE-HOMES B-12's `εW` from the SINGLE endpoint horizon `w·KK` to the free minute boundary
+`τ = w·j + r` (`r < w`, `j ≤ KK−1`, so `τ ≤ w·KK`), discharging the §6 width feeder of `εside`
+CONCRETELY at every hour-horizon prefix — the exact "engine-rehoming task, not a math gap" B-12
+flagged.
+
+### The `δRem` discharge — HONEST analysis of the horizon split (the one genuinely-new obligation)
+`WidthPrefix.windowedFrontProfile_whp_prefix` (B-8) takes the `r`-horizon remainder window bound
+`δRem` as an INPUT.  `window_failure_le` is ALREADY horizon-parametric (its region/floor/P3/X-exit
+null modes hold at every horizon via `ae_notG_pow`), so the remainder bound is `window_failure_le`
+at `r`, fed by a per-window bad-event bound at `r`.  That bad-event bound = `per_window_delta` at
+`w := r`.  Its `w`-dependent hypotheses split by direction:
+- `hsmall` (`σ·(1+y)^r ≤ thresh`): base `1+y ≥ 1`, so `(1+y)^r ≤ (1+y)^w` for `r < w` — LHS shrinks,
+  holds a fortiori (`hsmall_prefix_concrete`, PROVEN).
+- `hfloor` (`floor_margin_params`: `δgLocked ≤ r·(1.8(1−e^{−1/10})/n) − const`): RHS has a
+  `+r·(positive)` term, so for `r < w` the RHS SHRINKS.  The full-window slack is tiny (≈ 4·10⁻⁶),
+  so the floor margin GENUINELY FAILS for small `r` (outright at `r = 0`).  This is a REAL
+  structural break, NOT a missing arithmetic step: the §6 ladder needs the full window `w` of drift.
+
+**Honest fix** (the route the B-8 audit blessed — "a coarse uniform δRem for partial windows"):
+the trivial probability bound `δRem := 1` (`rem_le_one`, B-13a): from ANY start,
+`(markedK^r) mc₀ {¬recInv} ≤ 1` (a Markov-kernel power is a probability measure), valid at EVERY
+`r` including the broken small-`r` regime.  Coarse but EXPLICIT — and `εside` is itself a named
+uniform bound, not required `< 1`.  The remainder then contributes `Tcap·1` per the level union; the
+checkpoint part keeps the same `KK·deltaB`-shape as the endpoint (since `j ≤ KK`).
+
+### DELIVERABLES (theorems, signatures abbreviated)
+1. `rem_le_one` (B-13a) — the coarse universal `δRem = 1` (+ `markedK_pow_isMarkov` instance).
+2. `hsmall_prefix_concrete` — concrete scale smallness at any `τ ≤ w·KK` (a-fortiori from
+   `DotyParams.hsmall_eq`).
+3. `windowedFrontProfile_whp_prefix_concrete` (B-13b) — the `WindowedFrontProfile`-failure mass at
+   `τ = w·j+r` at DotyParams' params: B-8 prefix machinery + `DotyParams.hB_params` (δ := deltaB n)
+   + `rem_le_one` (δRem := 1).
+4. **`goodFrontWidth_whp_at_concrete`** (B-13b) — the FREE-τ concrete width family: (3) for the WFP
+   side + `DotyParams.climbBound_whp_concrete` (free-t) for the climb side, glued by
+   `goodFrontWidth_whp_concrete`.  The free-τ analog of the endpoint-locked
+   `DotyParams.goodFrontWidth_whp_final`.
+5. `widthFail_at_concrete` + `εWAt` (B-13c) — the free-τ analog of B-12's `widthFail_concrete`:
+   (4) re-associated into the EXACT `ClockBudgets.WidthSideP n c ∧ ¬GoodFrontWidth W c` /
+   `syncFail_le` shape, RHS named `εWAt`.  `realκ = (NonuniformMajority).transitionKernel` by abbrev.
+6. `sidePrefix_concrete_width` (B-13d) — the per-τ `Sgood(T)ᶜ` budget via
+   `ClockBudgets.sidePrefix_le_assembled` with `εW` SUBSTITUTED by `εWAt` (concrete); the other
+   EIGHT feeders (`εQ εfloor εP εB εge3 εno3 εcpos εsucc`) carried as named uniform whp bounds.
+7. **`clock_unconditional_final`** (B-13d) — the explicit `εclock` capstone (=
+   `ClockBudgets.clock_unconditional_concrete`) exposed with the explicit `εside` provenance:
+   `hside` over the hour horizon is now supplied by `sidePrefix_concrete_width`, `εside :=
+   sideEps εQ εfloor (εWAt …) εP εB εge3 εno3 εcpos εsucc`.
+
+### FINAL HYPOTHESIS LIST of `clock_unconditional_final` (every surviving named input)
+`(n mC : ℕ) (hn : 2 ≤ n) (hmC : 2 ≤ mC) (hLK : 0 < K·(L+1)) (tseed tbulk : ℕ) (htbulk : 0 < tbulk)
+(εbulk : ℝ≥0) (hεb : minuteRate^tbulk·…/1 ≤ εbulk) (c₀ : Cfg L K) (εside : ℝ≥0∞)
+(hside : ∀ T τ, (realκ^τ) c₀ Sgood(T)ᶜ ≤ εside)`.  εside is now EXPLICIT (the assembled `sideEps`
+with `εWAt` concrete).  The surviving named residuals, all carried INSIDE `hside`:
+- the EIGHT non-width §-engine feeders `εQ εfloor εP εB εge3 εno3 εcpos εsucc` (distinct
+  Qmix/floor/side-event/bulk-arrival/four-phase-gate masses — each its own §-engine, untouched here);
+- the τ-uniformity OVER AND PAST the hour horizon: `goodFrontWidth_whp_at_concrete` is concrete for
+  `τ ≤ w·KK`; the POST-HOUR (`τ > w·KK`) absorbed/already-converged width mode is the one surviving
+  follow-up (the genuine sup-over-the-hour boundary B-12 flagged — the engine is concrete for the
+  whole hour, the post-hour tail is the absorbed mode).
+
+### VERDICT
+The §6 width feeder of `εside` is NO LONGER endpoint-locked: it is discharged CONCRETELY at every
+minute boundary inside the hour (`τ ≤ w·KK`), explicit closed form `εWAt`.  B-12's flagged
+"engine-rehoming" follow-up is DONE for the width feeder.  Phase B's clock chain reaches an explicit
+`εclock` with an explicit `εside` whose §6 width component is now free-τ concrete.  What remains is
+NOT a §6 width gap: it is (i) the eight independent non-width side-feeder engines, and (ii) the
+post-hour absorbed width mode (`τ > w·KK`), both honestly named inside `hside`.
+
 ## Phase C-1 — RoleSplitConcentration witness (Lemma 5.2 progress field) — STATUS
 
 `RoleSplitConcentration.lean` `roleSplitTail_le` (Phase0Initial + RoleSplitMilestone ⟹

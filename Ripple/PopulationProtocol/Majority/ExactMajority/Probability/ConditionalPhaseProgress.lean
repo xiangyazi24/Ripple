@@ -48,6 +48,7 @@ zero `native_decide`.
 -/
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ExpectedHitting
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealKernel
 
 namespace ExactMajority
 
