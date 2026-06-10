@@ -697,6 +697,183 @@ theorem seamClockSummand_Transition_pair_le (p : ℕ)
           + 2 * (ENNReal.ofReal (Real.exp s) * freshVal (L := L) s) := by
         rw [mul_add, mul_add]; ring
 
+/-! ## Stage 3 — the corrected configuration-level drift with `b = 2·eˢ·freshVal`.
+
+`SeamNoOvershoot.seamClockPotential_drift_affine` consumed a `hpair` with the WRONG
+constant `2·freshVal` and produced drift `+ 2·freshVal`.  We re-derive the drift with a
+GENERIC additive immigration `bImm`, then instantiate it at the honest
+`bImm = 2·(eˢ·freshVal)` via the Stage-2 pair bound.  The body mirrors
+`SeamNoOvershoot`'s derivation verbatim (the base-split lemmas, `_eq_base_add_pair`, and
+the `lintegral_transitionKernel_eq_sum` pair-sum expansion are all reusable as-is — only
+the immigration constant differs), so this is a clean re-instantiation, not a re-proof. -/
+
+/-- **Generic per-pair → additive-bump split** (immigration `bImm` arbitrary).  Clone of
+`SeamNoOvershoot.seamClockPotential_stepOrSelf_le` with the literal `2·freshVal` replaced
+by a generic `bImm`.  The base-split lemmas it uses (`…_eq_base_add_pair`,
+`…_stepOrSelf_eq_base_add_pair`) are immigration-agnostic. -/
+theorem seamClockPotential_stepOrSelf_le_gen (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (bImm : ℝ≥0∞) (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hpair : ∀ a b : AgentState L K,
+      seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+        + seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+        ≤ ENNReal.ofReal (Real.exp s)
+            * (seamClockSummand (L := L) (K := K) p s a
+               + seamClockSummand (L := L) (K := K) p s b)
+          + bImm) :
+    seamClockPotential (L := L) (K := K) p s
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ seamClockPotential (L := L) (K := K) p s c
+        + ENNReal.ofReal (Real.exp s - 1)
+            * (seamClockSummand (L := L) (K := K) p s r₁
+               + seamClockSummand (L := L) (K := K) p s r₂)
+        + bImm := by
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hle : ({r₁, r₂} : Config (AgentState L K)) ≤ c := happ
+    rw [seamClockPotential_stepOrSelf_eq_base_add_pair p s c r₁ r₂ happ]
+    rw [seamClockPotential_eq_base_add_pair p s c r₁ r₂ hle]
+    set base := Config.sumOf (seamClockSummand (L := L) (K := K) p s) (c - {r₁, r₂})
+    set S := seamClockSummand (L := L) (K := K) p s r₁
+      + seamClockSummand (L := L) (K := K) p s r₂
+    have hpair' := hpair r₁ r₂
+    have hofeq : ENNReal.ofReal (Real.exp s) = 1 + ENNReal.ofReal (Real.exp s - 1) := by
+      rw [← ENNReal.ofReal_one,
+          ← ENNReal.ofReal_add (by norm_num) (by linarith [Real.one_le_exp hs])]
+      congr 1; ring
+    have hexp_split : ENNReal.ofReal (Real.exp s) * S
+        = S + ENNReal.ofReal (Real.exp s - 1) * S := by
+      rw [hofeq, add_mul, one_mul]
+    calc base + (seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).1
+            + seamClockSummand (L := L) (K := K) p s (Transition L K r₁ r₂).2)
+        ≤ base + (ENNReal.ofReal (Real.exp s) * S + bImm) := by gcongr
+      _ = base + (S + ENNReal.ofReal (Real.exp s - 1) * S + bImm) := by rw [hexp_split]
+      _ = base + S + ENNReal.ofReal (Real.exp s - 1) * S + bImm := by ring
+  · rw [Protocol.stepOrSelf, if_neg happ]
+    calc seamClockPotential (L := L) (K := K) p s c
+        ≤ seamClockPotential (L := L) (K := K) p s c
+          + ENNReal.ofReal (Real.exp s - 1)
+              * (seamClockSummand (L := L) (K := K) p s r₁
+                 + seamClockSummand (L := L) (K := K) p s r₂) :=
+          le_add_right le_rfl
+      _ ≤ _ := le_add_right le_rfl
+
+/-- **The corrected affine one-step drift** (immigration `bImm` arbitrary).  Clone of
+`SeamNoOvershoot.seamClockPotential_drift_affine` with the generic immigration; the
+pair-sum collapse via `lintegral_transitionKernel_eq_sum` + `sum_fst/snd_interactionProb`
+is verbatim.  Instantiated at `bImm = 2·(eˢ·freshVal)` (Stage 2) it is the HONEST drift. -/
+theorem seamClockPotential_drift_affine_gen (p : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (bImm : ℝ≥0∞) (n : ℕ) (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n) (hc2 : 2 ≤ Multiset.card c)
+    (hpair : ∀ a b : AgentState L K,
+      seamClockSummand (L := L) (K := K) p s (Transition L K a b).1
+        + seamClockSummand (L := L) (K := K) p s (Transition L K a b).2
+        ≤ ENNReal.ofReal (Real.exp s)
+            * (seamClockSummand (L := L) (K := K) p s a
+               + seamClockSummand (L := L) (K := K) p s b)
+          + bImm) :
+    ∫⁻ c', seamClockPotential (L := L) (K := K) p s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+          * seamClockPotential (L := L) (K := K) p s c
+        + bImm := by
+  classical
+  set Φ := seamClockPotential (L := L) (K := K) p s c with hΦ
+  rw [Phase0Window.lintegral_transitionKernel_eq_sum (NonuniformMajority L K) c hc2]
+  have hpp : ∀ pair : AgentState L K × AgentState L K,
+      seamClockPotential (L := L) (K := K) p s
+          (Protocol.stepOrSelf (NonuniformMajority L K) c pair.1 pair.2)
+        * c.interactionProb pair.1 pair.2
+      ≤ (Φ + ENNReal.ofReal (Real.exp s - 1)
+            * (seamClockSummand (L := L) (K := K) p s pair.1
+               + seamClockSummand (L := L) (K := K) p s pair.2) + bImm)
+          * c.interactionProb pair.1 pair.2 := by
+    intro pair
+    gcongr
+    exact seamClockPotential_stepOrSelf_le_gen p s hs bImm c pair.1 pair.2 hpair
+  refine le_trans (Finset.sum_le_sum (fun pair _ => hpp pair)) ?_
+  simp_rw [add_mul]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  have hsumprob : (∑ pair : AgentState L K × AgentState L K,
+      c.interactionProb pair.1 pair.2) = 1 := by
+    have := (c.interactionPMF hc2).tsum_coe
+    rw [tsum_eq_sum (s := Finset.univ) (by intro x hx; exact absurd (Finset.mem_univ x) hx)] at this
+    convert this using 1
+  have hΦsum : (∑ pair : AgentState L K × AgentState L K,
+      Φ * c.interactionProb pair.1 pair.2) = Φ := by
+    rw [← Finset.mul_sum, hsumprob, mul_one]
+  have hMsum : (∑ pair : AgentState L K × AgentState L K,
+      bImm * c.interactionProb pair.1 pair.2) = bImm := by
+    rw [← Finset.mul_sum, hsumprob, mul_one]
+  have hmid : (∑ pair : AgentState L K × AgentState L K,
+      ENNReal.ofReal (Real.exp s - 1)
+        * (seamClockSummand (L := L) (K := K) p s pair.1
+           + seamClockSummand (L := L) (K := K) p s pair.2)
+        * c.interactionProb pair.1 pair.2)
+      = ENNReal.ofReal (Real.exp s - 1) * (Φ / (n : ℝ≥0∞) + Φ / (n : ℝ≥0∞)) := by
+    simp_rw [mul_assoc]
+    rw [← Finset.mul_sum]
+    congr 1
+    have hsplit : ∀ pair : AgentState L K × AgentState L K,
+        (seamClockSummand (L := L) (K := K) p s pair.1
+           + seamClockSummand (L := L) (K := K) p s pair.2)
+          * c.interactionProb pair.1 pair.2
+          = seamClockSummand (L := L) (K := K) p s pair.1 * c.interactionProb pair.1 pair.2
+            + seamClockSummand (L := L) (K := K) p s pair.2 * c.interactionProb pair.1 pair.2 := by
+      intro pair; rw [add_mul]
+    rw [Finset.sum_congr rfl (fun pair _ => hsplit pair), Finset.sum_add_distrib]
+    rw [Phase0Window.sum_fst_interactionProb c hc2 (seamClockSummand (L := L) (K := K) p s),
+        Phase0Window.sum_snd_interactionProb c hc2 (seamClockSummand (L := L) (K := K) p s)]
+    rw [hcard]; rfl
+  rw [hΦsum, hMsum, hmid]
+  refine le_of_eq ?_
+  congr 1
+  have hnpos : (0 : ℝ) < (n : ℝ) := by
+    have : 2 ≤ n := by rw [← hcard]; exact hc2
+    exact_mod_cast (by omega : 0 < n)
+  have hnne : (n : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by positivity : (n:ℝ) ≠ 0)
+  have hntop : (n : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top n
+  have he1 : (0 : ℝ) ≤ Real.exp s - 1 := by linarith [Real.one_le_exp hs]
+  have hofac : ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+      = 1 + ENNReal.ofReal (Real.exp s - 1) * ((2 : ℝ≥0∞) / (n : ℝ≥0∞)) := by
+    rw [ENNReal.ofReal_add (by norm_num) (by positivity)]
+    rw [ENNReal.ofReal_one]
+    congr 1
+    rw [show 2 * (Real.exp s - 1) / (n : ℝ) = (Real.exp s - 1) * (2 / (n : ℝ)) by ring]
+    rw [ENNReal.ofReal_mul he1]
+    congr 1
+    rw [ENNReal.ofReal_div_of_pos hnpos, ENNReal.ofReal_natCast]
+    norm_num
+  rw [hofac, add_mul, one_mul]
+  congr 1
+  rw [mul_assoc]
+  congr 1
+  rw [ENNReal.div_add_div_same, ← two_mul]
+  rw [mul_comm (2 : ℝ≥0∞) Φ, mul_div_assoc, mul_comm ((2:ℝ≥0∞)/(n:ℝ≥0∞)) Φ,
+      ← mul_div_assoc]
+
+/-- **The HONEST configuration-level drift** (immigration `2·eˢ·freshVal`).  The Stage-3
+capstone: feeding the Stage-2 honest pair bound (`seamClockSummand_Transition_pair_le`,
+which carries immigration `2·(eˢ·freshVal)`) into the generic drift gives the corrected
+affine one-step drift for the seam clock potential on the counter-reset destination set
+`{1,6,7,8}`:
+
+  `∫ Φ_s dK(c) ≤ ofReal(1 + 2(eˢ−1)/n)·Φ_s(c) + 2·eˢ·e^{−s·50(L+1)}`.
+
+This replaces `SeamNoOvershoot.seamClockPotential_drift_affine`'s `+ 2·freshVal` (which
+is FALSE for `s > 0`). -/
+theorem seamClockPotential_drift_affine_honest (p : ℕ)
+    (hq : CounterResetDest (p + 1)) (s : ℝ) (hs : 0 ≤ s)
+    (hdisp : SeamRegimeDispatch (L := L) (K := K) p)
+    (n : ℕ) (c : Config (AgentState L K))
+    (hcard : Multiset.card c = n) (hc2 : 2 ≤ Multiset.card c) :
+    ∫⁻ c', seamClockPotential (L := L) (K := K) p s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ ENNReal.ofReal (1 + 2 * (Real.exp s - 1) / (n : ℝ))
+          * seamClockPotential (L := L) (K := K) p s c
+        + 2 * (ENNReal.ofReal (Real.exp s) * freshVal (L := L) s) :=
+  seamClockPotential_drift_affine_gen p s hs
+    (2 * (ENNReal.ofReal (Real.exp s) * freshVal (L := L) s)) n c hcard hc2
+    (fun a b => seamClockSummand_Transition_pair_le p hq s hs hdisp a b)
+
 end SeamNoOvershoot
 
 end ExactMajority
