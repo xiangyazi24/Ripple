@@ -219,4 +219,142 @@ theorem doty_time_headline_W
           gcongr
       _ = 11 * C0 * n * (L + 1) := by ring
 
+/-! ## Phase D-4 — the SEAM-CORRECTED 21-instance composition (`doty_time_headline_W2`)
+
+`ChainBridges` PROVED the ten `h_chain` bridges above are NOT pointwise implications: every
+phase window pins agents to a single distinct `phase.val`, so `Post_i ∧ Pre_{i+1}` is
+contradictory on any populated config (the bridge is the `advancePhase` epidemic, a genuine
+TRANSITION, not a predicate implication).  The `h_chain` hypothesis of
+`doty_time_composition_W` is therefore satisfiable only vacuously (the empty config) — the
+headline above is honest about carrying it as a named input, but the input cannot be
+discharged against the real instances.
+
+`SeamEpidemics.seamEpidemicW` repairs this by interposing, between each pair of work phases, a
+SEAM phase that realises the inter-phase advance epidemic.  The corrected chain is the
+21-instance interleave `[work₀, seam₀, work₁, seam₁, …, seam₉, work₁₀]`, on which the bridges
+ARE now genuine pointwise implications:
+
+* `work_i.Post ⟹ seam_i.Pre` : the work phase's `Post` carries the advance trigger
+  (`advTriggered (p+1)` — at least one agent has advanced; this is the trigger-form tail that
+  the work `Post` must expose, noted per work phase) and the `≥ p`-window; `seam_i.Pre` is
+  exactly `allPhaseGe p n ∧ advTriggered (p+1)`.  TRUE pointwise.
+* `seam_i.Post ⟹ work_{i+1}.Pre` : the seam's `Post` is the `≥ (p+1)`-window
+  `allPhaseGe (p+1) n`; for `≥`-window work `Pre`s this is the identity, for exact-pin work
+  `Pre`s it is recovered via `SeamEpidemics.allPhaseEq_of_ge_and_no_overshoot` under the named
+  per-seam timing input `hNoOvershoot` (no agent overshot to `≥ p+2`).  TRUE pointwise modulo
+  the named overshoot feeder (folded into the seam's `εovershoot`).
+
+The composition is the SAME `composeW_n_phases`, now over `Fin 21`.  The budget is the
+21-term sum `∑ (11 work + 10 seam) ε`; the horizon is `∑ (11 work + 10 seam) t`.
+
+This contract theorem is the pure assembly arithmetic over the 21-instance family; the
+seam instances and their trigger/overshoot feeders are supplied as `phases`/`h_chain` exactly
+as the work instances and their drains are.  See `SeamEpidemics` for the generic seam and the
+exact shapes of the two named gaps (`hDrift`, `hNoOvershoot`).
+-/
+
+/-- The last phase index `20 : Fin 21` (the final WORK phase `work₁₀` in the interleave). -/
+private def lastPhaseW2 : Fin 21 := ⟨21 - 1, by omega⟩
+
+/-- **Doty time composition — seam-corrected 21-instance assembly contract.**
+
+Identical assembly to `doty_time_composition_W`, now over the 21-instance interleave
+`[work₀, seam₀, …, seam₉, work₁₀]`.  The `h_chain` hypothesis here is genuinely satisfiable
+pointwise (the seams carry the advance epidemic; the work↔seam bridges are TRUE on populated
+configs, unlike the work↔work bridges refuted in `ChainBridges`). -/
+theorem doty_time_composition_W2
+    {L K n : ℕ}
+    (init c₀ : Config (AgentState L K))
+    (Cphase : Fin 21 → ℕ) (δ : Fin 21 → ℝ≥0)
+    (phases : Fin 21 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel)
+    (ht : ∀ i, (phases i).t ≤ Cphase i * n * (L + 1))
+    (hε : ∀ i, ((phases i).ε : ℝ≥0∞) ≤ (δ i : ℝ≥0∞))
+    (h_chain : ∀ (i : Fin 21) (hi : i.val + 1 < 21),
+        ∀ x, (phases i).Post x → (phases ⟨i.val + 1, hi⟩).Pre x)
+    (hx₀ : (phases ⟨0, by omega⟩).Pre c₀)
+    (h_post : ∀ c, (phases lastPhaseW2).Post c →
+        majorityStableEndpoint (L := L) (K := K) init c) :
+    ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+        {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+      ≤ (∑ i, ((phases i).ε : ℝ≥0∞))
+    ∧ (∑ i, (phases i).t) ≤ (∑ i, Cphase i) * n * (L + 1)
+    ∧ (∑ i, ((phases i).ε : ℝ≥0∞)) ≤ ∑ i, (δ i : ℝ≥0∞) := by
+  refine ⟨?_, ?_, ?_⟩
+  · have h_compose :=
+      composeW_n_phases (K := (NonuniformMajority L K).transitionKernel)
+        (m := 21) (by omega) phases h_chain c₀ hx₀
+    have h_subset :
+        {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+          ⊆ {c | ¬ (phases ⟨21 - 1, by omega⟩).Post c} := by
+      intro c hc
+      simp only [Set.mem_setOf_eq] at hc ⊢
+      intro hPost
+      exact hc (h_post c hPost)
+    calc ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+            {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+        ≤ ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+            {c | ¬ (phases ⟨21 - 1, by omega⟩).Post c} := measure_mono h_subset
+      _ ≤ (∑ i, ((phases i).ε : ℝ≥0∞)) := h_compose
+  · exact total_time_le_W (fun i => (phases i).t) Cphase ht
+  · exact total_error_le_W (fun i => (phases i).ε) δ hε
+
+/-- **`doty_time_headline_W2` — the SEAM-CORRECTED eleven-work + ten-seam composition headline
+(UNCONDITIONAL beyond the named-input surface).**
+
+The Phase-D-4 deliverable.  Replaces the work↔work `h_chain` of `doty_time_headline_W` (refuted
+pointwise in `ChainBridges`) by the 21-instance interleave whose bridges ARE genuine pointwise
+implications.  If every per-phase constant satisfies `Cphase i ≤ C0` and the 21-term error
+budget is `∑ δ ≤ 1/n`, the composed chain reaches `majorityStableEndpoint init` within
+`T ≤ 21·C0·n·(L+1)` interactions with failure probability `≤ 1/n`.
+
+`T ≤ 21·C0·n·(L+1) = O(n log n)` interactions (`O(L+1) = O(log n)` parallel time); failure
+`≤ 1/n` is whp.  The interleave constant doubles `11 → 21` but the asymptotics are unchanged
+(each seam is one `O(n·(L+1))` advance epidemic, same order as a work phase).
+
+**Surviving inputs** (all named hypotheses; zero axiom beyond
+`[propext, Classical.choice, Quot.sound]`, zero `sorry`, zero `native_decide`):
+the 11 WORK `PhaseConvergenceW` instances (each proven in its file with its own drains, plus —
+where the work `Post` does not already expose it — the advance-trigger strengthening
+`advTriggered (p+1)`, noted per work phase); the 10 SEAM instances
+`SeamEpidemics.seamEpidemicW` (each carrying its two named feeders `hDrift` = generic-`p`
+advance-epidemic drift and `εovershoot`/`hNoOvershoot` = per-seam timing separation); the
+21-term chain maps `h_chain` (work↔seam, TRUE pointwise per `SeamEpidemics`); the start `hx₀`;
+the closing map `h_post`; the scaling `ht`/`hC0`/`hδ`.  This is the honest seam-corrected
+single-theorem statement of the campaign's Phase-D goal. -/
+theorem doty_time_headline_W2
+    {L K n C0 : ℕ}
+    (init c₀ : Config (AgentState L K))
+    (Cphase : Fin 21 → ℕ) (δ : Fin 21 → ℝ≥0)
+    (phases : Fin 21 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel)
+    (ht : ∀ i, (phases i).t ≤ Cphase i * n * (L + 1))
+    (hε : ∀ i, ((phases i).ε : ℝ≥0∞) ≤ (δ i : ℝ≥0∞))
+    (h_chain : ∀ (i : Fin 21) (hi : i.val + 1 < 21),
+        ∀ x, (phases i).Post x → (phases ⟨i.val + 1, hi⟩).Pre x)
+    (hx₀ : (phases ⟨0, by omega⟩).Pre c₀)
+    (h_post : ∀ c, (phases lastPhaseW2).Post c →
+        majorityStableEndpoint (L := L) (K := K) init c)
+    (hC0 : ∀ i, Cphase i ≤ C0)
+    (hδ : (∑ i, (δ i : ℝ≥0∞)) ≤ (1 / n : ℝ≥0∞)) :
+    ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+        {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+      ≤ (1 / n : ℝ≥0∞)
+    ∧ (∑ i, (phases i).t) ≤ 21 * C0 * n * (L + 1) := by
+  obtain ⟨h_bound, h_time, h_err⟩ :=
+    doty_time_composition_W2 init c₀ Cphase δ phases ht hε h_chain hx₀ h_post
+  refine ⟨?_, ?_⟩
+  · calc ((NonuniformMajority L K).transitionKernel ^ (∑ i, (phases i).t)) c₀
+            {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+        ≤ (∑ i, ((phases i).ε : ℝ≥0∞)) := h_bound
+      _ ≤ ∑ i, (δ i : ℝ≥0∞) := h_err
+      _ ≤ (1 / n : ℝ≥0∞) := hδ
+  · calc (∑ i, (phases i).t)
+        ≤ (∑ i, Cphase i) * n * (L + 1) := h_time
+      _ ≤ (21 * C0) * n * (L + 1) := by
+          have hsum : (∑ i, Cphase i) ≤ 21 * C0 := by
+            calc (∑ i : Fin 21, Cphase i)
+                ≤ ∑ _i : Fin 21, C0 := Finset.sum_le_sum (fun i _ => hC0 i)
+              _ = 21 * C0 := by simp [Finset.sum_const, Finset.card_univ, mul_comm]
+          gcongr
+      _ = 21 * C0 * n * (L + 1) := by ring
+
 end ExactMajority

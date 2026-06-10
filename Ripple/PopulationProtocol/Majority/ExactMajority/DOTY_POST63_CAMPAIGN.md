@@ -2268,15 +2268,124 @@ witness, and supply the three `PhaseConvergenceW` ε-tails to `phase0_roleSplit_
 escape-zero result above covers the `roleMCRCount` HALF of that gate for free; only the phase-window
 half remains.  EVERYTHING built this relay is 0-sorry axiom-clean and load-bearing for that instance.
 
+## Phase C-0w9..11 record — Phase-0 TIMING half (2026-06-10)
+
+Relay on `Probability/Phase0Window.lean` (the timing half of the Phase-0 analysis
+/ the "phase-window half" the Stage-2 milestone above still needs).  Two
+documented inputs were targeted; all results 0-sorry, axiom-clean
+(⊆ propext/Classical.choice/Quot.sound), single-file compiled.
+
+**GAP 2 — deterministic phase-0-exit bridge — FULLY DISCHARGED (C-0w9, 6d.. a0f591b2).**
+- `Phase0Transition_{left,right}_phase_pos_imp_src_clock_zero`: a per-pair phase-0
+  exit forces a SOURCE clock at `counter = 0` (traced through the Rule-1..5
+  cascade: only Rule 5 `stdCounterSubroutine` advances phase, only at `counter=0`;
+  Rule 4 fresh clocks have full counter ≠ 0; Rules 1–3 leave counter / don't make
+  clocks).
+- `Transition_phase_eq_phase0_of_both_phase0`: the full dispatcher = `Phase0Transition`
+  on phase at phase 0 (via `phaseEpidemicUpdate_eq_self_of_both_phase0` +
+  `finishPhase10Entry_phase_val`).
+- `det_phase0_exit` (config-level) + `transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero`
+  (kernel "= 0" form): from `allPhase0 ∧ noClockAtZero`, `allPhase0` is preserved
+  one step w.p. 1.
+- `prefix_union_first_exit` (abstract first-exit / hitting-time prefix-union),
+  `allPhase0_window_le_prefix_sum`, `allPhase0_window_whp` (the
+  `t · ofReal(e^{−45(L+1)})` window bound given per-τ clock-zero bounds from
+  `phase0_window_whp`).
+
+**GAP 1 — quantitative scheduler drift — INFRASTRUCTURE BUILT (C-0w10/11, 7d29.. / 6d0e26..).**
+- `lintegral_transitionKernel_eq_sum`: `∫ Φ dK(c) = ∑_pair Φ(stepOrSelf c pair)·interactionProb(pair)`.
+- `clockCounterPotential_{eq_base_add_pair, stepOrSelf_eq_base_add_pair}`: localized
+  per-pair potential split over the common base `Φ(c − {r₁,r₂})` (no truncated sub).
+- `clockSummand_pair_clock_clock`: the dominant per-pair case — a clock–clock
+  phase-0 pair at positive counters scales its block by EXACTLY `eˢ`.
+- RESIDUAL (documented in-file): non-clock–clock per-pair contributions
+  (counters untouched + Rule-4 fresh `e^{−s·50(L+1)}` term) + the pair-count
+  `2(clockCount−1)/(n(n−1)) ≤ 2/n` summed to the affine rate `1 + 2(eˢ−1)/n`.
+
 ## Cleanup queue (post-D-3, 2026-06-10 evening)
 - [ ] Budget tightening: re-instantiate doty_time_headline_W's displayed budget at the paper's
   1 − O(1/n²) (the per-phase engines already deliver n^{-2}-shape; the composition is parametric —
   feed δ_i ≤ 1/(11n²) and re-run the arithmetic; Xiang flagged 1/n as weaker than the paper).
 - [ ] The ten chain bridges (F-1, in flight).
-- [ ] Phase-0 window closing bricks (in flight).
+- [~] Phase-0 window closing bricks (Gap-2 DONE C-0w9; Gap-1 ledger infra DONE C-0w10/11;
+  Gap-1 residual = non-clock-clock per-pair + pair-count·prob → affine rate).
 - [ ] Per-phase drain numerics (q/hstep for 0/1/5/6/7/8) at concrete parameters.
 - [ ] hside τ-uniform majorant + post-hour width mode.
 - [ ] εfloor MGF (family2 letter queued; the Phase0Window drift-ledger pattern is the template).
 - [ ] Phase 5 hConc wiring through the Lemma-5.2 timing window.
 - [ ] E4 assembly (needs the headline + Lemma 5.2 floors) → expected-time half of Theorem 3.1.
 - [ ] Phase F: repo audit refresh + uisai2 explicit-target full build + 推平 main + tag.
+
+## Phase D-4 — seam-corrected composition (2026-06-10 evening)
+
+**The fix.** `ChainBridges` (F-1) PROVED the ten work↔work `h_chain` bridges are not pointwise
+implications (every window pins agents to a distinct `phase.val`, so `Post_i ∧ Pre_{i+1}` is
+contradictory on populated configs).  The paper's inter-phase transition is the `advancePhase`
+EPIDEMIC.  D-4 interposes a SEAM phase between each work pair, turning the chain into the
+21-instance interleave `[work₀, seam₀, …, seam₉, work₁₀]` on which the bridges ARE genuine
+pointwise implications.
+
+**Commits (all pushed to origin main):**
+- `4d9522a9` D-4a: `SeamEpidemics.seamEpidemicW` — the generic phase-advance epidemic seam.
+- `46d6ed0f` D-4b: `DotyTimeHeadline.doty_time_headline_W2` — the seam-corrected 21-instance
+  composition headline (`+ doty_time_composition_W2` assembly contract).
+- `16fa5a09` D-4c: the per-seam work↔seam bridge lemmas.
+All 0-sorry, axiom ⊆ `[propext, Classical.choice, Quot.sound]`, single-file `lake env lean`.
+
+**The seam instance signature.**
+```
+seamEpidemicW (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+  (hDrift : ∀ c, (allPhaseGe p n c ∧ advTriggered (p+1) c) →
+      (K^tseam) c {c' | ¬ allPhaseGe (p+1) n c'} ≤ εepidemic)
+  : PhaseConvergenceW (NonuniformMajority L K).transitionKernel
+  -- Pre  c := allPhaseGe p n c ∧ advTriggered (p+1) c   (≥-window + trigger fired)
+  -- Post c := allPhaseGe (p+1) n c                        (≥-window, next-phase entry)
+  -- t := tseam,  ε := εepidemic + εovershoot
+```
+`allPhaseGe p n c := c.card = n ∧ ∀ a ∈ c, p ≤ a.phase.val`;
+`advTriggered p c := 1 ≤ countP (p ≤ ·.phase.val) c`.
+The Phase-4 instance `Phase4Convergence.phase4Convergence` IS this epidemic at `p = 4`
+(`advancedU` = `countP (·.phase=4)`, rate `m(n−m)/(n(n−1))`), drift rate form
+`(1 − ((n−1)/(n(n−1)))(1−e^{−s}))^t · e^{s(n−1)}`.
+
+**≥/exact-window audit (the eleven work `Pre`s).**
+
+| i  | work `Pre` window           | shape       | needs `hNoOvershoot`? |
+|----|-----------------------------|-------------|-----------------------|
+| 1  | `Phase1AllMain`             | `phase = 1` exact | yes |
+| 2  | `Q2 / Qwin`                 | `phase = 2` exact | yes |
+| 3  | `{c = c₀}` (clock entry)    | start config (not a phase window) | n/a (clock seam) |
+| 4  | `Q4 = allPhaseGe 4`         | `phase ≥ 4` **≥-window** | NO (≥ directly) |
+| 5  | `Phase5AllWin`              | `phase = 5` exact | yes |
+| 6  | `Phase6Win`                 | `phase = 6` exact | yes |
+| 7  | `Inv7Sum` (`Phase7AllMain`) | `phase = 7` exact | yes |
+| 8  | `Phase8AllMain`             | `phase = 8` exact | yes |
+| 9  | `Q2 / Qwin` (2nd union)     | `phase = 2` exact | yes |
+| 10 | `Phase10Post`               | `phase = 10` exact | yes |
+
+Finding: ten of eleven work `Pre`s pin EXACT phase; only Phase 4 (`Q4`) is a ≥-window.  Hence
+every seam EXCEPT the one feeding Phase 4 needs the `≥`→`=` reconciliation
+`allPhaseEq_of_ge_and_no_overshoot` under a named overshoot input.
+
+**The two named gaps (exact shapes, NOT discharged in D-4):**
+1. `hDrift (p)` — the generic-`p` advance-epidemic convergence bound (seam field):
+   `∀ c, (allPhaseGe p n c ∧ advTriggered (p+1) c) → (K^tseam) c {c' | ¬ allPhaseGe (p+1) n c'} ≤ εepidemic`.
+   Discharge = clone `phase4AdvancedDrift`/OneSidedCancel at abstract `p` (count =
+   `countP (·.phase ≥ p+1)`, spread by `Invariants.Transition_{left,right}_phase_ge_pair_max`).
+2. `hNoOvershoot (p)` — per-seam timing separation (bridge `seam_into_exact_work` input):
+   `∀ c, allPhaseGe (p+1) n c → ∀ a ∈ c, a.phase.val < p+2`
+   i.e. `(K^tseam)`-measure of `{some agent ≥ p+2}` from the seam `Pre` ≤ `εovershoot(p)`.
+   Bounded by the Phase0Window counter machinery (a counter can't finish too early) — folded
+   additively into the seam's `εovershoot` budget.
+
+**Per-work-phase trigger note.** An exact-pin work `Post` (`all phase = p`) does NOT fire
+`advTriggered (p+1)` by itself; the work `Post` must be strengthened with the advance trigger
+(`exact_work_into_seam` makes this explicit as a named input).  Phase 4's `Q4` ≥-window feeds
+`ge_work_into_seam` with the trigger added the same way.
+
+**Corrected headline status.** `doty_time_headline_W2` : from `(phases 0).Pre c₀`, within
+`T = ∑ (11 work + 10 seam) t ≤ 21·C0·n·(L+1) = O(n log n)` interactions, the run reaches
+`majorityStableEndpoint init` with failure `≤ 1/n` (`∑ 21 δ ≤ 1/n`).  Asymptotics unchanged
+from `_W` (`11→21` constant only).  UNCONDITIONAL beyond: the 11 work instances (with per-work
+trigger strengthening), the 10 seam instances (each with `hDrift` + `εovershoot`/`hNoOvershoot`),
+the 21-term `h_chain` (TRUE pointwise via the D-4c bridges), `hx₀`, `h_post`, scaling.
