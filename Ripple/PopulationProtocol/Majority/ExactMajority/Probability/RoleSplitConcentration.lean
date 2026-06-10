@@ -2896,5 +2896,68 @@ theorem liftMilestone_progress_mass {n a₀ : ℕ} (hn2 : 2 ≤ n) (i : Fin (n -
             {o | liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o}) :=
         measure_mono hsub
 
+/-- A real-kernel singleton with positive `toMeasure` mass is a PMF-support point. -/
+theorem mem_support_of_pos_toMeasure {c c' : Config (AgentState L K)}
+    (h : 0 < ((NonuniformMajority L K).stepDistOrSelf c).toMeasure {c'}) :
+    c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support := by
+  rw [PMF.mem_support_iff]
+  intro hzero
+  rw [PMF.toMeasure_apply_singleton _ _
+    (DiscreteMeasurableSpace.forall_measurableSet _), hzero] at h
+  exact absurd h (lt_irrefl 0)
+
+/-- **`milestone_monotone` for the lifted family.**  Along any positive-mass killed-kernel
+successor, a reached lifted milestone stays reached.  Three cases: the cemetery is
+absorbing (`killK_now none = δ none`) and milestone-`True`; an alive→cemetery step lands at
+milestone-`True`; an alive→alive step has the (gated) successor as a real-kernel support
+point (`alive_support_gate` + `killK_now_some_gated`), where the plain
+`phase0MilestonePhase.milestone_monotone` applies (no rule creates an MCR). -/
+theorem liftMilestone_monotone {n a₀ : ℕ} (hn2 : 2 ≤ n) (i : Fin (n - 1))
+    (o o' : Option (Config (AgentState L K)))
+    (hmono : liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o)
+    (hsupp : 0 < killK_now (NonuniformMajority L K).transitionKernel
+      (floorGate (L := L) (K := K) n a₀) o {o'}) :
+    liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ o' := by
+  classical
+  rcases o' with _ | c'
+  · exact trivial  -- cemetery target is milestone-True.
+  · -- alive target `some c'`: gated (alive_support_gate), real-support point.
+    have hc'G : c' ∈ floorGate (L := L) (K := K) n a₀ :=
+      alive_support_gate (K := (NonuniformMajority L K).transitionKernel)
+        (G := floorGate (L := L) (K := K) n a₀) o c' hsupp
+    rcases o with _ | c
+    · -- cemetery source: killK_now none = δ none, mass on {some c'} = 0, contradiction.
+      rw [killK_now_none, Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _),
+        Set.indicator_of_notMem (by simp : (none : Option (Config (AgentState L K))) ∉
+          ({some c'} : Set (Option (Config (AgentState L K)))))] at hsupp
+      exact absurd hsupp (lt_irrefl 0)
+    · -- alive source `some c`.
+      show liftMilestone (L := L) (K := K) n ⟨i.val, by omega⟩ (some c')
+      show ExactMajority.phase0Milestone n ⟨i.val, by omega⟩ c'
+      have hmono' : ExactMajority.phase0Milestone n ⟨i.val, by omega⟩ c := hmono
+      by_cases hcG : c ∈ floorGate (L := L) (K := K) n a₀
+      · rw [killK_now_some_gated (K := (NonuniformMajority L K).transitionKernel)
+              (G := floorGate (L := L) (K := K) n a₀) c hcG,
+            Measure.map_apply (gateMap_measurable _)
+              (DiscreteMeasurableSpace.forall_measurableSet _)] at hsupp
+        have hpre : (gateMap (floorGate (L := L) (K := K) n a₀)) ⁻¹'
+            {(some c' : Option (Config (AgentState L K)))} = {c'} := by
+          ext y; simp only [Set.mem_preimage, Set.mem_singleton_iff]
+          unfold gateMap
+          by_cases hyG : y ∈ floorGate (L := L) (K := K) n a₀
+          · rw [if_pos hyG]; exact ⟨fun h => Option.some.inj h, fun h => by rw [h]⟩
+          · rw [if_neg hyG]
+            exact ⟨fun h => absurd h (by simp), fun h => absurd (h ▸ hc'G) hyG⟩
+        rw [hpre] at hsupp
+        have hsupp' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support :=
+          mem_support_of_pos_toMeasure (L := L) (K := K) hsupp
+        exact (phase0MilestonePhase (L := L) (K := K) n hn2).milestone_monotone
+          ⟨i.val, by omega⟩ c c' hmono' hsupp'
+      · rw [killK_now_ungated c hcG,
+          Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _),
+          Set.indicator_of_notMem (by simp : (none : Option (Config (AgentState L K))) ∉
+            ({some c'} : Set (Option (Config (AgentState L K)))))] at hsupp
+        exact absurd hsupp (lt_irrefl 0)
+
 end RoleSplitConcentration
 end ExactMajority

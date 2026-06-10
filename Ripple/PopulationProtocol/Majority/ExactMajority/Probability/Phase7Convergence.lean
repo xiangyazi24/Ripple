@@ -1367,6 +1367,36 @@ theorem cancelSplit_classMass_pair_le (σ : Sign) (s t : AgentState L K) :
               dif_neg h2']
           rw [hcs, hsb, htb]
 
+/-- **Per-pair σ-class mass STRICT DROP under a gap-1 cancel** (the drain building block).
+If `t` is the σ-minority Main at the larger index `j = i+1` and `s` is the σ.flip Main at
+`i`, then `cancelSplit` zeroes `t` and keeps `s` at σ.flip-sign `i+1`: the σ-class mass
+over the pair DROPS by `t`'s mass `2^{L-j} ≥ 1`.  This is the per-pair input the cleaned
+engine's `hstep` (a σ-class-MASS drain) needs — the mass analogue of
+`cancelSplit_minorityU_pair_drop`. -/
+theorem cancelSplit_classMass_pair_drop (σ ss : Sign) (s t : AgentState L K)
+    (i j : Fin (L + 1)) (hsb : s.bias = Bias.dyadic ss i)
+    (htb : t.bias = Bias.dyadic σ j) (hss : ss ≠ σ) (hg1 : i.val + 1 = j.val) :
+    agentClassMass σ (cancelSplit L K s t).1
+        + agentClassMass σ (cancelSplit L K s t).2
+        + 1
+      ≤ agentClassMass σ s + agentClassMass σ t := by
+  classical
+  have hineq0 : ¬ i.val = j.val := by omega
+  have hjL : j.val < L + 1 := j.2
+  have hcs : cancelSplit L K s t
+      = ({s with bias := .dyadic ss ⟨i.val + 1, by omega⟩}, {t with bias := .zero}) := by
+    unfold cancelSplit
+    rw [hsb, htb]
+    simp only [if_pos (show ss ≠ σ from hss), dif_neg hineq0, dif_pos hg1]
+  unfold agentClassMass
+  rw [hcs, hsb, htb]
+  simp only [biasClassMass]
+  -- outputs: `dyadic ss (i+1)` (ss ≠ σ ⇒ class mass 0) and `zero` (0); inputs:
+  -- `dyadic ss i` (0) and `dyadic σ j` (mass 2^{L-j} ≥ 1).
+  simp only [if_neg hss, if_true]
+  have hp : (1:ℤ) ≤ 2 ^ (L - j.val) := one_le_pow₀ (by norm_num)
+  linarith [hp]
+
 /-- **Config-level σ-class mass NON-INCREASE under a chosen-pair step** (Phase-7 window).
 On an all-Main phase-7 window every applicable pair is both-Main so `Transition =
 cancelSplit`, and `cancelSplit_classMass_pair_le` lifts through the

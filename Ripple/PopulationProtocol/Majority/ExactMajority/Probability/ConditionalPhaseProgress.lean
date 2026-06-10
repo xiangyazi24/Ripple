@@ -1277,6 +1277,75 @@ theorem transition_pair_wtAt_le (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Fins
       unfold wtAt; rw [if_neg]; rintro ⟨_, hpe⟩; omega
     rw [hw1, hw2]; exact Nat.zero_le _
 
+/-- **Per-pair STRICT `wtAt`-drop.**  For two clocks at phase EXACTLY `p ∈ {0,1,5,6,7,8}`
+with the FIRST counter positive, the combined `wtAt p` over the two `Transition` outputs
+is STRICTLY less than over the two inputs.  Covers both the partner-positive case (both
+decrement, via `Transition_timed_clock_positive_preserves_and_decreases`) and the
+partner-zero case (`s` decrements staying at `p`, the zero partner advances OUT of `p`,
+contributing `0` before and after).  This is the per-pair core of Brick 2 — it makes the
+posClockCount=1 edge harmless: the lone positive phase-`p` clock still drops the sum when
+it meets ANY phase-`p` clock, including counter-zero ones. -/
+theorem transition_pair_wtAt_lt (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ))
+    (r₁ r₂ : AgentState L K)
+    (h1c : r₁.role = .clock) (h2c : r₂.role = .clock)
+    (h1p : r₁.phase.val = p) (h2p : r₂.phase.val = p)
+    (h1pos : 0 < r₁.counter.val) :
+    wtAt (L := L) (K := K) p (Transition L K r₁ r₂).1
+        + wtAt (L := L) (K := K) p (Transition L K r₁ r₂).2
+      < wtAt (L := L) (K := K) p r₁ + wtAt (L := L) (K := K) p r₂ := by
+  classical
+  have hp10 : p < 10 := by fin_cases hp <;> omega
+  have hr1 : wtAt (L := L) (K := K) p r₁ = r₁.counter.val := by
+    unfold wtAt; rw [if_pos ⟨h1c, h1p⟩]
+  have hr2 : wtAt (L := L) (K := K) p r₂ = r₂.counter.val := by
+    unfold wtAt; rw [if_pos ⟨h2c, h2p⟩]
+  by_cases h2pos : 0 < r₂.counter.val
+  · -- both positive: public strict-descent through the full Transition
+    have hpr := Transition_timed_clock_positive_preserves_and_decreases (L := L) (K := K)
+      p hp r₁ r₂ h1p h2p h1c h2c h1pos h2pos
+    obtain ⟨ho1p, ho2p, ho1c, ho2c, hlt⟩ := hpr
+    have hw1 : wtAt (L := L) (K := K) p (Transition L K r₁ r₂).1
+        = (Transition L K r₁ r₂).1.counter.val := by
+      unfold wtAt; rw [if_pos ⟨ho1c, ho1p⟩]
+    have hw2 : wtAt (L := L) (K := K) p (Transition L K r₁ r₂).2
+        = (Transition L K r₁ r₂).2.counter.val := by
+      unfold wtAt; rw [if_pos ⟨ho2c, ho2p⟩]
+    rw [hw1, hw2, hr1, hr2]; exact hlt
+  · -- partner zero: `r₂` advances OUT of phase `p` (wtAt = 0), `r₁` decrements staying at `p`
+    have h2zero : r₂.counter.val = 0 := by omega
+    -- use the std reduction (both at phase p): output.1 = finish(std r₁), output.2 = finish(std r₂)
+    have hep := epidemic_inert_same_phase (L := L) (K := K) r₁.phase (by omega) r₁ r₂
+        rfl (by rw [Fin.ext_iff]; omega)
+    have hphaseeq : r₁.phase = ⟨p, by omega⟩ := by rw [Fin.ext_iff]; exact h1p
+    have hstd : Transition L K r₁ r₂
+        = (finishPhase10Entry L K r₁ (stdCounterSubroutine L K r₁),
+           finishPhase10Entry L K r₂ (stdCounterSubroutine L K r₂)) := by
+      conv_lhs => unfold Transition
+      rw [hep]; simp only []; rw [hphaseeq]
+      fin_cases hp <;>
+        simp_all [Phase0Transition, Phase1Transition, Phase5Transition, Phase6Transition,
+          Phase7Transition, Phase8Transition, clockCounterStep, h1c, h2c]
+    rw [hstd]
+    -- output.1 wtAt: std r₁ decrements (r₁ positive) ⇒ ≤ r₁.counter - 1 < r₁.counter
+    have hstd1_lt := stdCounterSubroutine_counter_lt_of_pos (L := L) (K := K) r₁ h1pos
+    have hw1 : wtAt (L := L) (K := K) p (finishPhase10Entry L K r₁ (stdCounterSubroutine L K r₁))
+        ≤ (stdCounterSubroutine L K r₁).counter.val := by
+      unfold wtAt
+      rw [finishPhase10Entry_role, finishPhase10Entry_phase_val, finishPhase10Entry_counter]
+      split
+      · exact le_refl _
+      · exact Nat.zero_le _
+    have hw2 : wtAt (L := L) (K := K) p (finishPhase10Entry L K r₂ (stdCounterSubroutine L K r₂)) = 0 := by
+      have := wtAt_std_le (L := L) (K := K) p hp10 r₂ h2c h2p
+      rw [h2zero] at this
+      unfold wtAt
+      rw [finishPhase10Entry_role, finishPhase10Entry_phase_val, finishPhase10Entry_counter]
+      unfold wtAt at this; omega
+    rw [hr1, hr2, hw2, h2zero]
+    have : wtAt (L := L) (K := K) p (finishPhase10Entry L K r₁ (stdCounterSubroutine L K r₁))
+        < r₁.counter.val := lt_of_le_of_lt hw1 hstd1_lt
+    omega
+
 /-- One-step monotonicity on the kernel support: from an `AllClockGEp p`-state, the
 `clockCounterSumAt p` never rises.  Per-pair additivity (`Multiset.sum` over `map`)
 plus `transition_pair_wtAt_le`. -/
