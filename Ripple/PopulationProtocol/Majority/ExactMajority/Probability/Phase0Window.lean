@@ -400,12 +400,403 @@ theorem phase0CRShellEscape_le (P : Protocol (AgentState L K))
   intro c hc
   exact hcontain c hc
 
+/-! ## Gap 2 — the deterministic phase-0-exit bridge (NOW DISCHARGED).
+
+We close the deterministic half of the `allPhase0` → window corollary: a single
+scheduled interaction can drop an agent out of phase 0 ONLY via Rule 5 of
+`Phase0Transition` (`stdCounterSubroutine` on a clock–clock pair), and that rule
+advances phase ONLY when the source clock's `counter = 0`.  Tracing the
+`Phase0Transition` let-cascade (Rules 1–3 never touch `counter` nor create
+clocks; Rule 4 creates a clock with the FULL counter `50(L+1) ≠ 0`) shows a
+phase-0 exit forces a SOURCE-config clock at `counter = 0` — i.e. a witness to
+`¬ noClockAtZero`.  Lifting through the full `Transition` wrapper (identity on
+phase at phase 0, via `phaseEpidemicUpdate_eq_self_of_both_phase0` and
+`finishPhase10Entry_phase_val`) and an abstract prefix-union first-exit bound
+yields the `allPhase0` window corollary. -/
+
+/-- `stdCounterSubroutine` advances phase only when `counter = 0`. -/
+private lemma stdCounter_phase_pos_imp_counter_zero (a : AgentState L K)
+    (h : a.phase.val < (stdCounterSubroutine L K a).phase.val) : a.counter.val = 0 := by
+  unfold stdCounterSubroutine at h
+  split at h
+  · assumption
+  · simp at h
+
+/-- **Per-pair phase-0 exit (LEFT output).**  If `s` is at phase 0 and the
+`Phase0Transition` LEFT output has phase `> 0`, then the source agent `s` was a
+clock with `counter = 0`.  (Only Rule 5 `stdCounterSubroutine` advances phase;
+it advances only at `counter = 0`; Rule 4 fresh clocks have full counter ≠ 0;
+Rules 1–3 neither touch `counter` nor produce clocks.) -/
+theorem Phase0Transition_left_phase_pos_imp_src_clock_zero
+    (s t : AgentState L K) (hs0 : s.phase.val = 0)
+    (hexit : 0 < (Phase0Transition L K s t).1.phase.val) :
+    s.role = .clock ∧ s.counter.val = 0 := by
+  let s1 := if s.role = .mcr ∧ t.role = .mcr then
+    { s with role := .main, smallBias := addSmallBias s.smallBias t.smallBias } else s
+  let t1 := if s.role = .mcr ∧ t.role = .mcr then
+    { t with role := .cr, smallBias := ⟨3, by decide⟩ } else t
+  let s2 := if s1.role = .mcr ∧ t1.role = .main ∧ ¬ t1.assigned then
+    { s1 with role := .cr, smallBias := ⟨3, by decide⟩ }
+    else if t1.role = .mcr ∧ s1.role = .main ∧ ¬ s1.assigned then
+    { s1 with assigned := true, smallBias := addSmallBias t1.smallBias s1.smallBias }
+    else s1
+  let t2 := if s1.role = .mcr ∧ t1.role = .main ∧ ¬ t1.assigned then
+    { t1 with assigned := true, smallBias := addSmallBias s1.smallBias t1.smallBias }
+    else if t1.role = .mcr ∧ s1.role = .main ∧ ¬ s1.assigned then
+    { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
+    else t1
+  let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
+    { s2 with role := .main }
+    else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
+    { s2 with assigned := true } else s2
+  let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
+    { t2 with assigned := true }
+    else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
+    { t2 with role := .main }
+    else t2
+  let s3' := s3
+  let t3' := t3
+  let s4 := if s3'.role = .cr ∧ t3'.role = .cr then
+    { s3' with role := .clock, counter := ⟨50 * (L + 1), by omega⟩ } else s3'
+  let t4 := if s3'.role = .cr ∧ t3'.role = .cr then
+    { t3' with role := .reserve } else t3'
+  let s5 := if s4.role = .clock ∧ t4.role = .clock then stdCounterSubroutine L K s4 else s4
+  change 0 < s5.phase.val at hexit
+  have hc1 : s1.counter = s.counter := by dsimp [s1]; split_ifs <;> rfl
+  have hc2 : s2.counter = s1.counter := by dsimp [s2]; split_ifs <;> rfl
+  have hc3 : s3.counter = s2.counter := by dsimp [s3]; split_ifs <;> rfl
+  have hc3' : s3'.counter = s3.counter := rfl
+  have hr1 : s1.role = .clock → s.role = .clock := by dsimp [s1]; split_ifs <;> simp
+  have hr2 : s2.role = .clock → s1.role = .clock := by dsimp [s2]; split_ifs <;> simp
+  have hr3 : s3.role = .clock → s2.role = .clock := by dsimp [s3]; split_ifs <;> simp
+  have hp1 : s1.phase.val = s.phase.val := by dsimp [s1]; split_ifs <;> rfl
+  have hp2 : s2.phase.val = s1.phase.val := by dsimp [s2]; split_ifs <;> rfl
+  have hp3 : s3.phase.val = s2.phase.val := by dsimp [s3]; split_ifs <;> rfl
+  have hp4 : s4.phase.val = s3'.phase.val := by dsimp [s4]; split_ifs <;> rfl
+  have hs4phase0 : s4.phase.val = 0 := by
+    rw [hp4]; show s3.phase.val = 0; rw [hp3, hp2, hp1, hs0]
+  by_cases hcc : s4.role = .clock ∧ t4.role = .clock
+  · have hs5 : s5 = stdCounterSubroutine L K s4 := by dsimp [s5]; rw [if_pos hcc]
+    rw [hs5] at hexit
+    have hs4ctr0 : s4.counter.val = 0 :=
+      stdCounter_phase_pos_imp_counter_zero s4 (by rw [hs4phase0]; exact hexit)
+    have hs4_eq : s4 = s3' := by
+      dsimp [s4]; split_ifs with h
+      · exfalso
+        have : s4.counter.val = 50 * (L+1) := by dsimp [s4]; rw [if_pos h]
+        omega
+      · rfl
+    have hs4role : s4.role = .clock := hcc.1
+    have hs3'clock : s3'.role = .clock := by rw [← hs4_eq]; exact hs4role
+    have hsrole : s.role = .clock := hr1 (hr2 (hr3 hs3'clock))
+    have hsctr : s.counter.val = 0 := by
+      have : s4.counter = s.counter := by rw [hs4_eq, hc3', hc3, hc2, hc1]
+      rw [← this]; exact hs4ctr0
+    exact ⟨hsrole, hsctr⟩
+  · exfalso
+    have hs5 : s5 = s4 := by dsimp [s5]; rw [if_neg hcc]
+    rw [hs5, hs4phase0] at hexit
+    exact absurd hexit (by omega)
+
+/-- **Per-pair phase-0 exit (RIGHT output).**  Symmetric to the LEFT case. -/
+theorem Phase0Transition_right_phase_pos_imp_src_clock_zero
+    (s t : AgentState L K) (ht0 : t.phase.val = 0)
+    (hexit : 0 < (Phase0Transition L K s t).2.phase.val) :
+    t.role = .clock ∧ t.counter.val = 0 := by
+  let s1 := if s.role = .mcr ∧ t.role = .mcr then
+    { s with role := .main, smallBias := addSmallBias s.smallBias t.smallBias } else s
+  let t1 := if s.role = .mcr ∧ t.role = .mcr then
+    { t with role := .cr, smallBias := ⟨3, by decide⟩ } else t
+  let s2 := if s1.role = .mcr ∧ t1.role = .main ∧ ¬ t1.assigned then
+    { s1 with role := .cr, smallBias := ⟨3, by decide⟩ }
+    else if t1.role = .mcr ∧ s1.role = .main ∧ ¬ s1.assigned then
+    { s1 with assigned := true, smallBias := addSmallBias t1.smallBias s1.smallBias }
+    else s1
+  let t2 := if s1.role = .mcr ∧ t1.role = .main ∧ ¬ t1.assigned then
+    { t1 with assigned := true, smallBias := addSmallBias s1.smallBias t1.smallBias }
+    else if t1.role = .mcr ∧ s1.role = .main ∧ ¬ s1.assigned then
+    { t1 with role := .cr, smallBias := ⟨3, by decide⟩ }
+    else t1
+  let s3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
+    { s2 with role := .main }
+    else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
+    { s2 with assigned := true } else s2
+  let t3 := if s2.role = .mcr ∧ t2.role ≠ .main ∧ t2.role ≠ .mcr ∧ ¬ t2.assigned then
+    { t2 with assigned := true }
+    else if t2.role = .mcr ∧ s2.role ≠ .main ∧ s2.role ≠ .mcr ∧ ¬ s2.assigned then
+    { t2 with role := .main }
+    else t2
+  let s3' := s3
+  let t3' := t3
+  let s4 := if s3'.role = .cr ∧ t3'.role = .cr then
+    { s3' with role := .clock, counter := ⟨50 * (L + 1), by omega⟩ } else s3'
+  let t4 := if s3'.role = .cr ∧ t3'.role = .cr then
+    { t3' with role := .reserve } else t3'
+  let t5 := if s4.role = .clock ∧ t4.role = .clock then stdCounterSubroutine L K t4 else t4
+  change 0 < t5.phase.val at hexit
+  have hc1 : t1.counter = t.counter := by dsimp [t1]; split_ifs <;> rfl
+  have hc2 : t2.counter = t1.counter := by dsimp [t2]; split_ifs <;> rfl
+  have hc3 : t3.counter = t2.counter := by dsimp [t3]; split_ifs <;> rfl
+  have hc3' : t3'.counter = t3.counter := rfl
+  have hc4 : t4.counter = t3'.counter := by dsimp [t4]; split_ifs <;> rfl
+  have hr1 : t1.role = .clock → t.role = .clock := by dsimp [t1]; split_ifs <;> simp
+  have hr2 : t2.role = .clock → t1.role = .clock := by dsimp [t2]; split_ifs <;> simp
+  have hr3 : t3.role = .clock → t2.role = .clock := by dsimp [t3]; split_ifs <;> simp
+  have hr4 : t4.role = .clock → t3'.role = .clock := by dsimp [t4]; split_ifs <;> simp
+  have hp1 : t1.phase.val = t.phase.val := by dsimp [t1]; split_ifs <;> rfl
+  have hp2 : t2.phase.val = t1.phase.val := by dsimp [t2]; split_ifs <;> rfl
+  have hp3 : t3.phase.val = t2.phase.val := by dsimp [t3]; split_ifs <;> rfl
+  have hp4 : t4.phase.val = t3'.phase.val := by dsimp [t4]; split_ifs <;> rfl
+  have ht4phase0 : t4.phase.val = 0 := by
+    rw [hp4]; show t3.phase.val = 0; rw [hp3, hp2, hp1, ht0]
+  by_cases hcc : s4.role = .clock ∧ t4.role = .clock
+  · have ht5 : t5 = stdCounterSubroutine L K t4 := by dsimp [t5]; rw [if_pos hcc]
+    rw [ht5] at hexit
+    have ht4ctr0 : t4.counter.val = 0 :=
+      stdCounter_phase_pos_imp_counter_zero t4 (by rw [ht4phase0]; exact hexit)
+    have ht4role : t4.role = .clock := hcc.2
+    have ht3'clock : t3'.role = .clock := hr4 ht4role
+    have htrole : t.role = .clock := hr1 (hr2 (hr3 ht3'clock))
+    have htctr : t.counter.val = 0 := by
+      have : t4.counter = t.counter := by rw [hc4, hc3', hc3, hc2, hc1]
+      rw [← this]; exact ht4ctr0
+    exact ⟨htrole, htctr⟩
+  · exfalso
+    have ht5 : t5 = t4 := by dsimp [t5]; rw [if_neg hcc]
+    rw [ht5, ht4phase0] at hexit
+    exact absurd hexit (by omega)
+
+/-- The full `Transition` dispatcher agrees with `Phase0Transition` on the
+output phase when both agents start at phase 0 (the `phaseEpidemicUpdate`
+pre-step and `finishPhase10Entry` post-step are phase-identities there). -/
+theorem Transition_phase_eq_phase0_of_both_phase0
+    (s t : AgentState L K) (hs : s.phase.val = 0) (ht : t.phase.val = 0) :
+    (Transition L K s t).1.phase.val = (Phase0Transition L K s t).1.phase.val ∧
+    (Transition L K s t).2.phase.val = (Phase0Transition L K s t).2.phase.val := by
+  have hpe := RoleSplitConcentration.phaseEpidemicUpdate_eq_self_of_both_phase0
+    (L := L) (K := K) s t hs ht
+  have hs0 : s.phase = (⟨0, by omega⟩ : Fin _) := Fin.ext hs
+  unfold Transition
+  rw [hpe]
+  simp only [finishPhase10Entry_phase_val]
+  rw [hs0]
+  exact ⟨rfl, rfl⟩
+
+/-- **The deterministic single-step phase-0-exit fact (full kernel).**  In the
+real Doty kernel `NonuniformMajority L K`, a single scheduled interaction taking
+an `allPhase0` configuration out of `allPhase0` forces a SOURCE-config clock at
+`counter = 0` (a witness to `¬ noClockAtZero`).  Equivalently (contrapositive),
+from an `allPhase0 ∧ noClockAtZero` configuration `allPhase0` is preserved one
+step. -/
+theorem det_phase0_exit
+    (c : Config (AgentState L K)) (r₁ r₂ : AgentState L K)
+    (hall : allPhase0 (L := L) (K := K) c)
+    (hexit : ¬ allPhase0 (L := L) (K := K)
+      (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)) :
+    ¬ noClockAtZero (L := L) (K := K) c := by
+  unfold Protocol.stepOrSelf at hexit
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · rw [if_pos happ] at hexit
+    unfold allPhase0 at hexit
+    push Not at hexit
+    obtain ⟨a, ha_mem, ha_phase⟩ := hexit
+    rw [Multiset.mem_add] at ha_mem
+    have hr₁_mem : r₁ ∈ c :=
+      Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+    have hr₂_mem : r₂ ∈ c :=
+      Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+    have hr₁0 : r₁.phase.val = 0 := by have := hall r₁ hr₁_mem; simp [this]
+    have hr₂0 : r₂.phase.val = 0 := by have := hall r₂ hr₂_mem; simp [this]
+    rcases ha_mem with hsub | hnew
+    · exfalso
+      exact ha_phase (hall a (Multiset.mem_of_le (Multiset.sub_le_self _ _) hsub))
+    · have hδ : (NonuniformMajority L K).δ r₁ r₂ = Transition L K r₁ r₂ := rfl
+      simp only [hδ] at hnew
+      rw [show ({(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+            : Multiset (AgentState L K))
+          = (Transition L K r₁ r₂).1 ::ₘ {(Transition L K r₁ r₂).2} from rfl] at hnew
+      rw [Multiset.mem_cons, Multiset.mem_singleton] at hnew
+      have hapos : 0 < a.phase.val := Nat.pos_of_ne_zero (fun h => ha_phase (Fin.ext h))
+      rcases hnew with h1 | h2
+      · subst h1
+        have hph := (Transition_phase_eq_phase0_of_both_phase0 r₁ r₂ hr₁0 hr₂0).1
+        rw [hph] at hapos
+        obtain ⟨hrole, hctr⟩ :=
+          Phase0Transition_left_phase_pos_imp_src_clock_zero r₁ r₂ hr₁0 hapos
+        exact fun hno => (hno r₁ hr₁_mem hrole) hctr
+      · subst h2
+        have hph := (Transition_phase_eq_phase0_of_both_phase0 r₁ r₂ hr₁0 hr₂0).2
+        rw [hph] at hapos
+        obtain ⟨hrole, hctr⟩ :=
+          Phase0Transition_right_phase_pos_imp_src_clock_zero r₁ r₂ hr₂0 hapos
+        exact fun hno => (hno r₂ hr₂_mem hrole) hctr
+  · rw [if_neg happ] at hexit
+    exact absurd hall hexit
+
+/-- **The kernel-level one-step preservation.**  From an `allPhase0 ∧
+noClockAtZero` configuration, the real Doty kernel keeps `allPhase0` after one
+step with probability 1 — i.e. the `¬ allPhase0` mass is `0`. -/
+theorem transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero
+    (c : Config (AgentState L K))
+    (hall : allPhase0 (L := L) (K := K) c)
+    (hno : noClockAtZero (L := L) (K := K) c) :
+    (NonuniformMajority L K).transitionKernel c
+        {c' | ¬ allPhase0 (L := L) (K := K) c'} = 0 := by
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+      {c' | ¬ allPhase0 (L := L) (K := K) c'} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _
+    (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro c' hsupp hbad
+  -- every support point is `stepOrSelf c r₁ r₂`; det_phase0_exit forbids exit
+  have hreach := (NonuniformMajority L K).stepDistOrSelf_support_reachable c c' hsupp
+  -- decompose support point
+  unfold Protocol.stepDistOrSelf at hsupp
+  by_cases hc2 : 2 ≤ c.card
+  · rw [dif_pos hc2] at hsupp
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support _ c hc2 c' hsupp
+    have : ¬ allPhase0 (L := L) (K := K)
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+      rw [show Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+            = Protocol.scheduledStep (NonuniformMajority L K) c (r₁, r₂) from rfl, hr]
+      exact hbad
+    exact (det_phase0_exit c r₁ r₂ hall this) hno
+  · rw [dif_neg hc2, PMF.mem_support_pure_iff] at hsupp
+    subst hsupp
+    exact hbad hall
+
+/-- **Abstract prefix-union first-exit bound.**  If from any state where the
+window predicate `A` holds AND the per-step guard `G` holds, `A` cannot break in
+one step (`hstep : A x → G x → Kk x {¬A} = 0`), then the probability of `¬A`
+after `t` steps is at most the prefix sum of the guard-breach probabilities
+`∑_{τ<t} (Kk^τ) x₀ {¬G}`.  This is the standard first-exit / hitting-time
+prefix-union argument (cf. `EarlyDripMarked.invariant_union_bound`), peeling the
+last step and splitting the step-`t` integration region by the guard. -/
+theorem prefix_union_first_exit {α : Type*} [MeasurableSpace α]
+    [DiscreteMeasurableSpace α]
+    (Kk : Kernel α α) [IsMarkovKernel Kk] (A G : α → Prop)
+    (hstep : ∀ x, A x → G x → Kk x {y | ¬ A y} = 0)
+    (t : ℕ) (x₀ : α) (h0 : A x₀) :
+    (Kk ^ t) x₀ {y | ¬ A y} ≤ ∑ τ ∈ Finset.range t, (Kk ^ τ) x₀ {y | ¬ G y} := by
+  classical
+  have hmeasA : MeasurableSet {y : α | ¬ A y} := DiscreteMeasurableSpace.forall_measurableSet _
+  have hmeasG : MeasurableSet {y : α | ¬ G y} := DiscreteMeasurableSpace.forall_measurableSet _
+  induction t with
+  | zero =>
+      simp only [pow_zero, Finset.range_zero, Finset.sum_empty, le_zero_iff]
+      change (Kernel.id x₀) {y | ¬ A y} = 0
+      rw [Kernel.id_apply, Measure.dirac_apply' _ hmeasA]
+      simp [Set.indicator_of_notMem (show x₀ ∉ {y : α | ¬ A y} from fun hc => hc h0)]
+  | succ t ih =>
+      rw [Kernel.pow_succ_apply_eq_lintegral Kk t x₀ hmeasA]
+      set EG : Set α := {b | G b} with hEG
+      have hEG_meas : MeasurableSet EG := DiscreteMeasurableSpace.forall_measurableSet _
+      rw [← lintegral_add_compl _ hEG_meas]
+      have hboundG : (∫⁻ b in EG, (Kk b) {y | ¬ A y} ∂((Kk ^ t) x₀))
+          ≤ (Kk ^ t) x₀ {y | ¬ A y} := by
+        calc (∫⁻ b in EG, (Kk b) {y | ¬ A y} ∂((Kk ^ t) x₀))
+            ≤ ∫⁻ b in EG, {y : α | ¬ A y}.indicator (fun _ => (1:ℝ≥0∞)) b ∂((Kk ^ t) x₀) := by
+              apply lintegral_mono_ae
+              filter_upwards [ae_restrict_mem hEG_meas] with b hb
+              by_cases hAb : A b
+              · rw [hstep b hAb hb]; exact zero_le'
+              · rw [Set.indicator_of_mem (show b ∈ {y | ¬ A y} from hAb)]
+                haveI : IsProbabilityMeasure (Kk b) :=
+                  (inferInstance : IsMarkovKernel Kk).isProbabilityMeasure b
+                exact (measure_mono (Set.subset_univ _)).trans_eq measure_univ
+          _ ≤ ∫⁻ b, {y : α | ¬ A y}.indicator (fun _ => (1:ℝ≥0∞)) b ∂((Kk ^ t) x₀) :=
+              setLIntegral_le_lintegral _ _
+          _ = (Kk ^ t) x₀ {y | ¬ A y} := by
+              rw [lintegral_indicator hmeasA, lintegral_one, Measure.restrict_apply_univ]
+      have hboundGc : (∫⁻ b in EGᶜ, (Kk b) {y | ¬ A y} ∂((Kk ^ t) x₀))
+          ≤ (Kk ^ t) x₀ {y | ¬ G y} := by
+        calc (∫⁻ b in EGᶜ, (Kk b) {y | ¬ A y} ∂((Kk ^ t) x₀))
+            ≤ ∫⁻ _ in EGᶜ, (1 : ℝ≥0∞) ∂((Kk ^ t) x₀) := by
+              apply lintegral_mono_ae
+              filter_upwards with b
+              haveI : IsProbabilityMeasure (Kk b) :=
+                (inferInstance : IsMarkovKernel Kk).isProbabilityMeasure b
+              exact (measure_mono (Set.subset_univ _)).trans_eq measure_univ
+          _ = (Kk ^ t) x₀ EGᶜ := by rw [lintegral_const, Measure.restrict_apply_univ, one_mul]
+          _ = (Kk ^ t) x₀ {y | ¬ G y} := by congr 1
+      calc (∫⁻ b in EG, (Kk b) {y | ¬ A y} ∂((Kk ^ t) x₀))
+            + ∫⁻ b in EGᶜ, (Kk b) {y | ¬ A y} ∂((Kk ^ t) x₀)
+          ≤ (Kk ^ t) x₀ {y | ¬ A y} + (Kk ^ t) x₀ {y | ¬ G y} :=
+            add_le_add hboundG hboundGc
+        _ ≤ (∑ τ ∈ Finset.range t, (Kk ^ τ) x₀ {y | ¬ G y}) + (Kk ^ t) x₀ {y | ¬ G y} := by
+            gcongr
+        _ = ∑ τ ∈ Finset.range (t + 1), (Kk ^ τ) x₀ {y | ¬ G y} := by
+            rw [Finset.sum_range_succ]
+
+/-! ## The assembled `allPhase0` window corollary.
+
+Instantiating the prefix-union bound with `A := allPhase0`, guard
+`G := noClockAtZero`, and the deterministic single-step preservation
+`transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero` reduces the
+`allPhase0`-window failure to the prefix sum of per-`τ` clock-zero probabilities,
+each of which is bounded by the window bound `ofReal(e^{−45(L+1)})` via
+`phase0_window_whp` — provided the per-`τ` drift / start hypotheses hold along
+the trajectory.  We package the clean prefix-union step here; the per-`τ`
+clock-zero bound is `phase0_window_whp`. -/
+
+/-- **`allPhase0` window via prefix-union.**  In the real Doty kernel, starting
+from an `allPhase0` configuration, the probability that SOME agent has left phase
+0 within `t` steps is at most the prefix sum of the per-step clock-zero
+probabilities:
+
+  `(K^t) c₀ {¬ allPhase0} ≤ ∑_{τ<t} (K^τ) c₀ {¬ noClockAtZero}`. -/
+theorem allPhase0_window_le_prefix_sum
+    (t : ℕ) (c₀ : Config (AgentState L K))
+    (h0 : allPhase0 (L := L) (K := K) c₀) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {c | ¬ allPhase0 (L := L) (K := K) c}
+      ≤ ∑ τ ∈ Finset.range t,
+          ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+            {c | ¬ noClockAtZero (L := L) (K := K) c} :=
+  prefix_union_first_exit (NonuniformMajority L K).transitionKernel
+    (allPhase0 (L := L) (K := K)) (noClockAtZero (L := L) (K := K))
+    (fun x hA hG => transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero x hA hG)
+    t c₀ h0
+
+/-- **`allPhase0` window whp (assembled).**  If, in addition, an absorbing window
+`Q` carrying the clock-counter drift contains `c₀` and is preserved (so each
+per-`τ` clock-zero probability is at most the window bound `ofReal(e^{−45(L+1)})`
+via `phase0_window_whp`), then the `allPhase0`-window failure is at most
+`t · ofReal(e^{−45(L+1)})`.
+
+We require: the drift hypothesis on `Q`, `Q` absorbing, `c₀ ∈ Q` with the full
+counters / cardinality / `ln n ≤ L+1` window hypotheses, and that every reachable
+configuration along the prefix still satisfies the per-`τ` `phase0_window_whp`
+preconditions — packaged as the uniform per-`τ` clock-zero bound `hτ`. -/
+theorem allPhase0_window_whp
+    (t : ℕ) (c₀ : Config (AgentState L K))
+    (h0 : allPhase0 (L := L) (K := K) c₀)
+    (hτ : ∀ τ ∈ Finset.range t,
+      ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+          {c | ¬ noClockAtZero (L := L) (K := K) c}
+        ≤ ENNReal.ofReal (Real.exp (-(45 * (L + 1) : ℕ)))) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c₀
+        {c | ¬ allPhase0 (L := L) (K := K) c}
+      ≤ (t : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(45 * (L + 1) : ℕ))) := by
+  refine (allPhase0_window_le_prefix_sum t c₀ h0).trans ?_
+  calc ∑ τ ∈ Finset.range t,
+          ((NonuniformMajority L K).transitionKernel ^ τ) c₀
+            {c | ¬ noClockAtZero (L := L) (K := K) c}
+      ≤ ∑ _τ ∈ Finset.range t, ENNReal.ofReal (Real.exp (-(45 * (L + 1) : ℕ))) :=
+        Finset.sum_le_sum hτ
+    _ = (t : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(45 * (L + 1) : ℕ))) := by
+        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+
 /-! ## Precise remaining gaps to the campaign (for downstream relays).
 
-Everything above is 0-sorry / axiom-clean.  Two inputs remain to fully close the
-`allPhase0` → `PhaseConvergence` timing half; both are deliberately taken as
-hypotheses above (mirroring how `WindowConcentration.windowDrift_tail` itself
-takes its one-step drift as input), so they are stated here with exact goals.
+Everything above is 0-sorry / axiom-clean.  GAP 2 (the deterministic
+phase-0-exit bridge + the prefix-union lift) is now DISCHARGED above
+(`det_phase0_exit`, `transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero`,
+`prefix_union_first_exit`, `allPhase0_window_le_prefix_sum`,
+`allPhase0_window_whp`).  One input remains to fully close the
+`allPhase0` → `PhaseConvergence` timing half; it is deliberately taken as a
+hypothesis above (mirroring how `WindowConcentration.windowDrift_tail` itself
+takes its one-step drift as input), so it is stated here with its exact goal.
 
 **Gap 1 — the quantitative one-step drift `hdrift` (the scheduler core).**
 The window engine consumes
@@ -419,24 +810,20 @@ it is the campaign's separate quantitative deliverable.  `Q` should be a
 clock-count window absorbing under `stepDistOrSelf` (e.g. via `RoleSplitGood` /
 `clockCount ≤ n`).
 
-**Gap 2 — the deterministic phase-0-exit bridge (for the `Esc`/`allPhase0`
-containment `hcontain`).**  From `Protocol.Transition` (frozen), an agent's
-PHASE changes out of `0` ONLY via `Transition.stdCounterSubroutine` (Rule 5 of
-`Phase0Transition`: `stdCounterSubroutine` fires only when BOTH partners are
-clocks; for two phase-0 agents `phaseEpidemicUpdate_eq_self_of_both_phase0`
-collapses the epidemic wrapper, so `Transition` reduces to `Phase0Transition`).
-`stdCounterSubroutine a` advances phase ONLY when `a.counter.val = 0`; Rule 4
-sets a freshly-created clock's counter to `50(L+1) ≠ 0`, and Rules 1–3 never
-touch `counter` nor create clocks.  Hence a single-step phase-0 exit forces a
-SOURCE-config clock at `counter = 0`:
-
-  `allPhase0 c → ¬ allPhase0 (stepOrSelf P c r₁ r₂) → ¬ noClockAtZero c`.
-
-Lifting this single-step fact to `{¬ allPhase0 at t} ⊆ ⋃_{τ≤t} {¬ noClockAtZero
-at τ}` is the prefix-union/first-exit structure (a hitting-time helper not yet
-in the tree); combined with the per-`τ` `phase0_window_whp` bound and a
-horizon-`t` union it yields the `allPhase0`-window corollary and (with an
-absorbing Post) the Phase-0 `PhaseConvergence` upgrade. -/
+**Gap 2 — the deterministic phase-0-exit bridge — DISCHARGED above.**  The
+single-step deterministic fact
+  `allPhase0 c → ¬ allPhase0 (stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      → ¬ noClockAtZero c`
+is `det_phase0_exit`; its kernel form (the `¬ allPhase0` mass is `0` from
+`allPhase0 ∧ noClockAtZero`) is
+`transitionKernel_not_allPhase0_eq_zero_of_noClockAtZero`; the abstract
+first-exit lift is `prefix_union_first_exit`; the assembled corollaries are
+`allPhase0_window_le_prefix_sum` (the prefix-union itself) and
+`allPhase0_window_whp` (the `t · ofReal(e^{−45(L+1)})` window bound, given the
+per-`τ` clock-zero bounds `hτ` supplied by `phase0_window_whp` along the
+trajectory).  Composing `allPhase0_window_whp` (Gap 2) with `phase0_window_whp`
+(consuming Gap 1's drift) and an absorbing Post gives the Phase-0
+`PhaseConvergence` upgrade. -/
 
 end Phase0Window
 

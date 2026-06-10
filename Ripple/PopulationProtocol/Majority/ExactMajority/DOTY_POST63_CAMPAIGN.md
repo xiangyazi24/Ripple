@@ -2267,3 +2267,16 @@ count-only gate in this file).  Concretely, to close: define `crPhase0Shell` lif
 witness, and supply the three `PhaseConvergenceW` ε-tails to `phase0_roleSplit_whp_two_stage`.  The
 escape-zero result above covers the `roleMCRCount` HALF of that gate for free; only the phase-window
 half remains.  EVERYTHING built this relay is 0-sorry axiom-clean and load-bearing for that instance.
+
+## Cleanup queue (post-D-3, 2026-06-10 evening)
+- [ ] Budget tightening: re-instantiate doty_time_headline_W's displayed budget at the paper's
+  1 − O(1/n²) (the per-phase engines already deliver n^{-2}-shape; the composition is parametric —
+  feed δ_i ≤ 1/(11n²) and re-run the arithmetic; Xiang flagged 1/n as weaker than the paper).
+- [ ] The ten chain bridges (F-1, in flight).
+- [ ] Phase-0 window closing bricks (in flight).
+- [ ] Per-phase drain numerics (q/hstep for 0/1/5/6/7/8) at concrete parameters.
+- [ ] hside τ-uniform majorant + post-hour width mode.
+- [ ] εfloor MGF (family2 letter queued; the Phase0Window drift-ledger pattern is the template).
+- [ ] Phase 5 hConc wiring through the Lemma-5.2 timing window.
+- [ ] E4 assembly (needs the headline + Lemma 5.2 floors) → expected-time half of Theorem 3.1.
+- [ ] Phase F: repo audit refresh + uisai2 explicit-target full build + 推平 main + tag.
