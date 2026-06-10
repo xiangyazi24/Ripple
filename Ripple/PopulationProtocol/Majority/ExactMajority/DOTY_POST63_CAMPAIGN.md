@@ -3395,3 +3395,47 @@ characterization, and source-tracing — all 0-sorry, axiom-clean
 no-overshoot surface is now: timing/initial-potential + seam-region `Wf` (from the Analysis
 reachability invariants) + `CounterResetDest (p+1)` + arithmetic; `DetSeamOvershootBridge p`
 is no longer an assumption.
+
+---
+
+## Phase D — composition residual: per-phase floor wiring (`Probability/PhaseFloors.lean`, NEW)
+
+The Phase-D composition residual queue item ("wire prior-phase Posts into per-phase numeric
+floors") is delivered.  `DrainThreading` (D-7) gave each of the five drain phases an engine
+`hdrop` carrying ONE structural count floor as a NAMED hypothesis; this file supplies each floor
+from its provenance source's Post (where landed) or from the named missing theorem (where the
+provenance count lower bound is not yet landed), and re-delivers the `hdrop` with the floor wired.
+
+NEW append-only file `Probability/PhaseFloors.lean` (namespace `ExactMajority.PhaseFloors`;
+touches only this new file).  All 7 theorems 0-sorry, 0-native_decide,
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]` (verified per-theorem).  Single-file
+`lake env lean` EXIT_0.
+
+### The five-phase wiring table
+
+| phase | floor (DrainThreading hyp)              | floor source theorem (provenance)                                     | seam transport (attr the seam doesn't touch)      | wired instance / status |
+|-------|-----------------------------------------|------------------------------------------------------------------------|---------------------------------------------------|-------------------------|
+| **6** | `K₀ ≤ reserveAtHour6 i .sum count`      | **LANDED**: Phase-5 Post `ReserveSampleGood i K₀` ⇒ `sampledFloor i K₀` = `K₀ ≤ sampledReserveClassU i`; `reserveAtHour6_sum_eq_classU` (= at `h:=i`) | `countP(role=reserve ∧ hour=i)` — advance epidemic changes only `phase`; Reserve `role`/`hour` (sampled record) phase-advance-invariant | **`phase6_hdrop_wired`** — FULLY WIRED (R:=K₀ from chain, no carried R). Floor extraction `phase6_reserve_floor_of_phase5Post`. |
+| **1** | `P ≤ pullPosSet .sum count` (+`1≤extremePosSet`) | **PARTIAL**: RoleSplit Lemma 5.2 `mainCount_lower_of_RoleSplitGood` (`n/3 ≤ mainCount`); genuine adapter `mainCount_eq_pullPos_add_saturatedPos` (`mainCount = pullPosSet + saturatedPosSet`). **Missing link**: saturated-positive-side bound `saturatedPos ≤ n/3 − P`. | `countP(role=main ∧ smallBias≤4)` — same-phase work transition preserves (Phase-1 averaging keeps role; only `smallBias` averaged) | **`phase1_hdrop_wired`** — ADAPTER from named floor `P ≤ pullPosSet`. Main-decomposition reduces missing link to saturated-side bound. |
+| **5** | `P ≤ usefulMains .sum count` (+`1≤unsampledReserves`) | **NOT LANDED**: Theorem 6.2 `biasedMainLtL ≥ 0.92·mainCount ≥ 23n/75` — referenced in `DrainCalibration`/`ReserveSampling` doctrine, carried, never proven. | `countP(biasedMainLtL)` — `biasedMainClass` phase-5-conserved (`biasedMainClassU_support_eq`) | **`phase5_hdrop_wired`** — ADAPTER from named missing floor `P ≤ usefulMains` (Thm 6.2 output, `P:=⌈23n/75⌉`). |
+| **7** | `E ≤ elimGap1 σ i .sum count` (+`1≤minorityAt7 σ j`) | **NOT LANDED**: Lemma 7.4 `0.8·mainCount` eliminator majority — the landed `lemma_7_5_phase_seven_minority` is a whp minority-SURVIVAL upper bound, NOT an eliminator lower bound. | gap-1 eliminator `countP` — same-phase | **`phase7_hdrop_wired`** — ADAPTER from named missing floor `E ≤ elimGap1` (Lemma 7.4 output). |
+| **8** | `E ≤ elimAbove σ i .sum count` (+`1≤minorityAt σ i`) | **NOT LANDED**: Lemmas 7.4–7.6 eliminator margin (`0.8|M|` − `0.2|M|`) — landed `lemma_7_6_phase_eight_eliminates` is a whp minority-survival upper bound. | `elimAbove`/`minorityAt` `countP` — same-phase | **`phase8_hdrop_wired`** — ADAPTER from named missing floors `E ≤ elimAbove` + `1 ≤ minorityAt` (Lemmas 7.4–7.6 output). |
+
+### Status summary
+
+- **1 of 5 floors FULLY WIRED** (Phase 6): the only phase whose provenance count lower bound is a
+  landed theorem (the Phase-5 `Post`'s `sampledFloor` conjunct).  The reserve floor flows from the
+  prior phase's actual Post with no carried numeric input.
+- **4 of 5 ADAPTER-PENDING** (Phases 1/5/7/8): the provenance count lower bounds (RoleSplit
+  `mainCount` → `pullPos` count-shape; Theorem 6.2 biased-Main; Lemma 7.4–7.6 eliminator) are NOT
+  landed as count lower-bound theorems.  Phase 1 has the genuine Main-decomposition adapter
+  reducing its gap to the saturated-side bound; Phases 5/7/8 deliver the `hdrop` from the named
+  missing floor hypothesis (no faking).  The precise missing links:
+  - Phase 1: `saturatedPosSet .sum count ≤ n/3 − P` (saturated `+2/+3` side small — driven down by
+    Phase-1 averaging, cf. `extremeU` non-increase).
+  - Phase 5: Theorem 6.2 biased-Main concentration `⌈23n/75⌉ ≤ usefulMains .sum count`.
+  - Phase 7: Lemma 7.4 `E ≤ elimGap1 σ i .sum count` (`0.8·mainCount` eliminator floor).
+  - Phase 8: Lemmas 7.4–7.6 `E ≤ elimAbove σ i .sum count` (eliminator margin).
+
+**Commit** (pushed to origin main): `Doty Phase-D PhaseFloors: wire prior-phase Posts into
+per-phase drain floors`.
