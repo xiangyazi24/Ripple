@@ -1970,5 +1970,69 @@ theorem milestone_hitting_time_bound_on (mp : MilestonePhaseOn (L := L) (K := K)
 
 end MilestonePhaseOn
 
+/-! ## Assembly: the floor-carrying `_on` witness discharges the `1/n²` budget.
+
+With the `MilestonePhaseOn` engine (Gap A), a witness that carries the floor
+invariant `Inv` (e.g. `assignableCount ≥ n/5 ∧ AllPhase0`, Gap B) plugs straight
+into `roleSplitTail`.  These bridges mirror the plain-engine discharge chain
+(`roleSplitTail_le_milestoneTail` → `..._inv_sq`) but consume the **Inv-relative**
+`milestone_hitting_time_bound_on`, so `progress` is needed only on the closed
+`Inv`-set — exactly where the Chernoff floor makes the combined rate `Θ(M/n)`. -/
+
+open ExactMajority in
+/-- Milestone reduction for the role split, `_on` form: `{¬RoleSplitGood} ⊆ {¬Post}`. -/
+theorem roleSplitTail_le_milestoneTail_on
+    {n : ℕ} {η : ℝ} {c₀ : Config (AgentState L K)}
+    (mp : MilestonePhaseOn (L := L) (K := K) (NonuniformMajority L K))
+    (hPost : ∀ c, mp.Post c → RoleSplitGood (L := L) (K := K) η n c)
+    (tRole : ℕ) :
+    roleSplitTail (L := L) (K := K) η n tRole c₀ ≤
+      ((NonuniformMajority L K).transitionKernel ^ tRole) c₀ {c | ¬ mp.Post c} := by
+  unfold roleSplitTail
+  apply MeasureTheory.measure_mono
+  intro c hc
+  simp only [Set.mem_setOf_eq] at hc ⊢
+  exact fun hp => hc (hPost c hp)
+
+open ExactMajority in
+/-- Janson tail on the role split, `_on` form: composing the reduction with the
+Inv-relative `milestone_hitting_time_bound_on`. -/
+theorem roleSplitTail_le_jansonExp_on
+    {n : ℕ} {η : ℝ} {c₀ : Config (AgentState L K)}
+    (mp : MilestonePhaseOn (L := L) (K := K) (NonuniformMajority L K))
+    (hPost : ∀ c, mp.Post c → RoleSplitGood (L := L) (K := K) η n c)
+    (hInv₀ : mp.Inv c₀)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    (lam : ℝ) (hlam : 1 ≤ lam)
+    (tRole : ℕ) (ht : lam * mp.meanTime ≤ (tRole : ℝ)) :
+    roleSplitTail (L := L) (K := K) η n tRole c₀ ≤
+      ENNReal.ofReal (Real.exp (-mp.pMin * mp.meanTime * (lam - 1 - Real.log lam))) :=
+  le_trans (roleSplitTail_le_milestoneTail_on mp hPost tRole)
+    (mp.milestone_hitting_time_bound_on c₀ hInv₀ hPre lam hlam tRole ht)
+
+open ExactMajority in
+/-- **Lemma 5.2 concentration discharge, floor-carrying (`O(1/n²)`).**  Same
+`1/n²` budget as `roleSplitTail_le_inv_sq`, but driven by the floor-carrying
+`MilestonePhaseOn` witness — `progress` need hold only on the closed `Inv`-set.
+This is the assembled discharge once Gap (B)'s floor instantiates `Inv`. -/
+theorem roleSplitTail_le_inv_sq_on
+    {n : ℕ} (hn : 1 ≤ n) {η : ℝ} {c₀ : Config (AgentState L K)}
+    (mp : MilestonePhaseOn (L := L) (K := K) (NonuniformMajority L K))
+    (hPost : ∀ c, mp.Post c → RoleSplitGood (L := L) (K := K) η n c)
+    (hInv₀ : mp.Inv c₀)
+    (hPre : ∀ i : Fin mp.k, ¬ mp.milestone i c₀)
+    (hpot : Real.log (n : ℝ) ≤ mp.pMin * mp.meanTime)
+    (hpot_nonneg : 0 ≤ mp.pMin * mp.meanTime)
+    (tRole : ℕ) (ht : 5 * mp.meanTime ≤ (tRole : ℝ)) :
+    roleSplitTail (L := L) (K := K) η n tRole c₀ ≤
+      ENNReal.ofReal (((n : ℝ) ^ 2)⁻¹) := by
+  refine le_trans
+    (roleSplitTail_le_jansonExp_on mp hPost hInv₀ hPre 5 (by norm_num) tRole ht) ?_
+  apply ENNReal.ofReal_le_ofReal
+  have hrw : -mp.pMin * mp.meanTime * (5 - 1 - Real.log 5) =
+      -(mp.pMin * mp.meanTime) * (5 - 1 - Real.log 5) := by ring
+  rw [hrw]
+  exact jansonExp_le_inv_sq hn hpot_nonneg hpot five_sub_one_sub_log_five_ge_two
+
 end RoleSplitConcentration
 end ExactMajority

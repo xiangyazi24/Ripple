@@ -703,6 +703,73 @@ These are the GENUINELY-OPEN inputs; the B-11 file proves the full inclusion + u
 names each feeder. Discharging them at DotyParams' concrete parameters (summing the per-`τ`
 WidthPrefix/bridge bounds over each minute window) is the remaining DotyParams follow-up.
 
+## Phase B-12 — EXPLICIT UNCONDITIONAL CLOCK BUDGET (2026-06-10, 0-sorry axiom-clean)
+
+New file `Probability/ClockBudgets.lean` (namespace `ExactMajority.ClockBudgets`; imports
+ClockUnconditional + DotyParams). All theorems `#print axioms ⊆ [propext, Classical.choice,
+Quot.sound]`, single-file `lake env lean` EXIT_0, zero sorry / zero native_decide. SHAs on main:
+B-12a b41ee387 · B-12b 72d18c95 · B-12c 53365bee · B-12d 67bc9202.
+
+This is the CLOSING brick of Phase B: it discharges the four per-`τ` feeders of `sidePrefix_le`
+through their dischargers and SUMS them over the minute windows into the single explicit budget
+`ε_clock(n)`.
+
+### THE EXPLICIT BUDGET (settled)
+```
+εclock L K tbulk εbulk εside := (K·(L+1) − 1) · (εbulk + tbulk · εside)
+```
+and `clock_unconditional_concrete`: the total minute-failure mass
+`∑_{i:Fin(K(L+1)−1)} (realκ^(i·s+tseed+tbulk)) c₀ {¬BulkPost n mC (i+1)} ≤ εclock`, with
+`s = tseed+tbulk`.  Shape: `O(#minutes) · (bulk tail + tbulk · per-step side mass)` =
+`O(K·(L+1)) · …` = `O(log n)` parallel (the clock runs `K·(L+1) = O(log n)` minutes).
+
+### DELIVERABLES (theorems, signatures abbreviated)
+1. `phaseGateFail_le` — `εphase` decomposition: `{PhaseGateFail} ≤ εge3 + εno3 + εcpos + εsucc`
+   (pure union bound over the four structural conjunct failures, FULLY PROVEN).
+2. `syncFail_le` — `εsync` wiring: `{¬FrontSync} ≤ εW + εP + εB` via
+   `ClockFrontSyncFromWidth.frontSync_whp_of_goodFrontWidth` (`SyncFail`/`realκ`-shape restatement).
+3. `sidePrefix_le_assembled` — the per-`τ` `Sgood(T)ᶜ` budget `≤ sideEps` (the sum of all NINE
+   named feeders `εQ εfloor εW εP εB εge3 εno3 εcpos εsucc`), composing `sidePrefix_le` (B-11) with
+   (1) and (2).  Pure measure arithmetic.
+4. `window_sum_le` / `minute_term_le` / `minutes_sum_le` — the summation collapse: with a UNIFORM
+   per-`τ`/per-minute side bound `εside`, the inner `Finset.Ico` window sum is `≤ tbulk·εside`
+   (`Nat.card_Ico`), each minute term `≤ εbulk + tbulk·εside`, and the `K(L+1)−1` minute sum
+   collapses to `εclock` (constant summand × card).  FULLY PROVEN.
+5. **`clock_unconditional_concrete`** — capstone `clock_real_faithful_O_log_n_unconditional` (B-11)
+   composed with `minutes_sum_le`: total failure `≤ εclock`.  The only remaining input is the
+   uniform `εside`.
+6. `widthFail_concrete` — the §6 width-failure mass `εW` at the ENDPOINT horizon `w n · KK L K`,
+   GENUINELY supplied by `DotyParams.goodFrontWidth_whp_final` (`WidthSideP n` = the §6 side
+   conjunct, `W = frontWidthBound n + W₂`).  This is the concrete `εW` feeding `syncFail_le`.
+
+### FINAL HYPOTHESIS LIST of `clock_unconditional_concrete` (every genuinely-open input)
+`(n mC : ℕ) (hn : 2 ≤ n) (hmC : 2 ≤ mC) (hLK : 0 < K·(L+1)) (tseed tbulk : ℕ) (htbulk : 0 <
+tbulk) (εbulk : ℝ≥0) (hεb : minuteRate^tbulk·…/1 ≤ εbulk) (c₀ : Cfg L K) (εside : ℝ≥0∞)
+(hside : ∀ T τ, (realκ^τ) c₀ Sgood(T)ᶜ ≤ εside)`.  The single genuinely-open input is **`εside`**
+(the uniform per-`τ` side budget).  `q`/`hstep` GONE (B-11); the per-minute side prefixes are now
+SUMMED into `εclock`.
+
+### THE GENUINE §6 BOUNDARY (precise gap for the remaining follow-up)
+`εside` = `sideEps` (Part 3) made uniform across the run, i.e. uniform-in-`τ` bounds on the nine
+named feeders.  The genuinely-open ones:
+- **`εW(τ)` at FREE `τ`**: the §6 concrete chain (`windowedFrontProfile_whp_concrete` →
+  `goodFrontWidth_whp_final`) is LOCKED to the SINGLE endpoint horizon `w n · KK L K` (the
+  checkpoint machinery `windowedFrontProfile_whp_checkpoint` requires the `w·KK` per-hour window
+  structure).  `widthFail_concrete` (Part 6) delivers `εW` AT THAT HORIZON concretely; a per-`τ`
+  family at free `τ` (re-running the §6 engine windowed at each `τ`, or a sup-over-the-hour bound)
+  is the remaining §6 follow-up.  NOT a math gap — an engine-rehoming task.
+- **`εP(τ)` / `εB(τ)`** (the side-event / bulk-arrival masses of the FrontSync bridge): named
+  whp inputs of `frontSync_whp_of_goodFrontWidth`, supplied by the same §6 line + the bulk-arrival
+  bound.
+- **`εge3 τ`/`εno3 τ`/`εcpos τ`/`εsucc τ`**: `allPhaseGE3`/`noPhaseAbove3` deterministic from the
+  start (`allPhaseGE3_closed`; `noPhaseAbove3` the residual deterministic gate); `allClocksCounterPos`
+  whp on the FrontSync event (`counterPos_closed_of_frontSync`) — charges to the same FrontSync
+  mass.  The deterministic ones are `0` once the start facts propagate; the residual gates are
+  named.
+Everything ABOVE `εside` (the inclusions, the four-feeder split, the FrontSync bridge wiring, the
+summation arithmetic, the concrete endpoint `εW`) is FULLY PROVEN and axiom-clean.  Phase B's
+clock chain is now a single explicit budget gated only on the uniform per-`τ` side mass `εside`.
+
 ## Phase C-1 — RoleSplitConcentration witness (Lemma 5.2 progress field) — STATUS
 
 `RoleSplitConcentration.lean` `roleSplitTail_le` (Phase0Initial + RoleSplitMilestone ⟹

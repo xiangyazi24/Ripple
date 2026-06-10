@@ -484,6 +484,36 @@ theorem headline_product_eq (counterMax mC n : ℕ) (hmC : 2 ≤ mC) (hn : 2 ≤
        = ((mC : ℕ) : ℝ≥0∞) * (((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)) by ring]
   rw [ENNReal.mul_div_mul_left _ _ hmc0 hmctop]
 
+/-- **Corollary (b): tiny-clock poly(n) fallback.**  With only the deterministic
+floor `mC ≥ 2` (Lemma 5.2's deterministic part: at least two clocks always), the
+expected time to advance a counter-timed phase is `≤ counterMax · n²` interactions —
+the polynomial bound used for the super-polynomially-rare tiny-clock event.
+
+Algebra: `(counterMax · mC) · rate⁻¹ = counterMax · n(n−1)/(mC−1) ≤ counterMax · n(n−1)
+≤ counterMax · n²`, using `mC − 1 ≥ 1` and `n − 1 ≤ n`. -/
+theorem timed_phase_progress_tinyClock [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (Φ : α → ℕ)
+    (hmono : Engine.PotNonincr K Φ)
+    (mC n counterMax : ℕ) (hmC : 2 ≤ mC) (hmCn : mC ≤ n) (hn : 2 ≤ n)
+    (hdrop : ∀ m : ℕ, ∀ b : α, Φ b = m →
+      K b (Engine.potBelow Φ m)ᶜ ≤ 1 - clockPairRate mC n)
+    (c : α) (hc : Φ c ≤ counterMax * mC) :
+    expectedHitting K c (Engine.potBelow Φ 1)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
+  refine le_trans
+    (timed_phase_expected_progress K Φ hmono mC n counterMax hmCn hdrop c hc) ?_
+  rw [headline_product_eq counterMax mC n hmC hn]
+  -- counterMax·n(n−1)/(mC−1) ≤ counterMax·n(n−1)/1 = counterMax·n(n−1) ≤ counterMax·n²
+  calc ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) / ((mC - 1 : ℕ) : ℝ≥0∞)
+      ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) / ((1 : ℕ) : ℝ≥0∞) := by
+        apply ENNReal.div_le_div_left
+        exact_mod_cast (by omega : (1 : ℕ) ≤ mC - 1)
+    _ = ((counterMax : ℕ) : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+        rw [Nat.cast_one, div_one]
+    _ ≤ ((counterMax : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
+        gcongr
+        exact_mod_cast Nat.mul_le_mul_left n (by omega : n - 1 ≤ n)
+
 end ConditionalPhaseProgress
 
 end ExactMajority

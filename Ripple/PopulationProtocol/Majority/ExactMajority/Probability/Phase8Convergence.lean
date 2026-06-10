@@ -419,6 +419,107 @@ theorem invClosed_phase8AllMain (n : ℕ) :
   intro x hsupp hx
   exact hx (Phase8AllMain_support_closed n c x hInv hsupp)
 
+/-! ## Part D' — the generic drop-rectangle probability bound.
+
+The dual of `Phase4Convergence.advanced_advance_prob_of_rect`: for a potential `Φ`
+and a rectangle `R` of pairs each of which, when fired, drops `Φ` by `≥ 1`, the
+one-step probability of the **drop** event `{c' | Φ c' + 1 ≤ Φ c}` is at least
+`N/(n(n−1))` where `N ≤ ∑_R interactionCount`.  Φ-agnostic; the per-cell drop fact
+is the hypothesis `hdrop`.  This is the rectangle layer for the Phase-8 drain
+(`hdrop` = `minorityU_stepOrSelf_drop`-shaped). -/
+theorem drop_prob_of_rect (Φ : Config (AgentState L K) → ℕ) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hcardn : c.card = n)
+    (R : Finset (AgentState L K × AgentState L K)) (N : ℕ)
+    (hdrop : ∀ p ∈ R, 1 ≤ c.count p.1 → 1 ≤ c.count p.2 → (p.1 = p.2 → 2 ≤ c.count p.1) →
+      Φ (Protocol.stepOrSelf (NonuniformMajority L K) c p.1 p.2) + 1 ≤ Φ c)
+    (hcount : (N : ℕ) ≤ ∑ p ∈ R, c.interactionCount p.1 p.2) :
+    ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ Φ c} := by
+  set j := Φ c with hjdef
+  have hcard2 : 2 ≤ c.card := by rw [hcardn]; omega
+  have hmeas : MeasurableSet {c' : Config (AgentState L K) | Φ c' + 1 ≤ j} :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  set S : Finset (AgentState L K × AgentState L K) :=
+    R.filter (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2 ∧ (p.1 = p.2 → 2 ≤ c.count p.1)) with hS
+  have hsub : (↑S : Set (AgentState L K × AgentState L K)) ⊆
+      (Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+        {c' | Φ c' + 1 ≤ j} := by
+    intro p hp
+    simp only [Finset.coe_filter, Set.mem_setOf_eq, hS] at hp
+    obtain ⟨hpc, hp1, hp2, hp3⟩ := hp
+    simp only [Set.mem_preimage, Set.mem_setOf_eq, Protocol.scheduledStep]
+    exact hdrop p hpc hp1 hp2 hp3
+  have hstepDist : (NonuniformMajority L K).stepDistOrSelf c
+      = (NonuniformMajority L K).stepDist c hcard2 := by
+    unfold Protocol.stepDistOrSelf; rw [dif_pos hcard2]
+  have hbase : ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ j}
+      = (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) := by
+    rw [hstepDist]; unfold Protocol.stepDist
+    rw [PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hmeas]
+  rw [hbase]
+  have hmono : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      ≤ (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) :=
+    measure_mono hsub
+  refine le_trans ?_ hmono
+  have hSmeasure : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      = ∑ p ∈ S, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  have hSsum : ∑ p ∈ S, c.interactionProb p.1 p.2
+      = ∑ p ∈ R, c.interactionProb p.1 p.2 := by
+    rw [hS]
+    apply Finset.sum_subset (Finset.filter_subset _ _)
+    intro p hpc hpnot
+    rw [Finset.mem_filter] at hpnot
+    push Not at hpnot
+    have hexcl := hpnot hpc
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases h1 : 1 ≤ c.count p.1
+      · by_cases h2 : 1 ≤ c.count p.2
+        · obtain ⟨hpe, hlt⟩ := hexcl h1 h2
+          rw [if_pos hpe]
+          have hc1 : c.count p.1 = 1 := by omega
+          rw [hc1]
+        · have hz2 : c.count p.2 = 0 := by omega
+          by_cases hpe : p.1 = p.2
+          · rw [if_pos hpe]; rw [hpe, hz2, Nat.zero_mul]
+          · rw [if_neg hpe, hz2, Nat.mul_zero]
+      · have hz1 : c.count p.1 = 0 := by omega
+        by_cases hpe : p.1 = p.2
+        · rw [if_pos hpe, hz1, Nat.zero_mul]
+        · rw [if_neg hpe, hz1, Nat.zero_mul]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hSmeasure, hSsum]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum]
+  set M := ∑ p ∈ R, c.interactionCount p.1 p.2 with hM
+  have htp : c.totalPairs = n * (n - 1) := by rw [Config.totalPairs, hcardn]
+  rw [htp, ← div_eq_mul_inv]
+  have hden_pos : (0 : ℝ) < ((n * (n - 1) : ℕ) : ℝ) := by
+    have : 0 < n * (n - 1) := Nat.mul_pos (by omega) (by omega)
+    exact_mod_cast this
+  have hdenR : ((n * (n - 1) : ℕ) : ℝ) = (n : ℝ) * ((n : ℝ) - 1) := by
+    rw [Nat.cast_mul, Nat.cast_sub (by omega)]; push_cast; ring
+  have hstep1 : ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))
+      ≤ ENNReal.ofReal (((M : ℕ) : ℝ) / ((n * (n - 1) : ℕ) : ℝ)) := by
+    apply ENNReal.ofReal_le_ofReal
+    rw [hdenR]
+    have hNM : (N : ℝ) ≤ (M : ℝ) := by exact_mod_cast hcount
+    have hposden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by rw [← hdenR]; exact hden_pos
+    gcongr
+  refine le_trans hstep1 ?_
+  rw [← ENNReal.ofReal_natCast M, ← ENNReal.ofReal_natCast (n * (n - 1)),
+      ← ENNReal.ofReal_div_of_pos hden_pos]
+
 /-! ## Part E — the Phase-8 `PhaseConvergenceW` from the engine.
 
 With both `hmono` (`potNonincrOn_minorityU`) and the FULL `hClosed`
