@@ -331,6 +331,117 @@ theorem real_front_squares_whp_prefix (T θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) 
   exact front_squares_whp_prefix (L := L) (K := K) T θn n hn cc w r aM haM δ δRem hB hRem
     σ hσ j hsmall tt mc₀ h0 hmark
 
+/-- **STEP 4 continued — the level union at horizon `w·j + r`.**  Union the per-level real-kernel
+recurrence failure over `T < Tcap`; mirrors `real_front_union` but at the prefix horizon, with the
+per-level remainder bounds `δRem T` carried as a family. -/
+theorem real_front_union_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : ℕ)
+    (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
+    (δ δRem : ℕ → ℝ≥0∞)
+    (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ T)
+    (hRem : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      ((markedK (L := L) (K := K) T θn) ^ r) mc₀
+          {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ≤ δRem T)
+    (σ : ℝ) (hσ : 0 < σ) (j : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) ≤ 1 / 2)
+    (tt : ℕ) (Tcap : ℕ)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : ∀ T < Tcap, recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : ∀ T < Tcap, MarkInv (L := L) (K := K) T mc₀) :
+    ∀ T₀, T₀ = w * j + r →
+    ((NonuniformMajority L K).transitionKernel ^ T₀) (eraseConfig (L := L) (K := K) mc₀)
+        (⋃ T ∈ Finset.range Tcap, realFrontBad (L := L) (K := K) T n cc tt)
+      ≤ ∑ T ∈ Finset.range Tcap,
+          (((j : ℝ≥0∞) * δ T + δRem T)
+            + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+                (taintedGate (L := L) (K := K) n) ^ (w * j + r)) (some mc₀) {none}
+              + ENNReal.ofReal
+                (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * j + r)
+                    * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+                  + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) * ((θn : ℝ) / (n : ℝ)) ^ 2
+                      * ((w * j + r : ℕ) : ℝ)
+                  - σ * ((tt + 1 : ℕ) : ℝ))))) := by
+  intro T₀ hT₀
+  subst hT₀
+  refine le_trans (measure_biUnion_finset_le _ _) ?_
+  apply Finset.sum_le_sum
+  intro T hT
+  rw [Finset.mem_range] at hT
+  exact real_front_squares_whp_prefix (L := L) (K := K) T θn n hn cc w r (aM T) (haM T)
+    (δ T) (δRem T) (hB T) (hRem T) σ hσ j hsmall tt mc₀ (h0 T hT) (hmark T hT)
+
+open ClockFrontProfile in
+/-- **STEP 4 CAPSTONE at horizon `τ = w·j + r`** — the whp `WindowedFrontProfile` on the real kernel
+at an ARBITRARY minute boundary.  Mirrors `windowedFrontProfile_whp` exactly, using the level union
+at the prefix horizon (`real_front_union_prefix`).  The `r`-horizon remainder window bounds `δRem T`
+are inputs (per the campaign audit). -/
+theorem windowedFrontProfile_whp_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w r : ℕ) (θ : ℝ)
+    (hθpos : 0 < θ) (aM : ℕ → ℕ) (haM : ∀ T, n ≤ 10 * aM T)
+    (δ δRem : ℕ → ℝ≥0∞)
+    (hB : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | (cc * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM T ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ δ T)
+    (hRem : ∀ T, ∀ mc₀, recInv (L := L) (K := K) T θn n cc mc₀ →
+      ((markedK (L := L) (K := K) T θn) ^ r) mc₀
+          {mc | ¬ recInv (L := L) (K := K) T θn n cc mc} ≤ δRem T)
+    (σ : ℝ) (hσ : 0 < σ) (j : ℕ)
+    (hsmall : σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) ≤ 1 / 2)
+    (tt : ℕ) (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (mc₀ : Config (MarkedAgent L K))
+    (h0 : ∀ T < Tcap, recInv (L := L) (K := K) T θn n cc mc₀)
+    (hmark : ∀ T < Tcap, MarkInv (L := L) (K := K) T mc₀) :
+    ((NonuniformMajority L K).transitionKernel ^ (w * j + r)) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c}
+      ≤ ∑ T ∈ Finset.range Tcap,
+          (((j : ℝ≥0∞) * δ T + δRem T)
+            + ((GatedDrift.killK (markedK (L := L) (K := K) T θn)
+                (taintedGate (L := L) (K := K) n) ^ (w * j + r)) (some mc₀) {none}
+              + ENNReal.ofReal
+                (Real.exp (σ * (1 + 4 / (n : ℝ)) ^ (w * j + r)
+                    * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+                  + 2 * σ * (1 + 4 / (n : ℝ)) ^ (w * j + r) * ((θn : ℝ) / (n : ℝ)) ^ 2
+                      * ((w * j + r : ℕ) : ℝ)
+                  - σ * ((tt + 1 : ℕ) : ℝ))))) := by
+  classical
+  have hsub : {c : Config (AgentState L K) | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+        (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+          cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+            ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+      ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c}
+      ⊆ ⋃ T ∈ Finset.range Tcap, realFrontBad (L := L) (K := K) T n cc tt := by
+    intro c hc
+    obtain ⟨⟨hcard, hP3, hnegc⟩, hwfp⟩ := hc
+    by_contra hcon
+    apply hwfp
+    refine windowedFrontProfile_of_not_bad (L := L) (K := K) n Tcap (by omega) cc tt θ hθpos
+      c hcard hP3 hcap hnegc ?_
+    intro T hT hbad
+    apply hcon
+    rw [Set.mem_iUnion₂]
+    exact ⟨T, Finset.mem_range.mpr hT, hbad⟩
+  refine le_trans (measure_mono hsub) ?_
+  exact real_front_union_prefix (L := L) (K := K) θn n hn cc w r aM haM δ δRem hB hRem
+    σ hσ j hsmall tt Tcap mc₀ h0 hmark (w * j + r) rfl
+
 end EarlyDripMarked
 
 end ExactMajority

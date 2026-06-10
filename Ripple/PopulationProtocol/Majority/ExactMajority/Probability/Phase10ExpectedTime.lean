@@ -578,28 +578,50 @@ stage potentials of `Analysis/Phase10Backup.lean`:
 * **absorb-T stage** `Φ := wrongACount` after `activeBCount = 0`;
 * **convert-passive stage** `Φ := wrongACount` (passive recount).
 
-Each needs three protocol facts to feed the generic engine:
-1. `PotNonincr K Φ` — one scheduler step never increases the potential.  Follows
-   from the per-pair non-increase lemmas (`activeBCount_cancel_A_B_lt` /
-   `wrongACount_activeA_nonActiveB_lt` give *strict* decrease on the useful pair;
-   the support-wide non-increase is the easy direction: no Phase-10 reaction
-   creates active B / un-A's an A).
-2. the per-level drop `∀ b, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m` with
-   `q m = 1 - (lower bound on useful-pair interaction probability)`.  The useful
-   probability is `≥ (class interactionCount) / (n(n−1))`; with `m` active-B (or
-   `m` wrong-A) agents and `≥ 1` active-A, the class count is `≥ m` (one active-A
-   times `m` partners), so `q m = 1 - m / (n(n−1))` and
-   `(1 - q m)⁻¹ = n(n−1)/m`.  Establishing this lower bound is where the
-   **state-multiplicity** subtlety lives: "active A" is a *class* of `AgentState`
-   records, so the single-pair technique of
-   `Phase2TimeConvergence.step_advance_prob` must be aggregated over the class via
-   `interactionCount`'s additivity (a `Finset.sum` over the active-A / wrong-A
-   states present), rather than instantiated at one fixed `Λ` value.
-3. the harmonic evaluation `∑_{m=1}^{n} n(n−1)/m = n(n−1) H_n = O(n² log n)`.
+**Generic engine: fully closed (E2-6/7/8).**  `coupon_expectedHitting_le_uniform`
+takes exactly `(PotNonincr K Φ)`, `(hdrop : ∀ m b, Φ b = m → K b (potBelow Φ m)ᶜ ≤
+q m)`, `(Φ c ≤ M)`, and a uniform per-level ceiling `r` (`(1 - q m)⁻¹ ≤ r`), and
+returns `expectedHitting K c (potBelow Φ 1) ≤ M·r` — no residual hypotheses.  Only
+the THREE protocol facts below remain, all in `Analysis/Phase10Backup.lean` land:
+
+1. `PotNonincr K Φ`, i.e. `∀ c, K c {c' | Φ c < Φ c'} = 0`.  Via the established
+   support template (`Phase0Convergence.phaseBelowCount_step_le` / `mcrCount_step_le`):
+   `c' ∈ (stepDistOrSelf c).support` ⇒ `Protocol.stepDist_support` peels a pair
+   `(r₁,r₂)`, `Φ c' = Φ(c-{r₁,r₂}) + Φ{Transition r₁ r₂}` (countP additivity,
+   `Multiset.countP_add`), so it reduces to the **per-pair bound**
+   `Φ{Transition r₁ r₂} ≤ Φ{r₁,r₂}` (a `Transition_activeBCount_le` /
+   `Transition_wrongACount_le`, the analogue of `Transition_phaseBelowCount_le`).
+   **SCOPING CAVEAT (precise):** this per-pair bound is FALSE for the *full*
+   `NonuniformMajority` kernel — pre-phase-10 reactions (`enterPhase10`, epidemic
+   entry) DO create active-B / un-A an A.  So `PotNonincr` holds only on the
+   **phase-10-restricted** subdynamics.  The honest discharge is either (a) run the
+   stages on the absorbed/restricted kernel where every reachable config satisfies
+   the all-phase-10 invariant (`backupSignal_of_all_phase10` regime), proving the
+   per-pair bound under `IsActiveX`-typed hypotheses on `r₁,r₂`; or (b) thread an
+   all-phase-10 invariant `J` through a `PotNonincr`-relative-to-`J` variant of the
+   engine.  This invariant-threading is the first genuine instantiation brick.
+2. the per-level drop `K c (potBelow Φ m)ᶜ ≤ q m` with `q m = 1 - m/(n(n−1))`.  The
+   useful-interaction probability is `≥ (class interactionCount)/(n(n−1))`; with `m`
+   active-B and `≥ 1` active-A (from `exists_activeA_of_phase10ActiveSignedSum_pos`
+   in the majority-A case), the class count is `≥ m`.  **State-multiplicity subtlety
+   (precise):** `step_advance_prob` is proven over `Bool` for a single fixed pair
+   `(true,false)`; here "active A" / "active B" are *classes* of `AgentState`
+   records, so the single-pair mass bound must be aggregated over the
+   active-A × active-B class.  This needs (i) the real-kernel analogue of
+   `step_advance_prob` (the `interactionPMF (r₁,r₂)` mass lower bound for an
+   applicable `AgentState` pair, following the `stepDist = map scheduledStep
+   interactionPMF` route used in `ClockOLogN`/`ClockFaithful`), and (ii) summing
+   that mass over the `Finset` of present useful pairs via `interactionPMF`/`countP`
+   additivity to reach `≥ m/(n(n−1))`.  This is the second (largest) brick.
+3. the harmonic evaluation — DONE generically: `coupon_sum_le_of_uniform` gives the
+   crude `M·r = O(n³)`; the sharp `n(n−1)·H_n = O(n² log n)` is a constant
+   refinement of the same Icc sum (`∑ 1/m`), orthogonal to the engine.
 
 The three stages are then chained by `expectedHitting_le_through_mid`
 (majority/tie case split via `Phase10Backup.backupSignal` sign), giving the
-Lemma 7.7 expectation bound in interaction counts. -/
+Lemma 7.7 expectation bound in interaction counts.  Remaining work = bricks 1 and 2
+above (invariant-threading + class-aggregated probability), both PURELY protocol
+instantiation; the probability/coupon engine carries no further obligation. -/
 
 end Coupon
 
