@@ -416,25 +416,602 @@ theorem unsampledReserveU_support_le (n : ℕ) (c c' : Config (AgentState L K))
         unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
     rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact le_refl _
 
+/-! ## Part E2 — the honest superwindow `PhaseGE5Win` (closure + cross-phase drift).
+
+The uniform all-phase-5 window `Phase5AllWin` is genuinely NOT one-step closed (a
+zero-counter clock pair advances both clocks to phase 6, leaving the window).  The
+**superwindow** `PhaseGE5Win n c := c.card = n ∧ ∀ a ∈ c, 5 ≤ a.phase.val` IS closed under
+the real kernel (`phaseEpidemicUpdate` and the dispatch never lower a phase below 5, and
+`stepOrSelf` preserves `card`).  We discharge `hClosed` on it, and re-state the
+`unsampledReserveU` non-increase there via the cross-phase backward-stability of `unsampled`
+(role `.reserve`, `hour = L`): phases 6–10 never CREATE such an agent — Phase-6 `doSplit`
+fires only on `hour ≠ L` and maps reserve→main (removes, never adds), Phases 7,8,10 act only
+on Mains / output fields and leave reserves' role and hour fixed, Phase 9 = Phase 2 preserves
+role/hour for phase ≥ 5, and the clock subroutine keeps clocks clocks.  We first reprove the
+`phaseEpidemicUpdate` role/hour preservation for phase ≥ 5 (the protocol's `private` chain),
+then the dispatch case-split. -/
+
+/-- `phaseInit` preserves `hour` for any target phase `p` with `p.val ≥ 5`.  Local copy of
+the protocol's `private` lemma. -/
+theorem phaseInit_hour_ge_five (p : Fin 11) (a : AgentState L K) (hp : 5 ≤ p.val) :
+    (phaseInit L K p a).hour = a.hour := by
+  set_option linter.unusedSimpArgs false in
+  fin_cases p <;> simp_all (config := { decide := false }) <;>
+    simp [phaseInit, enterPhase10] <;> split_ifs <;> simp [enterPhase10]
+
+/-- `phaseInit` preserves `role` for any target phase `p` with `p.val ≥ 5`.  Local copy. -/
+theorem phaseInit_role_ge_five' (p : Fin 11) (a : AgentState L K) (hp : 5 ≤ p.val) :
+    (phaseInit L K p a).role = a.role := by
+  set_option linter.unusedSimpArgs false in
+  fin_cases p <;> simp_all (config := { decide := false }) <;>
+    simp [phaseInit, enterPhase10] <;> split_ifs <;> simp [enterPhase10]
+
+/-- `foldl` of phase-{≥5} `phaseInit`s preserves `hour`. -/
+theorem foldl_phaseInit_hour_ge5 (l : List ℕ) (a : AgentState L K)
+    (hl : ∀ k ∈ l, 5 ≤ k ∧ k < 11) :
+    (l.foldl (fun (acc : AgentState L K) (k : ℕ) =>
+      if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc) a).hour = a.hour := by
+  induction l generalizing a with
+  | nil => rfl
+  | cons k l ih =>
+    simp only [List.foldl_cons]
+    have hk := hl k List.mem_cons_self
+    simp only [dif_pos hk.2]
+    rw [ih (phaseInit L K ⟨k, hk.2⟩ a) (fun k' hk' => hl k' (List.mem_cons_of_mem k hk'))]
+    exact phaseInit_hour_ge_five (L := L) (K := K) ⟨k, hk.2⟩ a hk.1
+
+/-- `foldl` of phase-{≥5} `phaseInit`s preserves `role`. -/
+theorem foldl_phaseInit_role_ge5 (l : List ℕ) (a : AgentState L K)
+    (hl : ∀ k ∈ l, 5 ≤ k ∧ k < 11) :
+    (l.foldl (fun (acc : AgentState L K) (k : ℕ) =>
+      if h : k < 11 then phaseInit L K ⟨k, h⟩ acc else acc) a).role = a.role := by
+  induction l generalizing a with
+  | nil => rfl
+  | cons k l ih =>
+    simp only [List.foldl_cons]
+    have hk := hl k List.mem_cons_self
+    simp only [dif_pos hk.2]
+    rw [ih (phaseInit L K ⟨k, hk.2⟩ a) (fun k' hk' => hl k' (List.mem_cons_of_mem k hk'))]
+    exact phaseInit_role_ge_five' (L := L) (K := K) ⟨k, hk.2⟩ a hk.1
+
+/-- `runInitsBetween` preserves `hour` when starting from a phase ≥ 5. -/
+theorem runInitsBetween_hour_ge5 (oldP newP : ℕ) (hold : 5 ≤ oldP) (a : AgentState L K) :
+    (runInitsBetween L K oldP newP a).hour = a.hour := by
+  unfold runInitsBetween
+  exact foldl_phaseInit_hour_ge5 (L := L) (K := K) _ a (fun k hk => by
+    simp only [List.mem_filter, List.mem_range, decide_eq_true_eq] at hk
+    exact ⟨by omega, hk.1⟩)
+
+/-- `runInitsBetween` preserves `role` when starting from a phase ≥ 5. -/
+theorem runInitsBetween_role_ge5 (oldP newP : ℕ) (hold : 5 ≤ oldP) (a : AgentState L K) :
+    (runInitsBetween L K oldP newP a).role = a.role := by
+  unfold runInitsBetween
+  exact foldl_phaseInit_role_ge5 (L := L) (K := K) _ a (fun k hk => by
+    simp only [List.mem_filter, List.mem_range, decide_eq_true_eq] at hk
+    exact ⟨by omega, hk.1⟩)
+
+/-- **`phaseEpidemicUpdate` preserves `role` and `hour` of both agents at phase ≥ 5.** -/
+theorem phaseEpidemicUpdate_role_hour_ge5 (s t : AgentState L K)
+    (hs : 5 ≤ s.phase.val) (ht : 5 ≤ t.phase.val) :
+    (phaseEpidemicUpdate L K s t).1.role = s.role ∧
+      (phaseEpidemicUpdate L K s t).1.hour = s.hour ∧
+      (phaseEpidemicUpdate L K s t).2.role = t.role ∧
+      (phaseEpidemicUpdate L K s t).2.hour = t.hour := by
+  unfold phaseEpidemicUpdate
+  simp only
+  -- the `runInitsBetween` of `{x with phase := p}` (which has x's role/hour) preserves them.
+  have hsr : (runInitsBetween L K s.phase.val (max s.phase t.phase).val
+      ({ s with phase := max s.phase t.phase })).role = s.role := by
+    rw [runInitsBetween_role_ge5 (L := L) (K := K) _ _ hs]
+  have hsh : (runInitsBetween L K s.phase.val (max s.phase t.phase).val
+      ({ s with phase := max s.phase t.phase })).hour = s.hour := by
+    rw [runInitsBetween_hour_ge5 (L := L) (K := K) _ _ hs]
+  have htr : (runInitsBetween L K t.phase.val (max s.phase t.phase).val
+      ({ t with phase := max s.phase t.phase })).role = t.role := by
+    rw [runInitsBetween_role_ge5 (L := L) (K := K) _ _ ht]
+  have hth : (runInitsBetween L K t.phase.val (max s.phase t.phase).val
+      ({ t with phase := max s.phase t.phase })).hour = t.hour := by
+    rw [runInitsBetween_hour_ge5 (L := L) (K := K) _ _ ht]
+  split_ifs with hcond
+  · refine ⟨?_, ?_, ?_, ?_⟩ <;>
+      simp only [phase10EpidemicEntry_role, phase10EpidemicEntry_hour]
+    · exact hsr
+    · exact hsh
+    · exact htr
+    · exact hth
+  · exact ⟨hsr, hsh, htr, hth⟩
+
+/-- `advancePhaseWithInit` preserves `role` for an agent at phase ≥ 5. -/
+theorem advancePhaseWithInit_role_ge5 (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (advancePhaseWithInit L K a).role = a.role := by
+  unfold advancePhaseWithInit
+  have hadv_role : (advancePhase L K a).role = a.role := by unfold advancePhase; split <;> rfl
+  have hadv_phase : 5 ≤ (advancePhase L K a).phase.val :=
+    le_trans ha (advancePhase_phase_nondec L K a)
+  rw [phaseInit_role_ge_five' (advancePhase L K a).phase (advancePhase L K a) hadv_phase]
+  exact hadv_role
+
+/-- `advancePhaseWithInit` preserves `hour` for an agent at phase ≥ 5. -/
+theorem advancePhaseWithInit_hour_ge5 (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (advancePhaseWithInit L K a).hour = a.hour := by
+  unfold advancePhaseWithInit
+  have hadv_hour : (advancePhase L K a).hour = a.hour := by unfold advancePhase; split <;> rfl
+  have hadv_phase : 5 ≤ (advancePhase L K a).phase.val :=
+    le_trans ha (advancePhase_phase_nondec L K a)
+  rw [phaseInit_hour_ge_five (advancePhase L K a).phase (advancePhase L K a) hadv_phase]
+  exact hadv_hour
+
+/-- `stdCounterSubroutine` preserves `role` for an agent at phase ≥ 5. -/
+theorem stdCounterSubroutine_role_ge5 (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (stdCounterSubroutine L K a).role = a.role := by
+  unfold stdCounterSubroutine; split
+  · exact advancePhaseWithInit_role_ge5 (L := L) (K := K) a ha
+  · rfl
+
+/-- `stdCounterSubroutine` preserves `hour` for an agent at phase ≥ 5. -/
+theorem stdCounterSubroutine_hour_ge5 (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (stdCounterSubroutine L K a).hour = a.hour := by
+  unfold stdCounterSubroutine; split
+  · exact advancePhaseWithInit_hour_ge5 (L := L) (K := K) a ha
+  · rfl
+
+/-! ### Cross-phase backward-stability of `unsampled` under the full `Transition`.
+
+We prove: for two phase-≥5 inputs, an `unsampled` output (role `.reserve`, `hour = L`) forces
+the corresponding *input* to be `unsampled`.  The argument: `phaseEpidemicUpdate` fixes
+role/hour (phase ≥ 5), `finishPhase10Entry` fixes role/hour (`_role`,`_hour` simp lemmas),
+and on each dispatch branch (5..10) a reserve output with `hour = L` traces back to a reserve
+input with `hour = L`.  The hard branch is Phase 6 `doSplit`: the firing branch requires
+`r.hour.val ≠ L` and maps reserve→main, so the only way an output is a reserve is the no-op
+branch (`(r,m)` returned unchanged), where role/hour are r's; the clock subroutine never makes
+a reserve. -/
+
+/-- A `clock` agent is never `unsampled` (its role is `.clock ≠ .reserve`). -/
+theorem not_unsampled_of_clock (a : AgentState L K) (h : a.role = Role.clock) :
+    ¬ unsampled a := by
+  intro hu; rw [hu.1] at h; exact absurd h (by decide)
+
+/-- **Phase 6 backward-stability of `unsampled` (left output).**  `doSplit` fires only on
+`hour ≠ L` and converts reserve→main; the clock subroutine yields a clock.  So an `unsampled`
+(reserve, `hour = L`) left output forces `s` itself to be `unsampled`. -/
+theorem unsampled_fst_Phase6Transition (s t : AgentState L K)
+    (hout : unsampled (Phase6Transition L K s t).1) : unsampled s := by
+  -- s1 is the pre-clock first component.
+  set s1 : AgentState L K :=
+    (if s.role = .reserve ∧ t.role = .main ∧ t.bias ≠ Bias.zero then (doSplit L K s t).1
+     else if t.role = .reserve ∧ s.role = .main ∧ s.bias ≠ Bias.zero then (doSplit L K t s).2
+     else s) with hs1
+  have hfst : (Phase6Transition L K s t).1 =
+      (if s1.role = Role.clock then stdCounterSubroutine L K s1 else s1) := by
+    unfold Phase6Transition; rw [hs1]
+  rw [hfst] at hout
+  -- output is not a clock (unsampled ⟹ reserve), so output = s1.
+  have hnc : ¬ s1.role = Role.clock := by
+    intro hc; rw [if_pos hc] at hout
+    exact not_unsampled_of_clock (L := L) (K := K) _
+      (stdCounterSubroutine_clock_role_eq L K _ hc) hout
+  rw [if_neg hnc] at hout
+  -- Now `s1` is unsampled.  Trace through the doSplit branches.
+  rw [hs1] at hout
+  by_cases hb1 : s.role = .reserve ∧ t.role = .main ∧ t.bias ≠ Bias.zero
+  · rw [if_pos hb1] at hout
+    -- (doSplit s t).1 unsampled.  doSplit fires iff hour ≠ L; firing ⟹ role = main, so a
+    -- reserve output (unsampled) means doSplit did NOT fire, hence output = s.
+    have hh : (doSplit L K s t).1.hour = s.hour := doSplit_hour_fst L K s t
+    refine ⟨?_, ?_⟩
+    · -- role: from doSplit firing structure.  If it fired, output role = main ≠ reserve.
+      by_contra hns
+      -- s.role ≠ reserve contradicts hb1.1.
+      exact hns hb1.1
+    · rw [← hh]; exact hout.2
+  · rw [if_neg hb1] at hout
+    by_cases hb2 : t.role = .reserve ∧ s.role = .main ∧ s.bias ≠ Bias.zero
+    · rw [if_pos hb2] at hout
+      -- (doSplit t s).2 = m = s (second component is m, untouched in the sampled sense).
+      have hr : (doSplit L K t s).2.role = s.role := doSplit_role_snd L K t s
+      have hh : (doSplit L K t s).2.hour = s.hour := doSplit_hour_snd L K t s
+      exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+    · rw [if_neg hb2] at hout; exact hout
+
+/-- **Phase 6 backward-stability of `unsampled` (right output).** -/
+theorem unsampled_snd_Phase6Transition (s t : AgentState L K)
+    (hout : unsampled (Phase6Transition L K s t).2) : unsampled t := by
+  set t1 : AgentState L K :=
+    (if s.role = .reserve ∧ t.role = .main ∧ t.bias ≠ Bias.zero then (doSplit L K s t).2
+     else if t.role = .reserve ∧ s.role = .main ∧ s.bias ≠ Bias.zero then (doSplit L K t s).1
+     else t) with ht1
+  have hsnd : (Phase6Transition L K s t).2 =
+      (if t1.role = Role.clock then stdCounterSubroutine L K t1 else t1) := by
+    unfold Phase6Transition; rw [ht1]
+  rw [hsnd] at hout
+  have hnc : ¬ t1.role = Role.clock := by
+    intro hc; rw [if_pos hc] at hout
+    exact not_unsampled_of_clock (L := L) (K := K) _
+      (stdCounterSubroutine_clock_role_eq L K _ hc) hout
+  rw [if_neg hnc] at hout
+  rw [ht1] at hout
+  by_cases hb1 : s.role = .reserve ∧ t.role = .main ∧ t.bias ≠ Bias.zero
+  · rw [if_pos hb1] at hout
+    -- (doSplit s t).2 = m = t, role/hour preserved.
+    have hr : (doSplit L K s t).2.role = t.role := doSplit_role_snd L K s t
+    have hh : (doSplit L K s t).2.hour = t.hour := doSplit_hour_snd L K s t
+    exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+  · rw [if_neg hb1] at hout
+    by_cases hb2 : t.role = .reserve ∧ s.role = .main ∧ s.bias ≠ Bias.zero
+    · rw [if_pos hb2] at hout
+      -- (doSplit t s).1: firing ⟹ role = main; reserve output ⟹ no-op ⟹ = t.  role = hb2.1.
+      have hh : (doSplit L K t s).1.hour = t.hour := doSplit_hour_fst L K t s
+      exact ⟨hb2.1, by rw [← hh]; exact hout.2⟩
+    · rw [if_neg hb2] at hout; exact hout
+
+/-- For phases 7,8,9 the non-clock dispatch keeps an agent's role and hour when starting from
+phase ≥ 5 (clock subroutine keeps clocks clock; the main-only rules keep reserves fixed).  We
+phrase the joint role∧hour preservation per side, then convert `unsampled` backward. -/
+theorem unsampled_fst_Phase7Transition (s t : AgentState L K)
+    (hout : unsampled (Phase7Transition L K s t).1) : unsampled s := by
+  set s1 : AgentState L K :=
+    (if s.role = .main ∧ t.role = .main then (cancelSplit L K s t).1 else s) with hs1
+  have hfst : (Phase7Transition L K s t).1 =
+      (if s1.role = Role.clock then stdCounterSubroutine L K s1 else s1) := by
+    unfold Phase7Transition; rw [hs1]
+  rw [hfst] at hout
+  have hnc : ¬ s1.role = Role.clock := by
+    intro hc; rw [if_pos hc] at hout
+    exact not_unsampled_of_clock (L := L) (K := K) _
+      (stdCounterSubroutine_clock_role_eq L K _ hc) hout
+  rw [if_neg hnc] at hout
+  rw [hs1] at hout
+  by_cases hm : s.role = .main ∧ t.role = .main
+  · rw [if_pos hm] at hout
+    have hr : (cancelSplit L K s t).1.role = s.role := cancelSplit_role_fst L K s t
+    have hh : (cancelSplit L K s t).1.hour = s.hour := cancelSplit_hour_fst L K s t
+    exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+  · rw [if_neg hm] at hout; exact hout
+
+theorem unsampled_snd_Phase7Transition (s t : AgentState L K)
+    (hout : unsampled (Phase7Transition L K s t).2) : unsampled t := by
+  set t1 : AgentState L K :=
+    (if s.role = .main ∧ t.role = .main then (cancelSplit L K s t).2 else t) with ht1
+  have hsnd : (Phase7Transition L K s t).2 =
+      (if t1.role = Role.clock then stdCounterSubroutine L K t1 else t1) := by
+    unfold Phase7Transition; rw [ht1]
+  rw [hsnd] at hout
+  have hnc : ¬ t1.role = Role.clock := by
+    intro hc; rw [if_pos hc] at hout
+    exact not_unsampled_of_clock (L := L) (K := K) _
+      (stdCounterSubroutine_clock_role_eq L K _ hc) hout
+  rw [if_neg hnc] at hout
+  rw [ht1] at hout
+  by_cases hm : s.role = .main ∧ t.role = .main
+  · rw [if_pos hm] at hout
+    have hr : (cancelSplit L K s t).2.role = t.role := cancelSplit_role_snd L K s t
+    have hh : (cancelSplit L K s t).2.hour = t.hour := cancelSplit_hour_snd L K s t
+    exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+  · rw [if_neg hm] at hout; exact hout
+
+theorem unsampled_fst_Phase8Transition (s t : AgentState L K)
+    (hout : unsampled (Phase8Transition L K s t).1) : unsampled s := by
+  set s1 : AgentState L K :=
+    (if s.role = .main ∧ t.role = .main then (absorbConsume L K s t).1 else s) with hs1
+  have hfst : (Phase8Transition L K s t).1 =
+      (if s1.role = Role.clock then stdCounterSubroutine L K s1 else s1) := by
+    unfold Phase8Transition; rw [hs1]
+  rw [hfst] at hout
+  have hnc : ¬ s1.role = Role.clock := by
+    intro hc; rw [if_pos hc] at hout
+    exact not_unsampled_of_clock (L := L) (K := K) _
+      (stdCounterSubroutine_clock_role_eq L K _ hc) hout
+  rw [if_neg hnc] at hout
+  rw [hs1] at hout
+  by_cases hm : s.role = .main ∧ t.role = .main
+  · rw [if_pos hm] at hout
+    have hr : (absorbConsume L K s t).1.role = s.role := absorbConsume_role_fst L K s t
+    have hh : (absorbConsume L K s t).1.hour = s.hour := absorbConsume_hour_fst L K s t
+    exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+  · rw [if_neg hm] at hout; exact hout
+
+theorem unsampled_snd_Phase8Transition (s t : AgentState L K)
+    (hout : unsampled (Phase8Transition L K s t).2) : unsampled t := by
+  set t1 : AgentState L K :=
+    (if s.role = .main ∧ t.role = .main then (absorbConsume L K s t).2 else t) with ht1
+  have hsnd : (Phase8Transition L K s t).2 =
+      (if t1.role = Role.clock then stdCounterSubroutine L K t1 else t1) := by
+    unfold Phase8Transition; rw [ht1]
+  rw [hsnd] at hout
+  have hnc : ¬ t1.role = Role.clock := by
+    intro hc; rw [if_pos hc] at hout
+    exact not_unsampled_of_clock (L := L) (K := K) _
+      (stdCounterSubroutine_clock_role_eq L K _ hc) hout
+  rw [if_neg hnc] at hout
+  rw [ht1] at hout
+  by_cases hm : s.role = .main ∧ t.role = .main
+  · rw [if_pos hm] at hout
+    have hr : (absorbConsume L K s t).2.role = t.role := absorbConsume_role_snd L K s t
+    have hh : (absorbConsume L K s t).2.hour = t.hour := absorbConsume_hour_snd L K s t
+    exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+  · rw [if_neg hm] at hout; exact hout
+
+/-- Phase 9 = Phase 2.  For phase-≥5 agents, `Phase2Transition` keeps role and hour: the
+`advancePhaseWithInit` branch preserves both at phase ≥ 5; the output-only branches rewrite
+only `output`.  We prove the joint role∧hour preservation, then convert backward. -/
+theorem Phase9Transition_role_hour_ge5 (s t : AgentState L K)
+    (hs : 5 ≤ s.phase.val) (ht : 5 ≤ t.phase.val) :
+    (Phase9Transition L K s t).1.role = s.role ∧
+      (Phase9Transition L K s t).1.hour = s.hour ∧
+      (Phase9Transition L K s t).2.role = t.role ∧
+      (Phase9Transition L K s t).2.hour = t.hour := by
+  rw [show Phase9Transition L K s t = Phase2Transition L K s t from rfl]
+  unfold Phase2Transition
+  simp only
+  split_ifs <;>
+    refine ⟨?_, ?_, ?_, ?_⟩ <;>
+    first
+      | rfl
+      | exact advancePhaseWithInit_role_ge5 (L := L) (K := K) _ (by simpa using hs)
+      | exact advancePhaseWithInit_hour_ge5 (L := L) (K := K) _ (by simpa using hs)
+      | exact advancePhaseWithInit_role_ge5 (L := L) (K := K) _ (by simpa using ht)
+      | exact advancePhaseWithInit_hour_ge5 (L := L) (K := K) _ (by simpa using ht)
+
+theorem unsampled_fst_Phase9Transition (s t : AgentState L K)
+    (hs : 5 ≤ s.phase.val) (ht : 5 ≤ t.phase.val)
+    (hout : unsampled (Phase9Transition L K s t).1) : unsampled s := by
+  obtain ⟨hr, hh, _, _⟩ := Phase9Transition_role_hour_ge5 (L := L) (K := K) s t hs ht
+  exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+
+theorem unsampled_snd_Phase9Transition (s t : AgentState L K)
+    (hs : 5 ≤ s.phase.val) (ht : 5 ≤ t.phase.val)
+    (hout : unsampled (Phase9Transition L K s t).2) : unsampled t := by
+  obtain ⟨_, _, hr, hh⟩ := Phase9Transition_role_hour_ge5 (L := L) (K := K) s t hs ht
+  exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+
+/-- Phase 10 only rewrites `output`/`full`; role and hour are untouched.  Backward-stability is
+immediate. -/
+theorem unsampled_fst_Phase10Transition (s t : AgentState L K)
+    (hout : unsampled (Phase10Transition L K s t).1) : unsampled s := by
+  have hr : (Phase10Transition L K s t).1.role = s.role := by
+    unfold Phase10Transition; simp only; split_ifs <;> rfl
+  have hh : (Phase10Transition L K s t).1.hour = s.hour := by
+    unfold Phase10Transition; simp only; split_ifs <;> rfl
+  exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+
+theorem unsampled_snd_Phase10Transition (s t : AgentState L K)
+    (hout : unsampled (Phase10Transition L K s t).2) : unsampled t := by
+  have hr : (Phase10Transition L K s t).2.role = t.role := by
+    unfold Phase10Transition; simp only; split_ifs <;> rfl
+  have hh : (Phase10Transition L K s t).2.hour = t.hour := by
+    unfold Phase10Transition; simp only; split_ifs <;> rfl
+  exact ⟨by rw [← hr]; exact hout.1, by rw [← hh]; exact hout.2⟩
+
+/-- **`unsampled` cross-phase backward-stability under the full `Transition`.**  For two
+phase-≥5 inputs, an `unsampled` (reserve, `hour = L`) output forces the corresponding input to
+be `unsampled`.  Reduces through `phaseEpidemicUpdate` (role/hour fixed at phase ≥ 5),
+`finishPhase10Entry` (role/hour fixed), and the per-phase dispatch lemmas. -/
+theorem Transition_unsampled_backward_of_phase_ge5 (s t : AgentState L K)
+    (hs : 5 ≤ s.phase.val) (ht : 5 ≤ t.phase.val) :
+    (unsampled (Transition L K s t).1 → unsampled s) ∧
+      (unsampled (Transition L K s t).2 → unsampled t) := by
+  have hpe := phaseEpidemicUpdate_role_hour_ge5 (L := L) (K := K) s t hs ht
+  -- Convert epidemic role/hour equalities into `unsampled` backward at the epidemic level.
+  have hep_back1 : unsampled (phaseEpidemicUpdate L K s t).1 → unsampled s :=
+    fun hu => ⟨by rw [← hpe.1]; exact hu.1, by rw [← hpe.2.1]; exact hu.2⟩
+  have hep_back2 : unsampled (phaseEpidemicUpdate L K s t).2 → unsampled t :=
+    fun hu => ⟨by rw [← hpe.2.2.1]; exact hu.1, by rw [← hpe.2.2.2]; exact hu.2⟩
+  unfold Transition
+  generalize hep_gen : phaseEpidemicUpdate L K s t = ep
+  rw [hep_gen] at hep_back1 hep_back2
+  obtain ⟨s', t'⟩ := ep
+  have hs'_ge : 5 ≤ s'.phase.val := by
+    have := phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) s t
+    rw [hep_gen] at this; exact le_trans hs (le_trans (le_max_left _ _) this)
+  have ht'_ge : 5 ≤ t'.phase.val := by
+    have := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) s t
+    rw [hep_gen] at this; exact le_trans ht (le_trans (le_max_right _ _) this)
+  -- finishPhase10Entry preserves role/hour, so unsampled of finish ⟹ unsampled of dispatch out.
+  have hfin1 : ∀ before out : AgentState L K,
+      unsampled (finishPhase10Entry L K before out) → unsampled out := by
+    intro before out hu
+    refine ⟨?_, ?_⟩
+    · rw [← finishPhase10Entry_role (L := L) (K := K) before out]; exact hu.1
+    · rw [← finishPhase10Entry_hour (L := L) (K := K) before out]; exact hu.2
+  -- Dispatch on s'.phase.
+  rcases (show s'.phase.val = 0 ∨ s'.phase.val = 1 ∨ s'.phase.val = 2 ∨ s'.phase.val = 3 ∨
+      s'.phase.val = 4 ∨ s'.phase.val = 5 ∨ s'.phase.val = 6 ∨ s'.phase.val = 7 ∨
+      s'.phase.val = 8 ∨ s'.phase.val = 9 ∨ s'.phase.val = 10 by have := s'.phase.2; omega)
+    with hp | hp | hp | hp | hp | hp | hp | hp | hp | hp | hp <;>
+    simp only [show s'.phase = ⟨_, by decide⟩ from Fin.ext hp]
+  -- phases 0..4 are impossible (s'.phase ≥ 5); discharge by omega on hs'_ge.
+  · exact absurd hp (by omega)
+  · exact absurd hp (by omega)
+  · exact absurd hp (by omega)
+  · exact absurd hp (by omega)
+  · exact absurd hp (by omega)
+  -- phase 5
+  · exact ⟨fun hu => hep_back1 (unsampled_fst_Phase5Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu)),
+          fun hu => hep_back2 (unsampled_snd_Phase5Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu))⟩
+  -- phase 6
+  · exact ⟨fun hu => hep_back1 (unsampled_fst_Phase6Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu)),
+          fun hu => hep_back2 (unsampled_snd_Phase6Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu))⟩
+  -- phase 7
+  · exact ⟨fun hu => hep_back1 (unsampled_fst_Phase7Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu)),
+          fun hu => hep_back2 (unsampled_snd_Phase7Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu))⟩
+  -- phase 8
+  · exact ⟨fun hu => hep_back1 (unsampled_fst_Phase8Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu)),
+          fun hu => hep_back2 (unsampled_snd_Phase8Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu))⟩
+  -- phase 9
+  · exact ⟨fun hu => hep_back1 (unsampled_fst_Phase9Transition (L := L) (K := K) s' t'
+            hs'_ge ht'_ge (hfin1 _ _ hu)),
+          fun hu => hep_back2 (unsampled_snd_Phase9Transition (L := L) (K := K) s' t'
+            hs'_ge ht'_ge (hfin1 _ _ hu))⟩
+  -- phase 10
+  · exact ⟨fun hu => hep_back1 (unsampled_fst_Phase10Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu)),
+          fun hu => hep_back2 (unsampled_snd_Phase10Transition (L := L) (K := K) s' t'
+            (hfin1 _ _ hu))⟩
+
+/-! ### The closed superwindow `PhaseGE5Win` and the drift restated on it. -/
+
+/-- The honest **superwindow**: size `n`, every agent at phase ≥ 5.  Unlike `Phase5AllWin`
+this IS one-step closed (no transition lowers a phase, and `card` is preserved). -/
+def PhaseGE5Win (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  c.card = n ∧ ∀ a ∈ c, 5 ≤ a.phase.val
+
+instance (n : ℕ) (c : Config (AgentState L K)) : Decidable (PhaseGE5Win n c) := by
+  unfold PhaseGE5Win; infer_instance
+
+/-- **Per-pair `unsampledReserveU` non-increase on the superwindow.**  An applicable pair are
+both phase ≥ 5, so each `Transition` output that is `unsampled` traces to an `unsampled` input
+(`Transition_unsampled_backward_of_phase_ge5`), hence the pair's unsampled count does not rise. -/
+theorem Transition_unsampledU_pair_le_of_phase_ge5 (s t : AgentState L K)
+    (hs : 5 ≤ s.phase.val) (ht : 5 ≤ t.phase.val) :
+    Multiset.countP (fun a => unsampled a)
+        ({(Transition L K s t).1, (Transition L K s t).2} : Multiset (AgentState L K))
+      ≤ Multiset.countP (fun a => unsampled a) ({s, t} : Multiset (AgentState L K)) := by
+  classical
+  obtain ⟨hb1, hb2⟩ := Transition_unsampled_backward_of_phase_ge5 (L := L) (K := K) s t hs ht
+  rw [countP_unsampled_pair, countP_unsampled_pair]
+  gcongr
+  · by_cases h1 : unsampled (Transition L K s t).1
+    · rw [if_pos h1, if_pos (hb1 h1)]
+    · rw [if_neg h1]; positivity
+  · by_cases h2 : unsampled (Transition L K s t).2
+    · rw [if_pos h2, if_pos (hb2 h2)]
+    · rw [if_neg h2]; positivity
+
+/-- **`PhaseGE5Win` is preserved by a chosen-pair update.**  `card` via `stepOrSelf_card_eq`;
+phase floor via `phaseEpidemicUpdate_phase_ge_max` + `phaseEpidemicUpdate_phase_le_Transition`
+(no phase drops below 5). -/
+theorem PhaseGE5Win_stepOrSelf (n : ℕ) (c : Config (AgentState L K))
+    (hw : PhaseGE5Win n c) (r₁ r₂ : AgentState L K) :
+    PhaseGE5Win n (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) := by
+  obtain ⟨hcard, hph⟩ := hw
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left5 happ
+    have hm2 := mem_of_app_right5 happ
+    have h15 : 5 ≤ r₁.phase.val := hph r₁ hm1
+    have h25 : 5 ≤ r₂.phase.val := hph r₂ hm2
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    refine ⟨?_, ?_⟩
+    · have hcard' := Protocol.reachable_card_eq
+        (Protocol.reachable_stepOrSelf (P := NonuniformMajority L K) c r₁ r₂)
+      rw [hcard']; exact hcard
+    · intro a ha
+      rw [hc'] at ha
+      rcases Multiset.mem_add.mp ha with hold | hnew
+      · exact hph a (Multiset.mem_of_le (Multiset.sub_le_self _ _) hold)
+      · -- a is one of the two Transition outputs; each output's phase ≥ 5.
+        obtain ⟨hle1, hle2⟩ := phaseEpidemicUpdate_phase_le_Transition_phase (L := L) (K := K)
+          r₁ r₂
+        have hep1 : 5 ≤ (Transition L K r₁ r₂).1.phase.val := by
+          have := phaseEpidemicUpdate_left_phase_ge_max_api (L := L) (K := K) r₁ r₂
+          exact le_trans h15 (le_trans (le_max_left _ _) (le_trans this hle1))
+        have hep2 : 5 ≤ (Transition L K r₁ r₂).2.phase.val := by
+          have := phaseEpidemicUpdate_right_phase_ge_max_api (L := L) (K := K) r₁ r₂
+          exact le_trans h25 (le_trans (le_max_right _ _) (le_trans this hle2))
+        rw [show ({(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+              : Multiset (AgentState L K))
+            = (Transition L K r₁ r₂).1 ::ₘ (Transition L K r₁ r₂).2 ::ₘ 0 from rfl] at hnew
+        simp only [Multiset.mem_cons, Multiset.notMem_zero, or_false] at hnew
+        rcases hnew with h | h
+        · rw [h]; exact hep1
+        · rw [h]; exact hep2
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]; exact ⟨hcard, hph⟩
+
+/-- `PhaseGE5Win` is one-step-support closed. -/
+theorem PhaseGE5Win_support_closed (n : ℕ) (c c' : Config (AgentState L K))
+    (hw : PhaseGE5Win n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    PhaseGE5Win n c' := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact PhaseGE5Win_stepOrSelf n c hw r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact hw
+
+/-- **`hClosed` discharged**: `PhaseGE5Win n` is `InvClosed` under the real transition kernel. -/
+theorem phaseGE5Win_InvClosed (n : ℕ) :
+    OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => PhaseGE5Win (L := L) (K := K) n c) := by
+  intro c hc
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | ¬ PhaseGE5Win (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  exact hx (PhaseGE5Win_support_closed n c x hc hsupp)
+
+/-- **`unsampledReserveU` non-increase on the superwindow** (`stepOrSelf` version). -/
+theorem unsampledReserveU_superStepOrSelf_le (n : ℕ) (c : Config (AgentState L K))
+    (hInv : PhaseGE5Win n c) (r₁ r₂ : AgentState L K) :
+    unsampledReserveU (L := L) (K := K)
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ unsampledReserveU (L := L) (K := K) c := by
+  obtain ⟨_, hph⟩ := hInv
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have h15 : 5 ≤ r₁.phase.val := hph r₁ (mem_of_app_left5 happ)
+    have h25 : 5 ≤ r₂.phase.val := hph r₂ (mem_of_app_right5 happ)
+    have hsub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := happ
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    unfold unsampledReserveU
+    rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+    have hpair := Transition_unsampledU_pair_le_of_phase_ge5 (L := L) (K := K) r₁ r₂ h15 h25
+    have hpair_le : Multiset.countP (fun a => unsampled a)
+        ({r₁, r₂} : Multiset (AgentState L K))
+          ≤ Multiset.countP (fun a => unsampled a) c := Multiset.countP_le_of_le _ hsub
+    omega
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+
+/-- **`unsampledReserveU` non-increase on the superwindow** (kernel-support version). -/
+theorem unsampledReserveU_superSupport_le (n : ℕ) (c c' : Config (AgentState L K))
+    (hInv : PhaseGE5Win n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    unsampledReserveU (L := L) (K := K) c' ≤ unsampledReserveU (L := L) (K := K) c := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact unsampledReserveU_superStepOrSelf_le n c hInv r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact le_refl _
+
+/-- **`PotNonincrOn` on the superwindow** — the drift, restated on the closed `PhaseGE5Win`. -/
+theorem potNonincrOn_unsampledReserveU_super (n : ℕ) :
+    OneSidedCancel.PotNonincrOn (fun c => PhaseGE5Win (L := L) (K := K) n c)
+      (NonuniformMajority L K).transitionKernel
+      (fun c => unsampledReserveU (L := L) (K := K) c) := by
+  intro c hInv
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | unsampledReserveU (L := L) (K := K) c < unsampledReserveU (L := L) (K := K) x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  exact absurd (unsampledReserveU_superSupport_le n c x hInv hsupp) (by
+    simp only [Set.mem_setOf_eq] at hx; omega)
+
 /-! ## Part F — the `PotNonincrOn` drift and the all-sampled `PhaseConvergenceW` instance.
 
-`unsampledReserveU` is non-increasing along the kernel from any phase-5-window state
-(`unsampledReserveU_support_le`), which is exactly `OneSidedCancel.PotNonincrOn`.  The
-remaining engine inputs are:
-
-* `hClosed : InvClosed K Inv` — the window-closure.  For the **uniform all-phase-5**
-  window `Phase5AllWin` this is genuinely NOT one-step closed (a zero-counter clock pair
-  advances both clocks to phase 6, leaving the window), so `hClosed` is a **carried
-  hypothesis** here — exactly the honest pattern `Phase7Convergence.phase7Convergence'`
-  uses for its carried `hmono`.  Discharging it on the genuinely-closed superwindow
-  `card = n ∧ ∀ a ∈ c, 5 ≤ a.phase.val` requires the cross-phase per-pair backward-stability
-  of `unsampled` for the dispatch branches `6..10` (Phase-6 `doSplit` maps reserve→main, so
-  it removes — never creates — unsampled Reserves; Phases 7–10 leave reserves untouched).
-  That cross-phase reduction is the precise campaign gap recorded in the report.
-* `hstep : drain` — the per-step drop probability from the biased-Main (index `< L`)
-  eliminator floor carried by Theorem 6.2.  Supplied as a carried honest input, exactly as
-  `Phase7`'s drain `hstep`.
--/
+`unsampledReserveU` is non-increasing along the kernel from any phase-≥5-window state
+(`unsampledReserveU_support_le` on `Phase5AllWin`, and `unsampledReserveU_superSupport_le` on
+the closed superwindow `PhaseGE5Win`), which is exactly `OneSidedCancel.PotNonincrOn`.  The
+window-closure `hClosed` is discharged on `PhaseGE5Win` by `phaseGE5Win_InvClosed`; the
+remaining engine input is the eliminator-floor drain `hstep` (Theorem 6.2). -/
 
 /-- **`unsampledReserveU` non-increases along the real kernel on the phase-5 window**
 (`OneSidedCancel.PotNonincrOn`). -/

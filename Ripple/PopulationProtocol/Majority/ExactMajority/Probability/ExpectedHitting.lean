@@ -633,4 +633,310 @@ theorem occupation_mid_le_on [DiscreteMeasurableSpace α]
   refine iSup_le (fun t => ?_)
   simpa only [occMidUpTo] using occMidUpTo_le_on K J hClosed hMid hDone B hB t c hJc
 
+/-! ## Part 7 — Markov's inequality for the hitting time (`P(T > s) ≤ E[T]/s`)
+
+The whp instances need a *tail* bound, not an expectation: `P(T > s)` rather than
+`E[T]`.  Markov's inequality `s · P(T > s) ≤ E[T]` is immediate from the tail-sum
+form: by antitonicity each of the `s` terms `P(T > t)` for `t < s` dominates the
+right endpoint `P(T > s)`, so `∑_{t < s} P(T > t) ≥ s · P(T > s)`, and the partial
+sum is `≤ ∑' = E[T]`.  This is the *uniform-over-starts* Markov tail used by the
+block restart: applied at any `S1`/`Tie1plus` start with the corresponding
+`O(n² log n)` expectation bound, it gives per-block success `≥ 1/2` for `s` twice
+the expectation, then `2^{-k}` over `k` blocks. -/
+
+/-- **Markov's inequality (multiplicative form).** If `Done` is absorbing then
+`s · P(T > s) ≤ E[T]`, i.e. `(K^s) c Doneᶜ * s ≤ expectedHitting K c Done`. -/
+theorem mul_bad_le_expectedHitting (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (c : α) (s : ℕ) :
+    (K ^ s) c Doneᶜ * (s : ℝ≥0∞) ≤ expectedHitting K c Done := by
+  -- The `s` left-block terms each dominate the right endpoint `P(T > s)`.
+  have hterm : ∀ t ∈ Finset.range s, (K ^ s) c Doneᶜ ≤ (K ^ t) c Doneᶜ := by
+    intro t ht
+    exact bad_antitone_le K hDone hAbs c (le_of_lt (Finset.mem_range.mp ht))
+  calc (K ^ s) c Doneᶜ * (s : ℝ≥0∞)
+      = ∑ _t ∈ Finset.range s, (K ^ s) c Doneᶜ := by
+        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_comm]
+    _ ≤ ∑ t ∈ Finset.range s, (K ^ t) c Doneᶜ := Finset.sum_le_sum hterm
+    _ ≤ ∑' t : ℕ, (K ^ t) c Doneᶜ := ENNReal.sum_le_tsum _
+    _ = expectedHitting K c Done := (expectedHitting_eq_tsum K c Done).symm
+
+/-- **Markov tail at half the expectation budget.** If `Done` is absorbing and the
+expected hitting time from `c` is `≤ E`, then with a block of `s := 2·E'` steps for
+any `E' ≥ E` (interpreted via the `Nat` budget) the failure mass is `≤ 1/2`.  Stated
+generically: if `E[T] ≤ B` and `B * 2 ≤ s`, then `(K^s) c Doneᶜ ≤ 1/2`.
+
+This is the per-block half-success bound the block restart consumes. -/
+theorem bad_le_half_of_expectedHitting (K : Kernel α α) [IsMarkovKernel K]
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, K x Doneᶜ = 0)
+    (c : α) (s : ℕ) (hspos : 0 < s) (B : ℝ≥0∞) (hBfin : B ≠ ⊤)
+    (hB : expectedHitting K c Done ≤ B)
+    (hs : B * 2 ≤ (s : ℝ≥0∞)) :
+    (K ^ s) c Doneᶜ ≤ 1 / 2 := by
+  -- From `(K^s) c Doneᶜ * s ≤ E[T] ≤ B` and `2·B ≤ s`, conclude `p ≤ 1/2`.
+  have hmul : (K ^ s) c Doneᶜ * (s : ℝ≥0∞) ≤ B :=
+    le_trans (mul_bad_le_expectedHitting K hDone hAbs c s) hB
+  set p : ℝ≥0∞ := (K ^ s) c Doneᶜ with hp
+  by_cases hBzero : B = 0
+  · -- B = 0, s > 0 ⇒ p * s ≤ 0 ⇒ p = 0 ≤ 1/2.
+    have hsne : (s : ℝ≥0∞) ≠ 0 := by
+      simp only [ne_eq, Nat.cast_eq_zero]; omega
+    have hple0 : p * (s : ℝ≥0∞) ≤ 0 := by rw [hBzero] at hmul; exact hmul
+    have hp0 : p = 0 := by
+      rcases mul_eq_zero.mp (le_antisymm hple0 zero_le') with h | h
+      · exact h
+      · exact absurd h hsne
+    rw [hp0]; norm_num
+  · -- `p * (B*2) ≤ p * s ≤ B = (1/2)·(B*2)`; cancel `B*2` (≠ 0, ≠ ⊤).
+    have hstep : p * (B * 2) ≤ (1 / 2) * (B * 2) := by
+      calc p * (B * 2) ≤ p * (s : ℝ≥0∞) := by gcongr
+        _ ≤ B := hmul
+        _ = (1 / 2) * (B * 2) := by
+            rw [show (1 / 2 : ℝ≥0∞) * (B * 2) = B * ((1 / 2) * 2) by ring]
+            rw [show (1 / 2 : ℝ≥0∞) * 2 = 1 by
+              rw [one_div, ENNReal.inv_mul_cancel (by norm_num) (by norm_num)], mul_one]
+    have hB2ne : B * 2 ≠ 0 := mul_ne_zero hBzero (by norm_num)
+    have hB2fin : B * 2 ≠ ⊤ := ENNReal.mul_ne_top hBfin (by norm_num)
+    exact (ENNReal.mul_le_mul_iff_left hB2ne hB2fin).mp hstep
+
+/-! ### Invariant-relative Markov tail
+
+The Phase-10 Done sets `{wrongACount = 0}` / `{wrongTCount = 0}` are absorbing only
+*relative to* the closed invariant `J` (= `S1` / `Tie1plus`): the proofs in
+`Phase10ExpectedTime` use `occupation_mid_le_on`, never absolute absorption.  We
+therefore thread `J` through the Markov tail, mirroring the `_on` occupation
+lemmas: `InvClosed K J`, `J`-relative absorption of `Done`, and `J c`. -/
+
+/-- From a `J`-start the `(K^t)`-mass on `¬ J` stays `0` (the invariant holds a.e. at
+every time).  Self-contained local copy of `Phase10ExpectedTime.pow_not_inv_eq_zero`
+so this generic file does not depend on the Phase-10 stages. -/
+theorem pow_not_inv_eq_zero [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K] (J : α → Prop)
+    (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0) (c : α) (hc : J c) (t : ℕ) :
+    (K ^ t) c {x | ¬ J x} = 0 := by
+  induction t generalizing c with
+  | zero =>
+      rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+        Measure.dirac_apply' c (DiscreteMeasurableSpace.forall_measurableSet _)]
+      have : c ∉ {x | ¬ J x} := by simp only [Set.mem_setOf_eq, not_not]; exact hc
+      simp [this]
+  | succ t ih =>
+      have hbad : MeasurableSet {x : α | ¬ J x} :=
+        DiscreteMeasurableSpace.forall_measurableSet _
+      rw [show t + 1 = 1 + t from by ring,
+        Kernel.pow_add_apply_eq_lintegral K 1 t c hbad, pow_one,
+        lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad)]
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨{y | J y}, ?_, ?_⟩
+      · rw [mem_ae_iff]
+        have hcompl : ({y | J y}ᶜ : Set α) = {x | ¬ J x} := by
+          ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+        rw [hcompl]; exact hClosed c hc
+      · intro y hy; exact ih y hy
+
+/-- **Invariant-relative monotone bad event.** Mirrors `bad_antitone` under a closed
+invariant `J`: from a `J`-start the trajectory `(K^t) c` lives a.e. on `J`, where
+`Done` is absorbing, so the not-done mass is antitone. -/
+theorem bad_antitone_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, J x → K x Doneᶜ = 0)
+    (c : α) (hJc : J c) (t : ℕ) :
+    (K ^ (t + 1)) c Doneᶜ ≤ (K ^ t) c Doneᶜ := by
+  have hbad : MeasurableSet (Doneᶜ : Set α) := hDone.compl
+  have hJae : (K ^ t) c {x | ¬ J x} = 0 :=
+    pow_not_inv_eq_zero K J hClosed c hJc t
+  rw [Kernel.pow_succ_apply_eq_lintegral K t c hbad]
+  calc ∫⁻ b, K b Doneᶜ ∂((K ^ t) c)
+      ≤ ∫⁻ b, Set.indicator Doneᶜ (fun _ => (1 : ℝ≥0∞)) b ∂((K ^ t) c) := by
+        apply lintegral_mono_ae
+        -- a.e. (under (K^t) c) the integrand is on a J-state.
+        rw [Filter.eventually_iff_exists_mem]
+        refine ⟨{x | J x}, ?_, ?_⟩
+        · rw [mem_ae_iff]
+          have : ({x | J x}ᶜ : Set α) = {x | ¬ J x} := by
+            ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+          rw [this]; exact hJae
+        · intro b hbJ
+          simp only [Set.mem_setOf_eq] at hbJ
+          by_cases hb : b ∈ Done
+          · rw [hAbs b hb hbJ]; exact zero_le'
+          · have hb' : b ∈ (Doneᶜ : Set α) := hb
+            rw [Set.indicator_of_mem hb']; exact prob_le_one
+    _ = (K ^ t) c Doneᶜ := by rw [lintegral_indicator hbad]; simp
+
+/-- General invariant-relative antitonicity: for `s ≤ t`, `(K^t) c Doneᶜ ≤
+`(K^s) c Doneᶜ`, from a `J`-start. -/
+theorem bad_antitone_le_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, J x → K x Doneᶜ = 0)
+    (c : α) (hJc : J c) {s t : ℕ} (hst : s ≤ t) :
+    (K ^ t) c Doneᶜ ≤ (K ^ s) c Doneᶜ := by
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hst
+  clear hst
+  induction d with
+  | zero => simp
+  | succ d ih =>
+      calc (K ^ (s + (d + 1))) c Doneᶜ
+          = (K ^ ((s + d) + 1)) c Doneᶜ := by ring_nf
+        _ ≤ (K ^ (s + d)) c Doneᶜ := bad_antitone_on K J hClosed hDone hAbs c hJc (s + d)
+        _ ≤ (K ^ s) c Doneᶜ := ih
+
+/-- **Markov's inequality (multiplicative, invariant-relative).** From a `J`-start
+with `Done` `J`-absorbing, `s · P(T > s) ≤ E[T]`. -/
+theorem mul_bad_le_expectedHitting_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, J x → K x Doneᶜ = 0)
+    (c : α) (hJc : J c) (s : ℕ) :
+    (K ^ s) c Doneᶜ * (s : ℝ≥0∞) ≤ expectedHitting K c Done := by
+  have hterm : ∀ t ∈ Finset.range s, (K ^ s) c Doneᶜ ≤ (K ^ t) c Doneᶜ := by
+    intro t ht
+    exact bad_antitone_le_on K J hClosed hDone hAbs c hJc
+      (le_of_lt (Finset.mem_range.mp ht))
+  calc (K ^ s) c Doneᶜ * (s : ℝ≥0∞)
+      = ∑ _t ∈ Finset.range s, (K ^ s) c Doneᶜ := by
+        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_comm]
+    _ ≤ ∑ t ∈ Finset.range s, (K ^ t) c Doneᶜ := Finset.sum_le_sum hterm
+    _ ≤ ∑' t : ℕ, (K ^ t) c Doneᶜ := ENNReal.sum_le_tsum _
+    _ = expectedHitting K c Done := (expectedHitting_eq_tsum K c Done).symm
+
+/-- **Per-block half-success (invariant-relative).** From a `J`-start with
+`E[T] ≤ B`, `B ≠ ⊤`, `B * 2 ≤ s` and `s > 0`, the failure mass is `≤ 1/2`. -/
+theorem bad_le_half_of_expectedHitting_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, J x → K x Doneᶜ = 0)
+    (c : α) (hJc : J c) (s : ℕ) (hspos : 0 < s) (B : ℝ≥0∞) (hBfin : B ≠ ⊤)
+    (hB : expectedHitting K c Done ≤ B) (hs : B * 2 ≤ (s : ℝ≥0∞)) :
+    (K ^ s) c Doneᶜ ≤ 1 / 2 := by
+  have hmul : (K ^ s) c Doneᶜ * (s : ℝ≥0∞) ≤ B :=
+    le_trans (mul_bad_le_expectedHitting_on K J hClosed hDone hAbs c hJc s) hB
+  set p : ℝ≥0∞ := (K ^ s) c Doneᶜ with hp
+  by_cases hBzero : B = 0
+  · have hsne : (s : ℝ≥0∞) ≠ 0 := by simp only [ne_eq, Nat.cast_eq_zero]; omega
+    have hple0 : p * (s : ℝ≥0∞) ≤ 0 := by rw [hBzero] at hmul; exact hmul
+    have hp0 : p = 0 := by
+      rcases mul_eq_zero.mp (le_antisymm hple0 zero_le') with h | h
+      · exact h
+      · exact absurd h hsne
+    rw [hp0]; norm_num
+  · have hstep : p * (B * 2) ≤ (1 / 2) * (B * 2) := by
+      calc p * (B * 2) ≤ p * (s : ℝ≥0∞) := by gcongr
+        _ ≤ B := hmul
+        _ = (1 / 2) * (B * 2) := by
+            rw [show (1 / 2 : ℝ≥0∞) * (B * 2) = B * ((1 / 2) * 2) by ring]
+            rw [show (1 / 2 : ℝ≥0∞) * 2 = 1 by
+              rw [one_div, ENNReal.inv_mul_cancel (by norm_num) (by norm_num)], mul_one]
+    have hB2ne : B * 2 ≠ 0 := mul_ne_zero hBzero (by norm_num)
+    have hB2fin : B * 2 ≠ ⊤ := ENNReal.mul_ne_top hBfin (by norm_num)
+    exact (ENNReal.mul_le_mul_iff_left hB2ne hB2fin).mp hstep
+
+/-- `Done` `J`-absorbing for one step lifts to `m` steps **on `J`-states**:
+`(K^m) x Doneᶜ = 0` for `x ∈ Done ∩ J`.  (J-relative `pow_absorbing`.) -/
+theorem pow_absorbing_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, J x → K x Doneᶜ = 0)
+    (m : ℕ) {x : α} (hx : x ∈ Done) (hJx : J x) :
+    (K ^ m) x Doneᶜ = 0 := by
+  have hbad : MeasurableSet (Doneᶜ : Set α) := hDone.compl
+  induction m generalizing x with
+  | zero =>
+      rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply,
+        Measure.dirac_apply' x hbad]
+      have hxc : x ∉ (Doneᶜ : Set α) := by simpa using hx
+      simp [hxc]
+  | succ m ih =>
+      rw [show m + 1 = 1 + m from by ring,
+        Kernel.pow_add_apply_eq_lintegral K 1 m x hbad, pow_one]
+      rw [lintegral_eq_zero_iff (Kernel.measurable_coe _ hbad)]
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      -- Successors of x are a.e. in Done ∩ J: J by closure, Done since K x Doneᶜ = 0.
+      refine ⟨Done ∩ {y | J y}, ?_, fun b hb => ih hb.1 hb.2⟩
+      rw [mem_ae_iff]
+      have hcompl : ((Done ∩ {y | J y})ᶜ : Set α) ⊆ Doneᶜ ∪ {y | ¬ J y} := by
+        intro y hy
+        simp only [Set.mem_compl_iff, Set.mem_inter_iff, Set.mem_setOf_eq,
+          not_and_or] at hy
+        rcases hy with hy | hy
+        · exact Or.inl hy
+        · exact Or.inr hy
+      refine measure_mono_null hcompl ?_
+      rw [measure_union_null_iff]
+      exact ⟨hAbs x hx hJx, hClosed x hJx⟩
+
+/-- **One-block `J`-relative contraction from base `m`.** Mirrors
+`bad_block_contracts_from`, but the block bound is needed only at `J`-states, and the
+absorption is `J`-relative; the base `(K^m) c` must live a.e. on `J` (ensured by a
+`J`-start, supplied as `hJ_at : (K^m) c {x | ¬ J x} = 0`). -/
+theorem bad_block_contracts_from_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, J x → K x Doneᶜ = 0)
+    (s : ℕ) (q : ℝ≥0∞)
+    (hblock : ∀ b : α, J b → b ∈ (Doneᶜ : Set α) → (K ^ s) b Doneᶜ ≤ q)
+    (c : α) (m : ℕ) (hJ_at : (K ^ m) c {x | ¬ J x} = 0) :
+    (K ^ (m + s)) c Doneᶜ ≤ q * (K ^ m) c Doneᶜ := by
+  have hbad : MeasurableSet (Doneᶜ : Set α) := hDone.compl
+  rw [Kernel.pow_add_apply_eq_lintegral K m s c hbad]
+  calc ∫⁻ b, (K ^ s) b Doneᶜ ∂((K ^ m) c)
+      ≤ ∫⁻ b, q * Set.indicator Doneᶜ (fun _ => (1 : ℝ≥0∞)) b ∂((K ^ m) c) := by
+        apply lintegral_mono_ae
+        -- a.e. b is a J-state; there bound pointwise by q·1_{Doneᶜ}.
+        rw [Filter.eventually_iff_exists_mem]
+        refine ⟨{x | J x}, ?_, ?_⟩
+        · rw [mem_ae_iff]
+          have : ({x | J x}ᶜ : Set α) = {x | ¬ J x} := by
+            ext y; simp only [Set.mem_compl_iff, Set.mem_setOf_eq]
+          rw [this]; exact hJ_at
+        · intro b hbJ
+          simp only [Set.mem_setOf_eq] at hbJ
+          by_cases hb : b ∈ Done
+          · rw [pow_absorbing_on K J hClosed hDone hAbs s hb hbJ]; exact zero_le'
+          · have hb' : b ∈ (Doneᶜ : Set α) := hb
+            rw [Set.indicator_of_mem hb', mul_one]
+            exact hblock b hbJ hb'
+    _ = q * (K ^ m) c Doneᶜ := by
+        rw [lintegral_const_mul q (measurable_const.indicator hbad)]
+        congr 1
+        rw [lintegral_indicator hbad]; simp
+
+/-- **Block-geometric tail (invariant-relative).** From a `J`-start with `Done`
+`J`-absorbing, if every `s`-block from a not-done `J`-state fails with probability
+`≤ q`, the `k`-block failure mass decays as `q^k`: `(K^(k·s)) c Doneᶜ ≤ q^k`. -/
+theorem bad_block_geometric_on [DiscreteMeasurableSpace α]
+    (K : Kernel α α) [IsMarkovKernel K]
+    (J : α → Prop) (hClosed : ∀ b : α, J b → K b {x | ¬ J x} = 0)
+    {Done : Set α} (hDone : MeasurableSet Done)
+    (hAbs : ∀ x ∈ Done, J x → K x Doneᶜ = 0)
+    (s : ℕ) (q : ℝ≥0∞)
+    (hblock : ∀ b : α, J b → b ∈ (Doneᶜ : Set α) → (K ^ s) b Doneᶜ ≤ q)
+    (c : α) (hJc : J c) (k : ℕ) :
+    (K ^ (k * s)) c Doneᶜ ≤ q ^ k := by
+  induction k with
+  | zero =>
+      simp only [Nat.zero_mul, pow_zero, pow_zero]
+      calc (K ^ 0) c Doneᶜ ≤ (K ^ 0) c Set.univ := measure_mono (Set.subset_univ _)
+        _ = 1 := by
+            rw [show (K ^ 0) = Kernel.id from pow_zero K, Kernel.id_apply, measure_univ]
+  | succ k ih =>
+      have hJ_at : (K ^ (k * s)) c {x | ¬ J x} = 0 :=
+        pow_not_inv_eq_zero K J hClosed c hJc (k * s)
+      calc (K ^ ((k + 1) * s)) c Doneᶜ
+          = (K ^ (k * s + s)) c Doneᶜ := by rw [show (k + 1) * s = k * s + s from by ring]
+        _ ≤ q * (K ^ (k * s)) c Doneᶜ :=
+            bad_block_contracts_from_on K J hClosed hDone hAbs s q hblock c (k * s) hJ_at
+        _ ≤ q * q ^ k := by gcongr
+        _ = q ^ (k + 1) := by rw [pow_succ]; ring
+
 end ExactMajority
