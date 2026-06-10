@@ -2354,6 +2354,43 @@ theorem phase10_expected_stabilization_S3 (n : ℕ) (hn : 2 ≤ n)
       (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) :=
   stage3_expectedHitting_le n hn c hc M hM hMle
 
+/-! ### Full three-stage chaining (S1 start)
+
+The stabilization time from an `S1` start decomposes additively through the two
+intermediate done-sets `Done₁ = {activeBCount = 0}` and (within it)
+`Done₂' = Done₁ ∩ {activeTCount = 0}`.  `expectedHitting_le_through_mid` applied
+through `Done₁` gives the machine-checked decomposition
+
+  `E[hit Done₃] ≤ E[hit Done₁] + ∑ₜ P(Done₁ ∖ Done₃ at t)`,
+
+with `E[hit Done₁]` discharged by `stage1_expectedHitting_le`.  The residual
+cross-term `∑ₜ (K^t) c (Done₁ ∩ Done₃ᶜ)` is the occupation of
+`{activeBCount = 0, wrongACount > 0}`; bounding it by the stage-2 + stage-3 coupon
+sums is the one remaining obligation (see the closing campaign note: it needs a
+`PotNonincrOn`-occupation bound for `activeTCount`/`wrongACount` transported from
+the `S1` start, using that `{activeBCount = 0}` is **absorbing** under `S1` so the
+run satisfies `S2`/`S3` from its first visit onward — a strong-Markov restart
+extension of the `occLevel_le_on` engine). -/
+
+/-- **Three-stage chaining decomposition (machine-checked).** From an `S1` start,
+the expected hitting time of the stabilized set `Done₃ = {wrongACount = 0}` splits
+as the stage-1 (cancel) time to `Done₁ = {activeBCount = 0}` plus the occupation of
+the residual region `{activeBCount = 0, wrongACount > 0}`.  The stage-1 term is
+fully bounded; the cross-term is the residual occupation. -/
+theorem phase10_expected_stabilization_chain (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S1 (L := L) (K := K) n c)
+    (M : ℕ) (hM : activeBCount c ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongACount c) 1) ≤
+      (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞)
+        + ∑' t : ℕ, (((NonuniformMajority L K).transitionKernel) ^ t) c
+            (potBelow (fun c => activeBCount c) 1 ∩
+              (potBelow (fun c => wrongACount c) 1)ᶜ) := by
+  refine le_trans
+    (expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel
+      (done3_subset_done1) c) ?_
+  exact add_le_add (stage1_expectedHitting_le n hn c hc M hM hMle) le_rfl
+
 end Capstone
 
 end MajStages

@@ -234,6 +234,54 @@ Lean bricks:
           chain via `expectedHitting_le_through_mid`, majority/tie split on `backupSignal` sign.
     The probability/coupon/drop machinery carries NO further obligation; remaining is (a)+(b) per-pair
     monotonicity case-analysis (Analysis-style, re-derivable in-file) + (c) mechanical assembly.
+  - **E2-16..23 SHAs 54f5ccb6 / cb0e1dca / cb10e1ad / c533e026 / d362e165 / 42dfafdc / 0fcc7ad2 / fa6a1fee
+    / (chaining commit below).  THREE-STAGE ASSEMBLY DELIVERED (majority case), 0-sorry axiom-clean
+    [propext,Classical.choice,Quot.sound] on every theorem (verified via #print axioms).**
+    KEY CORRECTION TO THE DOCTRINE: `activeBCount` IS non-increasing on all-phase-10 (no extra invariant
+    needed). The doctrine's repeated "Block-2 B-spread creates a new active-B" concern (lines ~180-189,
+    214-217) is FALSE per the actual `Phase10Transition` def: Block 2 (active→passive spread) sets the
+    converted partner's `output` but leaves `full := false`, so it never creates a new active source.
+    Brute-force `Transition_activeBCount_le` (full output × full case analysis) compiles directly. The
+    conserved-signed-sum workaround for the cancel stage is therefore UNNECESSARY for monotonicity.
+    Delivered in `Probability/Phase10ExpectedTime.lean` (single-file EXIT_0, append-only; no Analysis edit):
+      * Per-pair monotonicity `Transition_{activeBCount,activeTCount,wrongACount}_le` (brute force;
+        activeTCount needs no-active-B in pair, wrongACount needs no-active-B & no-active-T).
+      * Kernel-lift template `countP_scheduledStep_le` + `potNonincrOn_of_countP_step`; from these,
+        `PotNonincrOn` for all 3 stages (`potNonincrOn_{activeBCount,activeTCount,wrongACount}`).
+      * `InvClosed` for `AllPhase10`/`Inv2`/`Inv3` AND for the richer majority invariants `S1/S2/S3`
+        (which additionally carry `card = n` and `0 < phase10ActiveSignedSum`, conserved per-step via
+        `phase10ActiveSignedSum_stepRel_eq` + `stepDistOrSelf_support_card_eq`).
+      * q-wiring: `qLevel n m = 1 − m/(n(n−1))`, `drop_compl_le` (complement via `measure_compl` +
+        Markov `measure_univ`), `qLevel_uniform_ceiling` ((1−qLevel)⁻¹ ≤ n(n−1) for 1≤m≤M≤n(n−1)).
+      * NEW drop-prob `activeTCount_drop_prob` (active-A × active-T rectangle; mirrors
+        `wrongACount_drop_prob` verbatim — the doctrine's "swap WrongNotActiveB→IsActiveT" prediction).
+      * THREE STAGE BOUNDS (full `coupon_expectedHitting_le_uniform_on` instantiations on the REAL kernel):
+        `stage1_expectedHitting_le` (cancel, activeBCount), `stage2_expectedHitting_le` (absorb-T,
+        activeTCount), `stage3_expectedHitting_le` (convert-passive, wrongACount). Each gives
+        `E[hit {Φ=0}] ≤ M·n(n−1)` (crude; harmonic refinement to n(n−1)Hₙ orthogonal).
+      * CAPSTONE `phase10_expected_stabilization_S3`: from an `S3` start (final coupon regime, all 3
+        potentials simultaneously monotone), `E[hit {wrongACount=0}] ≤ M·n(n−1)` (all outputs = majority A).
+      * Set-nesting `done3_subset_done1/done2` (`wrongACount=0 ⟹ activeBCount=activeTCount=0`).
+      * `phase10_expected_stabilization_chain` (S1 start): machine-checked decomposition
+        `E[hit Done₃] ≤ M·n(n−1) + ∑ₜ (K^t) c (Done₁ ∩ Done₃ᶜ)` via `expectedHitting_le_through_mid`
+        + `stage1_expectedHitting_le`. The stage-1 term is fully bounded.
+  - **PRECISE REMAINING OBLIGATION for the unconditional S1→stabilization bound** (the ONE open piece):
+    bound the cross-term `∑ₜ (K^t) c (Done₁ ∩ Done₃ᶜ)` = occupation of `{activeBCount=0, wrongACount>0}`
+    from an `S1` start. This is NOT closable by the existing `_on` engine (it needs `S2`/`S3` AT THE
+    START `c`, but `c` is only `S1`) nor by the unconditional engine (activeTCount/wrongACount are not
+    globally monotone). It needs a **strong-Markov restart / sequential-composition lemma**:
+    `∑ₜ (K^t) c (Mid ∩ Doneᶜ) ≤ sup_{y∈Mid} expectedHitting K y Done` (× expected visits — but here
+    `Done₁ = {activeBCount=0}` is ABSORBING under `S1` since `activeBCount` is non-increasing, so the
+    run enters `S2` at its first `Done₁`-visit and stays; hence the occupation of `{activeBCount=0,…}`
+    equals a single stage-2-then-stage-3 hitting time from the entry config, with NO re-entry). Concretely:
+    add `expectedHitting_restart_le : Done absorbing ⇒ ∑ₜ (K^t) c (Done ∩ Eᶜ) ≤ sup_{y∈Done∩closure}
+    expectedHitting K y E` to `ExpectedHitting.lean`, then chain stage2 (E := Done₂, on S2) + stage3
+    (E := Done₃, on S3) off the `Done₁`-entry config. This is ~3-5 generic lemmas, no new protocol content.
+  - **TIE CASE** (`backupSignal = 0`, i.e. `phase10ActiveSignedSum = 0`): NOT yet delivered. Same engine,
+    but `1 ≤ activeACount` fails (signed sum 0 ⟹ activeACount = activeBCount, possibly both 0). The cancel
+    stage still drives activeBCount→0 (drop prob ≥ activeBCount/n² still holds while activeBCount>0, paired
+    with the EQUAL number of active-A), then all-T spreads (Φ = wrongTCount under the all-T invariant). The
+    majority-case deliverables (above) are the requested "majority-case capstone + document" fallback.
 - **E3** Conditional progress: from any config with |C| ≥ 2 (post-Phase-0), each timed phase ends
   within expected O(n/|C| · log n)-shape time (counter always ticks); gives both the bad-event
   O(log n) (|C| ≥ 0.24n) and the tiny-clock poly(n) bound from ONE parameterized lemma.

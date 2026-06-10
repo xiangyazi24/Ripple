@@ -52,6 +52,7 @@ NEW file; no existing file is edited; no sorry/admit/axiom/native_decide.
 -/
 
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.PhaseConvergenceWeak
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.WindowConcentration
 import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase3Convergence
 import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Invariants
 
@@ -889,6 +890,243 @@ theorem phase4AdvancedDrift (n : ℕ) (hn : 2 ≤ n) (s : ℝ) (hs : 0 < s)
         apply mul_le_mul_of_nonneg_left _ hE0_pos.le
         have h1me : (0 : ℝ) ≤ 1 - Real.exp (-s) := by linarith
         nlinarith [mul_le_mul_of_nonneg_right hp_le_qr h1me]
+
+/-! ## Part H — the non-tie `PhaseConvergence` on the REAL kernel. -/
+
+/-- On `Pre` (at least one advanced agent), the deficit potential is at most
+`ofReal(exp(s·(n−1)))`. -/
+theorem aDeficitPot_le_pre (n : ℕ) (s : ℝ) (hs : 0 < s)
+    (c : Config (AgentState L K)) (hlo : 1 ≤ advancedU (L := L) (K := K) c) :
+    aDeficitPot n s c ≤ ENNReal.ofReal (Real.exp (s * ((n : ℝ) - 1))) := by
+  unfold aDeficitPot aClamp
+  by_cases hfin : advFinished (L := L) (K := K) n c
+  · rw [if_pos hfin]; exact bot_le
+  · rw [if_neg hfin]
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hmin : (min (advancedU (L := L) (K := K) c) n : ℕ) = advancedU (L := L) (K := K) c := by
+      unfold advFinished at hfin; omega
+    rw [hmin]
+    have h1 : (1 : ℝ) ≤ (advancedU (L := L) (K := K) c : ℝ) := by exact_mod_cast hlo
+    nlinarith [hs, h1]
+
+/-- The full drift window: the non-tie window plus at least one advanced agent
+(`1 ≤ advancedU`, the epidemic seed).  Both conjuncts are one-step closed. -/
+def Qwin4 (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  Q4 n c ∧ 1 ≤ advancedU (L := L) (K := K) c
+
+instance (n : ℕ) (c : Config (AgentState L K)) : Decidable (Qwin4 n c) := by
+  unfold Qwin4; infer_instance
+
+theorem Qwin4_absorbing (n : ℕ) (c c' : Config (AgentState L K)) (hw : Qwin4 n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    Qwin4 n c' :=
+  ⟨Q4_absorbing n c c' hw.1 hc', advancedU_ge_monotone 1 c c' hw.2 hc'⟩
+
+/-- The window-guarded deficit potential: `⊤` off `Qwin4`, else `aDeficitPot`. -/
+noncomputable def aPotW (n : ℕ) (s : ℝ) (c : Config (AgentState L K)) : ℝ≥0∞ :=
+  if Qwin4 n c then aDeficitPot n s c else ⊤
+
+theorem aPotW_measurable (n : ℕ) (s : ℝ) :
+    Measurable (aPotW n s (L := L) (K := K)) :=
+  Measurable.of_discrete
+
+theorem aPotW_eq_on_window (n : ℕ) (s : ℝ) (c : Config (AgentState L K))
+    (hw : Qwin4 n c) : aPotW n s c = aDeficitPot n s c := by
+  unfold aPotW; rw [if_pos hw]
+
+/-- **The Phase-4 NON-TIE advanced-count epidemic `PhaseConvergence` on the REAL
+`NonuniformMajority L K` kernel.**
+
+* `Pre c` = non-tie window `Q4 n` (every agent at phase `≥ 4`, size `n`) with at
+  least one already-advanced (`phase ≥ 5`) seed agent — the epidemic source,
+  provided by the upstream non-tie structure exactly as `Phase3Convergence`
+  carries its `∃ a, 4 ≤ a.phase` source;
+* `Post c` = `advFinished n c` (all `n` agents are at phase `≥ 5` — the population
+  has advanced to Phase 5).
+
+The drift `phase4AdvancedDrift` is GENUINELY DERIVED from the phase-`max` epidemic
+mechanism + the DERIVED pair-counting advance probability `advanced_advance_prob`;
+the window is PROVEN one-step closed (`Q4_absorbing`). -/
+noncomputable def phase4NonTieConvergence (n : ℕ) (hn : 2 ≤ n) (s : ℝ) (hs : 0 < s)
+    (t : ℕ) (ε : ℝ≥0)
+    (hε : ENNReal.ofReal
+            (1 - (((n - 1 : ℕ) : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) * (1 - Real.exp (-s))) ^ t *
+            ENNReal.ofReal (Real.exp (s * ((n : ℝ) - 1))) / 1
+          ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergence (NonuniformMajority L K).transitionKernel := by
+  refine WindowConcentration.windowDrift_PhaseConvergence (NonuniformMajority L K)
+    (aPotW n s) (aPotW_measurable n s)
+    (fun c => Qwin4 n c)
+    (Qwin4_absorbing n)
+    (ENNReal.ofReal
+      (1 - (((n - 1 : ℕ) : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) * (1 - Real.exp (-s))))
+    ?_
+    (fun c => Qwin4 n c)
+    (fun c => Qwin4 n c ∧ advFinished (L := L) (K := K) n c)
+    ?_
+    1 one_ne_zero ENNReal.one_ne_top
+    ?_
+    (fun c h => h)
+    (ENNReal.ofReal (Real.exp (s * ((n : ℝ) - 1))))
+    ?_
+    t ε hε
+  · -- hdrift
+    intro c hQw
+    obtain ⟨hQ, hlo⟩ := hQw
+    rw [aPotW_eq_on_window n s c ⟨hQ, hlo⟩]
+    have hint_eq : ∫⁻ c', aPotW n s c'
+          ∂((NonuniformMajority L K).transitionKernel c)
+        = ∫⁻ c', aDeficitPot n s c'
+          ∂((NonuniformMajority L K).transitionKernel c) := by
+      apply lintegral_congr_ae
+      change ∀ᵐ c' ∂((NonuniformMajority L K).stepDistOrSelf c).toMeasure,
+        aPotW n s c' = aDeficitPot n s c'
+      rw [ae_iff, PMF.toMeasure_apply_eq_zero_iff _
+        (DiscreteMeasurableSpace.forall_measurableSet _)]
+      rw [Set.disjoint_left]
+      intro x hsupp hbad
+      apply hbad
+      exact aPotW_eq_on_window n s x (Qwin4_absorbing n c x ⟨hQ, hlo⟩ hsupp)
+    rw [hint_eq]
+    by_cases hfin : advFinished (L := L) (K := K) n c
+    · have hΦc0 : aDeficitPot n s c = 0 := by unfold aDeficitPot; rw [if_pos hfin]
+      rw [hΦc0, mul_zero, nonpos_iff_eq_zero]
+      change ∫⁻ c', aDeficitPot n s c'
+          ∂((NonuniformMajority L K).stepDistOrSelf c).toMeasure = 0
+      rw [lintegral_eq_zero_iff (aDeficitPot_measurable n s)]
+      rw [Filter.eventuallyEq_iff_exists_mem]
+      refine ⟨((NonuniformMajority L K).stepDistOrSelf c).support, ?_, ?_⟩
+      · rw [mem_ae_iff, PMF.toMeasure_apply_eq_zero_iff _
+          (DiscreteMeasurableSpace.forall_measurableSet _)]
+        rw [Set.disjoint_left]; intro x hsupp hx
+        exact hx (PMF.mem_support_iff _ _ |>.mp hsupp)
+      · intro c' hc'
+        have hfin' : advFinished (L := L) (K := K) n c' :=
+          advFinished_absorbing n c c' hfin hc'
+        change aDeficitPot n s c' = 0
+        unfold aDeficitPot; rw [if_pos hfin']
+    · have hnc : advancedU (L := L) (K := K) c < n := by unfold advFinished at hfin; omega
+      exact phase4AdvancedDrift n hn s hs c hQ hlo hnc
+  · -- hPost_abs
+    rintro c c' ⟨hQw, hfin⟩ hc'
+    exact ⟨Qwin4_absorbing n c c' hQw hc',
+      advFinished_absorbing n c c' hfin hc'⟩
+  · -- hlink
+    intro c hnp
+    unfold aPotW
+    by_cases hQw : Qwin4 n c
+    · rw [if_pos hQw]
+      have hnf : ¬ advFinished (L := L) (K := K) n c := fun hfin => hnp ⟨hQw, hfin⟩
+      exact not_finished_imp_aDeficitPot_ge_one n s hs c hnf
+    · rw [if_neg hQw]; exact le_top
+  · -- hPre_bound
+    intro c hPre
+    rw [aPotW_eq_on_window n s c hPre]
+    exact aDeficitPot_le_pre n s hs c hPre.2
+
+/-! ## Part I — the tie branch is deterministic with `ε = 0`, and the unified
+Phase-4 instance. -/
+
+/-- `StableTie4` is kernel-absorbing in the `K x {¬Post} = 0` form. -/
+theorem StableTie4_kernel_absorbing (c : Config (AgentState L K))
+    (hc : StableTie4 (L := L) (K := K) c) :
+    (NonuniformMajority L K).transitionKernel c
+      {c' | ¬ StableTie4 (L := L) (K := K) c'} = 0 := by
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {c' | ¬ StableTie4 (L := L) (K := K) c'} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hbad
+  exact hbad (StableTie4_absorbing c x hc hsupp)
+
+/-- The multi-step tie tail is exactly `0`: from a tie configuration, after any
+number of interactions the population is still a stable tie. -/
+theorem StableTie4_pow_tail (t : ℕ) (c : Config (AgentState L K))
+    (hc : StableTie4 (L := L) (K := K) c) :
+    ((NonuniformMajority L K).transitionKernel ^ t) c
+      {c' | ¬ StableTie4 (L := L) (K := K) c'} = 0 := by
+  induction t generalizing c with
+  | zero =>
+    simp only [pow_zero]
+    change (Kernel.id c) {c' | ¬ StableTie4 (L := L) (K := K) c'} = 0
+    rw [Kernel.id_apply]
+    rw [show {c' : Config (AgentState L K) | ¬ StableTie4 (L := L) (K := K) c'}
+        = {c | StableTie4 (L := L) (K := K) c}ᶜ from by ext y; simp]
+    rw [Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+    simp [hc]
+  | succ t ih =>
+    have hmeas : MeasurableSet {c' : Config (AgentState L K) | ¬ StableTie4 (L := L) (K := K) c'} :=
+      DiscreteMeasurableSpace.forall_measurableSet _
+    rw [Kernel.pow_succ_apply_eq_lintegral _ t c hmeas]
+    rw [lintegral_eq_zero_iff (Kernel.measurable_coe _ hmeas)]
+    -- a.e. (under (K^t) c) the inner one-step tail is 0, because (K^t) c lives on tie configs.
+    rw [Filter.eventuallyEq_iff_exists_mem]
+    refine ⟨{c' | StableTie4 (L := L) (K := K) c'}, ?_, ?_⟩
+    · rw [mem_ae_iff]
+      rw [show {c' : Config (AgentState L K) | StableTie4 (L := L) (K := K) c'}ᶜ
+          = {c' | ¬ StableTie4 (L := L) (K := K) c'} from by ext y; simp]
+      exact ih c hc
+    · intro y hy
+      simp only [Set.mem_setOf_eq] at hy
+      change (NonuniformMajority L K).transitionKernel y
+        {c' | ¬ StableTie4 (L := L) (K := K) c'} = 0
+      exact StableTie4_kernel_absorbing y hy
+
+/-- **The unified Phase-4 instance** (`PhaseConvergenceW` on the REAL kernel).
+
+* `Pre c`  = `StableTie4 c ∨ Qwin4 n c` — either the tie window (all phase-4,
+  output `T`, no big bias) or the non-tie window (all phase `≥ 4`, size `n`) with
+  an advanced seed.  These are the honest repo-side renderings of the paper's
+  tie / non-tie Phase-3 outputs (Theorems 6.1 / 6.2).
+* `Post c` = `StableTie4 c ∨ advFinished n c` — either the stable tie output `T`,
+  or the whole population has advanced to Phase `≥ 5` (ready for Phase 5).
+
+The tie branch converges *deterministically* with failure `0` (`StableTie4_pow_tail`);
+the non-tie branch converges via the genuine advanced-count epidemic
+(`phase4NonTieConvergence`).  The single horizon `t` and failure `ε` are those of
+the non-tie epidemic (the tie branch contributes `0`). -/
+noncomputable def phase4Convergence (n : ℕ) (hn : 2 ≤ n) (s : ℝ) (hs : 0 < s)
+    (t : ℕ) (ε : ℝ≥0)
+    (hε : ENNReal.ofReal
+            (1 - (((n - 1 : ℕ) : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) * (1 - Real.exp (-s))) ^ t *
+            ENNReal.ofReal (Real.exp (s * ((n : ℝ) - 1))) / 1
+          ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel where
+  Pre := fun c => StableTie4 (L := L) (K := K) c ∨ Qwin4 (L := L) (K := K) n c
+  Post := fun c => StableTie4 (L := L) (K := K) c ∨ advFinished (L := L) (K := K) n c
+  t := t
+  ε := ε
+  convergence := by
+    intro c₀ hPre
+    set NT := phase4NonTieConvergence (L := L) (K := K) n hn s hs t ε hε with hNT
+    have hsubsetTie : {c' : Config (AgentState L K) |
+        ¬ (StableTie4 (L := L) (K := K) c' ∨ advFinished (L := L) (K := K) n c')}
+          ⊆ {c' | ¬ StableTie4 (L := L) (K := K) c'} := by
+      intro c' hc'
+      simp only [Set.mem_setOf_eq, not_or] at hc' ⊢
+      exact hc'.1
+    rcases hPre with hTie | hNTpre
+    · calc ((NonuniformMajority L K).transitionKernel ^ t) c₀
+              {c' | ¬ (StableTie4 (L := L) (K := K) c' ∨ advFinished (L := L) (K := K) n c')}
+          ≤ ((NonuniformMajority L K).transitionKernel ^ t) c₀
+              {c' | ¬ StableTie4 (L := L) (K := K) c'} := measure_mono hsubsetTie
+        _ = 0 := StableTie4_pow_tail t c₀ hTie
+        _ ≤ (ε : ℝ≥0∞) := zero_le'
+    · have hNTconv := NT.convergence c₀ hNTpre
+      have hPostsub : {c' : Config (AgentState L K) |
+          ¬ (StableTie4 (L := L) (K := K) c' ∨ advFinished (L := L) (K := K) n c')}
+            ⊆ {c' | ¬ (Qwin4 (L := L) (K := K) n c'
+                ∧ advFinished (L := L) (K := K) n c')} := by
+        intro c' hc'
+        simp only [Set.mem_setOf_eq, not_or, not_and_or] at hc' ⊢
+        right; exact hc'.2
+      calc ((NonuniformMajority L K).transitionKernel ^ t) c₀
+              {c' | ¬ (StableTie4 (L := L) (K := K) c' ∨ advFinished (L := L) (K := K) n c')}
+          ≤ ((NonuniformMajority L K).transitionKernel ^ t) c₀
+              {c' | ¬ (Qwin4 (L := L) (K := K) n c'
+                ∧ advFinished (L := L) (K := K) n c')} := measure_mono hPostsub
+        _ ≤ (ε : ℝ≥0∞) := hNTconv
 
 end Phase4Convergence
 
