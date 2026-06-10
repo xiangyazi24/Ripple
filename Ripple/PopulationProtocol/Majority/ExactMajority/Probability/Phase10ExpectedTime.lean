@@ -1320,6 +1320,100 @@ theorem scheduledStep_activeA_wrongB_in_drop
   rw [hstep]
   exact wrongACount_post_convert_lt c hphase ha_mem hb_mem ha hb_wrong hb_not_activeB
 
+/-! ### Absorb-T stage drop machinery (`activeTCount`, active-A × active-T) -/
+
+/-- An active-`T` is not an active-`B`. -/
+private theorem not_activeB_of_activeT {b : AgentState L K} (hb : IsActiveT b) :
+    ¬ IsActiveB b := by
+  intro hbB
+  have : b.output = .B := hbB.2
+  rw [hb.2] at this; exact absurd this (by decide)
+
+/-- `activeTCount` of the post-absorb configuration is strictly below the base,
+for an active-A meeting an active-T (the active-T is converted to output A). -/
+theorem activeTCount_post_absorb_lt
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveA a) (hb : IsActiveT b) :
+    activeTCount
+        (c - ({a, b} : Multiset (AgentState L K)) +
+          ({(Transition L K a b).1, (Transition L K a b).2} :
+            Multiset (AgentState L K))) <
+      activeTCount c := by
+  have hb_not_activeB : ¬ IsActiveB b := not_activeB_of_activeT hb
+  have hne : a ≠ b := by
+    intro h; subst h
+    have : a.output = .T := hb.2
+    rw [ha.2] at this; exact absurd this (by decide)
+  have happ : ({a, b} : Multiset (AgentState L K)) ≤ c :=
+    applicable_of_mem_ne ha_mem hb_mem hne
+  have htransition : Transition L K a b = Phase10Transition L K a b :=
+    Transition_eq_Phase10Transition_of_phase10
+      (L := L) (K := K) a b (hphase a ha_mem) (hphase b hb_mem)
+  have hpair_before :
+      Multiset.countP IsActiveT ({a, b} : Multiset (AgentState L K)) = 1 := by
+    change Multiset.countP IsActiveT (a ::ₘ ({b} : Multiset (AgentState L K))) = 1
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP IsActiveT (b ::ₘ (0 : Multiset (AgentState L K))) = 1
+      rw [Multiset.countP_cons_of_pos]
+      · simp
+      · exact hb
+    · intro hbad; have : a.output = .T := hbad.2; rw [ha.2] at this; exact absurd this (by decide)
+  have hlocal :=
+    Phase10Transition_activeA_nonActiveB_outputs_A
+      (L := L) (K := K) a b ha.1 ha.2 hb_not_activeB
+  have hpair_after :
+      Multiset.countP IsActiveT
+        ({(Transition L K a b).1, (Transition L K a b).2} :
+          Multiset (AgentState L K)) = 0 := by
+    rw [htransition]
+    rcases hlocal with ⟨h1out, h2out⟩
+    change Multiset.countP IsActiveT
+      ((Phase10Transition L K a b).1 ::ₘ
+        ({(Phase10Transition L K a b).2} : Multiset (AgentState L K))) = 0
+    rw [Multiset.countP_cons_of_neg]
+    · change Multiset.countP IsActiveT
+        ((Phase10Transition L K a b).2 ::ₘ (0 : Multiset (AgentState L K))) = 0
+      rw [Multiset.countP_cons_of_neg]
+      · simp
+      · intro hbad; have : (Phase10Transition L K a b).2.output = .T := hbad.2
+        rw [h2out] at this; exact absurd this (by decide)
+    · intro hbad; have : (Phase10Transition L K a b).1.output = .T := hbad.2
+      rw [h1out] at this; exact absurd this (by decide)
+  have hres :
+      Multiset.countP IsActiveT (c - ({a, b} : Multiset (AgentState L K))) =
+        Multiset.countP IsActiveT c - 1 := by
+    have hsub := Multiset.countP_sub
+      (s := c) (t := ({a, b} : Multiset (AgentState L K))) happ IsActiveT
+    rw [hsub, hpair_before]
+  have hpos_old : 0 < Multiset.countP IsActiveT c :=
+    Multiset.countP_pos_of_mem (s := c) hb_mem hb
+  unfold activeTCount
+  rw [Multiset.countP_add, hpair_after, hres]
+  omega
+
+/-- An active-A / active-T ordered pair lands in the `activeTCount`-drop target. -/
+theorem scheduledStep_activeA_activeT_in_drop
+    (c : Config (AgentState L K))
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    {a b : AgentState L K} (ha_mem : a ∈ c) (hb_mem : b ∈ c)
+    (ha : IsActiveA a) (hb : IsActiveT b) :
+    (NonuniformMajority L K).scheduledStep c (a, b) ∈
+      dropTarget (activeTCount (L := L) (K := K)) c := by
+  have hne : a ≠ b := by
+    intro h; subst h
+    have : a.output = .T := hb.2
+    rw [ha.2] at this; exact absurd this (by decide)
+  have happ : Protocol.Applicable c a b := applicable_of_mem_ne ha_mem hb_mem hne
+  simp only [dropTarget, Set.mem_setOf_eq, Protocol.scheduledStep]
+  have hstep : Protocol.stepOrSelf (NonuniformMajority L K) c a b =
+      c - {a, b} + {(Transition L K a b).1, (Transition L K a b).2} := by
+    unfold Protocol.stepOrSelf NonuniformMajority
+    simp only [if_pos happ]
+  rw [hstep]
+  exact activeTCount_post_absorb_lt c hphase ha_mem hb_mem ha hb
+
 /-- The "wrong, not active-B" responder class (output ≠ A and not an active-B). -/
 def WrongNotActiveB (a : AgentState L K) : Prop :=
   a.output ≠ .A ∧ ¬ IsActiveB a
@@ -1457,6 +1551,120 @@ theorem wrongACount_drop_prob (c : Config (AgentState L K))
   have : wrongACount c ≤ activeACount c * wrongACount c := by
     calc wrongACount c = 1 * wrongACount c := (Nat.one_mul _).symm
       _ ≤ activeACount c * wrongACount c := Nat.mul_le_mul_right _ hA
+  exact_mod_cast this
+
+/-! ### Absorb-T stage aggregation + drop probability (`activeTCount`) -/
+
+/-- The active-A × active-T rectangle of ordered pairs. -/
+def activeATPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (Finset.univ.filter (fun a : AgentState L K => IsActiveA a)) ×ˢ
+    (Finset.univ.filter (fun a : AgentState L K => IsActiveT a))
+
+/-- The total `interactionCount` over the active-A × active-T rectangle equals
+`activeACount c · activeTCount c`. -/
+theorem sum_interactionCount_activeAT (c : Config (AgentState L K)) :
+    (∑ p ∈ activeATPairs (L := L) (K := K) c, c.interactionCount p.1 p.2)
+      = activeACount c * activeTCount c := by
+  classical
+  have hdisj : ∀ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveA a),
+      ∀ b ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveT a), a ≠ b := by
+    intro a ha b hb hab
+    rw [Finset.mem_filter] at ha hb
+    subst hab
+    have : a.output = .T := hb.2.2
+    rw [ha.2.2] at this; exact absurd this (by decide)
+  rw [activeATPairs,
+    ClockRealMixed.sum_interactionCount_cross_disjoint c _ _ hdisj]
+  rw [show (∑ a ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveA a), c.count a)
+      = Multiset.countP IsActiveA c from
+    (HourCouplingV2.countP_eq_sum_count IsActiveA c).symm]
+  rw [show (∑ b ∈ Finset.univ.filter (fun a : AgentState L K => IsActiveT a), c.count b)
+      = Multiset.countP IsActiveT c from
+    (HourCouplingV2.countP_eq_sum_count IsActiveT c).symm]
+  rfl
+
+/-- The present active-A × active-T pairs. -/
+def presentActiveATPairs (c : Config (AgentState L K)) :
+    Finset (AgentState L K × AgentState L K) :=
+  (activeATPairs (L := L) (K := K) c).filter
+    (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2)
+
+/-- The `interactionProb`-sum over the present active-A × active-T pairs equals
+`activeACount · activeTCount / totalPairs`. -/
+theorem sum_interactionProb_presentActiveAT (c : Config (AgentState L K)) :
+    (∑ p ∈ presentActiveATPairs (L := L) (K := K) c, c.interactionProb p.1 p.2)
+      = (↑(activeACount c * activeTCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hpresent : (∑ p ∈ presentActiveATPairs (L := L) (K := K) c,
+        c.interactionProb p.1 p.2)
+      = ∑ p ∈ activeATPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    apply Finset.sum_subset (s₁ := presentActiveATPairs (L := L) (K := K) c)
+      (Finset.filter_subset _ _)
+    intro p hp_in hpnot
+    rw [presentActiveATPairs, Finset.mem_filter, not_and, not_and_or, not_le, not_le,
+      Nat.lt_one_iff, Nat.lt_one_iff] at hpnot
+    have hcounts : c.count p.1 = 0 ∨ c.count p.2 = 0 := hpnot hp_in
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases hpp : p.1 = p.2
+      · rw [if_pos hpp]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [hpp, h2, Nat.zero_mul]
+      · rw [if_neg hpp]
+        rcases hcounts with h1 | h2
+        · rw [h1, Nat.zero_mul]
+        · rw [h2, Nat.mul_zero]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hpresent]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum,
+    sum_interactionCount_activeAT, ← div_eq_mul_inv]
+
+/-- **Absorb-T stage per-level drop probability.** On an all-phase-10 configuration
+with at least one active-A, the kernel maps into the `activeTCount`-drop set with
+probability `≥ activeTCount c / (n·(n−1))`. -/
+theorem activeTCount_drop_prob (c : Config (AgentState L K))
+    (hc : 2 ≤ c.card)
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    (hA : 1 ≤ activeACount c) :
+    (NonuniformMajority L K).transitionKernel c
+        (dropTarget (activeTCount (L := L) (K := K)) c) ≥
+      (↑(activeTCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hgood : ∀ pair ∈ presentActiveATPairs (L := L) (K := K) c,
+      (NonuniformMajority L K).scheduledStep c pair ∈
+        dropTarget (activeTCount (L := L) (K := K)) c := by
+    intro pair hpair
+    rw [presentActiveATPairs, activeATPairs, Finset.mem_filter, Finset.mem_product,
+      Finset.mem_filter, Finset.mem_filter] at hpair
+    obtain ⟨⟨⟨_, hA1⟩, ⟨_, hT2⟩⟩, h1, h2⟩ := hpair
+    have ha_mem : pair.1 ∈ c := Multiset.count_pos.mp h1
+    have hb_mem : pair.2 ∈ c := Multiset.count_pos.mp h2
+    have := scheduledStep_activeA_activeT_in_drop c hphase ha_mem hb_mem hA1 hT2
+    simpa using this
+  have hge := stepDistOrSelf_toMeasure_ge c hc
+    (dropTarget (activeTCount (L := L) (K := K)) c)
+    (↑(presentActiveATPairs (L := L) (K := K) c) :
+      Set (AgentState L K × AgentState L K))
+    (fun pair hpair => hgood pair (by simpa using hpair))
+  have hSmeasure : (c.interactionPMF hc).toMeasure
+      (↑(presentActiveATPairs (L := L) (K := K) c) :
+        Set (AgentState L K × AgentState L K))
+      = ∑ p ∈ presentActiveATPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  rw [sum_interactionProb_presentActiveAT] at hSmeasure
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure _ ≥ _
+  rw [hSmeasure] at hge
+  refine le_trans ?_ hge
+  apply ENNReal.div_le_div_right
+  have : activeTCount c ≤ activeACount c * activeTCount c := by
+    calc activeTCount c = 1 * activeTCount c := (Nat.one_mul _).symm
+      _ ≤ activeACount c * activeTCount c := Nat.mul_le_mul_right _ hA
   exact_mod_cast this
 
 /-! ## Per-pair potential monotonicity (Brick: `PotNonincrOn`)
@@ -1810,6 +2018,262 @@ private theorem drop_compl_le
   exact tsub_le_tsub_left hge 1
 
 end QWiring
+
+/-! ## Majority-case stage invariants (carry `card = n` and a positive signed sum)
+
+The drop-probability lemmas require `2 ≤ card` and `1 ≤ activeACount`.  We thread
+these as part of the invariant: in the majority-`A` case the active signed sum
+`phase10ActiveSignedSum = activeACount − activeBCount` is a fixed positive integer
+`g > 0`, conserved by the kernel; with `card = n` fixed too, `1 ≤ activeACount`
+follows (`activeACount = activeBCount + g ≥ g ≥ 1`). -/
+
+section MajStages
+
+open Protocol
+
+/-- Stage-1 majority invariant. -/
+def S1 (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  AllPhase10 (L := L) (K := K) c ∧ c.card = n ∧ 0 < phase10ActiveSignedSum c
+
+/-- Stage-2 majority invariant (additionally no active-`B`). -/
+def S2 (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  S1 (L := L) (K := K) n c ∧ activeBCount c = 0
+
+/-- Stage-3 majority invariant (additionally no active-`T`). -/
+def S3 (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  S2 (L := L) (K := K) n c ∧ activeTCount c = 0
+
+/-- In a majority-`A` configuration there is at least one active-`A`. -/
+theorem one_le_activeACount_of_signedSum_pos {c : Config (AgentState L K)}
+    (hpos : 0 < phase10ActiveSignedSum c) : 1 ≤ activeACount c := by
+  rw [phase10ActiveSignedSum_eq_activeACount_sub_activeBCount] at hpos
+  omega
+
+/-- `card` and `phase10ActiveSignedSum` are preserved on a support config of an
+all-phase-10 base. -/
+private theorem card_signedSum_step
+    {n : ℕ} {c c' : Config (AgentState L K)}
+    (hphase : AllPhase10 (L := L) (K := K) c) (hcard : c.card = n)
+    (h : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    c'.card = n ∧ phase10ActiveSignedSum c' = phase10ActiveSignedSum c := by
+  refine ⟨?_, ?_⟩
+  · rw [Protocol.stepDistOrSelf_support_card_eq _ c c' h]; exact hcard
+  · unfold Protocol.stepDistOrSelf at h
+    split_ifs at h with h_size
+    · obtain ⟨⟨r₁, r₂⟩, heq⟩ := Protocol.stepDist_support _ _ h_size _ h
+      subst heq
+      unfold Protocol.scheduledStep Protocol.stepOrSelf at *
+      split_ifs at * with h_app
+      · exact phase10ActiveSignedSum_stepRel_eq c _ hphase ⟨r₁, r₂, h_app, rfl⟩
+      · rfl
+    · simp [PMF.support_pure] at h; rw [h]
+
+/-- **`InvClosed` for stage 1** (majority). -/
+theorem invClosed_S1 (n : ℕ) :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => S1 (L := L) (K := K) n c) := by
+  intro b hb
+  obtain ⟨hphase, hcard, hpos⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ S1 (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  obtain ⟨hc'card, hc'sum⟩ := card_signedSum_step hphase hcard hc'
+  exact ⟨allPhase10_step hphase hc', hc'card, hc'sum ▸ hpos⟩
+
+/-- **`InvClosed` for stage 2** (majority). -/
+theorem invClosed_S2 (n : ℕ) :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => S2 (L := L) (K := K) n c) := by
+  intro b hb
+  obtain ⟨⟨hphase, hcard, hpos⟩, hB⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ S2 (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  obtain ⟨hc'card, hc'sum⟩ := card_signedSum_step hphase hcard hc'
+  exact ⟨⟨allPhase10_step hphase hc', hc'card, hc'sum ▸ hpos⟩,
+    activeBCount_step_zero hphase hB hc'⟩
+
+/-- **`InvClosed` for stage 3** (majority). -/
+theorem invClosed_S3 (n : ℕ) :
+    InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => S3 (L := L) (K := K) n c) := by
+  intro b hb
+  obtain ⟨⟨⟨hphase, hcard, hpos⟩, hB⟩, hT⟩ := hb
+  change ((NonuniformMajority L K).stepDistOrSelf b).toMeasure
+    {x | ¬ S3 (L := L) (K := K) n x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  refine Set.disjoint_left.mpr fun c' hc' hbad => hbad ?_
+  obtain ⟨hc'card, hc'sum⟩ := card_signedSum_step hphase hcard hc'
+  exact ⟨⟨⟨allPhase10_step hphase hc', hc'card, hc'sum ▸ hpos⟩,
+    activeBCount_step_zero hphase hB hc'⟩,
+    activeTCount_step_zero hphase hB hT hc'⟩
+
+/-! ## Per-stage expected-time bounds
+
+Each stage instantiates `coupon_expectedHitting_le_uniform_on` with the stage
+invariant, potential, the `InvClosed`/`PotNonincrOn` facts above, and the
+per-level drop hypothesis `q := qLevel n` (via the drop-prob lemma).  The uniform
+ceiling is `r := n·(n−1)` (`(1 − q m)⁻¹ = n(n−1)/m ≤ n(n−1)` for `1 ≤ m`). -/
+
+section StageBounds
+
+open Protocol
+
+/-- `S2 → Inv2`. -/
+theorem inv2_of_S2 {n : ℕ} {c : Config (AgentState L K)}
+    (h : S2 (L := L) (K := K) n c) : Inv2 (L := L) (K := K) c :=
+  ⟨h.1.1, h.2⟩
+
+/-- `S3 → Inv3`. -/
+theorem inv3_of_S3 {n : ℕ} {c : Config (AgentState L K)}
+    (h : S3 (L := L) (K := K) n c) : Inv3 (L := L) (K := K) c :=
+  ⟨h.1.1.1, h.1.2, h.2⟩
+
+/-- `PotNonincrOn` weakening: a stronger invariant inherits non-increase. -/
+private theorem potNonincrOn_weaken
+    {Inv Inv' : Config (AgentState L K) → Prop} {Φ : Config (AgentState L K) → ℕ}
+    (h : PotNonincrOn (fun c => Inv c) (NonuniformMajority L K).transitionKernel Φ)
+    (himp : ∀ c, Inv' c → Inv c) :
+    PotNonincrOn (fun c => Inv' c) (NonuniformMajority L K).transitionKernel Φ :=
+  fun b hb => h b (himp b hb)
+
+/-- The crude uniform ceiling `(1 − qLevel n m)⁻¹ ≤ n·(n−1)` for `1 ≤ m ≤ M`
+(here `M ≤ n·(n−1)` so `m/(n(n−1)) ≤ 1`). -/
+theorem qLevel_uniform_ceiling (n M : ℕ) (hMle : M ≤ n * (n - 1)) :
+    ∀ m : ℕ, 1 ≤ m → m ≤ M → (1 - qLevel n m)⁻¹ ≤
+      ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+  intro m hm1 hmM
+  set TP : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞) with hTPdef
+  have hmTP : m ≤ n * (n - 1) := le_trans hmM hMle
+  have hpos : 0 < n * (n - 1) := lt_of_lt_of_le hm1 hmTP
+  have hTP0 : TP ≠ 0 := by
+    rw [hTPdef]; simp only [ne_eq, Nat.cast_eq_zero]; omega
+  have hTPtop : TP ≠ ⊤ := by rw [hTPdef]; exact_mod_cast ENNReal.natCast_ne_top _
+  have hmle1 : (m : ℝ≥0∞) / TP ≤ 1 := by
+    rw [ENNReal.div_le_iff hTP0 hTPtop, one_mul, hTPdef]
+    exact_mod_cast hmTP
+  have hm0 : (m : ℝ≥0∞) ≠ 0 := by simp only [ne_eq, Nat.cast_eq_zero]; omega
+  have hmtop : (m : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+  have hsub : 1 - qLevel n m = (m : ℝ≥0∞) / TP := by
+    unfold qLevel; rw [hTPdef, ENNReal.sub_sub_cancel ENNReal.one_ne_top hmle1]
+  rw [hsub, ENNReal.inv_div (Or.inl hTPtop) (Or.inr hm0)]
+  -- TP/m ≤ TP since m ≥ 1
+  calc TP / (m : ℝ≥0∞)
+      ≤ TP / 1 := ENNReal.div_le_div_left (by exact_mod_cast hm1) TP
+    _ = TP := by rw [div_one]
+
+/-- The drop hypothesis for stage 1: under `S1 n`, the not-dropped mass at level
+`m` is `≤ qLevel n m`. -/
+theorem hdrop_S1 (n : ℕ) (hn : 2 ≤ n) :
+    ∀ m : ℕ, ∀ b : Config (AgentState L K), S1 (L := L) (K := K) n b →
+      activeBCount b = m →
+      (NonuniformMajority L K).transitionKernel b
+        (potBelow (fun c => activeBCount c) m)ᶜ ≤ qLevel n m := by
+  intro m b hb hBm
+  obtain ⟨hphase, hcard, hpos⟩ := hb
+  have hcard2 : 2 ≤ b.card := by omega
+  have hA : 1 ≤ activeACount b := one_le_activeACount_of_signedSum_pos hpos
+  have hge := activeBCount_drop_prob b hcard2 hphase hA
+  have hTPeq : (b.totalPairs : ℝ≥0∞) = ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+    unfold Config.totalPairs; rw [hcard]
+  have hcompl := drop_compl_le (fun c => activeBCount c) b m hBm hge
+  rw [hTPeq] at hcompl
+  -- qLevel n m = 1 - m/(n(n-1)) matches the RHS of hcompl
+  unfold qLevel
+  exact hcompl
+
+/-- **Stage 1 expected-time bound** (cancel: drive `activeBCount` to `0`).  From an
+`S1 n` start `c` with `activeBCount c ≤ M` and `M ≤ n(n−1)`, the expected number of
+interactions to reach `{activeBCount = 0}` is `≤ M · n(n−1)`. -/
+theorem stage1_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S1 (L := L) (K := K) n c)
+    (M : ℕ) (hM : activeBCount c ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => activeBCount c) 1) ≤
+      (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) :=
+  coupon_expectedHitting_le_uniform_on
+    (NonuniformMajority L K).transitionKernel
+    (fun c => S1 (L := L) (K := K) n c) (invClosed_S1 n)
+    (fun c => activeBCount c)
+    (potNonincrOn_weaken potNonincrOn_activeBCount (fun _ h => h.1))
+    (qLevel n) (hdrop_S1 n hn) M c hM hc
+    ((n * (n - 1) : ℕ) : ℝ≥0∞) (qLevel_uniform_ceiling n M hMle)
+
+/-- The drop hypothesis for stage 2 (absorb-T): under `S2 n`. -/
+theorem hdrop_S2 (n : ℕ) (hn : 2 ≤ n) :
+    ∀ m : ℕ, ∀ b : Config (AgentState L K), S2 (L := L) (K := K) n b →
+      activeTCount b = m →
+      (NonuniformMajority L K).transitionKernel b
+        (potBelow (fun c => activeTCount c) m)ᶜ ≤ qLevel n m := by
+  intro m b hb hTm
+  obtain ⟨⟨hphase, hcard, hpos⟩, hB⟩ := hb
+  have hcard2 : 2 ≤ b.card := by omega
+  have hA : 1 ≤ activeACount b := one_le_activeACount_of_signedSum_pos hpos
+  have hge := activeTCount_drop_prob b hcard2 hphase hA
+  have hTPeq : (b.totalPairs : ℝ≥0∞) = ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+    unfold Config.totalPairs; rw [hcard]
+  have hcompl := drop_compl_le (fun c => activeTCount c) b m hTm hge
+  rw [hTPeq] at hcompl
+  unfold qLevel
+  exact hcompl
+
+/-- **Stage 2 expected-time bound** (absorb-T: drive `activeTCount` to `0` once no
+active-B remains).  From an `S2 n` start `c` with `activeTCount c ≤ M`, `M ≤ n(n−1)`,
+expected interactions to `{activeTCount = 0}` is `≤ M · n(n−1)`. -/
+theorem stage2_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S2 (L := L) (K := K) n c)
+    (M : ℕ) (hM : activeTCount c ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => activeTCount c) 1) ≤
+      (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) :=
+  coupon_expectedHitting_le_uniform_on
+    (NonuniformMajority L K).transitionKernel
+    (fun c => S2 (L := L) (K := K) n c) (invClosed_S2 n)
+    (fun c => activeTCount c)
+    (potNonincrOn_weaken potNonincrOn_activeTCount (fun _ h => inv2_of_S2 h))
+    (qLevel n) (hdrop_S2 n hn) M c hM hc
+    ((n * (n - 1) : ℕ) : ℝ≥0∞) (qLevel_uniform_ceiling n M hMle)
+
+/-- The drop hypothesis for stage 3 (convert-passive): under `S3 n`. -/
+theorem hdrop_S3 (n : ℕ) (hn : 2 ≤ n) :
+    ∀ m : ℕ, ∀ b : Config (AgentState L K), S3 (L := L) (K := K) n b →
+      wrongACount b = m →
+      (NonuniformMajority L K).transitionKernel b
+        (potBelow (fun c => wrongACount c) m)ᶜ ≤ qLevel n m := by
+  intro m b hb hWm
+  obtain ⟨⟨⟨hphase, hcard, hpos⟩, hB⟩, hT⟩ := hb
+  have hcard2 : 2 ≤ b.card := by omega
+  have hA : 1 ≤ activeACount b := one_le_activeACount_of_signedSum_pos hpos
+  have hge := wrongACount_drop_prob b hcard2 hphase hB hA
+  have hTPeq : (b.totalPairs : ℝ≥0∞) = ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+    unfold Config.totalPairs; rw [hcard]
+  have hcompl := drop_compl_le (fun c => wrongACount c) b m hWm hge
+  rw [hTPeq] at hcompl
+  unfold qLevel
+  exact hcompl
+
+/-- **Stage 3 expected-time bound** (convert-passive: drive `wrongACount` to `0`).
+From an `S3 n` start `c` with `wrongACount c ≤ M`, `M ≤ n(n−1)`, expected
+interactions to `{wrongACount = 0}` is `≤ M · n(n−1)`. -/
+theorem stage3_expectedHitting_le (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hc : S3 (L := L) (K := K) n c)
+    (M : ℕ) (hM : wrongACount c ≤ M) (hMle : M ≤ n * (n - 1)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (potBelow (fun c => wrongACount c) 1) ≤
+      (M : ℝ≥0∞) * ((n * (n - 1) : ℕ) : ℝ≥0∞) :=
+  coupon_expectedHitting_le_uniform_on
+    (NonuniformMajority L K).transitionKernel
+    (fun c => S3 (L := L) (K := K) n c) (invClosed_S3 n)
+    (fun c => wrongACount c)
+    (potNonincrOn_weaken potNonincrOn_wrongACount (fun _ h => inv3_of_S3 h))
+    (qLevel n) (hdrop_S3 n hn) M c hM hc
+    ((n * (n - 1) : ℕ) : ℝ≥0∞) (qLevel_uniform_ceiling n M hMle)
+
+end StageBounds
+
+end MajStages
 
 end Phase10Drop
 

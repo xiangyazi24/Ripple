@@ -43,6 +43,7 @@ import Ripple.PopulationProtocol.Majority.ExactMajority.Basic.AgentState
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MarkovChain
 import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.JansonHitting
 import Ripple.PopulationProtocol.Majority.ExactMajority.Protocol.Transition
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase0Convergence
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 namespace ExactMajority
@@ -405,6 +406,83 @@ theorem phase0_roleSplit_whp_inv_sq
       {c | ¬ RoleSplitGood (L := L) (K := K) η n c}
       ≤ ENNReal.ofReal (((n : ℝ) ^ 2)⁻¹) :=
   phase0_roleSplit_whp hinit _ _ (roleSplitTail_le hn hinit w)
+
+/-! ## Stage-1 bridge to the real-kernel milestone phase (`phase0MilestonePhase`).
+
+The predecessor file `Analysis/Phase0Convergence.lean` constructs a *real-kernel*
+`MilestonePhase (NonuniformMajority L K)` — `phase0MilestonePhase n hn` — whose
+milestones are the `mcrCount`-threshold decrements of **Stage 1** (the
+`RoleMCR,RoleMCR → Main,RoleCR` split, paper Lemma 5.1), 0-`sorry`, with the
+`progress` field discharged against the *actual* protocol transition mass route
+(`interactionPMF_toMeasure_mcr_phase0_ge → stepDistOrSelf_toMeasure_ge`).  This
+section bridges that phase into the `RoleSplitConcentration` interface.
+
+The bridge is at the level of the **mcr-elimination** conclusion only:
+`phase0MilestonePhase.Post c` forces `mcrCount c ≤ 1` (the last threshold), hence
+`roleMCRCount c ≤ 1` — the Stage-1 half of `RoleSplitGood`.  The Stage-2 content
+(`RoleCR,RoleCR → Clock,Reserve` at rate `Θ(l²/n²)`, Corollary 4.4) and the
+count-balance (`|Main| = n/2 ± εn`, `|Clock|,|Reserve| ≥ (1−η)n/4`) are *not* part
+of `phase0MilestonePhase` and remain the open input documented below. -/
+
+/-- `roleMCRCount` (a `Multiset.countP`) equals `Phase0Convergence.mcrCount`
+(a `filter.card`).  Pure `Multiset` bookkeeping bridge. -/
+theorem roleMCRCount_eq_mcrCount (c : Config (AgentState L K)) :
+    roleMCRCount (L := L) (K := K) c = ExactMajority.mcrCount (L := L) (K := K) c := by
+  unfold roleMCRCount ExactMajority.mcrCount
+  rw [Multiset.countP_eq_card_filter]
+
+/-- `phase0MilestonePhase.Post c` forces `mcrCount c ≤ 1` *provided* the carried
+Phase-0 invariants hold: `c.card = n` and every `RoleMCR` agent is at phase `0`
+(both true throughout Phase 0 — `card` is conserved by every transition and
+Stage 1 never advances an `RoleMCR` agent's phase).  The last milestone
+(`i = n-2`, threshold `1`) then collapses to its `mcrCount`-disjunct. -/
+theorem mcrCount_le_one_of_phase0Post
+    {n : ℕ} (hn : 2 ≤ n) {c : Config (AgentState L K)}
+    (hcard : Multiset.card c = n)
+    (hphase : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0)
+    (hPost : (phase0MilestonePhase (L := L) (K := K) n hn).Post c) :
+    ExactMajority.mcrCount (L := L) (K := K) c ≤ 1 := by
+  -- The last milestone index `i = n-2 : Fin (n-1)`.
+  have hlt : n - 2 < n - 1 := by omega
+  have hmile := hPost ⟨n - 2, hlt⟩
+  have hthr : ExactMajority.mcrThreshold n
+      ⟨(⟨n - 2, hlt⟩ : Fin (n - 1)).val, by omega⟩ = 1 := by
+    have hval : (⟨(⟨n - 2, hlt⟩ : Fin (n - 1)).val, by omega⟩ : Fin n).val = n - 2 := rfl
+    unfold ExactMajority.mcrThreshold
+    rw [hval]
+    omega
+  -- `milestone ⟨n-2,_⟩ c = phase0Milestone n ⟨n-2,_⟩ c`.
+  change ExactMajority.phase0Milestone n ⟨(⟨n - 2, hlt⟩ : Fin (n - 1)).val, by omega⟩ c at hmile
+  unfold ExactMajority.phase0Milestone at hmile
+  rcases hmile with hmcr | hcard' | hhigh
+  · -- mcrCount ≤ threshold = 1.
+    rwa [hthr] at hmcr
+  · exact absurd hcard hcard'
+  · -- No high-phase MCR exists (all MCR at phase 0), contradiction.
+    obtain ⟨a, ha_mem, ha_mcr, ha_phase⟩ := hhigh
+    exact absurd (hphase a ha_mem ha_mcr) ha_phase
+
+/-- The real-kernel Stage-1 tail: starting from any config, the
+`NonuniformMajority` kernel mass of `{c' | ¬ phase0MilestonePhase.Post c'}` after
+`tRole` steps decays as the Janson exponential of the **real** Stage-1 milestone
+phase, provided the start has fired no milestone.  This is `phase0MilestonePhase`
+pushed straight through `milestone_hitting_time_bound`; its `progress` field is the
+actual protocol transition mass route. -/
+theorem phase0_milestone_jansonTail
+    {n : ℕ} (hn : 2 ≤ n) {c₀ : Config (AgentState L K)}
+    (hPre : ∀ i : Fin (phase0MilestonePhase (L := L) (K := K) n hn).k,
+      ¬ (phase0MilestonePhase (L := L) (K := K) n hn).milestone i c₀)
+    (lam : ℝ) (hlam : 1 ≤ lam)
+    (tRole : ℕ)
+    (ht : lam * (phase0MilestonePhase (L := L) (K := K) n hn).meanTime ≤ (tRole : ℝ)) :
+    ((NonuniformMajority L K).transitionKernel ^ tRole) c₀
+        {c | ¬ (phase0MilestonePhase (L := L) (K := K) n hn).Post c}
+      ≤ ENNReal.ofReal (Real.exp
+          (-(phase0MilestonePhase (L := L) (K := K) n hn).pMin *
+             (phase0MilestonePhase (L := L) (K := K) n hn).meanTime *
+             (lam - 1 - Real.log lam))) :=
+  milestone_hitting_time_bound (phase0MilestonePhase (L := L) (K := K) n hn)
+    c₀ hPre lam hlam tRole ht
 
 end RoleSplitConcentration
 end ExactMajority

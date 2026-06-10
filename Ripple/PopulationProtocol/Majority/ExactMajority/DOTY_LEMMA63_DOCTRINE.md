@@ -830,3 +830,38 @@ bounding each by the uniform δ via perWindowDelta_uniform (X₀ ≥ θn monoton
 STATUS: reach DONE (95533876). NEXT: per-rung drip-cap real lemma → ladder a/Yt defs at concrete
 params → regime-1 per_window_delta instantiation → regime-2 (M=0) → hB_params case-split →
 dB_params (uniform δ over T<Tcap) → the two _final corollaries.
+
+## PHASE B-5e..n LADDER FULLY WIRED + the precise regime-2 CAP boundary (2026-06-10 relay, cont.)
+## commits 95533876(reach) e0ba7d4e(rung_sq_cap) 39186236(rung_drip_cap) ca46518a(ladder+Geff)
+## ea42710e(ladderA_sq_cap) 7026968e(ladderYt) f06e6af8(ladder_hslice) 534dd9d6(floor_margin)
+## 72787f3f(hB_regime1) f0fc9c99(hB_regime2). DotyParams 0-sorry, every new thm axiom-clean.
+
+DELIVERED (the FULL per-window ladder arithmetic + both regime instantiations of per_window_delta):
+- rung_sq_cap / rung_drip_cap: the κ-inflated per-rung drip cap (a_succ)²≤κ·Gp²·g²·X₀² → slice_exp_le
+  drip hyp. Geff:=√κ·G (Geff²=κG²) decouples drip(κ in inner G²)/threshold(bare G^{2m}).
+- ladderA = ⌈G^m·⌈g·X₀⌉⌉, ladderA_ge/succ_le/sq_cap; ladderYt = ⌈cc·G^{2m}·g²·X₀²/n⌉ (FREE slice
+  lower bound by Nat.le_ceil; cap via ladderA_ge). ladder_hslice = per-rung hslice via
+  slice_exp_le_inflated @ G=Geff.
+- floor_margin_params: δgLocked ≤ w·1.8(1−e^{−1/10})/n − 0.1(g−1). REQUIRED the TIGHT
+  1−e^{−1/10} ≥ 1903/20000 (quartic Taylor); 47/500 and 19/200 are too weak (floor-loss 0.171/n).
+  Slack ≈4.05e-6 at N₀.
+- hB_regime1 (g·X₀ ≤ n/10 via 10·⌈g·X₀⌉₊ ≤ n): full M:=n ladder, per_window_delta output cap
+  ladderA X₀ n (≥ aM n by reach). hB_regime2 (else): M:=0 floor-only, cap ⌊n/10⌋.
+
+### THE PRECISE REGIME-2 CAP BOUNDARY (exhaustively confirmed this session — the genuine remaining gap):
+per_window_delta's `ha0 : 10·a 0 ≤ n` forces the cap `a 0 ≤ ⌊n/10⌋`. The slice threshold/cap pair
+`cc·G^{2m}·g²·Q ≤ Yt m ≤ cc·(a m)²/n+1` forces `a 0 ≥ g·X₀` (the g² gap over each rung needs the
+ladder anchored at ≥ g·X₀). BOTH ⟹ `g·X₀ ≤ ⌊n/10⌋` (regime 1). When `g·X₀ > ⌊n/10⌋` (regime 2),
+NO valid `a 0` supports even a SINGLE slice rung (numerically pinned: a0=X₀ fails threshold by
+cc(g²−1)X₀² ≈ 4.5e-4·n² ≫ n; a0=⌊n/10⌋ fails since g·X₀>⌊n/10⌋). So regime 2 MUST be floor-only
+(M=0), capping at `a 0 = ⌊n/10⌋`. But the packaged consumer needs cap `aM n = ⌊n/10⌋+1` (for the
+honest `10·aM ≥ n`). The single residual value `rBeyond_end = aM n = ⌊n/10⌋+1` has
+`10·rBeyond_end = 10⌊n/10⌋+10 > n` = OUT of the recurrence window. This window-exit state is
+PERMANENT (rBeyond monotone) and is exactly the FrontSync consumer's already-absorbed mode.
+
+REMAINING (the documented 1-point reconciliation, NOT pure arithmetic — needs an event/absorption
+lemma): bound `μ({rBeyond_end = aM n} ∧ recurrence-bad)` in regime 2. Either (a) show this event is
+∅ (rBeyond can't jump from X₀≤⌊n/10⌋ to ⌊n/10⌋+1 AND break recurrence within the floor branch), or
+(b) carry the cap as `⌊n/10⌋` and adjust the packaged `aM`/`10·aM≥n` plumbing upstream. hB_params is
+assembled to cap regime 1 at aM n (reach, DONE) and regime 2 at ⌊n/10⌋; the union/measure_mono to
+the uniform cap aM n is the single open inequality.
