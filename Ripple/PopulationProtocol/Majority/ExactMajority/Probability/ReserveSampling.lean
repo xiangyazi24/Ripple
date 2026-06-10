@@ -240,6 +240,268 @@ theorem Phase5Transition_unsampled_pair_le (s t : AgentState L K) :
     · rw [if_pos h2, if_pos (unsampled_snd_Phase5Transition (L := L) (K := K) s t h2)]
     · rw [if_neg h2]; positivity
 
+/-! ## Part D — the dispatch reduction `Transition = Phase5Transition` on phase-5 pairs. -/
+
+/-- `advancePhase` raises an agent's phase by at most one. -/
+theorem advancePhase_phase_le_succ (a : AgentState L K) :
+    (advancePhase L K a).phase.val ≤ a.phase.val + 1 := by
+  unfold advancePhase; split
+  · simp
+  · omega
+
+/-- `phaseInit` at target phase `p` with `p.val = 6` only rewrites `counter` (clocks) or is
+the identity; it never touches `phase`.  So an agent already at phase 6 stays at phase 6. -/
+theorem phaseInit_phase_eq_of_six (a : AgentState L K) (p : Fin 11) (hp : p.val = 6)
+    (ha : a.phase.val = 6) :
+    (phaseInit L K p a).phase.val = 6 := by
+  unfold phaseInit
+  have h1 : ¬ p.val = 1 := by omega
+  have h2 : ¬ p.val = 2 := by omega
+  have h3 : ¬ p.val = 3 := by omega
+  have h4 : ¬ p.val = 4 := by omega
+  have h5 : ¬ p.val = 5 := by omega
+  rw [dif_neg h1, dif_neg h2, dif_neg h3, dif_neg h4, dif_neg h5, dif_pos hp]
+  by_cases hc : a.role = Role.clock <;> simp [hc, ha]
+
+/-- `advancePhaseWithInit` of a phase-5 agent lands at phase 6 (advance to 6, then
+`phaseInit` at 6 keeps it). -/
+theorem advancePhaseWithInit_phase_eq_six_of_five (a : AgentState L K) (ha : a.phase.val = 5) :
+    (advancePhaseWithInit L K a).phase.val = 6 := by
+  unfold advancePhaseWithInit
+  have hadv : (advancePhase L K a).phase.val = 6 := by
+    unfold advancePhase
+    have : a.phase.val < 10 := by omega
+    simp only [this, dif_pos]; omega
+  rw [phaseInit_phase_eq_of_six (L := L) (K := K) (advancePhase L K a)
+    (advancePhase L K a).phase hadv hadv]
+
+/-- `stdCounterSubroutine` of a phase-5 agent lands at phase 5 or 6. -/
+theorem stdCounterSubroutine_phase_le_six_of_five (a : AgentState L K) (ha : a.phase.val = 5) :
+    (stdCounterSubroutine L K a).phase.val ≤ 6 := by
+  unfold stdCounterSubroutine; split
+  · rw [advancePhaseWithInit_phase_eq_six_of_five (L := L) (K := K) a ha]
+  · simp [ha]
+
+/-- Both `Phase5Transition` outputs land at phase `≤ 6` when both inputs are at phase 5.
+The sampling/identity branches keep phase 5; the clock branch caps at 6. -/
+theorem Phase5Transition_phase_le_six (s t : AgentState L K)
+    (hs : s.phase.val = 5) (ht : t.phase.val = 5) :
+    (Phase5Transition L K s t).1.phase.val ≤ 6 ∧
+      (Phase5Transition L K s t).2.phase.val ≤ 6 := by
+  -- The sampling step never changes phase; so each intermediate `s1`/`t1` is at phase 5,
+  -- and the clock branch then caps at 6.
+  have hsample_phase : ∀ r m : AgentState L K, r.phase.val = 5 →
+      (if r.role = Role.clock then stdCounterSubroutine L K r else r).phase.val ≤ 6 := by
+    intro r m hr
+    by_cases hrc : r.role = Role.clock
+    · rw [if_pos hrc]; exact stdCounterSubroutine_phase_le_six_of_five (L := L) (K := K) r hr
+    · rw [if_neg hrc]; omega
+  -- s1 has phase = s.phase = 5 (sampling only writes hour); same for t1.
+  have hs1_phase : ∀ s1 : AgentState L K, s1.phase.val = 5 →
+      (if s1.role = Role.clock then stdCounterSubroutine L K s1 else s1).phase.val ≤ 6 :=
+    fun s1 h => hsample_phase s1 s1 h
+  -- Compute s1.phase / t1.phase = 5 from the sampling branches.
+  refine ⟨?_, ?_⟩
+  · unfold Phase5Transition; simp only
+    by_cases hb1 : s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero
+    · rw [if_pos hb1]
+      by_cases hg : s.hour.val = L
+      · rw [if_pos hg]; exact hs1_phase _ (by simpa using hs)
+      · rw [if_neg hg]; exact hs1_phase _ hs
+    · rw [if_neg hb1]
+      by_cases hb2 : t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero
+      · rw [if_pos hb2]
+        by_cases hg2 : t.hour.val = L
+        · rw [if_pos hg2]; exact hs1_phase _ hs
+        · rw [if_neg hg2]; exact hs1_phase _ hs
+      · rw [if_neg hb2]; exact hs1_phase _ hs
+  · unfold Phase5Transition; simp only
+    by_cases hb1 : s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero
+    · rw [if_pos hb1]
+      by_cases hg : s.hour.val = L
+      · rw [if_pos hg]; exact hs1_phase _ ht
+      · rw [if_neg hg]; exact hs1_phase _ ht
+    · rw [if_neg hb1]
+      by_cases hb2 : t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero
+      · rw [if_pos hb2]
+        by_cases hg2 : t.hour.val = L
+        · rw [if_pos hg2]; exact hs1_phase _ (by simpa using ht)
+        · rw [if_neg hg2]; exact hs1_phase _ ht
+      · rw [if_neg hb2]; exact hs1_phase _ ht
+
+/-- For two phase-5 agents, `phaseEpidemicUpdate` is the identity (max of equal phases,
+no init to run, no phase-10 entry).  Mirror of `phaseEpidemicUpdate_eq_self_of_phase7`. -/
+theorem phaseEpidemicUpdate_eq_self_of_phase5 (s t : AgentState L K)
+    (hs : s.phase.val = 5) (ht : t.phase.val = 5) :
+    phaseEpidemicUpdate L K s t = (s, t) := by
+  have hsp : s.phase = ⟨5, by decide⟩ := Fin.ext hs
+  have htp : t.phase = ⟨5, by decide⟩ := Fin.ext ht
+  unfold phaseEpidemicUpdate
+  rw [hsp, htp, max_self]
+  simp only [runInitsBetween_self_api]
+  have hs_self : ({s with phase := (⟨5, by decide⟩ : Fin 11)} : AgentState L K) = s := by
+    rw [← hsp]
+  have ht_self : ({t with phase := (⟨5, by decide⟩ : Fin 11)} : AgentState L K) = t := by
+    rw [← htp]
+  rw [hs_self, ht_self]
+  rw [if_neg (by push Not; intro _; simp)]
+
+/-- **Per-pair reduction.**  Two phase-5 agents interact via `Phase5Transition` under the
+full `Transition` (epidemic = id, dispatch = `Phase5Transition`, and neither output reaches
+phase 10 so the phase-10 finish is the identity). -/
+theorem Transition_eq_Phase5Transition_of_phase5 (s t : AgentState L K)
+    (hs : s.phase.val = 5) (ht : t.phase.val = 5) :
+    Transition L K s t = Phase5Transition L K s t := by
+  have hepi := phaseEpidemicUpdate_eq_self_of_phase5 (L := L) (K := K) s t hs ht
+  have hsp : s.phase = ⟨5, by decide⟩ := Fin.ext hs
+  obtain ⟨hle1, hle2⟩ := Phase5Transition_phase_le_six (L := L) (K := K) s t hs ht
+  unfold Transition
+  rw [hepi]
+  simp only [hsp]
+  rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) s _ (by omega),
+      finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) t _ (by omega)]
+
+/-! ## Part E — `unsampledReserveU` non-increase under the real kernel on the phase-5 window. -/
+
+private theorem mem_of_app_left5 {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₁ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+private theorem mem_of_app_right5 {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₂ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+/-- **`unsampledReserveU` is non-increasing under any chosen-pair update on the all-phase-5
+window.**  An applicable pair `(r₁, r₂)` are both phase-5 agents, so `Transition` reduces to
+`Phase5Transition`, whose per-pair `unsampled`-count does not rise
+(`Phase5Transition_unsampled_pair_le`). -/
+theorem unsampledReserveU_stepOrSelf_le (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase5AllWin n c) (r₁ r₂ : AgentState L K) :
+    unsampledReserveU (L := L) (K := K)
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ unsampledReserveU (L := L) (K := K) c := by
+  obtain ⟨_, hph⟩ := hInv
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left5 happ
+    have hm2 := mem_of_app_right5 happ
+    have h15 : r₁.phase.val = 5 := hph r₁ hm1
+    have h25 : r₂.phase.val = 5 := hph r₂ hm2
+    have hsub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := happ
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    unfold unsampledReserveU
+    rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+    rw [Transition_eq_Phase5Transition_of_phase5 (L := L) (K := K) r₁ r₂ h15 h25]
+    have hpair := Phase5Transition_unsampled_pair_le (L := L) (K := K) r₁ r₂
+    have hpair_le : Multiset.countP (fun a => unsampled a)
+        ({r₁, r₂} : Multiset (AgentState L K))
+          ≤ Multiset.countP (fun a => unsampled a) c := Multiset.countP_le_of_le _ hsub
+    omega
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+
+/-- The kernel-support version: any successor of a phase-5-window config has no larger
+unsampled-Reserve count. -/
+theorem unsampledReserveU_support_le (n : ℕ) (c c' : Config (AgentState L K))
+    (hInv : Phase5AllWin n c)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    unsampledReserveU (L := L) (K := K) c' ≤ unsampledReserveU (L := L) (K := K) c := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]; exact unsampledReserveU_stepOrSelf_le n c hInv r₁ r₂
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact le_refl _
+
+/-! ## Part F — the `PotNonincrOn` drift and the all-sampled `PhaseConvergenceW` instance.
+
+`unsampledReserveU` is non-increasing along the kernel from any phase-5-window state
+(`unsampledReserveU_support_le`), which is exactly `OneSidedCancel.PotNonincrOn`.  The
+remaining engine inputs are:
+
+* `hClosed : InvClosed K Inv` — the window-closure.  For the **uniform all-phase-5**
+  window `Phase5AllWin` this is genuinely NOT one-step closed (a zero-counter clock pair
+  advances both clocks to phase 6, leaving the window), so `hClosed` is a **carried
+  hypothesis** here — exactly the honest pattern `Phase7Convergence.phase7Convergence'`
+  uses for its carried `hmono`.  Discharging it on the genuinely-closed superwindow
+  `card = n ∧ ∀ a ∈ c, 5 ≤ a.phase.val` requires the cross-phase per-pair backward-stability
+  of `unsampled` for the dispatch branches `6..10` (Phase-6 `doSplit` maps reserve→main, so
+  it removes — never creates — unsampled Reserves; Phases 7–10 leave reserves untouched).
+  That cross-phase reduction is the precise campaign gap recorded in the report.
+* `hstep : drain` — the per-step drop probability from the biased-Main (index `< L`)
+  eliminator floor carried by Theorem 6.2.  Supplied as a carried honest input, exactly as
+  `Phase7`'s drain `hstep`.
+-/
+
+/-- **`unsampledReserveU` non-increases along the real kernel on the phase-5 window**
+(`OneSidedCancel.PotNonincrOn`). -/
+theorem potNonincrOn_unsampledReserveU (n : ℕ) :
+    OneSidedCancel.PotNonincrOn (fun c => Phase5AllWin (L := L) (K := K) n c)
+      (NonuniformMajority L K).transitionKernel
+      (fun c => unsampledReserveU (L := L) (K := K) c) := by
+  intro c hInv
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | unsampledReserveU (L := L) (K := K) c < unsampledReserveU (L := L) (K := K) x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  exact absurd (unsampledReserveU_support_le n c x hInv hsupp) (by
+    simp only [Set.mem_setOf_eq] at hx; omega)
+
+/-- `ReserveSampled c` (every Reserve has sampled) is exactly `unsampledReserveU c = 0`,
+i.e. `c ∈ potDone (unsampledReserveU)`. -/
+theorem reserveSampled_iff_potDone (c : Config (AgentState L K)) :
+    ReserveSampled (L := L) (K := K) c ↔
+      c ∈ OneSidedCancel.potDone (fun c => unsampledReserveU (L := L) (K := K) c) := by
+  unfold ReserveSampled OneSidedCancel.potDone
+  simp only [Set.mem_setOf_eq]
+
+/-- **Lemma 7.1 (all Reserves sampled), as a `PhaseConvergenceW` on the real kernel.**
+
+`Pre c = Phase5AllWin n c ∧ unsampledReserveU c ≤ M₀` (the phase-5 window plus a target
+budget), `Post c = Phase5AllWin n c ∧ unsampledReserveU c = 0` (still in the window, no
+unsampled Reserve left = `ReserveSampled`).  The horizon is `t` interactions with failure
+`ε ≥ q^t`.
+
+Instantiates `OneSidedCancel.crude_PhaseConvergenceW` with `Inv = Phase5AllWin n`,
+`Φ = unsampledReserveU` (drift discharged by `potNonincrOn_unsampledReserveU`), the carried
+window-closure `hClosed`, and the carried eliminator-floor drain `hstep` (per-step drop `≤ q`
+from the biased-Main pool, Doty Lemma 4.7 / Theorem 6.2 floor). -/
+noncomputable def phase5SampledConvergence (n : ℕ)
+    (hClosed : OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Phase5AllWin (L := L) (K := K) n c))
+    (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Phase5AllWin (L := L) (K := K) n b →
+      1 ≤ unsampledReserveU (L := L) (K := K) b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => unsampledReserveU (L := L) (K := K) c))ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  OneSidedCancel.crude_PhaseConvergenceW
+    (NonuniformMajority L K).transitionKernel
+    (fun c => Phase5AllWin (L := L) (K := K) n c)
+    hClosed
+    (fun c => unsampledReserveU (L := L) (K := K) c)
+    (potNonincrOn_unsampledReserveU n)
+    q hstep M₀ t ε hε
+
+/-- The `Post` of `phase5SampledConvergence` is exactly `Phase5AllWin n ∧ ReserveSampled`. -/
+theorem phase5SampledConvergence_post (n : ℕ)
+    (hClosed : OneSidedCancel.InvClosed (NonuniformMajority L K).transitionKernel
+      (fun c => Phase5AllWin (L := L) (K := K) n c))
+    (q : ℝ≥0∞)
+    (hstep : ∀ b : Config (AgentState L K), Phase5AllWin (L := L) (K := K) n b →
+      1 ≤ unsampledReserveU (L := L) (K := K) b →
+      (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potDone (fun c => unsampledReserveU (L := L) (K := K) c))ᶜ ≤ q)
+    (M₀ : ℕ) (t : ℕ) (ε : ℝ≥0) (hε : (q ^ t : ℝ≥0∞) ≤ (ε : ℝ≥0∞)) :
+    (phase5SampledConvergence n hClosed q hstep M₀ t ε hε).Post =
+      fun c => Phase5AllWin (L := L) (K := K) n c ∧ ReserveSampled (L := L) (K := K) c := by
+  rfl
+
 end ReserveSampling
 
 end ExactMajority
