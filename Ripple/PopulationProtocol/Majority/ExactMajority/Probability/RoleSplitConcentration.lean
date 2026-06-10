@@ -706,8 +706,16 @@ theorem assignable_rule3_conserved
     unfold Phase0Transition
     simp [hs, hmcr_main, ht_nm, ht_nmcr, ht_un]
   have hassigned : (Phase0Transition L K s t).1.assigned = false := by
+    have hcr_main : (Role.cr = Role.main) = False := by simp
+    have hcr_mcr : (Role.cr = Role.mcr) = False := by simp
+    have hmain_mcr : (Role.main = Role.mcr) = False := by simp
+    have hmain_cr : (Role.main = Role.cr) = False := by simp
+    have hmain_clock : (Role.main = Role.clock) = False := by simp
     unfold Phase0Transition
-    simp [hs, hmcr_main, ht_nm, ht_nmcr, ht_un, hs_un]
+    simp only [hs, ht_nm, ht_nmcr, hmcr_main, hcr_main, hcr_mcr, hmain_mcr, hmain_cr,
+      hmain_clock, ht_un, hs_un, and_true, true_and, false_and, and_false, or_false, false_or,
+      if_false, if_true, not_false_eq_true, not_true_eq_false,
+      ne_eq, Bool.false_eq_true]
   have hphase : (Phase0Transition L K s t).1.phase.val = 0 := by
     have : (Phase0Transition L K s t).1.phase = s.phase := by
       unfold Phase0Transition
@@ -935,6 +943,96 @@ def isAssignableBool (a : AgentState L K) : Bool :=
 theorem assignableCount_eq_countP (c : Config (AgentState L K)) :
     assignableCount (L := L) (K := K) c =
       Multiset.countP (fun a => isAssignableBool (L := L) (K := K) a) c := rfl
+
+/-- `isAssignableBool a = true ↔ IsAssignable a` (the Bool/Prop bridge). -/
+theorem isAssignableBool_iff (a : AgentState L K) :
+    isAssignableBool (L := L) (K := K) a = true ↔ IsAssignable a :=
+  assignableCount_pred_iff (L := L) (K := K) a
+
+/-! ### The deterministic monotone pool — the paper's "`sf + mf` can never decrease".
+
+These per-pair `assignableCount` deltas are the *deterministic* heart of Doty's
+Lemma 5.1.  With the paper-faithful protocol fix (2026-06-10), the first-level
+reactions R1/R2/R3 are exactly the paper's `U,U → Sf,Mf`, `Sf,U → St,Mf`,
+`Mf,U → Mt,Sf`, and the assignable pool `sf + mf = assignableCount` is monotone
+non-decreasing across all three: R1 generates `+2` fresh assignables, R2/R3
+conserve (the fresh `s`-output is assignable; the partner becomes assigned).
+ONLY the second-level reaction R4 (`RoleCR,RoleCR → Clock,Reserve`) drains the
+pool (`−2`).  The lemmas below pin these signs at the *pair* level. -/
+
+/-- `assignableCount` of a singleton. -/
+private lemma countP_isAssign_singleton (a : AgentState L K) :
+    Multiset.countP (fun y => isAssignableBool (L := L) (K := K) y)
+      ({a} : Config (AgentState L K)) =
+      if isAssignableBool (L := L) (K := K) a then 1 else 0 := by
+  rw [Multiset.countP_eq_card_filter, Multiset.filter_singleton]
+  by_cases h : isAssignableBool (L := L) (K := K) a = true
+  · rw [if_pos h, Multiset.card_singleton, if_pos h]
+  · rw [if_neg h, if_neg h]; rfl
+
+theorem assignableCount_singleton' (a : AgentState L K) :
+    assignableCount (L := L) (K := K) ({a} : Config (AgentState L K)) =
+      if isAssignableBool (L := L) (K := K) a then 1 else 0 :=
+  countP_isAssign_singleton (L := L) (K := K) a
+
+/-- `assignableCount` of a pair, by the two membership Bools. -/
+theorem assignableCount_pair' (a b : AgentState L K) :
+    assignableCount (L := L) (K := K) ({a, b} : Config (AgentState L K)) =
+      (if isAssignableBool (L := L) (K := K) a then 1 else 0) +
+      (if isAssignableBool (L := L) (K := K) b then 1 else 0) := by
+  show Multiset.countP (fun y => isAssignableBool (L := L) (K := K) y) ({a} + {b}) = _
+  rw [Multiset.countP_add, countP_isAssign_singleton, countP_isAssign_singleton]
+
+/-- **R1 produces two fresh assignables (the `+2` pool generator).**  When `s, t`
+are both `RoleMCR`, unassigned, at phase 0, the `Phase0Transition` outputs are an
+unassigned `Main` and an unassigned `CR`, both at phase 0 — both `IsAssignable`.
+This is the paper's `U,U → Sf,Mf` reaction creating the `f`-pool. -/
+theorem assignable_rule1_both_fresh
+    (s t : AgentState L K) (hs : s.role = .mcr) (ht : t.role = .mcr)
+    (hs_un : s.assigned = false) (ht_un : t.assigned = false)
+    (hs_ph : s.phase.val = 0) (ht_ph : t.phase.val = 0) :
+    IsAssignable (Phase0Transition L K s t).1 ∧
+      IsAssignable (Phase0Transition L K s t).2 := by
+  have h1 : (Role.main = Role.cr) = False := by simp
+  have h2 : (Role.main = Role.mcr) = False := by simp
+  have h3 : (Role.cr = Role.mcr) = False := by simp
+  have h4 : (Role.main = Role.clock) = False := by simp
+  have h5 : (Role.cr = Role.clock) = False := by simp
+  have hrole1 : (Phase0Transition L K s t).1.role = .main := by
+    unfold Phase0Transition
+    simp only [hs, ht, h1, h2, h3, h4, h5, and_self, and_true, true_and, and_false,
+      false_and, if_true, if_false, ne_eq, not_true_eq_false, not_false_eq_true,
+      Bool.false_eq_true]
+  have hassg1 : (Phase0Transition L K s t).1.assigned = s.assigned := by
+    unfold Phase0Transition
+    simp only [hs, ht, h1, h2, h3, h4, h5, and_self, and_true, true_and, and_false,
+      false_and, if_true, if_false, ne_eq, not_true_eq_false, not_false_eq_true,
+      Bool.false_eq_true]
+  have hph1 : (Phase0Transition L K s t).1.phase = s.phase := by
+    unfold Phase0Transition
+    simp only [hs, ht, h1, h2, h3, h4, h5, and_self, and_true, true_and, and_false,
+      false_and, if_true, if_false, ne_eq, not_true_eq_false, not_false_eq_true,
+      Bool.false_eq_true]
+  have hrole2 : (Phase0Transition L K s t).2.role = .cr := by
+    unfold Phase0Transition
+    simp only [hs, ht, h1, h2, h3, h4, h5, and_self, and_true, true_and, and_false,
+      false_and, if_true, if_false, ne_eq, not_true_eq_false, not_false_eq_true,
+      Bool.false_eq_true]
+  have hassg2 : (Phase0Transition L K s t).2.assigned = t.assigned := by
+    unfold Phase0Transition
+    simp only [hs, ht, h1, h2, h3, h4, h5, and_self, and_true, true_and, and_false,
+      false_and, if_true, if_false, ne_eq, not_true_eq_false, not_false_eq_true,
+      Bool.false_eq_true]
+  have hph2 : (Phase0Transition L K s t).2.phase = t.phase := by
+    unfold Phase0Transition
+    simp only [hs, ht, h1, h2, h3, h4, h5, and_self, and_true, true_and, and_false,
+      false_and, if_true, if_false, ne_eq, not_true_eq_false, not_false_eq_true,
+      Bool.false_eq_true]
+  refine ⟨⟨?_, ?_, Or.inl hrole1⟩, ⟨?_, ?_, Or.inr hrole2⟩⟩
+  · rw [hph1]; exact hs_ph
+  · rw [hassg1, hs_un]; simp
+  · rw [hph2]; exact ht_ph
+  · rw [hassg2, ht_un]; simp
 
 /-- The MCR filter Finset (initiators of the one-sided conversion). -/
 private def mcrF : Finset (AgentState L K) :=

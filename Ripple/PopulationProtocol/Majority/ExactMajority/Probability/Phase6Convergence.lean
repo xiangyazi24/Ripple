@@ -229,6 +229,155 @@ theorem doSplit_highU_pair_drop (l : ℕ) (r m : AgentState L K) {σ : Sign} {j 
       highSt_of (L := L) (K := K) l m σ j hmM hb hjl
     rw [if_neg hr_not, if_pos hm_high]
 
+/-! ## Part B2 — the genuinely-monotone Phase-6 potential `highMass l`.
+
+The plain count `highU l` is NOT non-increasing under the paper-faithful `doSplit`:
+an interior split (`j + 1 < l`) turns one high Main into TWO high Mains, so the
+count RISES `1 → 2`.  Only the band-top split (`j + 1 = l`) drops the count
+(`doSplit_highU_pair_drop`).  The Doty potential (mirroring Phase 7's mass detour,
+`DOTY_POST63_CAMPAIGN` relay 6) is the **dyadic mass of the high agents**, with the
+high-band weight `w l i = 2 ^ (l − i)` for index `i < l` (and `0` for `i ≥ l`):
+
+* interior split `j + 1 < l`: one weight `2^(l−j)` becomes two weights
+  `2·2^(l−(j+1)) = 2^(l−j)` — **CONSERVED**;
+* band-top split `j + 1 = l`: weight `2^(l−j) = 2` becomes `0` — **DROPS by 2**.
+
+So `highMass l` is non-increasing under every `doSplit`, conserved on interior
+splits and strictly dropping at the band top; it is `0` iff no high agent remains
+(its summands are all `≥ 1` on high agents).  This is the honest Lemma-7.2
+potential. -/
+
+/-- The high-band dyadic weight of a single bias: `2 ^ (l − i)` for `dyadic _ i`
+with `i < l`, else `0`.  (Sign-agnostic: Phase 6 splits both signs identically.) -/
+def biasMassW (l : ℕ) (b : Bias L) : ℕ :=
+  match b with
+  | .zero => 0
+  | .dyadic _ i => if i.val < l then 2 ^ (l - i.val) else 0
+
+/-- The high-mass weight of an agent: the band weight of its bias if it is a Main,
+else `0` (only Mains can be high). -/
+def agentMassW (l : ℕ) (a : AgentState L K) : ℕ :=
+  if a.role = Role.main then biasMassW (L := L) l a.bias else 0
+
+/-- The Phase-6 potential: total high-band dyadic mass of `c`. -/
+def highMass (l : ℕ) (c : Config (AgentState L K)) : ℕ :=
+  (c.map (fun a => agentMassW (L := L) (K := K) l a)).sum
+
+/-- A high agent's weight is `≥ 1` (it is a Main at index `< l`, weight a power of
+two). -/
+theorem agentMassW_pos_of_high (l : ℕ) (a : AgentState L K)
+    (h : highSt (L := L) (K := K) l a) : 1 ≤ agentMassW (L := L) (K := K) l a := by
+  obtain ⟨hr, σ, i, hb, hi⟩ := h
+  unfold agentMassW
+  rw [if_pos hr, hb]
+  simp only [biasMassW, if_pos hi]
+  exact Nat.one_le_two_pow
+
+/-- A non-high agent (non-Main, or unbiased, or index `≥ l`) has weight `0`. -/
+theorem agentMassW_eq_zero_of_not_high (l : ℕ) (a : AgentState L K)
+    (h : ¬ highSt (L := L) (K := K) l a) : agentMassW (L := L) (K := K) l a = 0 := by
+  unfold agentMassW
+  by_cases hr : a.role = Role.main
+  · rw [if_pos hr]
+    cases hb : a.bias with
+    | zero => rfl
+    | dyadic σ i =>
+        by_cases hi : i.val < l
+        · exact absurd (highSt_of (L := L) (K := K) l a σ i hr hb hi) h
+        · simp only [biasMassW, if_neg hi]
+  · rw [if_neg hr]
+
+/-- `highMass l c = 0` iff every agent is non-high (no biased Main below `l`). -/
+theorem highMass_eq_zero_iff (l : ℕ) (c : Config (AgentState L K)) :
+    highMass (L := L) (K := K) l c = 0 ↔
+      ∀ a ∈ c, ¬ highSt (L := L) (K := K) l a := by
+  unfold highMass
+  rw [Multiset.sum_eq_zero_iff]
+  constructor
+  · intro h a ha hhigh
+    have := h (agentMassW (L := L) (K := K) l a) (Multiset.mem_map_of_mem _ ha)
+    have hpos := agentMassW_pos_of_high (L := L) (K := K) l a hhigh
+    omega
+  · intro h x hx
+    rw [Multiset.mem_map] at hx
+    obtain ⟨a, ha, rfl⟩ := hx
+    exact agentMassW_eq_zero_of_not_high (L := L) (K := K) l a (h a ha)
+
+/-- The pair-mass of `{x, y}` is the sum of the two weights. -/
+theorem highMass_pair (l : ℕ) (x y : AgentState L K) :
+    ((({x, y} : Multiset (AgentState L K))).map
+        (fun a => agentMassW (L := L) (K := K) l a)).sum
+      = agentMassW (L := L) (K := K) l x + agentMassW (L := L) (K := K) l y := by
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl]
+  simp [Multiset.map_cons, Multiset.sum_cons]
+
+/-! ### The per-pair mass facts under `doSplit`. -/
+
+/-- **A Reserve has weight `0`** (it is not a Main). -/
+theorem agentMassW_reserve (l : ℕ) (r : AgentState L K) (hr : r.role = Role.reserve) :
+    agentMassW (L := L) (K := K) l r = 0 := by
+  unfold agentMassW; rw [if_neg (by rw [hr]; decide)]
+
+/-- The two-power identity behind the conservation: for `j + 1 ≤ l` (i.e. `j < l`),
+`2 ^ (l − j) = 2 · 2 ^ (l − (j + 1))`. -/
+theorem two_pow_split (l j : ℕ) (hj : j < l) :
+    (2 : ℕ) ^ (l - j) = 2 ^ (l - (j + 1)) + 2 ^ (l - (j + 1)) := by
+  have hstep : l - j = (l - (j + 1)) + 1 := by omega
+  rw [hstep, pow_succ]; ring
+
+/-- **Per-pair mass is non-increasing under `doSplit` from a Reserve.**  With `r` a
+Reserve (weight `0`, it is the fuel), an applicable `doSplit r m` conserves the
+high-mass on interior splits (`j + 1 < l`) and strictly drops it at the band top
+(`j + 1 = l`).  Stated as `after ≤ before`.  The Reserve hypothesis is essential:
+a Main `r` would itself carry mass that the split overwrites.  The Main hypothesis
+on `m` is the protocol context (`Phase6Transition` only splits a Main target): a
+non-Main `m` would let the first output become a high Main out of nothing. -/
+theorem doSplit_highMass_pair_le (l : ℕ) (r m : AgentState L K)
+    (hrR : r.role = Role.reserve) (hmM : m.role = Role.main) :
+    agentMassW (L := L) (K := K) l (doSplit L K r m).1
+        + agentMassW (L := L) (K := K) l (doSplit L K r m).2
+      ≤ agentMassW (L := L) (K := K) l r + agentMassW (L := L) (K := K) l m := by
+  by_cases happ : DoSplitApplicable (L := L) (K := K) r m
+  · obtain ⟨σ, j, hb, hne, hgt, hlt⟩ := happ
+    rw [doSplit_apply (L := L) (K := K) r m hb hne hgt hlt]
+    -- r is a Reserve ⇒ weight 0.
+    rw [agentMassW_reserve (L := L) (K := K) l r hrR, Nat.zero_add]
+    -- First output: role set to Main, bias `dyadic σ (j+1)` ⇒ weight `biasMassW l (dyadic σ (j+1))`.
+    have h1 : agentMassW (L := L) (K := K) l
+        ({ r with role := Role.main, bias := Bias.dyadic σ ⟨j.val + 1, by omega⟩ })
+          = biasMassW (L := L) l (Bias.dyadic σ ⟨j.val + 1, by omega⟩ : Bias L) := by
+      unfold agentMassW; rw [if_pos rfl]
+    -- Second output: keeps m.role, bias `dyadic σ (j+1)`.
+    -- Input m: agentMassW l m = (if m.role=main then biasMassW l (dyadic σ j) else 0).
+    rw [h1]
+    -- m is a Main: weight before = biasMassW l (dyadic σ j); second output also a Main.
+    have h2 : agentMassW (L := L) (K := K) l
+        ({ m with bias := Bias.dyadic σ ⟨j.val + 1, by omega⟩ })
+          = biasMassW (L := L) l (Bias.dyadic σ ⟨j.val + 1, by omega⟩ : Bias L) := by
+      unfold agentMassW; rw [if_pos hmM]
+    have hmbefore : agentMassW (L := L) (K := K) l m
+        = biasMassW (L := L) l (Bias.dyadic σ j : Bias L) := by
+      unfold agentMassW; rw [if_pos hmM, hb]
+    rw [h2, hmbefore]
+    -- biasMassW (dyadic σ (j+1)) = if j+1<l then 2^(l-(j+1)) else 0.
+    -- biasMassW (dyadic σ j)     = if j<l   then 2^(l-j)     else 0.
+    simp only [biasMassW]
+    by_cases hjl : j.val < l
+    · rw [if_pos hjl]
+      by_cases hj1 : (⟨j.val + 1, by omega⟩ : Fin (L + 1)).val < l
+      · -- interior: 2^(l-(j+1)) + 2^(l-(j+1)) = 2^(l-j).  CONSERVED (≤).
+        rw [if_pos hj1]
+        show 2 ^ (l - (j.val + 1)) + 2 ^ (l - (j.val + 1)) ≤ 2 ^ (l - j.val)
+        rw [two_pow_split l j.val hjl]
+      · -- band top: 0 + 0 ≤ 2^(l-j).  DROP.
+        rw [if_neg hj1]; exact Nat.zero_le _
+    · -- j ≥ l: m not high, before = 0; but then j+1 ≥ l too, so both outputs weight 0.
+      rw [if_neg hjl]
+      have hj1 : ¬ (⟨j.val + 1, by omega⟩ : Fin (L + 1)).val < l := by
+        show ¬ j.val + 1 < l; omega
+      rw [if_neg hj1]
+  · rw [doSplit_eq_self_of_not_applicable (L := L) (K := K) r m happ]
+
 /-! ## Part C — the dispatch reduction `Transition = Phase6Transition` on phase-6 pairs.
 
 Mirror of `ReserveSampling.Transition_eq_Phase5Transition_of_phase5` (its olean is
@@ -763,6 +912,201 @@ theorem Transition_bias_zero_of_phase_ge6 (s t : AgentState L K)
   -- finishPhase10Entry preserves bias.
   simp only [finishPhase10Entry_bias]
   exact hdisp
+
+/-! ## Part E2 — the `highMass l` `PotNonincrOn` on the phase-6 working window.
+
+`Φ = highMass l` is non-increasing under the real kernel on the window where every
+agent is at phase **exactly 6** (`Phase6Win`): there `Transition = Phase6Transition`
+(Part C), whose only bias-mutation is `doSplit` from a Reserve onto a biased Main,
+and the per-pair mass is non-increasing (`doSplit_highMass_pair_le`).  The clock
+branch preserves `role` and `bias` (phase ≥ 5), hence `agentMassW`.  This mirrors
+Phase 7's `minorityU_stepOrSelf_le → potNonincrOn_minorityU`; the window need not be
+closed for `hmono` (closure is carried separately). -/
+
+/-- `advancePhase` preserves `role` (it only writes `phase`). -/
+theorem advancePhase_role_eq (a : AgentState L K) :
+    (advancePhase L K a).role = a.role := by unfold advancePhase; split <;> rfl
+
+/-- `phaseInit` at phase ≥ 5 preserves `role` (re-derivation of the private lemma). -/
+theorem phaseInit_role_ge_five6 (p : Fin 11) (a : AgentState L K) (hp : 5 ≤ p.val) :
+    (phaseInit L K p a).role = a.role := by
+  set_option linter.unusedSimpArgs false in
+  fin_cases p <;> simp_all (config := { decide := false }) <;>
+    simp [phaseInit, enterPhase10] <;> split_ifs <;> simp [enterPhase10]
+
+/-- `advancePhaseWithInit` preserves `role` at phase ≥ 5. -/
+theorem advancePhaseWithInit_role_ge_five6 (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (advancePhaseWithInit L K a).role = a.role := by
+  unfold advancePhaseWithInit
+  have hadv_phase : 5 ≤ (advancePhase L K a).phase.val :=
+    le_trans ha (advancePhase_phase_nondec L K a)
+  rw [phaseInit_role_ge_five6 (L := L) (K := K) (advancePhase L K a).phase
+    (advancePhase L K a) hadv_phase]
+  exact advancePhase_role_eq (L := L) (K := K) a
+
+/-- `stdCounterSubroutine` preserves `role` at phase ≥ 5. -/
+theorem stdCounterSubroutine_role_ge_five6 (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    (stdCounterSubroutine L K a).role = a.role := by
+  unfold stdCounterSubroutine; split
+  · exact advancePhaseWithInit_role_ge_five6 (L := L) (K := K) a ha
+  · rfl
+
+/-- The clock branch preserves `agentMassW` (it preserves role and bias at phase ≥ 5). -/
+theorem clockBranch_agentMassW_eq (l : ℕ) (a : AgentState L K) (ha : 5 ≤ a.phase.val) :
+    agentMassW (L := L) (K := K) l
+        (if a.role = Role.clock then stdCounterSubroutine L K a else a)
+      = agentMassW (L := L) (K := K) l a := by
+  by_cases hc : a.role = Role.clock
+  · rw [if_pos hc]
+    unfold agentMassW
+    rw [stdCounterSubroutine_role_ge_five6 (L := L) (K := K) a ha,
+        stdCounterSubroutine_bias_ge_five (L := L) (K := K) a ha]
+  · rw [if_neg hc]
+
+/-- **Per-pair `highMass` non-increase under `Phase6Transition`** on a phase-6 pair.
+`doSplit` fires only on a `(Reserve, biased Main)` pair (either order); there the
+per-pair mass drops (`doSplit_highMass_pair_le`).  All other dispatch branches are
+the identity on the bias-carrying pair, and the trailing clock subroutine preserves
+`agentMassW`.  Hence the sum of the two outputs' weights is `≤` that of the inputs. -/
+theorem Phase6Transition_highMass_pair_le (l : ℕ) (s t : AgentState L K)
+    (hs6 : 6 ≤ s.phase.val) (ht6 : 6 ≤ t.phase.val) :
+    agentMassW (L := L) (K := K) l (Phase6Transition L K s t).1
+        + agentMassW (L := L) (K := K) l (Phase6Transition L K s t).2
+      ≤ agentMassW (L := L) (K := K) l s + agentMassW (L := L) (K := K) l t := by
+  unfold Phase6Transition; simp only
+  -- The pre-clock pair `(s1, t1)`: doSplit in the matching branch, identity otherwise.
+  -- In every branch the pre-clock pair's mass-sum is ≤ the input mass-sum, and each
+  -- agent stays at phase ≥ 6 (doSplit/identity preserve phase), so the clock branch
+  -- preserves agentMassW.
+  set s1 := (if s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero then
+      (doSplit L K s t).1 else if t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero then
+      (doSplit L K t s).2 else s) with hs1def
+  set t1 := (if s.role = Role.reserve ∧ t.role = Role.main ∧ t.bias ≠ Bias.zero then
+      (doSplit L K s t).2 else if t.role = Role.reserve ∧ s.role = Role.main ∧ s.bias ≠ Bias.zero then
+      (doSplit L K t s).1 else t) with ht1def
+  -- pre-clock mass-sum bound and phase ≥ 6 of s1/t1.
+  have hpre : agentMassW (L := L) (K := K) l s1 + agentMassW (L := L) (K := K) l t1
+      ≤ agentMassW (L := L) (K := K) l s + agentMassW (L := L) (K := K) l t := by
+    rw [hs1def, ht1def]
+    split_ifs with h1 h2
+    · -- doSplit s t: s Reserve, t Main biased.  drop on (s,t).
+      have := doSplit_highMass_pair_le (L := L) (K := K) l s t h1.1 h1.2.1
+      linarith [this]
+    · -- doSplit t s: t Reserve, s Main biased.  drop on (t,s); reorder.
+      have := doSplit_highMass_pair_le (L := L) (K := K) l t s h2.1 h2.2.1
+      linarith [this]
+    · -- identity.
+      exact le_refl _
+  have hs1p : 6 ≤ s1.phase.val := by
+    rw [hs1def]; split_ifs with h1 h2
+    · rw [doSplit_phase_fst_eq s t (L := L) (K := K)]; exact hs6
+    · rw [doSplit_phase_snd_eq t s (L := L) (K := K)]; exact hs6
+    · exact hs6
+  have ht1p : 6 ≤ t1.phase.val := by
+    rw [ht1def]; split_ifs with h1 h2
+    · rw [doSplit_phase_snd_eq s t (L := L) (K := K)]; exact ht6
+    · rw [doSplit_phase_fst_eq t s (L := L) (K := K)]; exact ht6
+    · exact ht6
+  -- the clock branch preserves each weight.
+  rw [clockBranch_agentMassW_eq (L := L) (K := K) l s1 (by omega),
+      clockBranch_agentMassW_eq (L := L) (K := K) l t1 (by omega)]
+  exact hpre
+
+/-! ### Global lift: `highMass l` non-increasing on the phase-6 working window. -/
+
+/-- The phase-6 working window: size `n`, every agent at phase **exactly 6**.  On it
+`Transition = Phase6Transition` for every applicable pair, so the per-pair mass
+non-increase lifts to the global `highMass`. -/
+def Phase6Win (n : ℕ) (c : Config (AgentState L K)) : Prop :=
+  c.card = n ∧ (∀ a ∈ c, a.phase.val = 6)
+
+instance (n : ℕ) (c : Config (AgentState L K)) :
+    Decidable (Phase6Win (L := L) (K := K) n c) := by unfold Phase6Win; infer_instance
+
+private theorem mem_of_app_left6E2 {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₁ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+private theorem mem_of_app_right6E2 {c : Config (AgentState L K)}
+    {r₁ r₂ : AgentState L K} (happ : Protocol.Applicable c r₁ r₂) : r₂ ∈ c :=
+  Multiset.mem_of_le (show ({r₁, r₂} : Multiset (AgentState L K)) ≤ c from happ) (by simp)
+
+/-- The mass-sum decomposes additively over `+`. -/
+theorem highMass_add (l : ℕ) (a b : Config (AgentState L K)) :
+    highMass (L := L) (K := K) l (a + b)
+      = highMass (L := L) (K := K) l a + highMass (L := L) (K := K) l b := by
+  unfold highMass; rw [Multiset.map_add, Multiset.sum_add]
+
+/-- **`highMass l` is non-increasing under any chosen-pair update on `Phase6Win`.** -/
+theorem highMass_stepOrSelf_le (l n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase6Win (L := L) (K := K) n c) (r₁ r₂ : AgentState L K) :
+    highMass (L := L) (K := K) l (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂)
+      ≤ highMass (L := L) (K := K) l c := by
+  obtain ⟨_, hph⟩ := hInv
+  by_cases happ : Protocol.Applicable c r₁ r₂
+  · have hm1 := mem_of_app_left6E2 happ
+    have hm2 := mem_of_app_right6E2 happ
+    have h16 : r₁.phase.val = 6 := hph r₁ hm1
+    have h26 : r₂.phase.val = 6 := hph r₂ hm2
+    have hsub : ({r₁, r₂} : Multiset (AgentState L K)) ≤ c := happ
+    have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂
+        = c - {r₁, r₂} + {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2} := by
+      unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+    -- Transition = Phase6Transition on this pair.
+    have htr : Transition L K r₁ r₂ = Phase6Transition L K r₁ r₂ :=
+      Transition_eq_Phase6Transition_of_phase6 (L := L) (K := K) r₁ r₂ h16 h26
+    -- decompose c = (c - pair) + pair.
+    have hcsplit : c = (c - {r₁, r₂}) + {r₁, r₂} := (tsub_add_cancel_of_le hsub).symm
+    -- pair mass-le from the per-pair lemma.
+    have hpairle : highMass (L := L) (K := K) l
+        {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+          ≤ highMass (L := L) (K := K) l {r₁, r₂} := by
+      unfold highMass
+      rw [highMass_pair, highMass_pair, htr]
+      exact Phase6Transition_highMass_pair_le (L := L) (K := K) l r₁ r₂
+        (by omega) (by omega)
+    rw [hc', highMass_add]
+    calc highMass (L := L) (K := K) l (c - {r₁, r₂})
+            + highMass (L := L) (K := K) l {(Transition L K r₁ r₂).1, (Transition L K r₁ r₂).2}
+        ≤ highMass (L := L) (K := K) l (c - {r₁, r₂})
+            + highMass (L := L) (K := K) l {r₁, r₂} := by
+          exact Nat.add_le_add_left hpairle _
+      _ = highMass (L := L) (K := K) l c := by
+          rw [← highMass_add]; rw [← hcsplit]
+  · rw [Protocol.stepOrSelf_eq_self_of_not_applicable happ]
+
+/-- `highMass l` is non-increasing on the one-step kernel support from a
+`Phase6Win`-config. -/
+theorem highMass_le_on_support (l n m : ℕ)
+    (c c' : Config (AgentState L K)) (hInv : Phase6Win (L := L) (K := K) n c)
+    (hle : highMass (L := L) (K := K) l c ≤ m)
+    (hc' : c' ∈ ((NonuniformMajority L K).stepDistOrSelf c).support) :
+    highMass (L := L) (K := K) l c' ≤ m := by
+  by_cases hc : 2 ≤ c.card
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c
+        = (NonuniformMajority L K).stepDist c hc by
+        unfold Protocol.stepDistOrSelf; rw [dif_pos hc]] at hc'
+    obtain ⟨⟨r₁, r₂⟩, hr⟩ := Protocol.stepDist_support (NonuniformMajority L K) c hc c' hc'
+    rw [← hr]
+    exact le_trans (highMass_stepOrSelf_le l n c hInv r₁ r₂) hle
+  · rw [show (NonuniformMajority L K).stepDistOrSelf c = PMF.pure c by
+        unfold Protocol.stepDistOrSelf; rw [dif_neg hc]] at hc'
+    rw [PMF.mem_support_pure_iff] at hc'; subst hc'; exact hle
+
+/-- **The engine `hmono`: `highMass l` is `PotNonincrOn` on `Phase6Win n`.** -/
+theorem potNonincrOn_highMass (l n : ℕ) :
+    OneSidedCancel.PotNonincrOn (fun c => Phase6Win (L := L) (K := K) n c)
+      (NonuniformMajority L K).transitionKernel (fun c => highMass (L := L) (K := K) l c) := by
+  intro c hInv
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    {x | highMass (L := L) (K := K) l c < highMass (L := L) (K := K) l x} = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _ (DiscreteMeasurableSpace.forall_measurableSet _)]
+  rw [Set.disjoint_left]
+  intro x hsupp hx
+  simp only [Set.mem_setOf_eq] at hx
+  have hle : highMass (L := L) (K := K) l x ≤ highMass (L := L) (K := K) l c :=
+    highMass_le_on_support l n (highMass (L := L) (K := K) l c) c x hInv le_rfl hsupp
+  omega
 
 /-! ## Part F — the genuinely-closed window `AllZeroGE6` and the `PhaseConvergenceW`.
 
