@@ -641,3 +641,28 @@ All of (a)–(c) are pure ℕ-ceiling/finite-n-scale arithmetic on the explicit 
 proven norm_num gate.  Items 2–5 have NO residual.  The genuine probabilistic engine + all wiring
 (checkpoint induction → per-level recurrence → real-kernel union → WindowedFrontProfile whp → glue →
 GoodFrontWidth whp) is fully formalized and axiom-clean.
+
+## PHASE B steps 1–2 — DotyParams.lean (2026-06-10 family line; NEW FILE)
+
+The concrete parameters are now fixed ONCE in `Probability/DotyParams.lean`:
+- `θn n := ⌊n^{3/5}⌋₊`  (so `θ n := θn/n = n^{−2/5}`, the paper's n^{−0.4} front floor).
+- `tt n := ⌊n^{3/20}⌋₊`  (the taint threshold n^{0.15}).
+- `w n := 3*n/200`  (per-window kernel steps = ⌊wp·n⌋, wp = 3/200).
+- **`N₀ := 10^40`** — RAISED from the doctrine's 25641.  REASON (a genuine finite-n constant gap,
+  not an error): the negligibility inequality `tt·n ≤ (1−cc)·θn²` is ASYMPTOTIC.  At the locked
+  scales it reads `n^{1.15} ≤ n^{1.2}/10`, needing `n^{1/20} ≥ 10` ⟹ crossover `n ≈ 10^{20}`.
+  N₀ = 10^40 clears it with a 10^2 margin AND makes the rpow powers clean integers
+  (`N₀^{3/5} = 10^{24}`, `N₀^{3/20} = 10^6`).  θn ≥ 30000 and n ≥ 25641 are then trivial.
+
+DONE in DotyParams.lean (0-sorry, axiom-clean — pending per-theorem #print axioms check):
+- Part 2 (rpow/floor facts): `θn_le`, `lt_θn_succ`, `sub_one_le_θn`, `tt_le`, `rpow_N₀_three_fifths`,
+  `rpow_N₀_three_twentieths`, `rpow_three_fifths_ge`, `θn_ge_30000`, `N₀_pos`, `two_le`, `θn_pos`,
+  `θn_le_n`.
+- Part 3 (`θ := θn/n`): `θ_pos`, `one_div_le_θ` (= the `1/n ≤ θ` floor of goodFrontWidth_whp).
+- Part 4 (negligibility scale): `tt_scale` — `tt·n ≤ (1−9/10)·θn²` at n ≥ N₀ (the exact `hscale`
+  input of `negligibility_le`, item 2).
+
+REMAINING in DotyParams (in build order): KK/σ choice + hsmall; neg_params (via negligibility_le +
+tt_scale); start dischargers (recInv_of_window_closed / markInv_of_clean for the all-clean Doty
+start); the hB ladder (item 1 — the two-regime split; the genuinely hard ceiling arithmetic);
+the assembled windowedFrontProfile/goodFrontWidth/climbBound concretes.

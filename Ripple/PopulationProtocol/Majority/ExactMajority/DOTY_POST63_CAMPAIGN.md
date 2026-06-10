@@ -57,13 +57,35 @@ before speccing each; do not guess the per-phase event structure.
 2. `compose_n_phases` with all 11 instances → `doty_time_headline` UNCONDITIONAL:
    stabilization in O(log n) parallel time whp. Update every honest-verdict marker.
 
-## Phase E — expected time  [~8–15 bricks; ONE unscoped piece]
+## Phase E — expected time  [~8–15 bricks]  — SCOPED 2026-06-10 (paper read done)
 
-whp → E[T] = O(log n) needs a fallback bound: from ANY reachable config, stabilization within
-poly(n) time with constant probability (then geometric restart argument). The paper's argument
-lives around §3/Thm 3.1's wrap-up — SCOPING READ REQUIRED before speccing (this is the only
-remaining item whose math we have not fully mapped). Candidate route: correctness half's
-reachability + coarse coupon-collector epidemic bounds.
+Paper's argument (§7 wrap-up, "We finally justify that the expected stabilization time is
+O(n log n) [interactions]"): three-event split AT TIME 0, not a from-any-reachable-config restart:
+- **Good** (whp ≥ 1 − O(1/n²)): all phase whp-events hold → stabilize in O(log n) parallel time.
+- **Bad-with-big-clock** (prob ≤ O(1/n²), |C| ≥ 0.24n by Lemma 5.2 whp): timed phases still
+  advance via counters in expected O(log n) each (Thm 6.9 + Chernoff on counter rounds), untimed
+  phases pass by epidemic expected O(log n) → reach backup Phase 10, which stabilizes in expected
+  O(n log n) parallel time (**Lemma 7.7**). Contribution O(1/n²)·O(n log n) = o(1).
+- **Tiny-clock** (|C| = o(n); note |C| ≥ 2 always by Lemma 5.2's deterministic part, and |C| is
+  FIXED after Phase 0): probability super-polynomially small; conditional time at most poly(n)
+  (counter decrements at rate ≥ |C|/n ≥ 2/n). Negligible product.
+
+Lean bricks:
+- **E1** `Probability/ExpectedHitting.lean` (NEW): hitting-time expectation toolkit on kernel
+  powers. E[T] = ∑_t P(T > t) (or block form E[T] ≤ s·∑_k P(T > k·s)); the geometric-tail lemma
+  (∀ config in a closed class, P(not done in s steps) ≤ q ⟹ P(T > k·s) ≤ q^k ⟹ E[T] ≤ s/(1−q));
+  the conditioning-free split E[T] ≤ t₀ + ∑_{t≥t₀} P(T>t). Generic, no protocol content.
+- **E2** Lemma 7.7: Phase-10 backup expected O(n log n) parallel time. Correctness-side
+  infrastructure exists (Analysis/Phase10Backup.lean: signed sums, active counts). Probability
+  side: cancel/spread reactions at rate ≥ activeCount²/n²-style → coupon-collector/geometric
+  sums. Uses E1's geometric-tail on the active-count potential.
+- **E3** Conditional progress: from any config with |C| ≥ 2 (post-Phase-0), each timed phase ends
+  within expected O(n/|C| · log n)-shape time (counter always ticks); gives both the bad-event
+  O(log n) (|C| ≥ 0.24n) and the tiny-clock poly(n) bound from ONE parameterized lemma.
+- **E4** The time-0 three-event split + summation: good whp event (Phase D headline) + Lemma 5.2
+  clock-count concentration (Phase C, phases 0/1 line) + E2 + E3 → `doty_expected_time_O_log_n`.
+Dependencies: E1, E2 are independent of Phases B–D (parallelizable NOW); E4 needs D's headline +
+C's clock-count concentration.
 
 ## Phase F — audit, headline, release  [~6–10 bricks]
 
