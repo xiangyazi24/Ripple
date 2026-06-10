@@ -240,13 +240,13 @@ private lemma cosh_le_cosh_of_abs_le {x y : ℝ} (hy : 0 ≤ y) (h : |x| ≤ y) 
   have e2 : Real.exp (-(x + y)) ≤ 1 := by
     rw [show (1 : ℝ) = Real.exp 0 from (Real.exp_zero).symm]
     exact Real.exp_le_exp.mpr (by linarith)
+  have hxy : Real.exp (-(x + y)) = Real.exp (-x) * Real.exp (-y) := by
+    rw [← Real.exp_add]; congr 1; ring
+  have hyy : Real.exp y * Real.exp (-y) = 1 := by rw [← Real.exp_add]; simp
+  have hxx : Real.exp x * Real.exp (-x) = 1 := by rw [← Real.exp_add]; simp
   have hkey : (Real.exp y - Real.exp x) * (1 - Real.exp (-(x + y))) =
       (Real.exp y + Real.exp (-y)) - (Real.exp x + Real.exp (-x)) := by
-    have hxy : Real.exp (-(x + y)) = Real.exp (-x) * Real.exp (-y) := by
-      rw [← Real.exp_add]; congr 1; ring
-    have hyy : Real.exp y * Real.exp (-y) = 1 := by rw [← Real.exp_add]; simp
-    have hxx : Real.exp x * Real.exp (-x) = 1 := by rw [← Real.exp_add]; simp
-    rw [hxy]; nlinarith [hyy, hxx]
+    rw [hxy]; ring_nf; linear_combination (Real.exp (-y)) * hxx - (Real.exp (-x)) * hyy
   nlinarith [mul_nonneg (sub_nonneg.mpr e1) (sub_nonneg.mpr e2), hkey]
 
 /-- Local helper: `sinh` has the sign of its argument (`x ≤ 0 ⟹ sinh x ≤ 0`,
