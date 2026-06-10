@@ -609,5 +609,39 @@ theorem Phase0Transition_first_no_mcr_of_mcr_cr
     if_false, if_true, not_false_eq_true, not_true_eq_false,
     ne_eq, Bool.false_eq_true]
 
+/-- **Rule 2 mirror (t-side MCR meets unassigned Main on the s-side).** -/
+theorem Phase0Transition_second_no_mcr_of_main_mcr
+    (s t : AgentState L K) (hs : s.role = .main) (ht : t.role = .mcr)
+    (hs_un : ¬ s.assigned) :
+    (Phase0Transition L K s t).2.role ≠ .mcr := by
+  have hmcr_main : (Role.mcr = Role.main) = False := by simp
+  have hmain_mcr : (Role.main = Role.mcr) = False := by simp
+  have hcr_mcr : (Role.cr = Role.mcr) = False := by simp
+  have hmain_cr : (Role.main = Role.cr) = False := by simp
+  have hcr_clock : (Role.cr = Role.clock) = False := by simp
+  have hmain_clock : (Role.main = Role.clock) = False := by simp
+  unfold Phase0Transition
+  simp only [hs, ht, hmcr_main, hmain_mcr, hcr_mcr, hmain_cr, hcr_clock, hmain_clock,
+    hs_un, and_true, false_and, and_false,
+    if_false, if_true, not_false_eq_true, not_true_eq_false,
+    ne_eq, Bool.false_eq_true]
+
+/-- **Rule 3 mirror (t-side MCR meets unassigned RoleCR on the s-side).** -/
+theorem Phase0Transition_second_no_mcr_of_cr_mcr
+    (s t : AgentState L K) (hs : s.role = .cr) (ht : t.role = .mcr)
+    (hs_un : ¬ s.assigned) :
+    (Phase0Transition L K s t).2.role ≠ .mcr := by
+  have hmcr_main : (Role.mcr = Role.main) = False := by simp
+  have hcr_main : (Role.cr = Role.main) = False := by simp
+  have hcr_mcr : (Role.cr = Role.mcr) = False := by simp
+  have hmain_mcr : (Role.main = Role.mcr) = False := by simp
+  have hmain_cr : (Role.main = Role.cr) = False := by simp
+  have hmain_clock : (Role.main = Role.clock) = False := by simp
+  unfold Phase0Transition
+  simp only [hs, ht, hmcr_main, hcr_main, hcr_mcr, hmain_mcr, hmain_cr,
+    hmain_clock, hs_un, and_true, false_and, and_false,
+    if_false, if_true, not_false_eq_true, not_true_eq_false,
+    ne_eq, Bool.false_eq_true]
+
 end RoleSplitConcentration
 end ExactMajority
