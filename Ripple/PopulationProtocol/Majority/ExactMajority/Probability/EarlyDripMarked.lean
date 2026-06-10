@@ -5442,6 +5442,60 @@ theorem windowedFrontProfile_whp (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) (w : �
   exact real_front_union (L := L) (K := K) θn n hn cc w aM haM δ hB σ hσ KK hsmall tt Tcap
     mc₀ h0 hmark (w * KK) rfl
 
+/-! ## Part 38 — the initial-config start hypotheses (STEP 3, item 3): the all-clean,
+all-window-open start satisfies `MarkInv` and `recInv` at every level.
+
+The Doty start is the all-clean marked configuration (every agent's mark `= false`), with the
+clocks not yet in the recurrence window.  `MarkInv` is then vacuous (no tainted agent), and `recInv`
+holds either at the floor (`θn ≤ X` with the recurrence) or — the genuine start — because the
+recurrence window `P3 ∧ 10X ≤ n` is not yet open.  These structural dischargers supply the
+per-level `h0`/`hmark` inputs of `windowedFrontProfile_whp` for any concrete start config. -/
+
+/-- **The mark invariant holds at any all-clean config**: if every agent's mark is `false`, there
+are no tainted agents, so `MarkInv T` holds vacuously at every level `T`. -/
+theorem markInv_of_clean (T : ℕ) (mc : Config (MarkedAgent L K))
+    (hclean : ∀ m ∈ mc, m.2 = false) :
+    MarkInv (L := L) (K := K) T mc := by
+  intro m hm htrue
+  have := hclean m hm
+  simp [this] at htrue
+
+/-- **`taintedCount = 0` at an all-clean config.** -/
+theorem taintedCount_of_clean (mc : Config (MarkedAgent L K))
+    (hclean : ∀ m ∈ mc, m.2 = false) :
+    taintedCount (L := L) (K := K) mc = 0 := by
+  unfold taintedCount
+  rw [Multiset.countP_eq_zero]
+  intro m hm
+  rw [hclean m hm]
+  simp
+
+/-- **`recInv` at a window-closed start** (the genuine Doty start): inside the hour region, if the
+recurrence window is not open — either the config is not all-phase-3 or the feeder already passed
+`n/10` — then `recInv T` holds vacuously (the recurrence claim is conditioned on the open window). -/
+theorem recInv_of_window_closed (T θn n : ℕ) (cc : ℝ) (mc : Config (MarkedAgent L K))
+    (hcard : mc.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hclosed : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc) ∨
+      ¬ (10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ n)) :
+    recInv (L := L) (K := K) T θn n cc mc := by
+  refine ⟨hcard, hge3, ?_⟩
+  intro hP3 hX
+  rcases hclosed with h | h
+  · exact absurd hP3 h
+  · exact absurd hX h
+
+/-- **`recInv` at the floor**: inside the hour region, if the feeder is past the floor (`θn ≤ X`)
+and the clean tail obeys the recurrence, `recInv T` holds. -/
+theorem recInv_of_floor (T θn n : ℕ) (cc : ℝ) (mc : Config (MarkedAgent L K))
+    (hcard : mc.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc))
+    (hθ : θn ≤ rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc))
+    (hrec : (cleanAbove (L := L) (K := K) T mc : ℝ) ≤
+      cc * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)) :
+    recInv (L := L) (K := K) T θn n cc mc := by
+  exact ⟨hcard, hge3, fun _ _ => ⟨hθ, hrec⟩⟩
+
 end EarlyDripMarked
 
 end ExactMajority
