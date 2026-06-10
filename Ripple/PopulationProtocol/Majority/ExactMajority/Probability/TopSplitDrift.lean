@@ -611,23 +611,25 @@ private lemma cosh_le_cosh_of_abs_le_abs {a b : ℝ} (h : |a| ≤ |b|) :
   exact cosh_le_cosh_of_abs_le (abs_nonneg b) h
 
 /-- **Threshold link.**  If `c` fails the top-split window `TopSplitWindow δ n`
-(`|X| > δn`), then for `s ≥ 0` the cosh potential exceeds the threshold
-`ofReal (cosh (s·δn))`: `cosh (s·δn) ≤ cosh (s·X) = coshExpVal s c`. -/
+(`|X| > δn`), then (with `0 < δn`, `s ≥ 0`) the cosh potential exceeds the
+threshold `ofReal (cosh (s·δn))`: `cosh (s·δn) ≤ cosh (s·X) = coshExpVal s c`. -/
 theorem coshPot_ge_thresh_of_not_window (s : ℝ) (hs : 0 ≤ s)
-    {δ : ℝ} {n : ℕ} (c : Config (AgentState L K))
+    {δ : ℝ} {n : ℕ} (hδnpos : 0 ≤ δ * n) (c : Config (AgentState L K))
     (hc : ¬ TopSplitWindow (L := L) (K := K) δ n c) :
     ENNReal.ofReal (Real.cosh (s * (δ * n)))
       ≤ coshPot (L := L) (K := K) s c := by
   unfold coshPot coshExpVal
   apply ENNReal.ofReal_le_ofReal
   apply cosh_le_cosh_of_abs_le_abs
-  -- |s·δn| ≤ |s·X|  from  δn ≤ |X|  (the window failure) and  s ≥ 0.
+  -- |s·δn| ≤ |s·X|  from  δn ≤ |X|  (the window failure), δn ≥ 0, and s ≥ 0.
   have hc' : δ * n < |(topSplitXZ (L := L) (K := K) c : ℝ)| := by
     rw [TopSplitWindow, not_le] at hc
     have : topSplitX (L := L) (K := K) c
         = (mainCount (L := L) (K := K) c : ℝ) - (topCRMass (L := L) (K := K) c : ℝ) := rfl
     rw [← topSplitX_eq_cast, this]; exact hc
-  rw [abs_mul, abs_mul, abs_of_nonneg hs]
+  rw [show s * (δ * n) = s * (δ * n) from rfl, abs_mul (a := s) (b := δ * n),
+    abs_mul (a := s) (b := (topSplitXZ (L := L) (K := K) c : ℝ)), abs_of_nonneg hs,
+    abs_of_nonneg hδnpos]
   apply mul_le_mul_of_nonneg_left _ hs
   exact le_of_lt hc'
 
@@ -662,6 +664,12 @@ theorem topSplitWindow_whp_cosh
   have hθ0 : ENNReal.ofReal (Real.cosh (s * (δ * n))) ≠ 0 := by
     rw [ne_eq, ENNReal.ofReal_eq_zero, not_le]; exact hθpos
   have hθtop : ENNReal.ofReal (Real.cosh (s * (δ * n))) ≠ ⊤ := ENNReal.ofReal_ne_top
+  -- δn > 0 (else s·(δn) ≤ 0 contradicts hδn).
+  have hδnpos : 0 ≤ δ * n := by
+    by_contra h
+    push_neg at h
+    have : s * (δ * n) ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hs (le_of_lt h)
+    linarith
   -- the per-step drift on Q.
   have hdrift : ∀ c, Q c → ∫⁻ c', coshPot (L := L) (K := K) s c'
       ∂((NonuniformMajority L K).transitionKernel c)
@@ -674,7 +682,7 @@ theorem topSplitWindow_whp_cosh
     (ENNReal.ofReal (Real.cosh s)) hdrift
     (TopSplitWindow (L := L) (K := K) δ n)
     (ENNReal.ofReal (Real.cosh (s * (δ * n)))) hθ0 hθtop
-    (fun c hc => coshPot_ge_thresh_of_not_window s hs c hc)
+    (fun c hc => coshPot_ge_thresh_of_not_window s hs hδnpos c hc)
     T c₀ hQ0
 
 /-- The balanced-start potential is `1`: at `Phase0Initial`, `topSplitX c₀ = 0`, so
