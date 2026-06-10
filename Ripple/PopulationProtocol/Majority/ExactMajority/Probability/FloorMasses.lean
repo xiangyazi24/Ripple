@@ -664,5 +664,71 @@ theorem hdeath_of_block
         rw [h_card]
         exact ENNReal.ofReal_le_ofReal (pair_block_sq_le_buffer X Ahi n hblock hAn hn2)
 
+/-! ## Stage 4 — wire-up: the one-step pool drift with the discharged masses.
+
+We instantiate `FloorPrefix.pool_expNeg_one_step_drift` at the concrete favorability scale
+`s = 1/10` (`scalarPoolFav_instance`, already proven `< 1`), feeding:
+
+* `hstep` ← `pool_step_ge_ae` (Stage 1, unconditional);
+* `hbirth` ← `hbirth_of_freshMcr_floor` (Stage 2) under the region fact `uMin ≤ freshMcrCount`;
+* `hdeath` ← `hdeath_of_block` (Stage 3) under the drain-block facts.
+
+The remaining inputs are: the pure-scalar count-fraction arithmetic (`hb0/hd0/hb1/hbd1`,
+carried as hypotheses since they depend on the calibration `a₀ = ⌊n/10⌋`), the per-region
+fresh-MCR floor, and the per-region drain block.  The favorability is **fully discharged**
+(`scalarPoolFav_instance`), so this is the strongest hypothesis-reduced one-step drift now
+reachable: the only residuals are the two documented protocol-count facts (fresh-MCR floor
+and drain-block containment) — see the Stage-2/Stage-3 notes. -/
+
+/-- **The assembled one-step pool drift (masses discharged).**  On `PoolDriftRegion n uMin Ahi`,
+provided the per-region fresh-MCR floor (`hfresh`) and drain block (`hSstep`/`hblock`), the
+`s = 1/10` tilted one-step expectation contracts at the concrete favorability rate.  Stages
+1–3 supply the three protocol masses; `scalarPoolFav_instance` supplies the (proven `< 1`)
+favorability. -/
+theorem pool_expNeg_one_step_drift_floorMasses
+    (n uMin Ahi : ℕ) (hn2 : 2 ≤ n)
+    (hb0 : 0 ≤ ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    (hd0 : 0 ≤ ((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ))
+    (hb1 : ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ) ≤ 1)
+    (hbd1 : ((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)
+        + ((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ) ≤ 1)
+    -- per-region fresh-MCR floor (the honest hbirth feeder, Stage 2):
+    (hfresh : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      uMin ≤ freshMcrCount (L := L) (K := K) c)
+    -- per-region drain block (the honest hdeath feeder, Stage 3):
+    (Sblk : Config (AgentState L K) → Finset (AgentState L K))
+    (hSstep : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      (NonuniformMajority L K).scheduledStep c ⁻¹'
+          {c' | assignableCount (L := L) (K := K) c' < assignableCount (L := L) (K := K) c}
+        ⊆ {pr | pr.1 ∈ Sblk c ∧ pr.2 ∈ Sblk c})
+    (hblock : ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      ∑ a ∈ Sblk c, c.count a ≤ Ahi)
+    (hAn : Ahi ≤ n) :
+    ∀ c, PoolDriftRegion (L := L) (K := K) n uMin Ahi c →
+      ∫⁻ c', poolExpNeg (L := L) (K := K) (1 / 10) c'
+          ∂((NonuniformMajority L K).transitionKernel c)
+        ≤ (ENNReal.ofReal
+            (1
+              - (((uMin * (uMin - 1) : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+                  (1 - Real.exp (-2 * (1 / 10)))
+              + (((Ahi * Ahi : ℕ) : ℝ) / (n * (n - 1) : ℝ)) *
+                  (Real.exp (2 * (1 / 10)) - 1)))
+          * poolExpNeg (L := L) (K := K) (1 / 10) c := by
+  refine pool_expNeg_one_step_drift n uMin Ahi (1 / 10) _ (by norm_num)
+    hb0 hd0 hb1 hbd1 ?_ ?_ ?_ ?_
+  · -- hbirth
+    intro c hc
+    exact hbirth_of_freshMcr_floor n uMin Ahi hn2 c hc (hfresh c hc)
+  · -- hdeath
+    intro c hc
+    have hshell := hc.1
+    exact hdeath_of_block n Ahi hn2 c hshell.1 (Sblk c) (hSstep c hc) (hblock c hc) hAn
+  · -- hstep (unconditional)
+    intro c _
+    exact pool_step_ge_ae c
+  · -- favorability (proven `< 1` at the concrete constants)
+    unfold ScalarPoolFav
+    exact le_refl _
+
 end FloorMasses
 end ExactMajority
