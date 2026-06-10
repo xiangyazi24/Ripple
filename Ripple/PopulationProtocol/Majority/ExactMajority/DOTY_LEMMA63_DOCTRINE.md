@@ -786,3 +786,47 @@ NOTE the fixed-M dead-end CAUGHT this session: M = 10000 (a constant) CANNOT wor
 aMn = n/10, ratio n^{2/5} is UNBOUNDED, so M must be n-dependent.  `G_pow_10000_ge` is kept as a
 clean building block (proves the 50-block doubling) but the assembly uses M := n + Bernoulli +
 measure_mono (cap aMn ⊆ a M), not exact saturation.
+
+## PHASE B-5e+ hB LADDER WIRING (2026-06-10 relay session, resuming the ladder assembly)
+## commit 95533876 (B-5e: G_pow_n_bernoulli + G_pow_n_reach). DotyParams 0-sorry, axiom-clean.
+
+DELIVERED B-5e: `G_pow_n_bernoulli` ((201/200)^n ≥ 1+n/200, via `one_add_mul_le_pow`) and
+`G_pow_n_reach` ((aM n : ℝ) ≤ (201/200)^n·θn for n≥N₀, via Bernoulli + θn ≥ 10²⁴−1). This is the
+n-dependent reach that lets `measure_mono` cap the concrete event (cap aMn) inside the ladder event
+(cap a M) with M := n — NO exact a M = aM n saturation needed.
+
+### THE WIRING DESIGN (decided this session, following the doctrine's newer M:=n build order):
+The clean decoupling is: call `per_window_delta` per-mc₀ with **G_eff := G·√κ** (so G_eff² = κ·G²,
+κ=1+1/10000), which makes per_window_delta's internal bracket B := g²(cc−G_eff²(1+ε)RWb·wp) =
+g²(cc−κG²(1+ε)RWb·wp) = B' (the INFLATED bracket of `window_constants_slice_inflated`). Then:
+- per_window_delta's `hslice` slot wants the rung exponent ≤ σ·Q·(cc·RWb − Gm·B'); supply it via the
+  EXISTING `slice_exp_le` instantiated at G := G_eff (its drip cap then reads
+  drip·(1+ε)·RW ≤ Gm·G_eff²·g²(1+ε)RWb·wp·Q = Gm·κG²·g²··· — exactly the inflated drip the ⌈⌉
+  ladder satisfies). NB `slice_exp_le_inflated`/`window_constants_slice_inflated` (Part 13b) are the
+  pre-packaged κ-slot forms; either route works (slice_exp_le @ G_eff is the leaner one).
+- per_window_delta's `hAB`(for slice_sum_le negativity, via slice_discharge's downstream) and `hB0`
+  come from `window_constants_slice_inflated` (A<B' and 0<B', PROVEN norm_num gate).
+- floor branch via `floor_discharge` (δgLocked margin), unchanged, both regimes share it.
+
+### THE PER-RUNG DRIP CAP (the core ℕ-ceiling arithmetic, to build next):
+Need per rung m<M:  (a(m+1))² ≤ G^{2m+2}·κ·g²·X₀²   [the drip-cap reduces to this after RW≤RWb,
+w≤(3/200)n cancellations].  With a(m+1)=⌈G^{m+1}·a0⌉ ≤ G^{m+1}·a0+1 and a0 ≤ g·X₀+1:
+(a(m+1))² ≤ (G^{m+1}(g·X₀+1)+1)². κ=1+1/10000 absorbs the ⌈⌉ "+1" inflation
+((1+1/(g·θn))² ≤ 1+2e-24 ≪ κ) PROVIDED a0 ≥ g·X₀ is NOT needed for drip (it is needed for the
+THRESHOLD cap below). Threshold: Yt m := ⌊cc·(a m)²/n⌋ gives hYtcap (Yt ≤ cc·a²/n+1) free; the
+slice threshold lower bound cc·Gm·g²·Q ≤ Yt needs cc·G^{2m}·g²·X₀²/n ≤ ⌊cc·(a m)²/n⌋, i.e.
+G^{2m}·g²·X₀² ≤ (a m)², i.e. a0 ≥ g·X₀ (via a m ≥ G^m·a0).
+
+### THE TWO-REGIME SPLIT (CONFIRMED genuinely required — the threshold cap forces a0 ≥ g·X₀):
+- REGIME 1 (g·X₀ ≤ n/10, i.e. 41·X₀ ≤ 4n with margin): a0 := ⌈g·X₀⌉ (so a0 ≥ g·X₀ AND 10a0 ≤ n),
+  M := n, full n-rung ladder a m = ⌈G^m·a0⌉, reach via G_pow_n_reach.
+- REGIME 2 (g·X₀ > n/10): a0 := aM n, M := 0 (NO rungs → empty slice sum → per_window_delta gives
+  bare floor exp(−δg·X₀+σg)); the cap event rBeyond ≤ a 0 = aM n is the target directly. Floor margin
+  holds (δgLocked) since X₀ > n/(10g) is large.
+hB_params case-splits per-mc₀ on (g·X₀ ≤ n/10) and supplies BOTH branches' per_window_delta,
+bounding each by the uniform δ via perWindowDelta_uniform (X₀ ≥ θn monotonization). Cannot use
+`hB_discharge` (it fixes a single global M); call per_window_delta directly per branch.
+
+STATUS: reach DONE (95533876). NEXT: per-rung drip-cap real lemma → ladder a/Yt defs at concrete
+params → regime-1 per_window_delta instantiation → regime-2 (M=0) → hB_params case-split →
+dB_params (uniform δ over T<Tcap) → the two _final corollaries.

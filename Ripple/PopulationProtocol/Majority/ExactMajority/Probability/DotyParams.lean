@@ -578,6 +578,88 @@ theorem G_pow_10000_ge : (10 : ℝ) ^ (15 : ℕ) ≤ (201/200 : ℝ) ^ (10000 : 
     _ ≤ ((201/200 : ℝ) ^ 200) ^ 50 := h2
     _ = (201/200 : ℝ) ^ (10000 : ℕ) := hchain
 
+/-- **Bernoulli reach** `(201/200)^n ≥ 1 + n/200`.  The `M := n`-dependent ladder reach: the
+geometric factor `G^M` with `M = n` beats the bare additive `1 + n/200` for free (no `G_pow_10000`
+fixed-`M` saturation needed — the doctrine's n-dependent reach). -/
+theorem G_pow_n_bernoulli (n : ℕ) : (1 : ℝ) + (n : ℝ) / 200 ≤ (201/200 : ℝ) ^ n := by
+  have h := one_add_mul_le_pow (a := (1/200 : ℝ)) (by norm_num) n
+  have he : (1 : ℝ) + 1/200 = 201/200 := by norm_num
+  rw [he] at h
+  calc (1 : ℝ) + (n : ℝ) / 200 = 1 + (n : ℝ) * (1/200) := by ring
+    _ ≤ (201/200 : ℝ) ^ n := h
+
+/-- **The n-dependent ladder reach** `(201/200)^n · θn ≥ aM n` for `n ≥ N₀`.  Via Bernoulli
+`(201/200)^n ≥ 1 + n/200` and `(1 + n/200)·θn ≥ (n/200)·(10²⁴−1) ≥ n/10 + 1 = aM n`
+(`θn ≥ 10²⁴−1`).  This is the reach used by `measure_mono` (cap `aMn ⊆` ladder-cap `a M`) so NO
+exact `a M = aM n` saturation is needed. -/
+theorem G_pow_n_reach (n : ℕ) (hn : N₀ ≤ n) :
+    (aM n : ℝ) ≤ (201/200 : ℝ) ^ n * (θn n : ℝ) := by
+  have hθlo : (10 : ℝ) ^ (24 : ℕ) - 1 ≤ (θn n : ℝ) :=
+    le_trans (by linarith [rpow_three_fifths_ge n hn]) (sub_one_le_θn n)
+  have hθ1 : (1 : ℝ) ≤ (θn n : ℝ) := by
+    have : (30000 : ℝ) ≤ (θn n : ℝ) := by exact_mod_cast θn_ge_30000 n hn
+    linarith
+  have hbern : (1 : ℝ) + (n : ℝ) / 200 ≤ (201/200 : ℝ) ^ n := G_pow_n_bernoulli n
+  have hnℝ : (1 : ℝ) ≤ (n : ℝ) := by
+    have := N₀_pos n hn; exact_mod_cast (by omega : 1 ≤ n)
+  -- aM n = n/10 + 1 ≤ (1 + n/200)·θn ≤ (201/200)^n·θn.
+  have haMle : (aM n : ℝ) ≤ (n : ℝ) / 10 + 1 := by
+    have heq : (aM n : ℕ) = n / 10 + 1 := rfl
+    have hdiv : (10 : ℝ) * ((n / 10 : ℕ) : ℝ) ≤ (n : ℝ) := by
+      have := Nat.div_mul_le_self n 10
+      have : (10 * (n / 10) : ℕ) ≤ n := by omega
+      calc (10 : ℝ) * ((n / 10 : ℕ) : ℝ) = ((10 * (n / 10) : ℕ) : ℝ) := by push_cast; ring
+        _ ≤ (n : ℝ) := by exact_mod_cast this
+    rw [heq]; push_cast; linarith [hdiv]
+  have hθpos : (0 : ℝ) ≤ (θn n : ℝ) := by linarith
+  have hstep1 : (n : ℝ) / 10 + 1 ≤ (1 + (n : ℝ) / 200) * (θn n : ℝ) := by
+    have hmul : (1 + (n : ℝ) / 200) * (θn n : ℝ)
+        ≥ (1 + (n : ℝ) / 200) * ((10 : ℝ) ^ (24 : ℕ) - 1) := by
+      apply mul_le_mul_of_nonneg_left hθlo
+      positivity
+    nlinarith [hmul, hnℝ]
+  have hstep2 : (1 + (n : ℝ) / 200) * (θn n : ℝ) ≤ (201/200 : ℝ) ^ n * (θn n : ℝ) :=
+    mul_le_mul_of_nonneg_right hbern hθpos
+  linarith [haMle, hstep1, hstep2]
+
+/-- **The per-rung ceiling-inflation cap** (the core drip-cap arithmetic): if a ladder rung satisfies
+`a_succ ≤ Gp·a0 + 1` with `a0 ≤ g·X₀ + 1`, `1 ≤ Gp`, `1 ≤ g`, and the feeder is large
+(`30000 ≤ g·X₀`, comfortably met by `X₀ ≥ θn ≥ 30000`), then `(a_succ)² ≤ κ·Gp²·g²·X₀²` for
+`κ = 1 + 1/10000`.  The κ slack (`√κ ≈ 1+5e-5`) absorbs the two `+1` ceiling roundings
+(`a_succ ≤ Gp·g·X₀·(1 + 2/(g·X₀)) ≤ Gp·g·X₀·(1+2/30000)`, and `(1+2/30000)² < κ`). -/
+theorem rung_sq_cap (a_succ a0 Gp g X₀ : ℝ)
+    (hGp : 1 ≤ Gp) (hg : 1 ≤ g) (hX₀ : 30000 ≤ g * X₀)
+    (ha0 : a0 ≤ g * X₀ + 1) (hsucc : a_succ ≤ Gp * a0 + 1)
+    (hasucc0 : 0 ≤ a_succ) :
+    a_succ ^ 2 ≤ (1 + 1/10000 : ℝ) * Gp ^ 2 * g ^ 2 * X₀ ^ 2 := by
+  have hX₀0 : (0 : ℝ) < X₀ := by nlinarith [hg, hX₀]
+  have hgX0 : (0 : ℝ) < g * X₀ := by linarith
+  -- a_succ ≤ Gp·(g·X₀+1)+1 = Gp·g·X₀ + Gp + 1 ≤ Gp·g·X₀ + 2·Gp = Gp·g·X₀·(1 + 2/(g·X₀)).
+  have hub : a_succ ≤ Gp * (g * X₀) * (1 + 2 / (g * X₀)) := by
+    have h1 : a_succ ≤ Gp * (g * X₀ + 1) + 1 := by
+      refine le_trans hsucc ?_
+      have := mul_le_mul_of_nonneg_left ha0 (by linarith : (0:ℝ) ≤ Gp)
+      linarith
+    have h2 : Gp * (g * X₀ + 1) + 1 ≤ Gp * (g * X₀) + 2 * Gp := by nlinarith [hGp]
+    have h3 : Gp * (g * X₀) + 2 * Gp = Gp * (g * X₀) * (1 + 2 / (g * X₀)) := by
+      field_simp; ring
+    linarith [h1, h2, h3.symm.le, h3.le]
+  -- (1 + 2/(g·X₀))² ≤ (1 + 2/30000)² ≤ 1 + 1/10000 = κ.
+  have hfrac : 2 / (g * X₀) ≤ 2 / 30000 := by
+    apply div_le_div_of_nonneg_left (by norm_num) (by norm_num) hX₀
+  have hinfl : (1 + 2 / (g * X₀)) ^ 2 ≤ (1 + 1/10000 : ℝ) := by
+    have hbase : (0:ℝ) ≤ 2 / (g * X₀) := by positivity
+    nlinarith [hfrac, hbase]
+  -- square the upper bound.
+  have hub0 : (0:ℝ) ≤ Gp * (g * X₀) * (1 + 2 / (g * X₀)) := by positivity
+  have hsq : a_succ ^ 2 ≤ (Gp * (g * X₀) * (1 + 2 / (g * X₀))) ^ 2 := by
+    nlinarith [hub, hasucc0, hub0]
+  calc a_succ ^ 2 ≤ (Gp * (g * X₀) * (1 + 2 / (g * X₀))) ^ 2 := hsq
+    _ = Gp ^ 2 * g ^ 2 * X₀ ^ 2 * (1 + 2 / (g * X₀)) ^ 2 := by ring
+    _ ≤ Gp ^ 2 * g ^ 2 * X₀ ^ 2 * (1 + 1/10000 : ℝ) := by
+        apply mul_le_mul_of_nonneg_left hinfl; positivity
+    _ = (1 + 1/10000 : ℝ) * Gp ^ 2 * g ^ 2 * X₀ ^ 2 := by ring
+
 /-! ### Part 13b — the INFLATED slice discharger (the fix for the ceiling-ladder drip↔threshold gap).
 
 `EarlyDripMarked.slice_exp_le`/`slice_discharge` couple the drip cap and the threshold through the
