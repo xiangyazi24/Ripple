@@ -1230,6 +1230,64 @@ theorem activeBCount_drop_prob (c : Config (AgentState L K))
       _ ≤ activeACount c * activeBCount c := Nat.mul_le_mul_right _ hA
   exact_mod_cast this
 
+/-- **Cancel-stage rectangle drop probability.** The *full* active-A×active-B
+rectangle mass: on an all-phase-10 configuration the kernel maps into the
+`activeBCount`-drop set with probability `≥ activeACount·activeBCount /
+(n·(n−1))`.  This is the un-truncated rate (the `activeBCount_drop_prob` above
+specialises `activeACount ≥ 1`); the harmonic refinement specialises instead
+`activeACount ≥ activeBCount` to get the `m²` rate. -/
+theorem activeBCount_drop_prob_rect (c : Config (AgentState L K))
+    (hc : 2 ≤ c.card)
+    (hphase : ∀ x ∈ c, x.phase.val = 10) :
+    (NonuniformMajority L K).transitionKernel c
+        (dropTarget (activeBCount (L := L) (K := K)) c) ≥
+      (↑(activeACount c * activeBCount c) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  classical
+  have hgood : ∀ pair ∈ presentActiveABPairs (L := L) (K := K) c,
+      (NonuniformMajority L K).scheduledStep c pair ∈
+        dropTarget (activeBCount (L := L) (K := K)) c := by
+    intro pair hpair
+    rw [presentActiveABPairs, activeABPairs, Finset.mem_filter, Finset.mem_product,
+      Finset.mem_filter, Finset.mem_filter] at hpair
+    obtain ⟨⟨⟨_, hA1⟩, ⟨_, hB2⟩⟩, h1, h2⟩ := hpair
+    have ha_mem : pair.1 ∈ c := Multiset.count_pos.mp h1
+    have hb_mem : pair.2 ∈ c := Multiset.count_pos.mp h2
+    have := scheduledStep_activeA_activeB_in_drop c hphase ha_mem hb_mem hA1 hB2
+    simpa using this
+  have hge := stepDistOrSelf_toMeasure_ge c hc
+    (dropTarget (activeBCount (L := L) (K := K)) c)
+    (↑(presentActiveABPairs (L := L) (K := K) c) :
+      Set (AgentState L K × AgentState L K))
+    (fun pair hpair => hgood pair (by simpa using hpair))
+  have hSmeasure : (c.interactionPMF hc).toMeasure
+      (↑(presentActiveABPairs (L := L) (K := K) c) :
+        Set (AgentState L K × AgentState L K))
+      = ∑ p ∈ presentActiveABPairs (L := L) (K := K) c, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  rw [sum_interactionProb_presentActiveAB] at hSmeasure
+  change (NonuniformMajority L K).transitionKernel c _ ≥ _
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure _ ≥ _
+  rw [hSmeasure] at hge
+  exact hge
+
+/-- **Cancel-stage quadratic per-level drop probability.** Under the majority
+regime `activeBCount ≤ activeACount` (signed sum `≥ 0`), the kernel maps into the
+`activeBCount`-drop set with probability `≥ (activeBCount c)² / (n·(n−1))`.  This
+is the `m²`-rate the cancel stage really enjoys (`m` active-B against `≥ m`
+active-A), giving the `∑ P/m² ≤ 2P = O(n²)` cancel cost. -/
+theorem activeBCount_drop_prob_sq (c : Config (AgentState L K))
+    (hc : 2 ≤ c.card)
+    (hphase : ∀ x ∈ c, x.phase.val = 10)
+    (hAB : activeBCount c ≤ activeACount c) :
+    (NonuniformMajority L K).transitionKernel c
+        (dropTarget (activeBCount (L := L) (K := K)) c) ≥
+      (↑(activeBCount c ^ 2) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+  refine le_trans ?_ (activeBCount_drop_prob_rect c hc hphase)
+  apply ENNReal.div_le_div_right
+  have : activeBCount c ^ 2 ≤ activeACount c * activeBCount c := by
+    rw [pow_two]; exact Nat.mul_le_mul_right _ hAB
+  exact_mod_cast this
+
 /-! ### Coupon stage (`wrongACount`, after `activeBCount = 0`)
 
 The same machinery applies to the absorb-T / convert-passive coupon stages with
@@ -2016,6 +2074,12 @@ open Protocol
 noncomputable def qLevel (n : ℕ) (m : ℕ) : ℝ≥0∞ :=
   1 - (m : ℝ≥0∞) / ((n * (n - 1) : ℕ) : ℝ≥0∞)
 
+/-- The **quadratic** per-level not-dropped probability `1 − m²/(n(n−1))`, used
+by the cancel stage where `m` active-B agents face `≥ m` active-A agents, so the
+drop rate is the rectangle `m²/(n(n−1))`. -/
+noncomputable def qLevelSq (n : ℕ) (m : ℕ) : ℝ≥0∞ :=
+  1 - (m ^ 2 : ℕ) / ((n * (n - 1) : ℕ) : ℝ≥0∞)
+
 /-- When `Φ c = m`, the `dropTarget` of `Φ` at `c` is exactly `potBelow Φ m`. -/
 private theorem dropTarget_eq_potBelow (Φ : Config (AgentState L K) → ℕ)
     (c : Config (AgentState L K)) (m : ℕ) (hm : Φ c = m) :
@@ -2327,9 +2391,49 @@ theorem sum_inv_sq_Icc_le_two (M : ℕ) :
           exact add_le_add le_rfl htel
       _ ≤ 2 := by linarith
 
+/-- **Exact per-level waiting time, quadratic rate.** When `1 ≤ m` and `m² ≤
+n(n−1)`, `(1 − qLevelSq n m)⁻¹ = n(n−1)/m²`. -/
+theorem qLevelSq_inv_eq (n m : ℕ) (hm1 : 1 ≤ m) (hmTP : m ^ 2 ≤ n * (n - 1)) :
+    (1 - qLevelSq n m)⁻¹ = ((n * (n - 1) : ℕ) : ℝ≥0∞) / ((m ^ 2 : ℕ) : ℝ≥0∞) := by
+  set TP : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞) with hTPdef
+  have hpos : 0 < n * (n - 1) := lt_of_lt_of_le (by positivity) hmTP
+  have hTP0 : TP ≠ 0 := by rw [hTPdef]; simp only [ne_eq, Nat.cast_eq_zero]; omega
+  have hTPtop : TP ≠ ⊤ := by rw [hTPdef]; exact_mod_cast ENNReal.natCast_ne_top _
+  have hm0 : ((m ^ 2 : ℕ) : ℝ≥0∞) ≠ 0 := by
+    simp only [ne_eq, Nat.cast_eq_zero]; positivity
+  have hmle1 : ((m ^ 2 : ℕ) : ℝ≥0∞) / TP ≤ 1 := by
+    rw [ENNReal.div_le_iff hTP0 hTPtop, one_mul, hTPdef]; exact_mod_cast hmTP
+  have hsub : 1 - qLevelSq n m = ((m ^ 2 : ℕ) : ℝ≥0∞) / TP := by
+    unfold qLevelSq; rw [hTPdef, ENNReal.sub_sub_cancel ENNReal.one_ne_top hmle1]
+  rw [hsub, ENNReal.inv_div (Or.inl hTPtop) (Or.inr hm0)]
+
 /-- **`p`-series (quadratic-rate) coupon sum, `ℝ≥0∞` form.** For the refined
-`qLevelSq n m = 1 − m²/P`, `∑_{m=1}^{M} (1 − qLevelSq n m)⁻¹ = ∑ P/m² ≤ 2P`. -/
-theorem qLevelSq_coupon_sum_le (n M : ℕ) : True := trivial
+`qLevelSq n m = 1 − m²/P`, with `M² ≤ P = n(n−1)` (so every active level has
+`m² ≤ P`), `∑_{m=1}^{M} (1 − qLevelSq n m)⁻¹ = ∑ P/m² ≤ 2P`. -/
+theorem qLevelSq_coupon_sum_le (n M : ℕ) (hMsq : M ^ 2 ≤ n * (n - 1)) :
+    ∑ m ∈ Finset.Icc 1 M, (1 - qLevelSq n m)⁻¹ ≤
+      2 * ((n * (n - 1) : ℕ) : ℝ≥0∞) := by
+  set TP : ℝ≥0∞ := ((n * (n - 1) : ℕ) : ℝ≥0∞) with hTPdef
+  have hofm : ∀ m : ℕ, 1 ≤ m →
+      ENNReal.ofReal (((m : ℝ) ^ 2)⁻¹) = (((m ^ 2 : ℕ) : ℝ≥0∞))⁻¹ := by
+    intro m hm0
+    rw [ENNReal.ofReal_inv_of_pos (by positivity), ENNReal.ofReal_pow (by positivity),
+      ENNReal.ofReal_natCast]
+    push_cast; ring_nf
+  have hterm : ∀ m ∈ Finset.Icc 1 M, (1 - qLevelSq n m)⁻¹
+      = TP * ENNReal.ofReal (((m : ℝ) ^ 2)⁻¹) := by
+    intro m hm
+    rw [Finset.mem_Icc] at hm
+    have hmsq : m ^ 2 ≤ n * (n - 1) :=
+      le_trans (Nat.pow_le_pow_left hm.2 2) hMsq
+    rw [qLevelSq_inv_eq n m hm.1 hmsq, div_eq_mul_inv, hTPdef, hofm m hm.1]
+  rw [Finset.sum_congr rfl hterm, ← Finset.mul_sum]
+  rw [show (2 : ℝ≥0∞) * TP = TP * ENNReal.ofReal 2 by
+    rw [mul_comm]; congr 1; simp [ENNReal.ofReal_ofNat]]
+  refine mul_le_mul_left' ?_ TP
+  rw [← ENNReal.ofReal_sum_of_nonneg (fun m _ => by positivity)]
+  refine ENNReal.ofReal_le_ofReal ?_
+  exact sum_inv_sq_Icc_le_two M
 
 /-- The drop hypothesis for stage 1: under `S1 n`, the not-dropped mass at level
 `m` is `≤ qLevel n m`. -/

@@ -864,3 +864,70 @@ the precise next atom if a self-seeding non-tie instance is wanted.
 Commits: C-4a bc51ff8d (tie determinism) · C-4b 98654cb3 (epidemic kinematics) ·
 C-4c ad50d020 (rectangle prob) · C-4d 33b1a660 (sync prob) · C-4e 2bad00f8 (window+potential) ·
 C-4f 2e3acf05 (drift) · C-4g c84645cf (non-tie PhaseConvergence) · C-4h 8edab1f6 (unified).
+
+### Phase C-1 (relay 3) — DELIVERED: full one-sided/combined mass route (gap atoms #1–#3)
+
+All in `RoleSplitConcentration.lean`, 0-sorry, 0 native_decide, axioms ⊆
+[propext, Classical.choice, Quot.sound] (single-file EXIT_0, per-theorem #print axioms).
+
+- **C-1g** SHA afb1d426: cross-class interaction-count sum.  `isAssignableBool`,
+  `assignableCount_eq_countP`, `mcrF`/`assignF` Finsets, `sum_count_mcrF` /
+  `sum_count_assignF` (filter-card identities), `sum_interactionCount_assignF_right`
+  (per-MCR-initiator, **no −1** since mcr≠assignable), and the capstone
+  `sum_interactionCount_mcr_assign : ∑_{mcrF}∑_{assignF} interactionCount =
+  mcrCount·assignableCount`.  Gap atom #1.
+- **C-1h** SHA 5cc360c7: one-sided PMF mass + decrease prob (atoms #2,#3).
+  `applicable_of_pos_iCount'` (local), `interactionPMF_toMeasure_mcr_assign_ge`
+  (mass of MCR×assignable applicable good set ≥ mcrCount·assignableCount/(card(card−1))),
+  `phase0_mcrCount_decrease_prob_oneSided` (stepDistOrSelf mass on {mcrCount decreases}
+  ≥ mcrCount·assignableCount/(n(n−1)) via stepDistOrSelf_toMeasure_ge +
+  mcrCount_config_decrease_of_mcr_assignable).
+- **C-1i** SHA 95524b2e: COMBINED rate (the paper's p = 2u/5n).
+  `sum_interactionCount_mcrF_right` / `sum_interactionCount_mcr_mcr` (MCR×MCR diagonal,
+  M(M−1), re-derived local), `mcrF_disjoint_assignF`, `sum_interactionCount_mcr_combined`
+  (mcrF ×ˢ (mcrF∪assignF) = M(M−1)+M·assignable), `interactionPMF_toMeasure_mcr_combined_ge`,
+  and `phase0_mcrCount_decrease_prob_combined`: stepDistOrSelf mass on {mcrCount decreases}
+  ≥ [M(M−1) + M·assignable]/(n(n−1)).
+
+### Phase C-1 (relay 3) — COUNT-IDENTITY FINDING (settles the prompt's hypothesis)
+
+The prompt conjectured `mcrCount + assignableCount = n` on phase-0 configs, which would
+make the Chernoff floor invariant unnecessary (pure-counting floor).  **This is FALSE.**
+`Role` has FIVE constructors (main, reserve, clock, mcr, cr — Basic/Role.lean).
+`assignableCount` counts only **unassigned** main/cr at phase 0.  Three populations are
+neither MCR nor assignable: (i) reserve/clock agents (created by Stage-2 Rule 4: cr,cr →
+clock,reserve); (ii) **assigned** main/cr agents — and `Phase0Transition` Rules 2,3
+explicitly set `assigned := true` on the partner (Transition.lean L364–386), so the
+one-sided conversion itself *removes* agents from the assignable pool; (iii) high-phase
+agents.  So neither the identity nor a clean monotone `mcrCount + assignableCount = n`
+holds, and the `assignableCount ≥ n/5` floor is a GENUINE probabilistic (Chernoff /
+Lemma 5.1) ingredient, not derivable by counting.  Confirmed: Rule 1 (mcr,mcr→main,cr)
+creates 2 *unassigned* assignables; Rules 2,3 consume one assignable (set assigned) per
+MCR converted.
+
+### Phase C-1 (relay 3) — PRECISE REMAINING GAP (atoms #4,#5) — STRUCTURAL BLOCKER
+
+The combined per-step rate `[M(M−1)+M·assignable]/(n(n−1))` is delivered.  Reaching
+`pMin = Θ(1/n)` from it needs `assignableCount ≥ n/5` AT THE ADVERSARIAL config.  But
+`MilestonePhase.progress` (JansonHitting.lean L48–51) demands the rate `≥ p i`
+**unconditionally** at *every* config with milestones `<i` reached and `i` unreached —
+there is no slot to carry a side invariant.  For the last milestone (threshold 2), the
+config `mcrCount = 2, assignableCount = 0` (all other agents reserve/clock) satisfies the
+`progress` antecedent yet has combined rate `2/(n(n−1)) = Θ(1/n²)`, so `progress` with
+`p i = Θ(1/n)` is FALSE there.  **The plain `MilestonePhase` cannot carry the floor — this
+is the same modeling limitation the predecessor hit, now pinned precisely.**
+
+To close atoms #4,#5, ONE of:
+  (A) an **invariant-relative milestone** variant `MilestonePhaseOn` (carry a support-closed
+      `Inv` — e.g. `assignableCount ≥ n/5 ∧ AllPhase0`; weaken `progress` to Inv-states;
+      thread `Inv` through `milestone_hitting_time_bound`'s MGF chain — mirrors the E2
+      `PotNonincrOn`/`coupon_expectedHitting_le_on` `_on`-ladder pattern), PLUS
+  (B) the genuinely-probabilistic Chernoff lemma `assignableCount ≥ n/5` whp on the early
+      phase-0 split (Lemma 5.1's `s_f + m_f > n/5` step) — NOT in the codebase; needs a
+      Chernoff/Azuma bound on the assigned-pool growth.  This is the ONE irreducible
+      probabilistic ingredient flagged since relay 1.
+Then instantiate `RoleSplitMilestone` (atom #5): Stage-1 milestone via (A)+(B) at combined
+rate, Stage-2 crCount family (cr,cr→clock,reserve at Θ(l²/n²), Corollary 4.4), `post_sound`
+(deterministic 1:1 counts), → `roleSplitTail_le_inv_sq` → `phase0_roleSplit_whp_inv_sq`.
+All the per-step *mass/rate* obligations are now discharged; the gap is (A) milestone-engine
+extension + (B) the Chernoff floor.

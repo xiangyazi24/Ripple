@@ -1200,5 +1200,139 @@ private lemma sum_interactionCount_mcr_combined (c : Config (AgentState L K)) :
   rw [Finset.sum_congr rfl hsplit, Finset.sum_add_distrib,
     sum_interactionCount_mcr_mcr, sum_interactionCount_mcr_assign]
 
+/-- **Combined interactionPMF mass bound.** The PMF mass of the good set "`p.1` is
+a phase-0 MCR, `p.2` is a phase-0 MCR *or* assignable, and `(p.1,p.2)` is
+applicable" is at least `[mcrCount·(mcrCount−1) + mcrCount·assignableCount] /
+(card(card−1))` — the combined diagonal + cross rate.  Re-runs the rectangle
+argument over `mcrF ×ˢ (mcrF ∪ assignF)`. -/
+private lemma interactionPMF_toMeasure_mcr_combined_ge
+    (c : Config (AgentState L K)) (hc : 2 ≤ c.card)
+    (h_phase0 : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0) :
+    (c.interactionPMF hc).toMeasure
+      {p : AgentState L K × AgentState L K |
+        p.1.role = .mcr ∧ p.1.phase.val = 0 ∧
+        ((p.2.role = .mcr ∧ p.2.phase.val = 0) ∨ IsAssignable p.2) ∧
+        Protocol.Applicable c p.1 p.2} ≥
+    ENNReal.ofReal
+      (((ExactMajority.mcrCount (L := L) (K := K) c *
+          (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+          ExactMajority.mcrCount (L := L) (K := K) c *
+            assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+        (c.card * (c.card - 1) : ℝ)) := by
+  set target := {p : AgentState L K × AgentState L K |
+    p.1.role = .mcr ∧ p.1.phase.val = 0 ∧
+    ((p.2.role = .mcr ∧ p.2.phase.val = 0) ∨ IsAssignable p.2) ∧
+    Protocol.Applicable c p.1 p.2}
+  set F := mcrF (L := L) (K := K) with hFdef
+  set G := mcrF (L := L) (K := K) ∪ assignF (L := L) (K := K) with hGdef
+  have h_sub : (↑(F ×ˢ G) : Set _) ∩ (c.interactionPMF hc).support ⊆ target := by
+    intro ⟨s₁, s₂⟩ ⟨h_mem, h_supp⟩
+    have hs₁_mcr : s₁.role = .mcr :=
+      (Finset.mem_filter.mp (Finset.mem_product.mp h_mem).1).2
+    have hs₂_mem : s₂ ∈ G := (Finset.mem_product.mp h_mem).2
+    rw [PMF.mem_support_iff] at h_supp
+    have h_app : Protocol.Applicable c s₁ s₂ := by
+      apply applicable_of_pos_iCount'
+      by_contra h0; exact h_supp (show c.interactionProb s₁ s₂ = 0 by
+        simp [Config.interactionProb, show c.interactionCount s₁ s₂ = 0 by omega])
+    have h2cond : (s₂.role = .mcr ∧ s₂.phase.val = 0) ∨ IsAssignable s₂ := by
+      rcases Finset.mem_union.mp hs₂_mem with hm | ha
+      · have hs₂_mcr : s₂.role = .mcr := (Finset.mem_filter.mp hm).2
+        exact Or.inl ⟨hs₂_mcr,
+          h_phase0 s₂ (Multiset.mem_of_le h_app
+            (Multiset.mem_cons.mpr (Or.inr (Multiset.mem_singleton_self _)))) hs₂_mcr⟩
+      · exact Or.inr ((assignableCount_pred_iff (L := L) (K := K) s₂).mp
+          (Finset.mem_filter.mp ha).2)
+    exact ⟨hs₁_mcr,
+      h_phase0 s₁ (Multiset.mem_of_le h_app (Multiset.mem_cons_self _ _)) hs₁_mcr,
+      h2cond, h_app⟩
+  have h_le := (c.interactionPMF hc).toMeasure_mono
+    (DiscreteMeasurableSpace.forall_measurableSet _) h_sub
+  suffices h_val : (c.interactionPMF hc).toMeasure (↑(F ×ˢ G)) ≥
+      ENNReal.ofReal
+        (((ExactMajority.mcrCount (L := L) (K := K) c *
+            (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+            ExactMajority.mcrCount (L := L) (K := K) c *
+              assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+          (c.card * (c.card - 1) : ℝ)) from le_trans h_val h_le
+  rw [PMF.toMeasure_apply_finset]
+  simp_rw [show ∀ p : AgentState L K × AgentState L K,
+    (c.interactionPMF hc) p = (c.interactionCount p.1 p.2 : ENNReal) / c.totalPairs
+    from fun _ => rfl, div_eq_mul_inv, ← Finset.sum_mul]
+  conv_lhs => arg 1; rw [Finset.sum_product' F G
+    (fun s₁ s₂ => (c.interactionCount s₁ s₂ : ENNReal))]
+  have h_comb := sum_interactionCount_mcr_combined (L := L) (K := K) c
+  set MM := ExactMajority.mcrCount (L := L) (K := K) c *
+      (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+    ExactMajority.mcrCount (L := L) (K := K) c *
+      assignableCount (L := L) (K := K) c with hMM
+  rw [show (∑ s₁ ∈ F, ∑ s₂ ∈ G, (c.interactionCount s₁ s₂ : ENNReal)) =
+      ((MM : ℕ) : ENNReal) from by exact_mod_cast h_comb, ← div_eq_mul_inv]
+  have h1 : 1 ≤ c.card := by omega
+  have hprod_pos : (0 : ℝ) < ↑c.card * (↑c.card - 1) := by
+    apply mul_pos
+    · exact Nat.cast_pos.mpr (by omega)
+    · exact sub_pos.mpr (by exact_mod_cast (show 1 < c.card by omega))
+  show ↑MM / ↑c.totalPairs ≥
+    ENNReal.ofReal (((MM : ℕ) : ℝ) / (↑c.card * (↑c.card - 1)))
+  have hcard_cast : ↑c.card * (↑c.card - 1 : ℝ) = ((c.card * (c.card - 1) : ℕ) : ℝ) := by
+    push_cast [Nat.cast_sub h1]; ring
+  rw [ENNReal.ofReal_div_of_pos hprod_pos, hcard_cast,
+    ENNReal.ofReal_natCast, ENNReal.ofReal_natCast,
+    show (c.card * (c.card - 1) : ℕ) = c.totalPairs from rfl]
+
+/-- **Combined decrease probability (Phase C-1 combined rate).** On a config `c`
+with `card = n`, all MCR at phase 0, and `mcrCount ≥ 2`, the scheduled step drops
+`mcrCount` with mass at least `[M(M−1) + M·assignable]/(n(n−1))` — the paper's
+combined Rule-1 + Rules-2,3 rate.  At `assignableCount ≥ n/5` (the Chernoff
+floor) and `M ≤ n` this is `≥ Θ(M/n)`. -/
+theorem phase0_mcrCount_decrease_prob_combined
+    (c : Config (AgentState L K)) (n : ℕ)
+    (h_card : c.card = n) (hn2 : 2 ≤ n)
+    (h_phase0 : ∀ a ∈ c, a.role = .mcr → a.phase.val = 0) :
+    ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+          ExactMajority.mcrCount (L := L) (K := K) c} ≥
+      ENNReal.ofReal
+        (((ExactMajority.mcrCount (L := L) (K := K) c *
+            (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+            ExactMajority.mcrCount (L := L) (K := K) c *
+              assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+          (n * (n - 1) : ℝ)) := by
+  have hc2 : 2 ≤ c.card := by omega
+  set good : Set (AgentState L K × AgentState L K) :=
+    {p | p.1.role = .mcr ∧ p.1.phase.val = 0 ∧
+         ((p.2.role = .mcr ∧ p.2.phase.val = 0) ∨ IsAssignable p.2) ∧
+         Protocol.Applicable c p.1 p.2} with hgooddef
+  have hgood : ∀ pair ∈ good, (NonuniformMajority L K).scheduledStep c pair ∈
+      {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+        ExactMajority.mcrCount (L := L) (K := K) c} := by
+    intro ⟨s, t⟩ ⟨hs_mcr, hs_phase, ht_cond, happ⟩
+    simp only [Set.mem_setOf_eq]
+    unfold Protocol.scheduledStep Protocol.stepOrSelf
+    rw [if_pos happ]
+    rcases ht_cond with ⟨ht_mcr, ht_phase⟩ | ht_assign
+    · exact mcrCount_config_decrease_of_phase0_mcr_pair c s t happ hs_phase ht_phase
+        hs_mcr ht_mcr
+    · exact mcrCount_config_decrease_of_mcr_assignable c s t happ hs_mcr hs_phase ht_assign
+  calc ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+          {c' | ExactMajority.mcrCount (L := L) (K := K) c' <
+            ExactMajority.mcrCount (L := L) (K := K) c}
+      ≥ (c.interactionPMF hc2).toMeasure good :=
+        stepDistOrSelf_toMeasure_ge c hc2 _ good hgood
+    _ ≥ ENNReal.ofReal
+          (((ExactMajority.mcrCount (L := L) (K := K) c *
+              (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+              ExactMajority.mcrCount (L := L) (K := K) c *
+                assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+            (c.card * (c.card - 1) : ℝ)) :=
+        interactionPMF_toMeasure_mcr_combined_ge c hc2 h_phase0
+    _ = ENNReal.ofReal
+          (((ExactMajority.mcrCount (L := L) (K := K) c *
+              (ExactMajority.mcrCount (L := L) (K := K) c - 1) +
+              ExactMajority.mcrCount (L := L) (K := K) c *
+                assignableCount (L := L) (K := K) c : ℕ) : ℝ) /
+            (n * (n - 1) : ℝ)) := by rw [h_card]
+
 end RoleSplitConcentration
 end ExactMajority

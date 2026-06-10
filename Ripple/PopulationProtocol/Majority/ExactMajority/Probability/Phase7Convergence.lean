@@ -352,27 +352,60 @@ theorem Phase7Transition_minorityU_eq_of_not_both_main (σ : Sign) (s t : AgentS
   rw [countP_minoritySt_pair, countP_minoritySt_pair]
   -- s-side: out₁ = (if s.role=clock then counter s else s); but minoritySt needs role=main.
   -- For the s-side we case on whether s is Main.
-  have hout : ∀ (x : AgentState L K), x.role ≠ Role.main → ¬ minoritySt σ x :=
-    fun x hx => not_minoritySt_of_not_main σ x hx
-  -- The clock-or-self side is never a Main: if clock, the counter stays clock; else it's x.
-  have hside : ∀ (x : AgentState L K), x.role ≠ Role.main →
-      ¬ minoritySt σ (if x.role = Role.clock then stdCounterSubroutine L K x else x) := by
-    intro x hx
+  -- For each side, the (clock-or-self) update has the SAME minority indicator as the input:
+  -- if the agent is a clock, both are non-Main hence non-minority; otherwise it's unchanged.
+  have hside : ∀ (x : AgentState L K),
+      (if minoritySt σ (if x.role = Role.clock then stdCounterSubroutine L K x else x)
+        then (1 : ℕ) else 0) = (if minoritySt σ x then 1 else 0) := by
+    intro x
     by_cases hxc : x.role = Role.clock
     · rw [if_pos hxc]
-      have : (stdCounterSubroutine L K x).role ≠ Role.main := by
-        rw [stdCounterSubroutine_clock_role_eq _ hxc]; decide
-      exact hout _ this
-    · rw [if_neg hxc]; exact hout x hx
+      have h1 : ¬ minoritySt σ (stdCounterSubroutine L K x) :=
+        not_minoritySt_of_not_main σ _ (by
+          have hcr : (stdCounterSubroutine L K x).role = Role.clock :=
+            stdCounterSubroutine_clock_role_eq (L := L) (K := K) x hxc
+          rw [hcr]; decide)
+      have h2 : ¬ minoritySt σ x := not_minoritySt_of_not_main σ x (by rw [hxc]; decide)
+      rw [if_neg h1, if_neg h2]
+    · rw [if_neg hxc]
   unfold Phase7Transition
   simp only [if_neg h]
-  -- Both sides are the (clock-or-self) updates of s, t, neither of which is a Main.
-  have hsnm : s.role ≠ Role.main := fun hsm => h ⟨hsm, by
-    by_contra htm
-    exact h ⟨hsm, by
-      -- if s is Main, then since not both-main, t is not Main; but we need s not main here.
-      sorry⟩⟩
-  sorry
+  rw [hside s, hside t]
+
+/-- **Per-pair `Transition` minority non-increase.**  Combines the two cases: both
+Main (reduce to `cancelSplit`, apply `cancelSplit_minorityU_pair_le` under the pair
+index hypothesis) and not both Main (`Phase7Transition` leaves Mains untouched).
+The full `Transition` reduces to `Phase7Transition` whenever both are phase-7 (the
+epidemic and phase-10 finish are identities at phase 7). -/
+theorem Transition_minorityU_pair_le (σ : Sign) (s t : AgentState L K)
+    (hs7 : s.phase.val = 7) (ht7 : t.phase.val = 7)
+    (hidx : ∀ ss i st j, s.bias = Bias.dyadic ss i → t.bias = Bias.dyadic st j →
+      ss ≠ st → (ss = σ → j.val ≤ i.val) ∧ (st = σ → i.val ≤ j.val)) :
+    Multiset.countP (fun a => minoritySt σ a)
+        ({(Transition L K s t).1, (Transition L K s t).2} : Multiset (AgentState L K))
+      ≤ Multiset.countP (fun a => minoritySt σ a) ({s, t} : Multiset (AgentState L K)) := by
+  by_cases hboth : s.role = Role.main ∧ t.role = Role.main
+  · obtain ⟨hsM, htM⟩ := hboth
+    rw [Transition_eq_cancelSplit_of_phase7_main s t hs7 ht7 hsM htM]
+    exact cancelSplit_minorityU_pair_le σ s t hsM htM hidx
+  · -- not both Main: `Transition` reduces to `Phase7Transition` (epidemic/finish = id).
+    have hepi := phaseEpidemicUpdate_eq_self_of_phase7 (L := L) (K := K) s t hs7 ht7
+    have hsp : s.phase = ⟨7, by decide⟩ := Fin.ext hs7
+    -- Phase7Transition preserves phase 7 ⇒ finishPhase10Entry = id.
+    have hp7nd := Phase7Transition_phase_nondec (L := L) (K := K) s t
+    have hge1 := (Phase7Transition_phase_nondec (L := L) (K := K) s t).1
+    have hge2 := (Phase7Transition_phase_nondec (L := L) (K := K) s t).2
+    -- phase of outputs is ≥ 7; and we need ≠ 10 for finishPhase10Entry to be id.
+    -- Phase7Transition only runs cancelSplit (phase-preserving) or the clock counter.
+    have hTr : Transition L K s t = Phase7Transition L K s t := by
+      unfold Transition
+      rw [hepi]; simp only [hsp]
+      rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) s _
+            (Phase7Transition_after_ne_10_fst s t hs7 ht7),
+          finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) t _
+            (Phase7Transition_after_ne_10_snd s t hs7 ht7)]
+    rw [hTr]
+    exact le_of_eq (Phase7Transition_minorityU_eq_of_not_both_main σ s t hboth)
 
 end Phase7Convergence
 
