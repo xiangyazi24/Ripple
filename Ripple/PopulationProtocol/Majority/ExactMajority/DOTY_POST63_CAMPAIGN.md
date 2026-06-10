@@ -2811,3 +2811,29 @@ Strictly cleaner than the gated route; reuses the audited engine verbatim.
 4. The protocol invariant `sf+2st=mf+2mt` (Lemma 5.1) is NOT yet formalized in the ExactMajority
    tree (grep-confirmed) — it is the genuine residual behind Stage-C's `hdrift`, carried as a named
    hypothesis with the documented attack route, NOT faked.
+
+## εfloor floor-prefix — FloorPrefix.lean DELIVERED (2026-06-10, opus line)
+
+New append-only `Probability/FloorPrefix.lean` (733 lines, namespace
+`ExactMajority.FloorPrefix`) realises the post-gated floor residual of
+HANDOFF_EFLOOR_PREFIX.md. Single-file EXIT_0; all headlines axiom-clean
+[propext, Classical.choice, Quot.sound]; 0 sorry/admit/axiom/native_decide. 4 commits
+(3c4d76df scalar layer / Stage-2 drift / Stage-3+4 assembly / this doc), each pushed to
+origin main + mirrored to xiangyazi24/Ripple opus-wip.
+
+PROVEN end-to-end: the scalar favorability layer (scalarPoolFav_core STRICT at b=9/100,
+d=4/100, s=1/10), the one-step pool MGF drift analytic core
+(pool_expNeg_one_step_drift_abstract — 3-band birth/death/neutral integral split, the
+genuinely-new analytic content), the §3 wrapper pool_expNeg_one_step_drift, the genuine
+Stage-2→engine connection midBand_gated_tail (via GatedDrift.gated_real_tail_full), and the
+pure region-composition floor_prefix_le + floor_prefix_le_inv_sq capstone (εfloor n = n⁻²).
+
+NAMED (the genuinely-large remaining protocol work, exact statements in the file +
+HANDOFF status): hbirth/hdeath (real-kernel band masses vs Phase0Transition), hstep (±2
+range), the warm reach, and the εmid/εlate contractive prefix (needs the absorbing-window
+killed-kernel reformulation).
+
+Blueprint corrections recorded: s=1/2 too large (→ s=1/10); windowDrift_tail needs an
+absorbing window (warm/mid band is not — use gated_real_tail_full); gated engines need
+1≤r (escape-form tail, not decaying rᵗ); Rules 2&3 are pool-conserving so the birth mass
+is carried entirely by Rule-1 (matches the proven assignable_rule accounting).

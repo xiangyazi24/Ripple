@@ -330,5 +330,146 @@ theorem topSplitXZ_step_delta_abs_le_one
   · -- Not applicable: stepOrSelf = c, delta = 0.
     rw [Protocol.stepOrSelf, if_neg happ]; simp
 
+/-- The per-step signed jump `Δ_pair = X(stepOrSelf c r₁ r₂) − X(c)` as a real. -/
+noncomputable def topSplitStepDelta (c : Config (AgentState L K))
+    (r₁ r₂ : AgentState L K) : ℝ :=
+  (topSplitXZ (L := L) (K := K) (Protocol.stepOrSelf (NonuniformMajority L K) c r₁ r₂) : ℝ)
+    - (topSplitXZ (L := L) (K := K) c : ℝ)
+
+/-- **The inward residual (the genuine, boundary-free Lemma-5.1 C-1 fact).**
+
+`InwardResidual s c` says the signed product `sinh(s·X c) · E[sinh(s·Δ)] ≤ 0`,
+where `E[sinh(s·Δ)] = ∑_pair interactionProb(pair)·sinh(s·Δ_pair)` is the one-step
+expected signed `sinh`-jump.  This is EXACTLY the cosh-MGF supermartingale
+condition.  It is BOUNDARY-FREE: at `X c = 0` we have `sinh 0 = 0` so it holds
+trivially (this is precisely how `cosh` repairs the `X=0` failure of the naive
+`∫|X| ≤ |X|` drift).  Operationally, for `s > 0` (so `sinh` is sign-preserving)
+it is the symmetric inward pair-count comparison
+`#(R2: X-decreasing pairs) ≥ #(R3: X-increasing pairs)` on `{X>0}` and its
+mirror on `{X<0}` — the honest content of the paper's `sf+2·st = mf+2·mt`
+ledger (Doty §5.1), which forces `#unassigned-Main ≥ #unassigned-(cr/clock/reserve)`
+when more Main than RoleCR has been produced. -/
+def InwardResidual (s : ℝ) (c : Config (AgentState L K)) : Prop :=
+  Real.sinh (s * (topSplitXZ (L := L) (K := K) c : ℝ))
+    * (∑ pair : AgentState L K × AgentState L K,
+        (Config.interactionProb c pair.1 pair.2).toReal
+          * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)) ≤ 0
+
+/-- **The cosh one-step drift (real form).**  On the Phase-0 region with `s ≥ 0`,
+`2 ≤ card`, and the inward residual, the cosh MGF contracts multiplicatively:
+`∫ coshExpVal s dK(c) ≤ cosh s · coshExpVal s c`.  No additive immigration term —
+unlike the clock-counter potential, the cosh MGF has no fresh-mass injection.
+
+Proof: `cosh(s·X') = cosh(s·X)·cosh(s·Δ) + sinh(s·X)·sinh(s·Δ)` (`cosh_add`);
+summing against the interaction law splits into `cosh(s·X)·E[cosh(s·Δ)]` (bounded
+by `cosh s · cosh(s·X)` since `|Δ| ≤ 1 ⟹ cosh(s·Δ) ≤ cosh s` and `∑prob = 1`)
+plus `sinh(s·X)·E[sinh(s·Δ)] ≤ 0` (the inward residual). -/
+theorem coshExpVal_drift_real (s : ℝ) (hs : 0 ≤ s)
+    (c : Config (AgentState L K)) (hc2 : 2 ≤ Multiset.card c)
+    (hall : Phase0Window.allPhase0 (L := L) (K := K) c)
+    (hinw : InwardResidual (L := L) (K := K) s c) :
+    ∫ c', coshExpVal (L := L) (K := K) s c'
+        ∂((NonuniformMajority L K).transitionKernel c)
+      ≤ Real.cosh s * coshExpVal (L := L) (K := K) s c := by
+  classical
+  -- abbreviations
+  set X : ℝ := (topSplitXZ (L := L) (K := K) c : ℝ) with hX
+  -- 1) integral = pair sum.
+  rw [integral_transitionKernel_eq_sum coshExpVal c hc2]
+  -- 2) per-pair cosh_add decomposition.
+  have hdecomp : ∀ pair : AgentState L K × AgentState L K,
+      (Config.interactionProb c pair.1 pair.2).toReal
+          * coshExpVal (L := L) (K := K) s
+              (Protocol.stepOrSelf (NonuniformMajority L K) c pair.1 pair.2)
+        = (Config.interactionProb c pair.1 pair.2).toReal
+            * (Real.cosh (s * X)
+                * Real.cosh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2))
+          + (Config.interactionProb c pair.1 pair.2).toReal
+            * (Real.sinh (s * X)
+                * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)) := by
+    intro pair
+    unfold coshExpVal topSplitStepDelta
+    rw [show s * (topSplitXZ (L := L) (K := K)
+            (Protocol.stepOrSelf (NonuniformMajority L K) c pair.1 pair.2) : ℝ)
+          = s * X + s * ((topSplitXZ (L := L) (K := K)
+              (Protocol.stepOrSelf (NonuniformMajority L K) c pair.1 pair.2) : ℝ) - X) by
+        rw [hX]; ring]
+    rw [Real.cosh_add, mul_add]
+  rw [Finset.sum_congr rfl (fun pair _ => hdecomp pair), Finset.sum_add_distrib]
+  -- 3) bound the cosh part by cosh s · cosh(sX), and the sinh part ≤ 0 (inward).
+  set probR : AgentState L K × AgentState L K → ℝ :=
+    fun pair => (Config.interactionProb c pair.1 pair.2).toReal with hprobR
+  -- ∑ prob = 1
+  have hsumprob : (∑ pair : AgentState L K × AgentState L K, probR pair) = 1 := by
+    have := (c.interactionPMF hc2).tsum_coe
+    rw [tsum_eq_sum (s := Finset.univ)
+        (by intro x hx; exact absurd (Finset.mem_univ x) hx)] at this
+    have hcast : (∑ pair : AgentState L K × AgentState L K, probR pair)
+        = ((∑ pair : AgentState L K × AgentState L K,
+            Config.interactionProb c pair.1 pair.2)).toReal := by
+      rw [ENNReal.toReal_sum]
+      · rfl
+      · intro pair _; exact (c.interactionProb_ne_top pair.1 pair.2)
+    rw [hcast]
+    rw [show (∑ pair : AgentState L K × AgentState L K,
+        Config.interactionProb c pair.1 pair.2) = 1 from by
+      convert this using 1]
+    simp
+  -- COSH part: each term ≤ cosh s · cosh(sX) · prob.
+  have hcoshpart : (∑ pair : AgentState L K × AgentState L K,
+        probR pair * (Real.cosh (s * X)
+          * Real.cosh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)))
+      ≤ Real.cosh s * Real.cosh (s * X) := by
+    have hbound : ∀ pair : AgentState L K × AgentState L K,
+        probR pair * (Real.cosh (s * X)
+          * Real.cosh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2))
+        ≤ probR pair * (Real.cosh (s * X) * Real.cosh s) := by
+      intro pair
+      have hprobnn : 0 ≤ probR pair := ENNReal.toReal_nonneg
+      have hcoshXnn : 0 ≤ Real.cosh (s * X) := le_trans zero_le_one (one_le_cosh' _)
+      have hdelta := topSplitXZ_step_delta_abs_le_one (L := L) (K := K) c pair.1 pair.2 hall
+      have hjle : Real.cosh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)
+          ≤ Real.cosh s := by
+        apply cosh_le_cosh_of_abs_le hs
+        rw [abs_mul, abs_of_nonneg hs]
+        calc s * |topSplitStepDelta (L := L) (K := K) c pair.1 pair.2|
+            ≤ s * 1 := by
+              apply mul_le_mul_of_nonneg_left _ hs
+              exact hdelta
+          _ = s := by ring
+      apply mul_le_mul_of_nonneg_left _ hprobnn
+      exact mul_le_mul_of_nonneg_left hjle hcoshXnn
+    refine le_trans (Finset.sum_le_sum (fun pair _ => hbound pair)) ?_
+    rw [← Finset.sum_mul, hsumprob, one_mul, mul_comm]
+  -- SINH part: = sinh(sX)·∑ prob·sinh(sΔ) ≤ 0 (inward residual).
+  have hsinhpart : (∑ pair : AgentState L K × AgentState L K,
+        probR pair * (Real.sinh (s * X)
+          * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)))
+      ≤ 0 := by
+    have hfactor : (∑ pair : AgentState L K × AgentState L K,
+          probR pair * (Real.sinh (s * X)
+            * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)))
+        = Real.sinh (s * X)
+          * (∑ pair : AgentState L K × AgentState L K,
+              probR pair
+                * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)) := by
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro pair _; ring
+    rw [hfactor]
+    exact hinw
+  -- combine
+  have hcombine : (∑ pair : AgentState L K × AgentState L K,
+        probR pair * (Real.cosh (s * X)
+          * Real.cosh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)))
+      + (∑ pair : AgentState L K × AgentState L K,
+        probR pair * (Real.sinh (s * X)
+          * Real.sinh (s * topSplitStepDelta (L := L) (K := K) c pair.1 pair.2)))
+      ≤ Real.cosh s * Real.cosh (s * X) := by linarith [hcoshpart, hsinhpart]
+  -- close: coshExpVal s c = cosh (s·X).
+  unfold coshExpVal
+  rw [← hX]
+  exact hcombine
+
 end RoleSplitConcentration
 end ExactMajority

@@ -655,3 +655,84 @@ theorem roleSplitKernelMilestone_pMin_meanTime ... :
 RoleSplitConcentration
 
 So the residual really is only the warm-up-shifted floor prefix. The rest of the branch is already structurally ready.
+
+---
+
+## STATUS — FloorPrefix.lean delivered (2026-06-10, opus line)
+
+New append-only file `Probability/FloorPrefix.lean` (733 lines, namespace
+`ExactMajority.FloorPrefix`). Single-file `lake env lean` EXIT_0; every headline
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; no sorry / admit / axiom /
+native_decide. Three commits (one per stage group) + this doc commit, each pushed to
+`origin main` and mirrored to `xiangyazi24/Ripple opus-wip`.
+
+### Per-stage verdict
+
+**Stage 1 — defs + scalar layer: PROVEN.**
+- `poolExpNeg`, `PoolDriftRegion`, `ScalarPoolFav` (exactly per §3); `Phase0WarmGood`,
+  `LowStartGood`, `floorFailsBeforePost`, `floorOrDoneGate` (§1–§2, §5).
+- `scalarPoolFav_core` (STRICT favorability `d(e^{2s}-1) < b(1-e^{-2s})` at `b=9/100`,
+  `d=4/100`, `s=1/10`, via `Real.exp_bound'` + `Real.add_one_le_exp`), `scalarPoolFav_lt_one`
+  (`r<1`), `scalarPoolFav_instance`.
+
+**Stage 2 — one-step pool drift: analytic core PROVEN; protocol masses NAMED.**
+- `pool_expNeg_one_step_drift_abstract` (PROVEN, 0-sorry): the genuinely-new analytic
+  content. Splits the one-step successor measure into birth/death/neutral bands (per-step
+  pool change in `[-2,+2]`), exponentially tilts, and via `toReal` mass bookkeeping proves
+  `∫ poolExpNeg dK ≤ (1 - b(1-e^{-2s}) + d(e^{2s}-1))·poolExpNeg`. Mirrors `ClockRealSeed`'s
+  `lintegral_add_compl` split, extended to 3 bands.
+- `pool_expNeg_one_step_drift` (PROVEN wrapper, §3 headline) — masses fixed to
+  `b = uMin(uMin-1)/(n(n-1))`, `d = Ahi²/(n(n-1))`, favorability via `ScalarPoolFav`.
+- `birthR1Mass`, `r4FreshCRDrainMass` (defs = the real-kernel band masses).
+- **NAMED hypotheses** (the genuinely-large remaining protocol work — exact statements):
+  * `hbirth : ∀ c ∈ PoolDriftRegion, ofReal(uMin(uMin-1)/(n(n-1))) ≤ birthR1Mass c`
+    (Rule-1 `MCR,MCR→Main,CR` birth mass; the `+2` model is CONFIRMED by the proven
+    per-rule `assignable_rule2_s_stays`/`assignable_rule3_conserved` in RoleSplitConcentration).
+  * `hdeath : ∀ c ∈ PoolDriftRegion, r4FreshCRDrainMass c ≤ ofReal(Ahi²/(n(n-1)))`
+    (fresh-CR-pair drain mass ≤ pool²/(n(n-1))).
+  * `hstep : ∀ c ∈ PoolDriftRegion, ∀ᵐ c', (pool c : ℤ) - 2 ≤ (pool c' : ℤ)` (the ±2
+    per-step interaction range — a deterministic support fact).
+
+**Stage 3 — warm-up tail: engine connection PROVEN; warm reach NAMED.**
+- `midBand_gated_tail` (PROVEN): the genuine Stage-2 → engine wiring. Instantiates
+  `GatedDrift.gated_real_tail_full` at `poolExpNeg`, giving the mid-band kernel tail
+  `t·η + rᵗ·Φx/θ` from the one-step drift.
+- `phase0_floor_warmup_whp` — warm-up checkpoint with the reach mass as named hypothesis.
+
+**Stage 4 — assembly: PROVEN.**
+- `midBandBad`/`lateBandBad` + `floorFailsBeforePost_subset` (pointwise region cover by the
+  `u`-trichotomy). `floor_prefix_le` (PROVEN, pure `measure_union_le` + `Finset.sum_le_sum`
+  composition): the post-gated floor prefix ≤ `εwarm+εmid+εlate`. `εfloor n := n⁻²`,
+  `floor_prefix_le_inv_sq` capstone.
+
+### Blueprint claims that turned out WRONG against the real repo
+
+1. **`s = 1/2` is TOO LARGE.** At `s=1/2` the tilted drift multiplier is `> 1` (not
+   contractive). The favorability needs small `s`; `s=1/10` gives `r ≈ 0.993 < 1`. (The
+   crude `9/4`-style `exp` bound for `e^{0.2}-1` is also too loose — the tight `exp_bound'`
+   value `≈0.222` is required.)
+
+2. **`windowDrift_tail` does NOT apply to the warm-up / mid band.** Its `hQ_abs` hypothesis
+   requires the window to be one-step-support closed (absorbing). The warm-up band
+   `{pool < 2a₀ ∧ u ≥ uMin}` is NOT absorbing (a Rule-1 birth crosses `2a₀`; conversions
+   drop `u`). The honest non-absorbing engine is `GatedDrift.gated_real_tail_full`.
+
+3. **The gated engines require `1 ≤ r`** (the killed potential must dominate the cemetery
+   transition). So `gated_real_tail_full` gives the escape form `t·η + rᵗ·Φx/θ`, NOT a
+   decaying `rᵗ`. A genuinely-contractive `r<1` floor prefix therefore needs the
+   absorbing-window reformulation (stopped/killed gate); this is why `εmid`/`εlate` stay
+   named in the assembly rather than discharged by a single contractive engine call.
+
+4. The blueprint's Rule-4 "fresh-CR drain −2" / "R1 +2" mass MODEL is directionally
+   correct, but the per-rule `assignableCount` accounting already proven in
+   RoleSplitConcentration (the 2026-06-10 paper-faithful fix) shows Rules 2 and 3 are
+   pool-CONSERVING (Δ=0), and only Rule 1 contributes `+2` — so the honest birth mass is
+   carried entirely by Rule-1 `MCR,MCR` interactions, as encoded in `birthR1Mass`.
+
+### Remaining work (for a follow-up line)
+
+The three named protocol hypotheses (`hbirth`/`hdeath`/`hstep`) and the warm reach are the
+genuinely-new count-mass discharges against the real `Phase0Transition` /
+`interactionPMF` (mirror `phase0_mcrCount_decrease_prob_oneSided`'s rectangle-mass route).
+The `εmid`/`εlate` contractive prefix bound needs the absorbing-window (killed-kernel)
+reformulation per finding (3).

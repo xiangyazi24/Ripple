@@ -731,17 +731,3 @@ theorem floor_prefix_le_inv_sq
 
 end FloorPrefix
 end ExactMajority
-
--- FINAL AXIOM AUDIT (temporary)
-open ExactMajority.FloorPrefix in
-#print axioms scalarPoolFav_core
-#print axioms ExactMajority.FloorPrefix.scalarPoolFav_lt_one
-#print axioms ExactMajority.FloorPrefix.scalarPoolFav_instance
-#print axioms ExactMajority.FloorPrefix.poolExpNeg_measurable
-#print axioms ExactMajority.FloorPrefix.pool_expNeg_one_step_drift_abstract
-#print axioms ExactMajority.FloorPrefix.pool_expNeg_one_step_drift
-#print axioms ExactMajority.FloorPrefix.floorFailsBeforePost_subset
-#print axioms ExactMajority.FloorPrefix.floor_prefix_le
-#print axioms ExactMajority.FloorPrefix.midBand_gated_tail
-#print axioms ExactMajority.FloorPrefix.phase0_floor_warmup_whp
-#print axioms ExactMajority.FloorPrefix.floor_prefix_le_inv_sq
