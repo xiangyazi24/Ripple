@@ -370,6 +370,64 @@ theorem coupon_expectedHitting_le_of_occBounds [DiscreteMeasurableSpace α]
   rw [Finset.mem_Icc] at hm
   exact hocc m hm.1 hm.2
 
+/-! ### Remaining gap: arbitrary-start level occupation (strong-Markov restart)
+
+`coupon_expectedHitting_le_of_occBounds` reduces the capstone to the per-level
+occupation bound
+
+  `occLevel K Φ m c ≤ (1 - q m)⁻¹`   for **arbitrary** start `c`  (∗)
+
+(plus the trivial high-level vanishing `hhi`, which follows from `Φ c ≤ M` and
+`pow_above_eq_zero_of_start_le`).
+
+`level_occ_expectedHitting` already proves the *constrained-start* version of (∗):
+for `Φ c ≤ m`,
+  `expectedHitting K c (potBelow Φ m) ≤ (1 - q m)⁻¹`,
+and `occLevel K Φ m c ≤ expectedHitting K c (potBelow Φ m)` holds for such starts
+because the chain stays in `{Φ ≤ m}` so `{Φ = m} = (potBelow Φ m)ᶜ` along it
+(this is exactly `pow_above_eq_zero_of_start_le` + the level/below identity).
+
+The gap is purely the **first-passage restart**: from a start `Φ c > m`, the
+level-`m` occupation equals (probability of ever reaching `{Φ ≤ m}`) × (occupation
+once entered).  The first factor is `≤ 1`; the second is the constrained bound
+`(1 - q m)⁻¹`.  Formalizing this requires a one first-passage decomposition of the
+tail sum `∑'_t (K^t) c {Φ = m}` through the hitting time of `{Φ ≤ m}` — the
+standard strong-Markov occupation identity, not yet available as a generic kernel
+lemma in this development.  It is the single remaining brick for the full
+`O(n² log n)` interaction-count expectation.  See campaign file Phase E2 notes. -/
+
+/-! ### Phase-10 instantiation target
+
+For the real protocol `K := (NonuniformMajority L K).transitionKernel` and the
+stage potentials of `Analysis/Phase10Backup.lean`:
+
+* **cancel stage** `Φ := activeBCount` (majority A case): `Done = {activeBCount = 0}`;
+* **absorb-T stage** `Φ := wrongACount` after `activeBCount = 0`;
+* **convert-passive stage** `Φ := wrongACount` (passive recount).
+
+Each needs three protocol facts to feed the generic engine:
+1. `PotNonincr K Φ` — one scheduler step never increases the potential.  Follows
+   from the per-pair non-increase lemmas (`activeBCount_cancel_A_B_lt` /
+   `wrongACount_activeA_nonActiveB_lt` give *strict* decrease on the useful pair;
+   the support-wide non-increase is the easy direction: no Phase-10 reaction
+   creates active B / un-A's an A).
+2. the per-level drop `∀ b, Φ b = m → K b (potBelow Φ m)ᶜ ≤ q m` with
+   `q m = 1 - (lower bound on useful-pair interaction probability)`.  The useful
+   probability is `≥ (class interactionCount) / (n(n−1))`; with `m` active-B (or
+   `m` wrong-A) agents and `≥ 1` active-A, the class count is `≥ m` (one active-A
+   times `m` partners), so `q m = 1 - m / (n(n−1))` and
+   `(1 - q m)⁻¹ = n(n−1)/m`.  Establishing this lower bound is where the
+   **state-multiplicity** subtlety lives: "active A" is a *class* of `AgentState`
+   records, so the single-pair technique of
+   `Phase2TimeConvergence.step_advance_prob` must be aggregated over the class via
+   `interactionCount`'s additivity (a `Finset.sum` over the active-A / wrong-A
+   states present), rather than instantiated at one fixed `Λ` value.
+3. the harmonic evaluation `∑_{m=1}^{n} n(n−1)/m = n(n−1) H_n = O(n² log n)`.
+
+The three stages are then chained by `expectedHitting_le_through_mid`
+(majority/tie case split via `Phase10Backup.backupSignal` sign), giving the
+Lemma 7.7 expectation bound in interaction counts. -/
+
 end Coupon
 
 end ExactMajority

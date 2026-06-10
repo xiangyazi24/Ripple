@@ -578,23 +578,6 @@ theorem G_pow_10000_ge : (10 : ℝ) ^ (15 : ℕ) ≤ (201/200 : ℝ) ^ (10000 : 
     _ ≤ ((201/200 : ℝ) ^ 200) ^ 50 := h2
     _ = (201/200 : ℝ) ^ (10000 : ℕ) := hchain
 
-/-- The ladder-reach: for `n ≥ N₀`, `(201/200)^{10000}·(θn n) ≥ aM n` (so a `10000`-rung geometric
-ladder from `⌈g·X₀⌉ ≥ θn` saturates the cap `aM n = n/10+1`).  Chain: `(201/200)^{10000}·θn ≥
-10^{15}·10^{24} = 10^{39} > n/10+1 = aM n` (using `θn ≥ 10^{24}` and the `2^{50}` slack). -/
-theorem ladder_reach (n : ℕ) (hn : N₀ ≤ n) :
-    (aM n : ℝ) ≤ (201/200 : ℝ) ^ (10000 : ℕ) * (θn n : ℝ) := by
-  have hGpow : (10 : ℝ) ^ (15 : ℕ) ≤ (201/200 : ℝ) ^ (10000 : ℕ) := G_pow_10000_ge
-  -- θn ≥ 10^24
-  have hθlo : (10 : ℝ) ^ (24 : ℕ) - 1 ≤ (θn n : ℝ) := by
-    have hrpge : (10 : ℝ) ^ (24 : ℕ) ≤ (n : ℝ) ^ ((3 : ℝ) / 5) := rpow_three_fifths_ge n hn
-    exact le_trans (by linarith) (sub_one_le_θn n)
-  have hθ24 : (10 : ℝ) ^ (24 : ℕ) - 1 ≤ (θn n : ℝ) := hθlo
-  -- aM n = n/10+1 ≤ n/10 + 1 ≤ 10^39 + 1 (n ≤ 10^40 is FALSE; n can be huge). Use aM n ≤ n.
-  -- Better: aM n = ⌊n/10⌋+1 ≤ n/10 + 1.  And 10^15·θn ≥ 10^15·(10^24−1) ≥ huge ≥ n/10+1?  NO — n unbounded.
-  -- The ladder must reach aM n = n/10+1 from θn = ⌊n^{3/5}⌋.  G^{10000}·θn ≥ 10^{15}·n^{3/5}·(1−o(1)).
-  -- Need 10^{15}·n^{3/5} ≥ n/10+1, i.e. n^{2/5} ≤ 10^{16}, i.e. n ≤ 10^{40}.  This FAILS for n > 10^40.
-  sorry
-
 end DotyParams
 
 end ExactMajority

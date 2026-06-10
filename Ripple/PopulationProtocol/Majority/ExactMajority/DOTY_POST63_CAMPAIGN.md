@@ -98,6 +98,39 @@ Lean bricks:
   infrastructure exists (Analysis/Phase10Backup.lean: signed sums, active counts). Probability
   side: cancel/spread reactions at rate ≥ activeCount²/n²-style → coupon-collector/geometric
   sums. Uses E1's geometric-tail on the active-count potential.
+  **PARTIAL 2026-06-10** (generic engine complete, capstone reduced to ONE strong-Markov lemma;
+  0-sorry, axiom-clean = [propext, Classical.choice, Quot.sound]; both files single-file EXIT_0).
+  Convention: all bounds in INTERACTION COUNTS (= kernel steps); parallel time = interactions/n,
+  so cancel = O(n²), coupon stages = O(n² log n) each. Delivered:
+  - `ExpectedHitting.lean` (appended, generic): `expectedHitting_one_step` (one-step success ≥ p ⇒
+    E[T] ≤ p⁻¹), `expectedHitting_one_step_q` (failure ≤ q ⇒ E[T] ≤ (1-q)⁻¹). SHAs ceb63d86.
+  - `Probability/Phase10ExpectedTime.lean` (NEW). Generic `Coupon` section over `K : Kernel α α`,
+    `Φ : α → ℕ`, `Done = potDone Φ = {Φ = 0}`:
+    * `potDone/potAbove/potBelow` (+ measurable/compl), `compl_potDone`.
+    * **chaining** `bad_split_through_mid`, `expectedHitting_le_through_mid`
+      (`Done ⊆ Mid` ⇒ E[hit Done] ≤ E[hit Mid] + ∑ₜ P(Mid∖Done at t)). SHA d101ca6f.
+    * **occupation engine** `PotNonincr K Φ` (one step never raises Φ), `potBelow_absorbing`,
+      `pow_above_eq_zero_of_start_le` ({Φ>m} stays 0-mass from Φc≤m), `level_occ_contract`,
+      `level_occ_geometric`, `level_occ_expectedHitting` (CONSTRAINED start Φc≤m ⇒
+      E[hit {Φ<m}] ≤ (1-q)⁻¹). SHA 3c8ad20b.
+    * **coupon assembly** `occLevel`, `expectedHitting_eq_tsum_occLevel` (exact occupation
+      decomposition E[hit Done] = ∑'ₘ occLevel(m+1)), `coupon_expectedHitting_le_of_occBounds`
+      (per-level occ ≤ (1-qₘ)⁻¹ + high-level vanishing ⇒ E[hit Done] ≤ ∑_{m=1}^M (1-qₘ)⁻¹,
+      the harmonic sum). SHA e2e1849e.
+  - **BLOCKER (single, precisely isolated)** SHA dee0ef4c: the capstone needs `occLevel K Φ m c ≤
+    (1-qₘ)⁻¹` for ARBITRARY start (strong-Markov first-passage). `level_occ_expectedHitting`
+    proves the CONSTRAINED-start (Φc≤m) version; the gap is purely the first-passage restart
+    (occLevel m c = ∫_b occLevel m b d(Kc) for Φc>m ⇒ occLevel is harmonic above level m, bounded
+    by the constrained value at first entry into {Φ≤m}). Needs ~first-passage occupation identity,
+    not yet a generic kernel lemma here. Once it lands, `coupon_expectedHitting_le_of_occBounds`
+    closes the harmonic bound immediately.
+  - **Phase-10 instantiation target** (documented in file): K = (NonuniformMajority L K).transitionKernel;
+    cancel Φ=activeBCount, absorb-T/convert-passive Φ=wrongACount; needs (1) PotNonincr from
+    support-wide non-increase (easy: no reaction creates active-B / un-A's an A), (2) per-level
+    drop qₘ = 1 - m/(n(n-1)) — the **state-multiplicity** subtlety: "active A" is a CLASS of
+    AgentState records, so `Phase2TimeConvergence.step_advance_prob`'s single-pair technique must
+    be aggregated over the class via `interactionCount` additivity, (3) ∑ n(n-1)/m = n(n-1)Hₙ.
+    Stage chaining via `expectedHitting_le_through_mid`, majority/tie split via backupSignal sign.
 - **E3** Conditional progress: from any config with |C| ≥ 2 (post-Phase-0), each timed phase ends
   within expected O(n/|C| · log n)-shape time (counter always ticks); gives both the bad-event
   O(log n) (|C| ≥ 0.24n) and the tiny-clock poly(n) bound from ONE parameterized lemma.
