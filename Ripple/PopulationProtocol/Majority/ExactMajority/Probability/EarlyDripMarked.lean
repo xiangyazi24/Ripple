@@ -5830,6 +5830,112 @@ theorem slice_discharge (Q σ RW RWb Gm Y₀ drip Yt : ℝ)
   slice_exp_le Q σ (1/200) RW RWb (9/10) (5123/5000) (201/200) (3/200) Y₀ drip Gm Yt
     hσ hQ hRW0 (by norm_num) (by norm_num) hY hRW hRWb0 hdrip hdrip0 hYt
 
+/-- **The uniform δ monotonization**: `per_window_delta`'s `X₀`-dependent RHS
+`exp(−δg·X₀+σg) + M·exp(σ·(X₀²/n)·AB)` is monotone-bounded, for every invariant feeder
+`θn ≤ X₀`, by its value at the floor `X₀ = θn`, provided `δg > 0`, `AB < 0`, `σ ≥ 0`, `0 < n`.  This
+turns the per-mc₀ `per_window_delta` bound into the UNIFORM `δ` consumed by `recurrence_checkpoint`'s
+`hB`. -/
+theorem perWindowDelta_uniform (n : ℕ) (hn : 0 < n) (σ σg δg AB : ℝ) (M : ℕ) (θn X₀ : ℕ)
+    (hσ : 0 ≤ σ) (hδg : 0 < δg) (hAB : AB < 0) (hθ : θn ≤ X₀) :
+    ENNReal.ofReal (Real.exp (-(δg * (X₀ : ℝ)) + σg))
+      + (M : ℝ≥0∞) * ENNReal.ofReal
+          (Real.exp (σ * (((X₀ : ℝ) ^ 2 / (n : ℝ)) * AB)))
+      ≤ ENNReal.ofReal (Real.exp (-(δg * (θn : ℝ)) + σg))
+        + (M : ℝ≥0∞) * ENNReal.ofReal
+            (Real.exp (σ * (((θn : ℝ) ^ 2 / (n : ℝ)) * AB))) := by
+  have hnℝ : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
+  have hθX : (θn : ℝ) ≤ (X₀ : ℝ) := by exact_mod_cast hθ
+  have hθ0 : (0 : ℝ) ≤ (θn : ℝ) := by positivity
+  refine add_le_add ?_ ?_
+  · -- floor term: exp(−δg·X₀+σg) ≤ exp(−δg·θn+σg) since δg>0, X₀≥θn.
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have : δg * (θn : ℝ) ≤ δg * (X₀ : ℝ) := mul_le_mul_of_nonneg_left hθX hδg.le
+    linarith
+  · -- slice term: σ·(X₀²/n)·AB ≤ σ·(θn²/n)·AB since AB<0 and X₀²≥θn².
+    refine mul_le_mul_left' ?_ _
+    apply ENNReal.ofReal_le_ofReal
+    apply Real.exp_le_exp.mpr
+    have hsq : (θn : ℝ) ^ 2 ≤ (X₀ : ℝ) ^ 2 := by nlinarith [hθX, hθ0]
+    have hQmono : (X₀ : ℝ) ^ 2 / (n : ℝ) * AB ≤ (θn : ℝ) ^ 2 / (n : ℝ) * AB := by
+      have hQX : (θn : ℝ) ^ 2 / (n : ℝ) ≤ (X₀ : ℝ) ^ 2 / (n : ℝ) := by
+        rw [div_le_div_iff_of_pos_right hnℝ]; exact hsq
+      -- multiplying a larger Q by a NEGATIVE AB flips: X₀²/n·AB ≤ θn²/n·AB.
+      nlinarith [hQX, hAB]
+    exact mul_le_mul_of_nonneg_left hQmono hσ
+
+/-- **The `hB` discharge (item 1 capstone)**: the per-window recurrence-bad bound consumed by
+`recurrence_checkpoint`/`front_squares_whp`, supplied UNIFORMLY by `per_window_delta` at the locked
+constants and monotonized to the floor `X₀ = θn`.  Per invariant window-open start `mc₀`, a ladder
+`a mc₀ : ℕ → ℕ` with cap `a mc₀ M = aM` (the `recurrence_checkpoint` cap, `aM ≥ n/10`) and threshold
+`Yt mc₀` satisfying `per_window_delta`'s hypotheses (`ha0`, `hYt`, `hfloor` via `floor_discharge`,
+`hslice` via `slice_discharge`) yields the per-window bad bound `≤ δ`, where the UNIFORM
+`δ := exp(−δgLocked·θn + σg) + M·exp(σ·(θn²/n)·AB)` (`δgLocked > 0`, `AB < 0` — the two locked
+margins).  The per-`mc₀` ladder data and its structural facts (the ceiling/scale plug-in) are carried
+as hypotheses; this isolates the exact remaining arithmetic. -/
+theorem hB_discharge (T θn n : ℕ) (hn : 2 ≤ n) (σ : ℝ) (hσ : 0 < σ)
+    (w : ℕ) (M aM : ℕ) (hσsmall : σ * (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ w
+        ≤ (1/200 : ℝ) / (1 + (1/200 : ℝ)))
+    (g G RWb : ℝ) (Gm : ℕ → ℝ) (hGm1 : ∀ m, 1 ≤ Gm m) (hRWb0 : 0 ≤ RWb)
+    (hAB : (9/10 : ℝ) * RWb
+        - g ^ 2 * ((9/10 : ℝ) - G ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)) < 0)
+    (hB0 : 0 ≤ g ^ 2 * ((9/10 : ℝ) - G ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)))
+    -- per-mc₀ ladder data:
+    (a : Config (MarkedAgent L K) → ℕ → ℕ) (Yt : Config (MarkedAgent L K) → ℕ → ℕ)
+    (haM : ∀ mc₀, a mc₀ M = aM)
+    (ha0 : ∀ mc₀, 10 * a mc₀ 0 ≤ n)
+    (hYtcap : ∀ mc₀, ∀ m < M, (Yt mc₀ m : ℝ) ≤ (9/10 : ℝ) * (a mc₀ m : ℝ) ^ 2 / (n : ℝ) + 1)
+    (hfloor : ∀ mc₀, recInv (L := L) (K := K) T θn n (9/10) mc₀ →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      -(((1/10 : ℝ) + (w : ℝ) * (1.8 * (1 - Real.exp (-(1/10 : ℝ))) / (n : ℝ)))
+            * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+          + (1/10 : ℝ) * (a mc₀ 0 : ℝ)
+        ≤ -(δgLocked * (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) : ℝ))
+          + (1/10 : ℝ))
+    (hsliceB : ∀ mc₀, recInv (L := L) (K := K) T θn n (9/10) mc₀ →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ∀ m < M,
+        σ * (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ w
+              * (cleanAbove (L := L) (K := K) T mc₀ : ℝ)
+            + ((a mc₀ (m + 1) : ℝ) / (n : ℝ)) ^ 2 * (1 + (1/200 : ℝ)) * σ
+                * (1 + 2 * (1 + (1/200 : ℝ)) / (n : ℝ)) ^ w * (w : ℝ)
+            - σ * (Yt mc₀ m : ℝ)
+          ≤ σ * (((rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc₀) : ℝ) ^ 2 / (n : ℝ))
+              * ((9/10 : ℝ) * RWb - Gm m
+                * (g ^ 2 * ((9/10 : ℝ) - G ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)))))) :
+    ∀ mc₀, recInv (L := L) (K := K) T θn n (9/10) mc₀ →
+      AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) →
+      10 * rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) ≤ n →
+      ((markedK (L := L) (K := K) T θn) ^ w) mc₀
+          {mc | ((9/10 : ℝ) * (rBeyond (L := L) (K := K) T
+                (eraseConfig (L := L) (K := K) mc) : ℝ) ^ 2 / (n : ℝ)
+              < (cleanAbove (L := L) (K := K) T mc : ℝ)) ∧
+            rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc) ≤ aM ∧
+            mc.card = n ∧ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc)}
+        ≤ ENNReal.ofReal (Real.exp (-(δgLocked * (θn : ℝ)) + (1/10 : ℝ)))
+          + (M : ℝ≥0∞) * ENNReal.ofReal
+              (Real.exp (σ * (((θn : ℝ) ^ 2 / (n : ℝ))
+                * ((9/10 : ℝ) * RWb
+                  - g ^ 2 * ((9/10 : ℝ) - G ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)))))) := by
+  intro mc₀ hInv hP3 hX
+  have hR : mc₀.card = n ∧ AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀) :=
+    ⟨hInv.1, hInv.2.1⟩
+  have hθX : θn ≤ rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀) :=
+    (hInv.2.2 hP3 hX).1
+  -- apply per_window_delta at this mc₀'s ladder; rewrite a mc₀ M = aM in the event.
+  have hpwd := per_window_delta (L := L) (K := K) T θn n hn (9/10) (1/10) σ (1/200)
+    (by norm_num) (by norm_num) hσ (by norm_num) w hσsmall mc₀ hR (a mc₀) M (ha0 mc₀) (Yt mc₀)
+    (hYtcap mc₀) δgLocked g G RWb Gm hGm1 hRWb0
+    (by positivity) hB0 (hfloor mc₀ hInv hX) (hsliceB mc₀ hInv hX)
+  rw [haM mc₀] at hpwd
+  -- monotonize the X₀-dependent RHS to the floor X₀ = θn.
+  refine le_trans hpwd ?_
+  exact perWindowDelta_uniform n (by omega) σ (1/10) δgLocked
+    ((9/10 : ℝ) * RWb - g ^ 2 * ((9/10 : ℝ) - G ^ 2 * (1 + (1/200 : ℝ)) * RWb * (3 / 200)))
+    M θn (rBeyond (L := L) (K := K) T (eraseConfig (L := L) (K := K) mc₀))
+    hσ.le δgLocked_pos hAB hθX
+
 end EarlyDripMarked
 
 end ExactMajority

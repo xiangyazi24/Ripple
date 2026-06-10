@@ -580,3 +580,64 @@ THE EXACT REMAINING GAP (all DETERMINISTIC/SCALE plug-ins; no new probabilistic 
 All five remaining items are scale-arithmetic/wiring with NO new probabilistic content — the coupled
 time-window engine (the genuine core that caught 11 false shapes) is fully formalized and transferred
 to the real kernel.
+
+## THE FIVE ITEMS — STATUS (2026-06-09 relay session; commits 2beb3a94..c1630926; EarlyDripMarked.lean,
+## all 0-sorry axiom-clean [propext, Classical.choice, Quot.sound]; single-file lake env lean GREEN)
+
+All five remaining items delivered as compilable, axiom-clean Lean theorems.  Build order / commits:
+
+- **Item 3 (2beb3a94)** — initial-start dischargers (Part 38):
+  `markInv_of_clean` (all marks false ⟹ MarkInv, taint = 0; axioms [propext] only),
+  `taintedCount_of_clean`, `recInv_of_window_closed` (the genuine Doty start: in-region but
+  `¬P3 ∨ ¬(10X≤n)` ⟹ recInv vacuous), `recInv_of_floor` (the at-floor case).  These supply the
+  per-level `h0`/`hmark` inputs of `windowedFrontProfile_whp`.  NOTE: the all-minute-0 start is NOT
+  AllClockP3, so recInv holds via `recInv_of_window_closed` (the window is not yet open) — the
+  natural Doty start; `recInv_of_floor` covers the in-window levels.
+
+- **Item 2 (78b177de)** — `negligibility_le` (Part 39): `cc·X²/n + tt ≤ X²/n` from `θn≤X`, `cc≤1`,
+  `0<n`, and the carried scale fact `tt·n ≤ (1−cc)(θn)²`.  This is exactly
+  `windowedFrontProfile_of_not_bad`'s/`front_squares_count`'s `hneg` (the `d`-term absorption).  At
+  paper scales `(1−cc)(θn)² = n^{1.2}/10 ≫ n^{1.15} = tt·n`.
+
+- **Item 4 (24cc7d28)** — tail-sum packaging (Part 40): `front_tail_term_le`/`front_tail_sum_le`
+  collapse `windowedFrontProfile_whp`'s `Σ_{T<Tcap}(KK·δ T + esc_T + tail_T)` to the single form
+  `Tcap·(KK·dB + eB + tB)` given uniform per-level bounds.  Capstone
+  `windowedFrontProfile_whp_packaged` composes it with `windowedFrontProfile_whp` directly.
+
+- **Item 5 (9cf23255 + 645690e6)** — the glue wiring, COMPLETE both sides (Parts 41–42):
+  - `goodFrontWidth_bad_subset` + `goodFrontWidth_whp`: on the real kernel, `GoodFrontWidth(W₁+W₂)`
+    failure (W₁ = frontWidthBound n) ≤ `WindowedFrontProfile` tail (item 4) + `ClimbBound`-failure
+    mass, via the deterministic `ClockFrontProfile.goodFrontWidth_of_windowed_profile_and_climb`.
+  - `climbBound_bad_subset` + `climbBound_whp`: the `ClimbBound`-failure mass ≤ `Σ_{k≤capMinute}`
+    `ClimbTail.climb_real_tail`'s gated tail (escape + contraction).  At `card=n`, `θ=θn/n`:
+    `frac k < θ ↔ rBeyond k < θn`; the climb past W₂ forces `k ≤ capMinute`
+    (`climbN_ge_of_beyond_pos`).  This is the exact `climbB` input of `goodFrontWidth_whp`.
+    ⟹ item 5 has NO residual — `GoodFrontWidth` whp is fully wired off the false `hwin_all`.
+
+- **Item 1 (e739c82d + c1630926)** — the `hB` discharge (Parts 43, the last big arithmetic):
+  - bricks `δgLocked`(+`δgLocked_pos`, the +1.05e-4 growth margin via `window_constants_growth`),
+    `floor_discharge` (produces `per_window_delta`'s `hfloor` via `floor_exp_le`),
+    `slice_discharge` (produces `hslice` per rung via `slice_exp_le`, all at the locked constants
+    wp=3/200, cc=9/10, ε=1/200, g=5123/5000, G=201/200, sg=1/10).
+  - `perWindowDelta_uniform`: monotonizes `per_window_delta`'s `X₀`-dependent RHS
+    `exp(−δg·X₀+σg)+M·exp(σ(X₀²/n)·AB)` to the floor value at `X₀=θn` (uses `δgLocked>0`, `AB<0`).
+  - capstone `hB_discharge`: delivers EXACTLY the `hB` shape of `recurrence_checkpoint`/
+    `front_squares_whp`/`windowedFrontProfile_whp`, with the UNIFORM `δ = exp(−δgLocked·θn+1/10) +
+    M·exp(σ·(θn²/n)·AB)`.  σg is locked to sg = 1/10 (the growth slope), cc = 9/10.
+
+THE EXACT REMAINING RESIDUAL (item 1 only; the precise ceiling/scale plug-in, no probabilistic or
+wiring content):  `hB_discharge` CARRIES, as hypotheses to be discharged at the numeric plug-in:
+(a) the per-`mc₀` geometric ladder `a mc₀ m = ⌈G^m·⌈g·X₀⌉⌉`, `M`, `Yt mc₀ m = ⌊cc·a²/n⌋` and the
+    rounding facts `ha0 : 10·a mc₀ 0 ≤ n` (the two-regime 4n/41 split, n≥25641), `haM : a mc₀ M = aM`,
+    `hYtcap`;
+(b) `hfloor` (the `floor_discharge` shape) — the window-length margin `δgLocked ≤ w·cg − sg(g−1)`
+    with `w = ⌊3n/200⌋` (needs `w/n ≳ 0.01439`, holds for n ≳ 1639; `floor_discharge` is the proven
+    composer, only the `w/n` lower bound remains);
+(c) `hsliceB` (the `slice_discharge` shape) — per rung the drip cap (with ⌈⌉ inflation ≤ 1+3/θn,
+    θn≥30000), `RW ≤ RWb` (via (1+x)^w ≤ 1/(1−wx)), the threshold lower bound `cc·Gm·g²·Q ≤ Yt`;
+(d) the two locked margins `δgLocked_pos` (PROVEN) and `hAB` (= `window_constants_slice`'s `A<B`,
+    PROVEN as a norm_num gate — instantiate `g,G,RWb` at the locked rationals and `hAB` is immediate).
+All of (a)–(c) are pure ℕ-ceiling/finite-n-scale arithmetic on the explicit ladder; (d) is already a
+proven norm_num gate.  Items 2–5 have NO residual.  The genuine probabilistic engine + all wiring
+(checkpoint induction → per-level recurrence → real-kernel union → WindowedFrontProfile whp → glue →
+GoodFrontWidth whp) is fully formalized and axiom-clean.
