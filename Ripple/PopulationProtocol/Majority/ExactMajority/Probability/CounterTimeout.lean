@@ -145,6 +145,8 @@ noncomputable def counterTimeout_PhaseConvergenceW (K : Kernel Ω Ω) [IsMarkovK
           counterTimeout_tail K hDone hAbs' s q hblock' x₀ numBlocks
       _ ≤ (ε : ℝ≥0∞) := hε
 
+end Weak
+
 /-! ## Part 3 — From a per-single-step finish probability
 
 The most phase-friendly atom is the **per-step** finish-failure probability: "from
