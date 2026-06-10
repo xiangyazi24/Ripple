@@ -61,6 +61,11 @@ variable {L K : ℕ}
 
 attribute [local instance] Classical.propDecidable
 
+instance instMeasurableSpaceAgentState5 : MeasurableSpace (AgentState L K) := ⊤
+instance instDiscreteMeasurableSpaceAgentState5 :
+    DiscreteMeasurableSpace (AgentState L K) where
+  forall_measurableSet _ := trivial
+
 /-! ## Part A — staticity: `Phase5Transition` freezes every agent's `bias`. -/
 
 /-- `phaseInit` preserves `bias` for any target phase `p` with `p.val ≥ 5` (only the
@@ -425,6 +430,220 @@ theorem Phase5Transition_unsampled_pair_drop (r m : AgentState L K)
     have : (exponentOf L m.bias).val = L := hu.2
     rw [hexp] at this; omega
   rw [countP_unsampled_pair, if_neg hout1_not, if_neg hm_not, hrhs]
+
+/-- **Config-level strict drain of `unsampledReserveU`.**  On a phase-5 window, an applicable
+pair `(r, m)` with `r` an unsampled Reserve and `m` a useful biased Main (index `< L`) drops the
+global unsampled-Reserve count by one (`Transition` reduces to `Phase5Transition` at phase 5;
+the per-pair drop is `Phase5Transition_unsampled_pair_drop`). -/
+theorem unsampledReserveU_stepOrSelf_drop (n : ℕ) (c : Config (AgentState L K))
+    (hInv : Phase5AllWin n c) (r m : AgentState L K)
+    (happ : Protocol.Applicable c r m)
+    (hr : unsampled r) (hm : biasedMainLtL m) :
+    unsampledReserveU (L := L) (K := K)
+        (Protocol.stepOrSelf (NonuniformMajority L K) c r m) + 1
+      ≤ unsampledReserveU (L := L) (K := K) c := by
+  obtain ⟨_, hph⟩ := hInv
+  have h15 : r.phase.val = 5 := hph r (mem_of_app_left5' happ)
+  have h25 : m.phase.val = 5 := hph m (mem_of_app_right5' happ)
+  have hsub : ({r, m} : Multiset (AgentState L K)) ≤ c := happ
+  have hc' : Protocol.stepOrSelf (NonuniformMajority L K) c r m
+      = c - {r, m} + {(Transition L K r m).1, (Transition L K r m).2} := by
+    unfold Protocol.stepOrSelf; rw [if_pos happ]; rfl
+  unfold unsampledReserveU
+  rw [hc', Multiset.countP_add, Multiset.countP_sub hsub]
+  rw [Transition_eq_Phase5Transition_of_phase5 (L := L) (K := K) r m h15 h25]
+  have hdrop := Phase5Transition_unsampled_pair_drop (L := L) (K := K) r m hr hm
+  have hpair_le : Multiset.countP (fun a => unsampled a)
+      ({r, m} : Multiset (AgentState L K))
+        ≤ Multiset.countP (fun a => unsampled a) c := Multiset.countP_le_of_le _ hsub
+  omega
+
+/-! ### The drain rectangle: `unsampledReserves × biasedMainLtL`. -/
+
+/-- The unsampled-Reserve states (target pool). -/
+def unsampledReserves : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => unsampled a)
+
+/-- The useful biased-Main states (eliminator pool, index `< L`). -/
+def usefulMains : Finset (AgentState L K) :=
+  Finset.univ.filter (fun a => biasedMainLtL a)
+
+/-- For two state-finsets of pairwise-distinct states, the `interactionCount` mass of `A ×ˢ B`
+is `(∑_A count)·(∑_B count)`.  Local copy of the Phase-7 engine helper (its olean cannot be
+imported single-file; the lemma is self-contained). -/
+theorem sum_interactionCount_cross_disjoint5
+    (c : Config (AgentState L K)) (A B : Finset (AgentState L K))
+    (hdisj : ∀ a ∈ A, ∀ b ∈ B, a ≠ b) :
+    (∑ p ∈ A ×ˢ B, c.interactionCount p.1 p.2)
+      = (∑ a ∈ A, c.count a) * (∑ b ∈ B, c.count b) := by
+  rw [Finset.sum_product, Finset.sum_mul]
+  apply Finset.sum_congr rfl
+  intro a ha
+  rw [Finset.mul_sum]
+  apply Finset.sum_congr rfl
+  intro b hb
+  unfold Config.interactionCount
+  rw [if_neg (hdisj a ha b hb)]
+
+/-- **The generic drop-rectangle probability bound** (Φ-agnostic).  Local copy of the Phase-7
+shared engine `drop_prob_of_rect` (its olean is stale relative to source, so it cannot be
+imported under the single-file compile constraint; the proof is self-contained). -/
+theorem drop_prob_of_rect5 (Φ : Config (AgentState L K) → ℕ) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hcardn : c.card = n)
+    (R : Finset (AgentState L K × AgentState L K)) (N : ℕ)
+    (hdrop : ∀ p ∈ R, 1 ≤ c.count p.1 → 1 ≤ c.count p.2 → (p.1 = p.2 → 2 ≤ c.count p.1) →
+      Φ (Protocol.stepOrSelf (NonuniformMajority L K) c p.1 p.2) + 1 ≤ Φ c)
+    (hcount : (N : ℕ) ≤ ∑ p ∈ R, c.interactionCount p.1 p.2) :
+    ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ Φ c} := by
+  set j := Φ c with hjdef
+  have hcard2 : 2 ≤ c.card := by rw [hcardn]; omega
+  have hmeas : MeasurableSet {c' : Config (AgentState L K) | Φ c' + 1 ≤ j} :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  set S : Finset (AgentState L K × AgentState L K) :=
+    R.filter (fun p => 1 ≤ c.count p.1 ∧ 1 ≤ c.count p.2 ∧ (p.1 = p.2 → 2 ≤ c.count p.1)) with hS
+  have hsub : (↑S : Set (AgentState L K × AgentState L K)) ⊆
+      (Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+        {c' | Φ c' + 1 ≤ j} := by
+    intro p hp
+    simp only [Finset.coe_filter, Set.mem_setOf_eq, hS] at hp
+    obtain ⟨hpc, hp1, hp2, hp3⟩ := hp
+    simp only [Set.mem_preimage, Set.mem_setOf_eq, Protocol.scheduledStep]
+    exact hdrop p hpc hp1 hp2 hp3
+  have hstepDist : (NonuniformMajority L K).stepDistOrSelf c
+      = (NonuniformMajority L K).stepDist c hcard2 := by
+    unfold Protocol.stepDistOrSelf; rw [dif_pos hcard2]
+  have hbase : ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | Φ c' + 1 ≤ j}
+      = (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) := by
+    rw [hstepDist]; unfold Protocol.stepDist
+    rw [PMF.toMeasure_map_apply _ _ _ (Measurable.of_discrete) hmeas]
+  rw [hbase]
+  have hmono : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      ≤ (c.interactionPMF hcard2).toMeasure
+          ((Protocol.scheduledStep (NonuniformMajority L K) c) ⁻¹'
+            {c' | Φ c' + 1 ≤ j}) :=
+    measure_mono hsub
+  refine le_trans ?_ hmono
+  have hSmeasure : (c.interactionPMF hcard2).toMeasure (↑S : Set _)
+      = ∑ p ∈ S, c.interactionProb p.1 p.2 := by
+    rw [PMF.toMeasure_apply_finset]; rfl
+  have hSsum : ∑ p ∈ S, c.interactionProb p.1 p.2
+      = ∑ p ∈ R, c.interactionProb p.1 p.2 := by
+    rw [hS]
+    apply Finset.sum_subset (Finset.filter_subset _ _)
+    intro p hpc hpnot
+    rw [Finset.mem_filter] at hpnot
+    push Not at hpnot
+    have hexcl := hpnot hpc
+    have hzero : c.interactionCount p.1 p.2 = 0 := by
+      unfold Config.interactionCount
+      by_cases h1 : 1 ≤ c.count p.1
+      · by_cases h2 : 1 ≤ c.count p.2
+        · obtain ⟨hpe, hlt⟩ := hexcl h1 h2
+          rw [if_pos hpe]
+          have hc1 : c.count p.1 = 1 := by omega
+          rw [hc1]
+        · have hz2 : c.count p.2 = 0 := by omega
+          by_cases hpe : p.1 = p.2
+          · rw [if_pos hpe]; rw [hpe, hz2, Nat.zero_mul]
+          · rw [if_neg hpe, hz2, Nat.mul_zero]
+      · have hz1 : c.count p.1 = 0 := by omega
+        by_cases hpe : p.1 = p.2
+        · rw [if_pos hpe, hz1, Nat.zero_mul]
+        · rw [if_neg hpe, hz1, Nat.zero_mul]
+    unfold Config.interactionProb; rw [hzero]; simp
+  rw [hSmeasure, hSsum]
+  have heqterm : ∀ p : AgentState L K × AgentState L K,
+      c.interactionProb p.1 p.2
+        = (↑(c.interactionCount p.1 p.2) : ℝ≥0∞) * (↑c.totalPairs)⁻¹ := by
+    intro p; unfold Config.interactionProb; rw [div_eq_mul_inv]
+  rw [Finset.sum_congr rfl (fun p _ => heqterm p), ← Finset.sum_mul, ← Nat.cast_sum]
+  set M := ∑ p ∈ R, c.interactionCount p.1 p.2 with hM
+  have htp : c.totalPairs = n * (n - 1) := by rw [Config.totalPairs, hcardn]
+  rw [htp, ← div_eq_mul_inv]
+  have hden_pos : (0 : ℝ) < ((n * (n - 1) : ℕ) : ℝ) := by
+    have : 0 < n * (n - 1) := Nat.mul_pos (by omega) (by omega)
+    exact_mod_cast this
+  have hdenR : ((n * (n - 1) : ℕ) : ℝ) = (n : ℝ) * ((n : ℝ) - 1) := by
+    rw [Nat.cast_mul, Nat.cast_sub (by omega)]; push_cast; ring
+  have hstep1 : ENNReal.ofReal ((N : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))
+      ≤ ENNReal.ofReal (((M : ℕ) : ℝ) / ((n * (n - 1) : ℕ) : ℝ)) := by
+    apply ENNReal.ofReal_le_ofReal
+    rw [hdenR]
+    have hNM : (N : ℝ) ≤ (M : ℝ) := by exact_mod_cast hcount
+    have hposden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by rw [← hdenR]; exact hden_pos
+    gcongr
+  refine le_trans hstep1 ?_
+  rw [← ENNReal.ofReal_natCast M, ← ENNReal.ofReal_natCast (n * (n - 1)),
+      ← ENNReal.ofReal_div_of_pos hden_pos]
+
+/-- For two state-finsets of pairwise-distinct states an applicable pair exists.  Local copy of
+the protocol-engine helper (the Phase-7 one is `private`). -/
+theorem applicable_of_mem_distinct5 {c : Config (AgentState L K)}
+    {x y : AgentState L K} (hx : x ∈ c) (hy : y ∈ c) (hxy : x ≠ y) :
+    Protocol.Applicable c x y := by
+  refine Multiset.le_iff_count.mpr ?_
+  intro a
+  rw [show ({x, y} : Multiset (AgentState L K)) = x ::ₘ y ::ₘ 0 from rfl,
+      Multiset.count_cons, Multiset.count_cons, Multiset.count_zero]
+  have hxc : 1 ≤ Multiset.count x c := Multiset.one_le_count_iff_mem.mpr hx
+  have hyc : 1 ≤ Multiset.count y c := Multiset.one_le_count_iff_mem.mpr hy
+  by_cases hax : a = x
+  · subst hax
+    have hay : ¬ a = y := fun h => hxy (h ▸ rfl)
+    rw [if_pos rfl, if_neg hay]; omega
+  · by_cases hay : a = y
+    · subst hay; rw [if_neg hax, if_pos rfl]; omega
+    · rw [if_neg hax, if_neg hay]; omega
+
+/-- An unsampled Reserve and a useful biased Main are distinct (role `.reserve` vs `.main`). -/
+theorem unsampledReserves_usefulMains_disjoint
+    (a : AgentState L K) (ha : a ∈ unsampledReserves (L := L) (K := K))
+    (b : AgentState L K) (hb : b ∈ usefulMains (L := L) (K := K)) : a ≠ b := by
+  simp only [unsampledReserves, usefulMains, Finset.mem_filter, unsampled, biasedMainLtL] at ha hb
+  intro heq; subst heq
+  rw [ha.2.1] at hb
+  exact absurd hb.2.1 (by decide)
+
+/-- **The drain-rectangle drop-probability floor** (Phase 5).  On a phase-5 window, the one-step
+probability of dropping `unsampledReserveU` is at least
+`(#unsampledReserves · #usefulMains)/(n(n−1))`.  Instantiates the shared
+`Phase7Convergence.drop_prob_of_rect` with `Φ = unsampledReserveU` and the Reserve-first
+rectangle. -/
+theorem unsampledReserveU_drop_prob_rect5 (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : Phase5AllWin n c) :
+    ENNReal.ofReal
+        (((unsampledReserves (L := L) (K := K)).sum c.count *
+          (usefulMains (L := L) (K := K)).sum c.count : ℕ) /
+          ((n : ℝ) * ((n : ℝ) - 1))) ≤
+      ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | unsampledReserveU (L := L) (K := K) c' + 1
+          ≤ unsampledReserveU (L := L) (K := K) c} := by
+  have hcardn : c.card = n := hInv.1
+  refine drop_prob_of_rect5 (fun c => unsampledReserveU (L := L) (K := K) c)
+    n hn c hcardn
+    ((unsampledReserves (L := L) (K := K)) ×ˢ (usefulMains (L := L) (K := K)))
+    _ ?_ (le_of_eq ?_)
+  · rintro ⟨r, m⟩ hp hcr hcm _
+    rw [Finset.mem_product] at hp
+    obtain ⟨hrmem, hmmem⟩ := hp
+    simp only [unsampledReserves, Finset.mem_filter] at hrmem
+    simp only [usefulMains, Finset.mem_filter] at hmmem
+    have hrm : r ∈ c := Multiset.one_le_count_iff_mem.mp hcr
+    have hmm : m ∈ c := Multiset.one_le_count_iff_mem.mp hcm
+    have hne : r ≠ m :=
+      unsampledReserves_usefulMains_disjoint r
+        (by simp only [unsampledReserves, Finset.mem_filter]; exact ⟨Finset.mem_univ _, hrmem.2⟩)
+        m (by simp only [usefulMains, Finset.mem_filter]; exact ⟨Finset.mem_univ _, hmmem.2⟩)
+    have happ : Protocol.Applicable c r m :=
+      applicable_of_mem_distinct5 hrm hmm hne
+    exact unsampledReserveU_stepOrSelf_drop n c hInv r m happ hrmem.2 hmmem.2
+  · rw [sum_interactionCount_cross_disjoint5 c _ _
+        unsampledReserves_usefulMains_disjoint]
 
 /-! ### The Phase-5 post predicate and the assembled `PhaseConvergenceW`.
 
