@@ -2443,3 +2443,87 @@ folded into `εovershoot`).
   genuine `phaseAdvanceDrift`.
 - `4245f79a` D-4d3: `seamGeConvergence` + `seam_drift` (bare tail) + `seamEpidemicW_calibrated`.
 - `28253ede` D-4d: `DotyTimeHeadline` consumption-form note.
+
+---
+
+## Phase D-5 — cross-hour side assembly + the rate fix (`Probability/CrossHourSide.lean`, NEW)
+
+Implements the audited `HANDOFF_hside_blueprint.md` in a NEW file
+`Probability/CrossHourSide.lean` (namespace `ExactMajority.EarlyDripMarked`).  All five deliverables
+0-sorry, axiom-clean (`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`), single-file
+`lake env lean` compile against the existing olean closure.
+
+### Deliverables (commits, all pushed to origin main)
+
+- `3b6f2c73` D-5a: **`checkpoint_side_le`** — generic Chapman–Kolmogorov checkpoint side bound.
+  `(κ^{t+r}) x₀ Bad ≤ εEntry + εTail` from `(κ^t) x₀ Entryᶜ ≤ εEntry` + `∀ y ∈ Entry, (κ^r) y Bad ≤
+  εTail`.  Same mechanism as `ClockWeakAssembly.leg_escape_global`.
+- `097895bf` D-5b: **`Mwidth`/`Mhour`** + **`width_horizon_covers_hour`** + **`no_post_hour_of_stride`**.
+  The stride `hstride : tseed + tbulk ≤ DotyParams.w n` makes the post-hour mode EMPTY:
+  `Mhour = K·(tseed+tbulk) ≤ K·w ≤ w·(K(L+1)+1) = Mwidth`.  PARAMETER-DESIGN FACT: the per-minute
+  budget fits inside the per-window width budget.
+- `660ddc96` D-5c: **`sideB_cross_hour`** — the bounded-horizon global-τ side family over `(L+1)`
+  hours, `τ = h·Mhour + r`, via `checkpoint_side_le`.  Conclusion `∀ T τ, τ < (L+1)·Mhour →
+  (realκ^τ) c₀ Sgood(T)ᶜ ≤ εEntry + εLocal`.  (Bounded-horizon, per the blueprint's correction — NOT
+  the unbounded `∀ τ`, which is false at paper rate.)
+- `9d87e6dc` D-5d: **THE RATE FIX.**  **`rem_eq_zero`** — the `r = 0` remainder block is EXACTLY `0`
+  from a `recInv` start (identity kernel, indicator-of-notMem).  This kills the coarse `δRem := 1`
+  (`WidthPrefixConcrete`'s `+1` per `Tcap`-term) at every CHECKPOINT horizon `τ = w·j`.
+  **`εWAt_chk`** + **`windowedFrontProfile_whp_chk_concrete`** + **`widthFail_chk_concrete`** +
+  **`sidePrefix_chk_concrete_width`** assemble the `δRem`-free per-checkpoint `Sgood(T)ᶜ` budget
+  (prefix-WFP block `∑_T (j·deltaB + 0 + escape + taint)` — NO `+1`).
+- `16f3247f` D-5e: **`hside_concrete_bounded`** — the assembled bounded-horizon side family,
+  `εLocal := sideEps εQ εfloor εWu εP εB εge3 εno3 εcpos εsucc`, width feeder `εWu` parametric.
+
+### The rate-fix outcome (HONEST)
+
+The `+1` enters `windowedFrontProfile_whp_prefix`'s `hRem : (markedK^r) mc₀ {¬recInv} ≤ δRem` at the
+partial-window horizon `r < w`.  I verified BOTH small-`r` `δRem` routes are structurally blocked
+against the present API:
+
+1. **Per-step union** `δRem ≤ r·(one-step recInv-breach rate)`: the one-step rate is the drip/taint
+   rate `O((θn/n)²)` (`EarlyDripMarked.tainted_rise_prob_le`); `× r ≤ w = 3n/200` gives `Θ(n^{1/5})`
+   — NOT small.  (Confirms the blueprint's own arithmetic check.)
+2. **Two-config checkpoint glue** (width-at-τ ≤ width-at-checkpoint + climb-over-r, widened margin
+   W₃): the only deterministic width glue
+   `ClockFrontProfile.goodFrontWidth_of_windowed_profile_and_climb` is SINGLE-config — it needs
+   `WindowedFrontProfile θ c'` AND `ClimbBound θ W c'` BOTH at the `r`-step successor `c'`.  Quoting
+   the checkpoint `WindowedFrontProfile` at `c` does NOT feed the glue at `c'`.  Transporting
+   `WindowedFrontProfile` from `c` to `c'` is a genuinely new probabilistic lemma (the front is NOT
+   deterministically monotone over a window — drips move it up), ABSENT from the codebase.
+
+So a fully-closed `δRem`-free FREE-`τ` `εWAt` is NOT assemblable from the present API.  What IS
+`δRem`-free and assemblable is the CHECKPOINT feeder (`r = 0`): `εWAt_chk` has NO `+1`.  This is the
+genuine rate fix on the checkpoint sub-horizon.
+
+### The final εside shape
+
+```
+εside = sideEps εQ εfloor εWu εP εB εge3 εno3 εcpos εsucc
+      = εQ + εfloor + (εWu + εP + εB) + (εge3 + εno3 + εcpos + εsucc)
+```
+with the §6 width feeder `εWu` discharged by EITHER:
+* `εWAt_chk` (rate-fixed, `δRem`-free) at checkpoints `r = 0` — via `sidePrefix_chk_concrete_width`;
+* `εWAt` (free-`τ`, `r < Mwidth`, carries the `+1`) — via `WidthPrefixConcrete.sidePrefix_concrete_width`.
+
+The global form is `εEntry + εside` over `τ < (L+1)·Mhour` (`hside_concrete_bounded`).
+
+### Precise remaining gaps
+
+1. **The within-window WFP transport** (the blocking lemma for a free-`τ` `δRem`-free rate).  Needed
+   shape: a kernel-level bound coupling `(realκ^{w·j})` to `(realκ^{w·j+r})` so the checkpoint
+   `WindowedFrontProfile` (no `+1`) plus the FREE-`τ` climb budget (`climbBound_whp`, already free-`t`)
+   give `GoodFrontWidth (W₁+W₂+W₃)` at `w·j+r` with a SMALL widened margin `W₃`.  This is genuinely
+   new probabilistic content (the `n^{-1.6}`-rate "no climb in a window" argument, applied to the
+   front's worst-case intra-window excursion).  Until it exists, the free-`τ` consumer keeps the `+1`.
+
+2. **The bounded-horizon consumer wiring.**  `ClockBudgets.clock_unconditional_concrete` takes the
+   UNBOUNDED `hside : ∀ T τ`.  But `minutes_sum_le`/`window_sum_le` only sum `τ` over the minute
+   windows, whose union is exactly `Ico 0 ((L+1)·Mhour)` (max τ = `(K(L+1))·(tseed+tbulk) =
+   (L+1)·Mhour`).  So `hside_concrete_bounded`'s bounded conclusion EXACTLY covers the consumer's
+   sum — but plugging it in requires refactoring `clock_unconditional_concrete`'s hypothesis to the
+   bounded `Ico` form (a tiny edit of `window_sum_le`/`minutes_sum_le`, both in `ClockBudgets.lean`,
+   owned by a running agent — import-only for D-5).  No new math; a hypothesis-restriction refactor.
+
+3. **The eight named feeders** `εQ εfloor εP εB εge3 εno3 εcpos εsucc` inside `εside` remain the
+   genuine §-engine residuals carried from B-12 (unchanged by D-5).

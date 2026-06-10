@@ -217,6 +217,79 @@ theorem lintegral_transitionKernel_eq_sum (P : Protocol Λ) (c : Config Λ)
   rw [dif_pos hc, lintegral_stepDist_eq_sum P c hc f]
   rfl
 
+/-! ## The first-coordinate marginal of the interaction law (Gap-1 infrastructure).
+
+For any per-state observable `g`, summing `g(pair.1)·interactionProb(pair)` over
+ordered pairs collapses the responder coordinate (`sum_interactionCount_right`),
+leaving the per-state `g`-mass weighted by `count(s)·(card−1)/(card·(card−1)) =
+count(s)/card`.  Hence the FIRST-coordinate marginal of the interaction law is the
+configuration `g`-average `Φ_g(c)/card`.  This is the scheduler's exact
+`1/n`-marginal — the source of the `2/n` pair-count factor in the affine drift. -/
+
+/-- **First-coordinate interaction marginal.**  For `2 ≤ card`, summing any
+`ℝ≥0∞`-observable of the INITIATOR state against the interaction law gives the
+configuration average `Config.sumOf g c / card`:
+
+  `∑_{pair} g(pair.1) · interactionProb(pair) = (∑_{a∈c} g a) / card`. -/
+theorem sum_fst_interactionProb (c : Config Λ) (hc : 2 ≤ c.card) (g : Λ → ℝ≥0∞) :
+    (∑ pair : Λ × Λ, g pair.1 * c.interactionProb pair.1 pair.2)
+      = Config.sumOf g c / (c.card : ℝ≥0∞) := by
+  classical
+  -- Expand interactionProb = interactionCount / totalPairs and split the product.
+  simp only [Config.interactionProb]
+  rw [show (Finset.univ : Finset (Λ × Λ)) = Finset.univ ×ˢ Finset.univ
+    from (Finset.univ_product_univ).symm]
+  rw [Finset.sum_product]
+  -- inner sum over responder: ∑_{s₂} g s₁ * (count(s₁,s₂)/totalPairs)
+  have hinner : ∀ s₁ : Λ,
+      (∑ s₂ : Λ, g s₁ * ((c.interactionCount s₁ s₂ : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞)))
+        = g s₁ * ((c.count s₁ * (c.card - 1) : ℕ) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞) := by
+    intro s₁
+    simp_rw [mul_div_assoc']
+    rw [← Finset.sum_div]
+    congr 1
+    rw [← Finset.mul_sum]
+    congr 1
+    rw [← Nat.cast_sum]
+    exact_mod_cast congrArg (Nat.cast : ℕ → ℝ≥0∞) (Config.sum_interactionCount_right c s₁)
+  rw [Finset.sum_congr rfl (fun s₁ _ => hinner s₁)]
+  -- totalPairs = card*(card-1); cancel (card-1)
+  have hcard1 : (1 : ℕ) ≤ c.card := by omega
+  have htp : (c.totalPairs : ℝ≥0∞) = (c.card : ℝ≥0∞) * ((c.card - 1 : ℕ) : ℝ≥0∞) := by
+    unfold Config.totalPairs
+    rw [Nat.cast_mul]
+  -- card ≠ 0, card-1 ≠ 0 (≠ top) for the cancellation.
+  have hcardne : (c.card : ℝ≥0∞) ≠ 0 := by exact_mod_cast (by omega : c.card ≠ 0)
+  have hc1ne : ((c.card - 1 : ℕ) : ℝ≥0∞) ≠ 0 := by
+    exact_mod_cast (by omega : (c.card - 1 : ℕ) ≠ 0)
+  have hc1top : ((c.card - 1 : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+  -- rewrite each summand: g s₁ * (count*(card-1))/(card*(card-1)) = g s₁ * count / card
+  have hterm : ∀ s₁ : Λ,
+      g s₁ * ((c.count s₁ * (c.card - 1) : ℕ) : ℝ≥0∞) / (c.totalPairs : ℝ≥0∞)
+        = g s₁ * (c.count s₁ : ℝ≥0∞) / (c.card : ℝ≥0∞) := by
+    intro s₁
+    rw [htp, Nat.cast_mul]
+    rw [mul_comm (c.card : ℝ≥0∞) ((c.card - 1 : ℕ) : ℝ≥0∞)]
+    rw [← mul_assoc, mul_div_assoc, mul_div_assoc]
+    congr 1
+    rw [mul_comm ((c.card - 1 : ℕ) : ℝ≥0∞) (c.card : ℝ≥0∞),
+        ← ENNReal.div_div, mul_div_assoc]
+    rw [ENNReal.div_self hc1ne hc1top, mul_one]
+  rw [Finset.sum_congr rfl (fun s₁ _ => hterm s₁)]
+  -- ∑ g s₁ * count s₁ / card = (∑ g s₁ * count s₁) / card = sumOf g c / card
+  rw [← Finset.sum_div]
+  congr 1
+  -- Config.sumOf g c = ∑_{s∈univ} g s * count s  (count = 0 off toFinset)
+  unfold Config.sumOf
+  rw [Finset.sum_multiset_map_count c g]
+  -- restrict univ-sum to toFinset (zero summands off it), and nsmul → cast-mul
+  rw [← Finset.sum_subset (Finset.subset_univ c.toFinset)
+        (fun x _ hx => by
+          rw [Multiset.mem_toFinset] at hx
+          simp [Multiset.count_eq_zero_of_notMem hx])]
+  refine Finset.sum_congr rfl (fun s₁ _ => ?_)
+  rw [Config.count, nsmul_eq_mul, mul_comm]
+
 end SchedulerPairSum
 
 /-! ## Localized per-pair potential decompositions (Gap-1 infrastructure).

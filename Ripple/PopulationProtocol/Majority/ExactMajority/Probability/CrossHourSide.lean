@@ -266,7 +266,230 @@ theorem rem_eq_zero (T θn n : ℕ) (cc : ℝ) (mc₀ : Config (MarkedAgent L K)
   rw [pow_zero, show ((1 : Kernel (Config (MarkedAgent L K)) (Config (MarkedAgent L K)))
       = Kernel.id) from rfl, Kernel.id_apply,
     Measure.dirac_apply' _ (DiscreteMeasurableSpace.forall_measurableSet _),
-    Set.indicator_of_not_mem (by simp [Set.mem_setOf_eq, hInv])]
+    Set.indicator_of_notMem (by simp [Set.mem_setOf_eq, hInv])]
+
+/-! ### The checkpoint WFP feeder with `δRem = 0`.
+
+`windowedFrontProfile_whp_prefix_concrete` (WidthPrefixConcrete) hard-wires `δRem := fun _ => 1`.
+Here we re-run the SAME `windowedFrontProfile_whp_prefix` at `r := 0` with `δRem := fun _ => 0`,
+discharged by `rem_eq_zero`.  The result is the checkpoint WFP mass with the `+1` term ELIMINATED
+(`j·δ + 0` per `Tcap`-term). -/
+
+open ClockFrontProfile in
+/-- **`windowedFrontProfile_whp_chk_concrete`** — the concrete checkpoint (`r = 0`) WFP-failure mass,
+`δRem`-free.  Identical to `windowedFrontProfile_whp_prefix_concrete` at `r = 0`, but with the coarse
+`+1` replaced by `0` (via `rem_eq_zero`). -/
+theorem windowedFrontProfile_whp_chk_concrete (n : ℕ) (hn : DotyParams.N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hcard : mc₀.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (j : ℕ) (hjKK : j ≤ DotyParams.KK L K - 1) :
+    ((NonuniformMajority L K).transitionKernel ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, DotyParams.θ n ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              (9/10 : ℝ) * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (DotyParams.tt n : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) (DotyParams.θ n) c}
+      ≤ ∑ T ∈ Finset.range Tcap,
+          (((j : ℝ≥0∞) * DotyParams.deltaB n + 0)
+            + ((GatedDrift.killK (markedK (L := L) (K := K) T (DotyParams.θn n))
+                (taintedGate (L := L) (K := K) n) ^ (DotyParams.w n * j + 0)) (some mc₀) {none}
+              + ENNReal.ofReal
+                (Real.exp (DotyParams.σ (L := L) (K := K) n
+                    * (1 + 4 / (n : ℝ)) ^ (DotyParams.w n * j + 0)
+                    * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+                  + 2 * DotyParams.σ (L := L) (K := K) n
+                      * (1 + 4 / (n : ℝ)) ^ (DotyParams.w n * j + 0)
+                      * ((DotyParams.θn n : ℝ) / (n : ℝ)) ^ 2
+                      * ((DotyParams.w n * j + 0 : ℕ) : ℝ)
+                  - DotyParams.σ (L := L) (K := K) n * ((DotyParams.tt n + 1 : ℕ) : ℝ))))) := by
+  have hτle : DotyParams.w n * j + 0 ≤ DotyParams.w n * DotyParams.KK L K := by
+    have hKKpos : 1 ≤ DotyParams.KK L K := by unfold DotyParams.KK; omega
+    have hjle : j + 1 ≤ DotyParams.KK L K := by omega
+    calc DotyParams.w n * j + 0 ≤ DotyParams.w n * j + DotyParams.w n := by omega
+      _ = DotyParams.w n * (j + 1) := by ring
+      _ ≤ DotyParams.w n * DotyParams.KK L K := Nat.mul_le_mul_left _ hjle
+  exact windowedFrontProfile_whp_prefix (L := L) (K := K) (DotyParams.θn n) n
+    (DotyParams.two_le n hn) (9/10) (DotyParams.w n) 0 (DotyParams.θ n) (DotyParams.θ_pos n hn)
+    (fun _ => DotyParams.deltaB n) (fun _ => 0)
+    (DotyParams.hB_params (L := L) (K := K) n hn)
+    (fun T mc₀' hInv => le_of_eq (rem_eq_zero (L := L) (K := K) T (DotyParams.θn n) n (9/10) mc₀' hInv))
+    (DotyParams.σ (L := L) (K := K) n) (DotyParams.σ_pos n hn) j
+    (hsmall_prefix_concrete (L := L) (K := K) n hn (DotyParams.w n * j + 0) hτle)
+    (DotyParams.tt n) Tcap hcap mc₀
+    (fun T _ => DotyParams.h0_params n (9/10) mc₀ hcard hge3 hnotP3 T)
+    (fun T _ => DotyParams.hmark_params mc₀ hclean T)
+
+/-! ### The `δRem`-free checkpoint width feeder `εWAt_chk` and the assembled checkpoint side budget. -/
+
+open ClockFrontProfile in
+/-- **`εWAt_chk`** — the `δRem`-FREE checkpoint width feeder: `WidthPrefixConcrete.εWAt` at `r = 0`
+with the coarse `+1` removed (`j·deltaB + 0`).  This is the rate-fixed width feeder at every
+checkpoint `τ = w·j`. -/
+noncomputable def εWAt_chk (n : ℕ) (mc₀ : Config (MarkedAgent L K)) (Tcap W₂ B' : ℕ) (s : ℝ)
+    (j : ℕ) : ℝ≥0∞ :=
+  (∑ T ∈ Finset.range Tcap,
+      (((j : ℝ≥0∞) * DotyParams.deltaB n + 0)
+        + ((GatedDrift.killK (markedK (L := L) (K := K) T (DotyParams.θn n))
+            (taintedGate (L := L) (K := K) n) ^ (DotyParams.w n * j + 0)) (some mc₀) {none}
+          + ENNReal.ofReal
+            (Real.exp (DotyParams.σ (L := L) (K := K) n
+                * (1 + 4 / (n : ℝ)) ^ (DotyParams.w n * j + 0)
+                * (taintedCount (L := L) (K := K) mc₀ : ℝ)
+              + 2 * DotyParams.σ (L := L) (K := K) n
+                  * (1 + 4 / (n : ℝ)) ^ (DotyParams.w n * j + 0)
+                  * ((DotyParams.θn n : ℝ) / (n : ℝ)) ^ 2
+                  * ((DotyParams.w n * j + 0 : ℕ) : ℝ)
+              - DotyParams.σ (L := L) (K := K) n * ((DotyParams.tt n + 1 : ℕ) : ℝ))))))
+    + (∑ k ∈ Finset.range (ClockFrontShape.capMinute (L := L) (K := K) + 1),
+        ((GatedDrift.killK ((NonuniformMajority L K).transitionKernel)
+            (ClimbTail.climbGate (L := L) (K := K) n k B' (DotyParams.θn n))
+              ^ (DotyParams.w n * j + 0))
+            (some (eraseConfig (L := L) (K := K) mc₀)) {none} +
+          (ENNReal.ofReal (1 + ((B' : ℝ) / (n : ℝ)) ^ 2 * (Real.exp s - 1)))
+              ^ (DotyParams.w n * j + 0) *
+            ClimbTail.climbPot (L := L) (K := K) k (DotyParams.θn n) s
+              (eraseConfig (L := L) (K := K) mc₀) /
+            ENNReal.ofReal (Real.exp (s * ((W₂ : ℝ) - 1)))))
+
+open ClockFrontProfile in
+/-- **`widthFail_chk_concrete`** — the `δRem`-free width-failure-on-side mass at a CHECKPOINT
+`τ = w·j`, in the exact `syncFail_le` shape `{c | WidthSideP n c ∧ ¬GoodFrontWidth W c}`.  Mirrors
+`WidthPrefixConcrete.widthFail_at_concrete` at `r = 0`, with `εWAt_chk` (no `+1`) as the RHS. -/
+theorem widthFail_chk_concrete (n : ℕ) (hn : DotyParams.N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hcard : mc₀.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (W₂ : ℕ) (hW₂ : 2 ≤ W₂) (B' : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (j : ℕ) (hjKK : j ≤ DotyParams.KK L K - 1) :
+    (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | ClockBudgets.WidthSideP (L := L) (K := K) n c ∧
+          ¬ GoodFrontWidth (L := L) (K := K) (FrontTail.frontWidthBound n + W₂) c}
+      ≤ εWAt_chk (L := L) (K := K) n mc₀ Tcap W₂ B' s j := by
+  refine le_trans (measure_mono ?_)
+    (DotyParams.goodFrontWidth_whp_concrete (L := L) (K := K) n hn W₂ (DotyParams.w n * j + 0) mc₀ _ _
+      (windowedFrontProfile_whp_chk_concrete (L := L) (K := K) n hn mc₀ hcard hge3 hnotP3 hclean
+        Tcap hcap j hjKK)
+      (DotyParams.climbBound_whp_concrete (L := L) (K := K) n W₂ hn hW₂ B' s hs
+        (DotyParams.w n * j + 0) (eraseConfig (L := L) (K := K) mc₀)))
+  intro c hc
+  rw [Set.mem_setOf_eq] at hc
+  obtain ⟨⟨hcardc, hP3c, hnegc⟩, hgfw⟩ := hc
+  exact ⟨⟨hcardc, hP3c, hnegc⟩, hgfw⟩
+
+open ClockFrontProfile in
+/-- **`sidePrefix_chk_concrete_width`** — the `δRem`-FREE per-checkpoint `Sgood(T)ᶜ` budget.  At a
+checkpoint horizon `τ = w·j`, the side mass is `≤ sideEps εQ εfloor (εWAt_chk …) εP εB εge3 εno3
+εcpos εsucc`, with the §6 width feeder discharged by the rate-fixed `εWAt_chk` (NO `+1`).  This is the
+checkpoint analog of `WidthPrefixConcrete.sidePrefix_concrete_width`, with the coarse remainder gone:
+the eight other feeders are carried as named uniform whp bounds. -/
+theorem sidePrefix_chk_concrete_width (n mC T : ℕ) (hn : DotyParams.N₀ ≤ n)
+    (mc₀ : Config (MarkedAgent L K))
+    (hcard : mc₀.card = n)
+    (hge3 : AllClockGE3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hnotP3 : ¬ AllClockP3 (L := L) (K := K) (eraseConfig (L := L) (K := K) mc₀))
+    (hclean : ∀ m ∈ mc₀, m.2 = false)
+    (Tcap : ℕ) (hcap : ClockFrontShape.capMinute (L := L) (K := K) < Tcap)
+    (W₂ : ℕ) (hW₂ : 2 ≤ W₂) (B' : ℕ) (s : ℝ) (hs : 0 ≤ s)
+    (j : ℕ) (hjKK : j ≤ DotyParams.KK L K - 1)
+    (εQ εfloor εP εB εge3 εno3 εcpos εsucc : ℝ≥0∞)
+    (hQ : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockUnconditional.QmixFail (L := L) (K := K) n mC T) ≤ εQ)
+    (hfloor : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockUnconditional.FloorFail (L := L) (K := K) mC T) ≤ εfloor)
+    (hP : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | ¬ ClockBudgets.WidthSideP (L := L) (K := K) n c} ≤ εP)
+    (hbulk : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        {c | ¬ (10 * rBeyond (L := L) (K := K)
+            (ClockFrontShape.capMinute (L := L) (K := K)
+              - (FrontTail.frontWidthBound n + W₂)) c < c.card)} ≤ εB)
+    (hge3F : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.GE3Fail (L := L) (K := K)) ≤ εge3)
+    (hno3 : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.NoAbove3Fail (L := L) (K := K)) ≤ εno3)
+    (hcpos : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.CposFail (L := L) (K := K)) ≤ εcpos)
+    (hsucc : (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockBudgets.SuccNoAbove3Fail (L := L) (K := K)) ≤ εsucc) :
+    (ClockKilledMinute.realκ L K ^ (DotyParams.w n * j + 0))
+        (eraseConfig (L := L) (K := K) mc₀)
+        (ClockUnconditional.Sgood (L := L) (K := K) n mC T)ᶜ
+      ≤ ClockBudgets.sideEps εQ εfloor
+          (εWAt_chk (L := L) (K := K) n mc₀ Tcap W₂ B' s j) εP εB εge3 εno3 εcpos εsucc :=
+  ClockBudgets.sidePrefix_le_assembled (L := L) (K := K) n mC T (DotyParams.w n * j + 0)
+    (FrontTail.frontWidthBound n + W₂) (eraseConfig (L := L) (K := K) mc₀)
+    (ClockBudgets.WidthSideP (L := L) (K := K) n)
+    εQ εfloor (εWAt_chk (L := L) (K := K) n mc₀ Tcap W₂ B' s j) εP εB εge3 εno3 εcpos εsucc
+    hQ hfloor
+    (widthFail_chk_concrete (L := L) (K := K) n hn mc₀ hcard hge3 hnotP3 hclean Tcap hcap
+      W₂ hW₂ B' s hs j hjKK)
+    hP hbulk hge3F hno3 hcpos hsucc
+
+/-! ## Deliverable 5 — the assembled bounded-horizon `hside_concrete`.
+
+The bounded-horizon global side family (the blueprint's correction — NOT the unbounded `∀ τ`).  Over
+the `(L+1)`-hour run horizon, the side mass `Sgood(T)ᶜ` is `≤ εEntry + εLocal`, with `εLocal` the
+per-entry-state intra-hour width budget.
+
+This is `sideB_cross_hour` specialised with `εLocal := ClockBudgets.sideEps εQ εfloor εWu εP εB εge3
+εno3 εcpos εsucc`.  The width feeder `εWu` is left as a parameter so the consumer plugs in either:
+
+* the rate-fixed `δRem`-free `εWAt_chk` (`sidePrefix_chk_concrete_width`) — valid at the CHECKPOINT
+  remainders (`r = 0`); or
+* the free-`τ` `εWAt` (`WidthPrefixConcrete.sidePrefix_concrete_width`) — valid at every `r < Mwidth`
+  but carrying the coarse `+1` (the documented rate gap, awaiting the within-window WFP transport).
+
+`hLocal` is supplied per the chosen feeder.  `hEntry` is the hour-entry whp (the `HourComposition`
+hour re-seed mass, named in the campaign as `heB`/the εsync side budget). -/
+
+/-- **`hside_concrete_bounded`** — the assembled bounded-horizon side family (deliverable 5).  Over
+`τ < (L+1)·Mhour`, `(realκ^τ) c₀ Sgood(T)ᶜ ≤ εEntry + sideEps …`. -/
+theorem hside_concrete_bounded
+    (n mC tseed tbulk : ℕ)
+    (c₀ : Config (AgentState L K))
+    (Entry : ℕ → Set (Config (AgentState L K)))
+    (εEntry εQ εfloor εWu εP εB εge3 εno3 εcpos εsucc : ℝ≥0∞)
+    (hMpos : 0 < Mhour (L := L) (K := K) tseed tbulk)
+    (hcover : Mhour (L := L) (K := K) tseed tbulk ≤
+      Mwidth (L := L) (K := K) n)
+    (hEntry : ∀ h, h ≤ L →
+      (ClockKilledMinute.realκ L K ^
+          (h * Mhour (L := L) (K := K) tseed tbulk))
+        c₀ (Entry h)ᶜ ≤ εEntry)
+    (hLocal : ∀ h, h ≤ L →
+      ∀ y ∈ Entry h, ∀ T r,
+        r < Mwidth (L := L) (K := K) n →
+        (ClockKilledMinute.realκ L K ^ r) y
+          (ClockUnconditional.Sgood (L := L) (K := K) n mC T)ᶜ
+          ≤ ClockBudgets.sideEps
+              εQ εfloor εWu εP εB εge3 εno3 εcpos εsucc) :
+    ∀ T τ,
+      τ < (L + 1) * Mhour (L := L) (K := K) tseed tbulk →
+      (ClockKilledMinute.realκ L K ^ τ) c₀
+        (ClockUnconditional.Sgood (L := L) (K := K) n mC T)ᶜ
+      ≤ εEntry +
+          ClockBudgets.sideEps
+            εQ εfloor εWu εP εB εge3 εno3 εcpos εsucc :=
+  sideB_cross_hour (L := L) (K := K)
+    n mC tseed tbulk c₀ Entry εEntry
+    (ClockBudgets.sideEps εQ εfloor εWu εP εB εge3 εno3 εcpos εsucc)
+    hMpos hcover hEntry hLocal
 
 end EarlyDripMarked
 
