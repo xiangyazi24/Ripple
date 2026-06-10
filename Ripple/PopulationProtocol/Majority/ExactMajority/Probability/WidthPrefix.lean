@@ -442,6 +442,60 @@ theorem windowedFrontProfile_whp_prefix (θn n : ℕ) (hn : 2 ≤ n) (cc : ℝ) 
   exact real_front_union_prefix (L := L) (K := K) θn n hn cc w r aM haM δ δRem hB hRem
     σ hσ j hsmall tt Tcap mc₀ h0 hmark (w * j + r) rfl
 
+/-! ## Deliverable 4 — the per-`τ` width-bound glue.
+
+`goodFrontWidth_whp` (in `EarlyDripMarked`) is already at a FREE horizon `t`: it combines a
+`WindowedFrontProfile`-whp bound (`hwfp`, the input wired from deliverable 2/3 at `t := τ`) with a
+`ClimbBound`-whp bound (`hclimb`).  `climbBound_whp` is horizon-free (free `t`), so its conclusion is
+exactly the `hclimb` input at any `τ`.  This wrapper feeds the climb side from `climbBound_whp`
+directly, leaving the `WindowedFrontProfile` mass `wfpB` (supplied by `windowedFrontProfile_whp_checkpoint`
+at `τ = w·j` or `windowedFrontProfile_whp_prefix` at `τ = w·j + r`) as the single input.  The result
+is the per-`τ` `GoodFrontWidth`-whp family. -/
+
+open ClockFrontProfile in
+/-- **STEP 5 at a free horizon `τ` — the per-`τ` `GoodFrontWidth`-whp family.**  At horizon `τ`, with
+the `WindowedFrontProfile` mass `wfpB` supplied as input (from `windowedFrontProfile_whp_checkpoint` /
+`windowedFrontProfile_whp_prefix`), the `ClimbBound` side is discharged by `climbBound_whp` (free `t`),
+so the real-kernel probability that the end config is a full-population all-phase-3 config (with the
+negligibility, the floor `θ ≥ 1/n`) yet FAILS `GoodFrontWidth (frontWidthBound n + W₂)` is at most
+`wfpB` plus the gated climb-tail sum at `τ`. -/
+theorem goodFrontWidth_whp_at (n θn : ℕ) (hn : 2 ≤ n) (cc : ℝ) (θ : ℝ)
+    (hθn : 1 / (n : ℝ) ≤ θ) (hθeq : θ = (θn : ℝ) / (n : ℝ))
+    (tt : ℕ) (W₂ : ℕ) (hW₂ : 2 ≤ W₂) (B' : ℕ) (s : ℝ) (hs : 0 ≤ s) (τ : ℕ)
+    (mc₀ : Config (MarkedAgent L K)) (wfpB : ℝ≥0∞)
+    (hwfp : ((NonuniformMajority L K).transitionKernel ^ τ) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ WindowedFrontProfile (L := L) (K := K) θ c} ≤ wfpB) :
+    ((NonuniformMajority L K).transitionKernel ^ τ) (eraseConfig (L := L) (K := K) mc₀)
+        {c | (c.card = n ∧ AllClockP3 (L := L) (K := K) c ∧
+            (∀ T, θ ≤ ClockFrontProfile.frac (L := L) (K := K) T c →
+              cc * (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ) + (tt : ℝ)
+                ≤ (rBeyond (L := L) (K := K) T c : ℝ) ^ 2 / (n : ℝ)))
+          ∧ ¬ GoodFrontWidth (L := L) (K := K)
+              (FrontTail.frontWidthBound n + W₂) c}
+      ≤ wfpB
+        + ∑ k ∈ Finset.range (ClockFrontShape.capMinute (L := L) (K := K) + 1),
+            ((GatedDrift.killK ((NonuniformMajority L K).transitionKernel)
+                (ClimbTail.climbGate (L := L) (K := K) n k B' θn) ^ τ)
+                (some (eraseConfig (L := L) (K := K) mc₀)) {none} +
+              (ENNReal.ofReal (1 + ((B' : ℝ) / (n : ℝ)) ^ 2 * (Real.exp s - 1))) ^ τ *
+                ClimbTail.climbPot (L := L) (K := K) k θn s (eraseConfig (L := L) (K := K) mc₀) /
+                ENNReal.ofReal (Real.exp (s * ((W₂ : ℝ) - 1)))) :=
+  goodFrontWidth_whp (L := L) (K := K) n hn cc θ hθn tt W₂ τ mc₀ wfpB
+    (∑ k ∈ Finset.range (ClockFrontShape.capMinute (L := L) (K := K) + 1),
+        ((GatedDrift.killK ((NonuniformMajority L K).transitionKernel)
+            (ClimbTail.climbGate (L := L) (K := K) n k B' θn) ^ τ)
+            (some (eraseConfig (L := L) (K := K) mc₀)) {none} +
+          (ENNReal.ofReal (1 + ((B' : ℝ) / (n : ℝ)) ^ 2 * (Real.exp s - 1))) ^ τ *
+            ClimbTail.climbPot (L := L) (K := K) k θn s (eraseConfig (L := L) (K := K) mc₀) /
+            ENNReal.ofReal (Real.exp (s * ((W₂ : ℝ) - 1)))))
+    hwfp
+    (climbBound_whp (L := L) (K := K) n θn W₂ (by omega) hW₂ θ hθeq B' s hs τ
+      (eraseConfig (L := L) (K := K) mc₀))
+
 end EarlyDripMarked
 
 end ExactMajority
