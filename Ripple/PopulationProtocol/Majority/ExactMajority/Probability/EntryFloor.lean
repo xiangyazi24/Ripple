@@ -139,9 +139,12 @@ theorem phaseInit3_main_bias_index_zero (p : Fin 11) (hp : p.val = 3)
     (hbias : (phaseInit L K p a).bias = Bias.dyadic ss i) :
     i.val = 0 := by
   -- Unfold `phaseInit` at `p.val = 3`; the Main branch sets `bias := newBias`.
-  have h1 : ¬ p.val = 1 := by omega
-  have h2 : ¬ p.val = 2 := by omega
-  simp only [phaseInit, h1, h2, hp, dif_pos, dif_neg, ha] at hbias
+  unfold phaseInit at hbias
+  rw [hp] at hbias
+  rw [dif_neg (by decide : ¬ (3 : ℕ) = 1), dif_neg (by decide : ¬ (3 : ℕ) = 2),
+    dif_pos (by rfl : (3 : ℕ) = 3)] at hbias
+  rw [ha] at hbias
+  simp only at hbias
   -- `newBias` is `.dyadic _ ⟨0,_⟩` or `.zero`; match the conversion's branches.
   by_cases hlt : a.smallBias.val < 3
   · simp only [hlt, if_true] at hbias
