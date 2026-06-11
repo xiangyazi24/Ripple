@@ -133,7 +133,7 @@ theorem geP_pair_seed_advances (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finse
     (s t : AgentState L K)
     (hs_phase : s.phase.val = p) (ht_phase : t.phase.val = p)
     (hs_clock : s.role = .clock) (ht_clock : t.role = .clock)
-    (hs_ctr : s.counter.val = 0) (ht_ctr : t.counter.val = 0) :
+    (hs_ctr : s.counter.val = 0) (_ht_ctr : t.counter.val = 0) :
     1 ≤ Multiset.countP (fun a => geP (L := L) (K := K) (p + 1) a)
         ({(Transition L K s t).1, (Transition L K s t).2}
           : Multiset (AgentState L K)) := by
@@ -157,7 +157,7 @@ advance. -/
 theorem geCount_stepOrSelf_seed_advance (p : ℕ)
     (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (c : Config (AgentState L K))
     (s t : AgentState L K) (happ : Protocol.Applicable c s t)
-    (hunseed : geCount (L := L) (K := K) (p + 1) c = 0)
+    (_hunseed : geCount (L := L) (K := K) (p + 1) c = 0)
     (hs_phase : s.phase.val = p) (ht_phase : t.phase.val = p)
     (hs_clock : s.role = .clock) (ht_clock : t.role = .clock)
     (hs_ctr : s.counter.val = 0) (ht_ctr : t.counter.val = 0) :
@@ -497,6 +497,32 @@ theorem telescoped_seed_overhead (q n : ℕ) :
     (q : ℝ≥0∞) * (1 + ((n * n : ℕ) : ℝ≥0∞))
       = (q : ℝ≥0∞) + (q : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
   rw [mul_add, mul_one]
+
+/-! ## Part 6 — the `9 → 10` chain-end verdict (RE-SURVEYED)
+
+**The seed mechanism covers `p ∈ {5,6,7,8}` (and the lower timed phases `{0,1}`), NOT `9`.**
+`seed_then_spread_le` requires `hp : p ∈ {0,1,5,6,7,8}` — the counter-timed phases on which
+`Transition_timed_clock_counter_zero_advances` fires.  The chain-end `9 → 10` is OUTSIDE this
+set, and the re-survey CONFIRMS the campaign's prior finding: **phase 9 genuinely has no timed
+counter.**
+
+* `Protocol.Transition.Phase9Transition = Phase2Transition` (a bias-sign / opinion-comparison
+  transition); it runs NO `stdCounterSubroutine` on clocks, so there is no counter-0 clock that
+  advances `9 → 10` on a counter-running interaction.  Equivalently `9 ∉ CounterTimedPhase`
+  (`SeamNoOvershoot.CounterTimedPhase q = (q = 1 ∨ q = 5 ∨ q = 6 ∨ q = 7 ∨ q = 8)`).
+
+* Therefore the counter-drain seed mechanism of this file CANNOT supply the `9 → 10` seed.  The
+  honest `9 → 10` entry seed stays the **error-jump / backup-entry route**: `phaseInit 1/2/9`
+  error-jumps a biased/`mcr` agent to phase `10` via `enterPhase10` (the FROZEN seam), as
+  documented in `BackupEntry.lean` Part 6.  That seed (`1 ≤ geCount 10 c`) is the NAMED whp
+  event — the `enterPhase10` error-jump fires whp once a biased/`mcr` agent crosses — NOT a
+  deterministic counter-0 advance, and is honestly carried by `BackupEntry.backup_entry_*`,
+  not closed here.
+
+So this file CLOSES the `{5,6,7,8}` seam-rung seeds deterministically-modulo-`O(1)`-time (the
+counter-0 mechanism) and leaves the `9 → 10` seed precisely where it honestly lives — the
+backup-entry whp event.  The Part-3 seed bound, applied at `p = 9`, would be VACUOUS (its
+`hp : 9 ∈ {0,1,5,6,7,8}` is false), correctly refusing to manufacture a non-existent counter. -/
 
 end SeedRungs
 end ExactMajority

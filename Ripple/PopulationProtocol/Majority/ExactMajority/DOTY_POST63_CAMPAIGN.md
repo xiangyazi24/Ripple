@@ -5739,3 +5739,79 @@ Phase-5 `ReserveSampleGood` Post) — no floor carried, only the per-level rate.
 floor reduces to a single named paper-confinement fact (Lemma 5.3/[45], Theorem 6.2, Lemma 7.4,
 Lemma 7.6), each carried with provenance and (for 7/8) wired into the levels drop floor by
 `slot{7,8}_levels_hdrop`. No "already done" claim is made without the wired lemma name above.
+
+## SeedRungs.lean — the per-rung ADVANCE SEEDS, honestly discharged (wave A, 2026-06-11)
+
+Closes the `htrig`/`hseed` residual that EVERY per-rung cap in `TimedChainRungs.lean` /
+`ChainEndAssembly.lean` carried: `1 ≤ geCount (p+1) c` (some agent already crossed to phase
+`≥ p+1`). `ChainEndAssembly` Part-4 had surveyed this as a genuine per-rung whp INPUT not
+supplied by the drained output `AllClockGEpCard p n`. Append-only new file
+`Probability/SeedRungs.lean`; edits NO existing file.
+
+### The honest mechanism (the survey, confirmed)
+
+The seed is NOT a carried mystery and NOT a free deterministic fact: it materialises after ONE
+more counter-running interaction. The counter-drain rung
+(`timed_phase_progress_real_tinyClock`) delivers the DRAINED state `clockCounterSumAt p c = 0`
+(every phase-`p` clock at counter `0`, since the sum of non-negative weights is `0`). In the
+all-clock regime with the seed not yet fired (`geCount (p+1) c = 0`), EVERY agent is then a
+clock at phase EXACTLY `p` with counter `0`. The FROZEN protocol advances on the NEXT
+counter-running interaction: a counter-0 clock-clock pair runs
+`stdCounterSubroutine → advancePhaseWithInit`, landing one participant at phase `≥ p+1` — the
+ALREADY-PROVEN `Analysis.PhaseProgress.Transition_timed_clock_counter_zero_advances`
+(`p ∈ {0,1,5,6,7,8}`). So `geCount (p+1)` climbs `0 → ≥ 1`: the seed.
+
+### What landed (5 parts, all 0-sorry, axiom-clean)
+
+1. **The per-pair advance lemma** — `geP_pair_seed_advances` / `geCount_stepOrSelf_seed_advance`:
+   a distinct clock-clock counter-0 pair at phase `p` raises `geCount (p+1)` to `≥ 1` (routed
+   through `Transition_timed_clock_counter_zero_advances`). Plus the drained-state structure:
+   `drained_imp_counter_zero` (sum `= 0` ⟹ each phase-`p` clock counter `0`),
+   `unseeded_imp_phase_eq` (un-seeded all-clock ⟹ every agent a clock at phase exactly `p`).
+
+2. **The seed advance probability** — `seed_advance_prob`: from the drained un-seeded all-clock
+   state, the per-step kernel mass on `{geCount (p+1) c + 1 ≤ geCount (p+1) c'}` is
+   `≥ (n·(n−1))/(n(n−1))` — the FULL clock×clock rectangle (every present state qualifies), via
+   `SeamEpidemics.advance_prob_of_rect` with `R = univ ×ˢ univ`,
+   `∑ interactionCount = card·(card−1) = n(n−1)`.
+
+3. **The seed expected-time bound** — `seed_expectedHitting_le_one`: `E[T to {1 ≤ geCount (p+1)}]
+   ≤ 1`. The advance rate `n(n−1)/(n(n−1)) = 1` (one clock-pair meeting at its trivial extreme:
+   EVERY applicable pair advances), so the seed target is hit in ONE step a.s.
+   (`drained_kernel_seedTarget_compl_zero`: `K c (seedTarget)ᶜ = 0`); with `seedTarget` absorbing
+   (`geCount` monotone, `seedTarget_absorbing`) the tail sum collapses to the `t = 0` term `≤ 1`.
+
+4. **The wired seed rung** — `seed_then_spread_le`: drained → seeded (Part 3, `≤ 1`) → spread
+   (`TimedChainRungs.seam_rung_to_chain_target_le_nsq`, `≤ n²`), composed by
+   `RecoveryBridges.expectedHitting_seqcomp_on_of_uniform` (`J = AllClockGEpCard p n`,
+   one-step-closed; `Mid = seedTarget`, `Done = {AllClockGEpCard (p+1) n}`). The `Mid`-state cap's
+   two inputs — regime membership (`= J`) and the seed (`= Mid`) — are SUPPLIED by the seqcomp's
+   `J ∩ Mid` hypothesis, NOT carried. Result: `E[T drained → chain-target] ≤ 1 + n²`, the per-rung
+   `drained ⟹ chain-target` bound with the seed DISCHARGED.
+
+5. **The re-cut spine arithmetic** — `per_rung_recut` (per-rung cap `1 + n²`), `telescoped_seed_overhead`
+   (`q·(1 + n²) = q + q·n²`). The previous spine budget `q·n²` (`ChainEndAssembly.timedSpine_ladderData`)
+   gains a pure additive seed term `q·1 = q` interactions (`q = 10 − p ≤ 5`). For the longest timed
+   branch (`p = 5`, `q = 5`): `5` seed interactions on top of `5·n²` spread — utterly dominated
+   (`n ≥ 2`). The honest re-cut ladder budget is therefore `q·(1 + n²) + βfinal`, absorbing the
+   seed at `O(q) = O(1)` overhead. (The campaign's heuristic "`2·9·n²` vs `n²`" budget has ample
+   slack for the `+q` term.)
+
+### The `9 → 10` chain-end verdict (RE-SURVEYED)
+
+The seed mechanism covers `p ∈ {5,6,7,8}` (the seam rungs) and the lower timed phases `{0,1}`,
+but NOT `9`. The re-survey CONFIRMS the campaign's prior finding: **phase 9 genuinely has no
+timed counter** — `Protocol.Transition.Phase9Transition = Phase2Transition` (a bias-sign /
+opinion-comparison transition, NO `stdCounterSubroutine` on clocks), and `9 ∉ CounterTimedPhase`.
+So the counter-0 seed CANNOT supply the `9 → 10` seed. The honest `9 → 10` entry seed stays the
+**error-jump / backup-entry route** (`phaseInit 1/2/9` error-jumps a biased/`mcr` agent to phase
+`10` via `enterPhase10`), the NAMED whp event carried by `BackupEntry.backup_entry_*` — NOT a
+deterministic counter-0 advance. `seed_then_spread_le` correctly REFUSES `p = 9` (`hp` vacuous),
+not manufacturing a non-existent counter. Documented in `SeedRungs.lean` Part 6.
+
+### Audit
+
+Single-file `lake env lean Ripple/PopulationProtocol/Majority/ExactMajority/Probability/SeedRungs.lean`
+EXIT 0 (deps from cached oleans, ~v4.30.0). `#print axioms` for all 11 new declarations
+⊆ `[propext, Classical.choice, Quot.sound]` (`drained_imp_counter_zero`, `unseeded_imp_phase_eq`
+use only `[propext, Quot.sound]`); 0 sorry/admit/axiom/native_decide; `git diff --check` clean.
