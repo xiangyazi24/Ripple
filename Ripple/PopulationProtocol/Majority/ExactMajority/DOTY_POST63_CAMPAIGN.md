@@ -6369,3 +6369,60 @@ corollary, the old-`phases'` expected fragment, the unwired `hStart`/`hPhase10Si
 threading (recorded honestly via `hK_hN_threading_status`, not fake-threaded), and recorded the dead
 `WorkInputsHonest.hM₀` field. CONDITIONAL-honest = the two end-to-end theorems hold over this one
 inspectable, genuinely-probabilistic residual bundle, axiom-clean.
+
+---
+
+## Atom campaign — first target: `hPhase10Sign` DISCHARGED (Probability/SignMatch.lean, 2026-06-11)
+
+**Target.** The V3 residual bundle `FinalAssemblyV3.DotyResidualAtomsV3` carries
+`hPhase10Sign : AtomsV2.Phase10SignMatch init` as a free field. `AtomsV2` (Part 2, F6 c) recorded the
+honest finding: slot-20 `Post = Phase10Post c = ∃ o, ∀ a ∈ c, phase = 10 ∧ output = o` leaves the
+unanimous output `o` UNPINNED, so it does NOT on its own give `phase10MajorityWitness` (which demands
+`o = .A/.B/.T` for `gap >/</= 0`). The missing link is that the agreed output matches `sign(initialGap)`.
+
+**Mechanism (the conserved signed sum).** The correctness half's chain-conserved quantity is
+`phase10ActiveSignedSum c = (activeACount c) − (activeBCount c)`
+(`Phase10Backup.phase10ActiveSignedSum_eq_activeACount_sub_activeBCount`), equal to `initialGap init`
+on every reachable all-phase-10 state
+(`Phase10Backup.phase10ActiveSignedSum_eq_initialGap_of_reachable`). `signedContribution` counts only
+ACTIVE (`full = true`) agents (`A → +1`, `B → −1`, else `0`). On a unanimous-output state the sum is
+sign-locked to `o`:
+- `o = .A` ⟹ `activeBCount = 0` ⟹ `signedSum = activeACount ≥ 0`;
+- `o = .B` ⟹ `activeACount = 0` ⟹ `signedSum ≤ 0`;
+- `o = .T` ⟹ `signedSum = 0`.
+With `signedSum = gap`: `gap > 0 ⟹ o = .A`, `gap < 0 ⟹ o = .B`.
+
+**The honest gap (named).** At `gap = 0` the sum ALONE does not force `o = .T`: `o = .A` with all-A
+agents PASSIVE gives `signedSum = 0` too. The genuine extra premise is `hasActiveAgent c` — the active
+agent outputs `o`, so it is an `IsActive{o}` source; `o = .A/.B` would force `activeACount/activeBCount
+≥ 1` hence `signedSum ≠ 0`, contradiction. So `hasActiveAgent ⟹ o = .T` at the tie. This is EXACTLY the
+`hasActiveAgent` premise the landed `BackupEntry.allPhase10_tie_imp_Tie1plus` consumes to route the tie
+arrival into `Tie1plus` (the tie is a liveness regime). No new chain invariant was needed.
+
+**Deliverables (`Probability/SignMatch.lean`, append-only, imports `AtomsV2` + `BackupEntry`):**
+- `activeBCount_zero_of_unanimousA` / `activeACount_zero_of_unanimousB` /
+  `activeACount_zero_of_unanimousT` / `activeBCount_zero_of_unanimousT` — the unanimity counting locks;
+- `signedSum_{nonneg_of_unanimousA, nonpos_of_unanimousB, zero_of_unanimousT}` — the sign locks;
+- `signedSum_{pos_of_unanimousA_active, neg_of_unanimousB_active}` — the tie disambiguators;
+- `witness_of_post_conservation` — per-config: `Phase10Post c` + `signedSum c = gap` + `hasActiveAgent c`
+  ⟹ `phase10MajorityWitness init c`;
+- **`phase10SignMatch_of_conservation`** (the campaign atom) — produces `AtomsV2.Phase10SignMatch init`
+  from per-`Phase10Post`-config conservation + activity;
+- `phase10SignMatch_of_reachable` — wrapper deriving the conservation from
+  `phase10ActiveSignedSum_eq_initialGap_of_reachable` (residual = per-config reachability + activity,
+  the content `BackupEntry` already owns);
+- `post_of_conservation` — composes the atom with `AtomsV2.postOfSign` to PRODUCE `h_post`
+  (`majorityStableEndpoint init c`), closing the V3 `hPhase10Sign → h_post` wiring in-file.
+
+**Verification.** Single-file `lake env lean Probability/SignMatch.lean` EXIT 0, no errors.
+`#print axioms` for `phase10SignMatch_of_conservation`, `phase10SignMatch_of_reachable`,
+`witness_of_post_conservation`, `post_of_conservation` all ⊆ `[propext, Classical.choice, Quot.sound]`
+(no `sorryAx`/admit/axiom/native_decide). `git diff --check` clean.
+
+**What remains.** `phase10SignMatch_of_reachable` still carries, per `Phase10Post`-config, the
+reachability `Reachable init c` and activity `hasActiveAgent c` premises. These are NOT free oracles:
+they are the same `validInitial`/`Reachable`/`hasActiveAgent` content the landed correctness chain
+(`BackupEntry.allPhase10_tie_imp_Tie1plus`, `arrival_classification`) already consumes; turning them
+into a slot-instance discharge (so the V3 bundle's `hPhase10Sign` field is constructed, not assumed) is
+the next atom — it needs the slot-20 `Post` to additionally expose `Reachable init c` and the tie-side
+`hasActiveAgent`, which the entry-regime invariants carry but the bare `Phase10Post` predicate drops.
