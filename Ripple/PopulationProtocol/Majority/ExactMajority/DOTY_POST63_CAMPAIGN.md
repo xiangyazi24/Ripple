@@ -4428,3 +4428,63 @@ higher. The seam to Phase 7 is the strongest reachable form (`Phase6To7Structure
 `MinorityAboveFloor` + step-stability). The only honest input is the budget `l + 2 ≤ L` (two free hours
 above the band floor) — documented explicitly, NOT hidden. No probability obstruction; the bump is the
 verbatim engine at the bumped parameter.
+
+---
+
+## Phase-1 partner-margin Θ(n) floor (`Probability/PartnerMargin.lean`, NEW)
+
+The LAST carried atom of the §1 averaging chain. `AveragingRate.lean` lands the per-level
+second-moment drain rate `q m = 1 − ofReal(P/(n(n−1)))` (`secondMomentN_hdrop_of_struct_high/_low`)
+but carries one quantitative input: the **partner margin** `P`. With `P = 1` (single far witness)
+the rate is `1 − 1/(n(n−1))` and the horizon is the crude `Θ(n²·log n)`; the paper-faithful
+`Θ(n·log n)` (Lemma 5.3 / [45] Cor.1) needs `P = Θ(n)`. This file derives that `Θ(n)` floor HONESTLY
+from the conserved SUM INVARIANT of `AveragingRate` (`centredBiasSum`), no [45] import.
+
+**The briefing-error caught and fixed.** The naive pigeonhole `#low < δn ⟹ S > n` does NOT close at
+the granularity `|S| ≤ n`: every Main has centred value in `[−3,3]`, so `S ≥ (n − #low) − 3·#low =
+n − 4·#low`, which is `≤ n` with NO contradiction. The genuine derivation needs the SHARPER honest
+entry bound `|S| ≤ g`: the Doty Phase-1 entry encodes each Main's ±1 opinion as `val ∈ {2,4}`
+(centred ±1), so `S = centredBiasSum = #plus − #minus = gap`, the initial opinion gap, conserved by
+`avgFin7` (`AveragingRate.centredBiasSum_stepOrSelf_eq`). At a contested entry `|S| ≤ g = εn`. THEN
+`n − g ≤ 4·#low` closes (division-free).
+
+**STAGE A — honest entry sum bound.** `EntrySumPinned n g c := Phase1AllMain n c ∧
+|centredBiasSum c| ≤ g` refines `AveragingRate.SumPinned` (the trivial `g = n` case;
+`sumPinned_of_entrySumPinned`). `K`-closed: `EntrySumPinned_support_closed` (window closure +
+`AveragingRate.centredBiasSum_eq_on_support`) ⟹ `invClosed_entrySumPinned`.
+
+**STAGE B — the honest pigeonhole (ℤ, division-free).** Pointwise bias bounds on a Main:
+`biasZ_ge_low` (`4·[val≥4] − 3 ≤ biasZ`), `biasZ_le_high` (`biasZ ≤ 3 − 4·[val≤2]`). Summed by direct
+multiset induction:
+- `lowCount_core`: `(card s : ℤ) − 4·countP(val≤3) s ≤ Σ biasZ` (every Main `≥ −3`; high Mains
+  `val≥4` add `≥ +4` above that floor).
+- `highCount_core`: `Σ biasZ ≤ (card s : ℤ) − 4·countP(val≥3) s` (mirror).
+
+Combined with `EntrySumPinned`'s `centredBiasSum ≤ |·| ≤ g` (resp. `−g ≤ −|·| ≤ ·`):
+`four_mul_lowCount_ge_of_entry` / `four_mul_highCount_ge_of_entry`: `(n:ℤ) − g ≤ 4·countP`. The
+`countP`-↔-`Finset.sum count` bridge `sum_count_filter_eq_countP` (generic re-derivation of the
+`EarlyDripMarked` lemma for `AgentState L K`: `Finset.sum_filter` → `Multiset.count_filter` →
+`sum_count_eq_card` → `countP_eq_card_filter`) plus the all-Main role-conjunct collapse
+(`lowSet_sum_count_eq_countP` / `high`, via `Multiset.countP_congr` — every member is a Main so the
+`role = main` conjunct of `low`/`high` is free) convert to the consumer's count shape:
+`lowSet_floor_of_entry` / `highSet_floor_of_entry`: `(n − g + 3)/4 ≤ (lowSet/highSet).sum count`
+(ℕ round-up of `(n−g)/4`).
+
+**STAGE C — instantiate `AveragingRate`'s `P'` slot.** `secondMomentN_hdrop_of_entry_high/_low` feed
+`P = (n − g + 3)/4 = Θ(n)` into `AveragingRate.secondMomentN_hdrop_of_struct_high/_low`, giving
+`q m = 1 − ofReal((⌈(n−g)/4⌉)/(n(n−1)))`. The only config-dependent input left is the far witness
+`1 ≤ farHighSet/farLowSet .sum count` — the SIDE `farExists_of_secondMoment_gt_n` leaves open (it
+supplies *a* far Main; *which* side is the per-config datum the rectangle pairs against the
+opposite-side partner floor). Both orientations delivered.
+
+**STAGE D — final floor surface.** `phase1_pullPos_floor_whp_of_entry` instantiates
+`AveragingRate.phase1_pullPos_floor_whp_of_struct` with `P = (n − g + 3)/4`. Inputs: the protocol
+window `Phase1AllMain`, the honest entry gap `g ≤ n`, and the rate family `q` (discharged structurally
+by Stage C). HORIZON arithmetic documented in-file: `P = Θ(n)` (`g = εn` ⟹ `P ≥ (1−ε)n/4`) ⟹
+`q m = 1 − Θ(1/n)` ⟹ `(q m)^t = (1 − Θ(1/n))^t ≤ exp(−Θ(t/n))` ⟹ `t = Θ(n·log n)` for `O(1/n²)`
+failure — paper-faithful Lemma 5.3 / [45] Cor.1. The crude single-witness regime (`P = 1`,
+`t = Θ(n²·log n)`) is the `g = n` degenerate case `P = ⌈0/4⌉`.
+
+**Net:** the §1 averaging chain has NO remaining free quantitative atom — the partner margin `P` is
+the honest `Θ(n)` value `(n − g + 3)/4` derived from the conserved opinion-gap invariant. The only
+inputs are the protocol window, the entry gap `g`, and the far witness (config datum), all honest.

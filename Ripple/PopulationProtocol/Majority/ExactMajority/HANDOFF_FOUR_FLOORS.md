@@ -84,6 +84,40 @@ Source: ChatGPT Pro (family3, Ripple connector). 16,998 B via network. Verbatim 
     the rate is `1 − Θ(1/n)`, horizon `t = Θ(n·log n)` — paper-faithful Lemma 5.3. The partner floor
     `P` is the ONLY remaining carried atom (same status as the `extremeU` chain's `hpull`).
 
+- **Phase-1 partner-margin Θ(n) FLOOR** (§1 residual — the carried `P'` atom of `AveragingRate`) —
+  DELIVERED in NEW `Probability/PartnerMargin.lean` (0-sorry, axioms ⊆ [propext, Classical.choice,
+  Quot.sound]; single-file build EXIT_0 on uisai2). This discharges the LAST carried atom of the
+  §1 averaging chain: the partner margin `P` is no longer free — it is `(n − g + 3)/4 = Θ(n)`,
+  derived HONESTLY from the conserved SUM INVARIANT of `AveragingRate` (no [45] import). With `P` now
+  `Θ(n)`, the rate is the paper-faithful `q = 1 − Θ(1/n)` and the horizon is `Θ(n·log n)`.
+  - THE BRIEFING-ERROR CAUGHT AND FIXED: the naive pigeonhole `#low < δn ⟹ S > n` does NOT close at
+    `|S| ≤ n` — `S ≥ n − 4·#low ≤ n` gives NO contradiction. The honest fix is the SHARPER entry sum
+    bound `|S| ≤ g` (`g = εn`, the initial opinion gap; each Main encodes ±1 so `S = #plus − #minus
+    = gap`, conserved by `avgFin7`). THEN `n − g ≤ 4·#low` closes (division-free, in ℤ).
+  - STAGE A (`EntrySumPinned n g c` := `Phase1AllMain ∧ |centredBiasSum| ≤ g`): refines
+    `AveragingRate.SumPinned` (the `g = n` case) to the honest gap `g`; `K`-closed
+    (`EntrySumPinned_support_closed` / `invClosed_entrySumPinned`), via `AveragingRate`'s landed
+    `centredBiasSum_eq_on_support`.
+  - STAGE B (the honest pigeonhole, ℤ, division-free): the pointwise bias bounds `biasZ_ge_low`
+    (`4·[val≥4] − 3 ≤ biasZ`) / `biasZ_le_high`, summed by direct multiset induction
+    (`lowCount_core` / `highCount_core`: `card − 4·#{val≤3} ≤ S ≤ card − 4·#{val≥3}`). Combined with
+    `|S| ≤ g`: `four_mul_lowCount_ge_of_entry` / `_highCount_` give `(n:ℤ) − g ≤ 4·countP`. The
+    `countP`-↔-`Finset.sum count` bridge (`sum_count_filter_eq_countP`, generic re-derivation of the
+    `EarlyDripMarked` lemma for `AgentState`) + the all-Main role-conjunct collapse
+    (`lowSet_sum_count_eq_countP` / `high`) convert to the consumer's count shape:
+    `lowSet_floor_of_entry` / `highSet_floor_of_entry` = `(n − g + 3)/4 ≤ (lowSet/highSet).sum count`.
+  - STAGE C (instantiate `AveragingRate`'s `P'` slot): `secondMomentN_hdrop_of_entry_high/_low` feed
+    `P = (n − g + 3)/4` into `AveragingRate.secondMomentN_hdrop_of_struct_high/_low`. The only
+    config-dependent input left is the far witness `1 ≤ farHighSet/farLowSet .sum count` — the SIDE
+    `farExists_of_secondMoment_gt_n` leaves open (it supplies *a* far Main; *which* side is the
+    per-config datum the rectangle pairs against the opposite-side partner floor; both orientations
+    delivered).
+  - STAGE D (final floor surface): `phase1_pullPos_floor_whp_of_entry` instantiates
+    `AveragingRate.phase1_pullPos_floor_whp_of_struct` with `P = (n − g + 3)/4`. Inputs: the protocol
+    window `Phase1AllMain`, the honest entry gap `g`, and the rate family `q` (discharged structurally
+    by Stage C). HORIZON arithmetic documented in-file: `q m = 1 − Θ(1/n)` ⟹ `(q m)^t ≤
+    exp(−Θ(t/n))` ⟹ `t = Θ(n·log n)` for `O(1/n²)` failure (paper-faithful Lemma 5.3 / [45] Cor.1).
+
 ---
 
 [intro]

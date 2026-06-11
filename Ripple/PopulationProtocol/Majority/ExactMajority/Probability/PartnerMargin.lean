@@ -160,14 +160,17 @@ theorem lowCount_core (s : Multiset (AgentState L K))
       -- a high Main (val ≥ 4): biasZ a = val − 3 ≥ +1, lowCount unchanged.
       rw [hbias]; have := a.smallBias.isLt; push_cast; omega
 
-/-- **The mirror pigeonhole (high side), multiset core.**  `centredBiasSum ≥ −(card − 4·highCount)`,
-i.e. `-(card) + 4·highCount ≤ S`... dually `S ≤ card − 4·highCount`-shaped: every Main contributes
-`≤ +3`; low Mains (`val ≤ 2`, NOT in `highCount`) contribute `≤ −1`. -/
+/-- **The mirror pigeonhole (high side), multiset core.**  `card − 4·highCount ≤ −S`, lower-bounding
+`highCount = #{Main : val ≥ 3}`: per Main `1 − 4·[val≥3] ≤ −biasZ = 3 − val` (a high Main `val ≥ 3`
+has `3 − val ≤ 0` so `−3 ≤ ·` from `val ≤ 6`; a low Main `val ≤ 2` has `3 − val ≥ 1`).  Summed, this
+gives `n − 4·#{val≥3} ≤ −S`, so `−S ≥ n − 4·highCount`; with `−S ≤ g` (the entry bound applied to
+`−S = |S| ≥ −g`... ) it yields the high-side floor.  Note this is NOT the negation of `lowCount_core`:
+the far-LOW witness needs `val ≥ 3` partners, whose count is large precisely when `−S` is small, i.e.
+`S ≥ −g` — the lower half of `|S| ≤ g`. -/
 theorem highCount_core (s : Multiset (AgentState L K))
     (hM : ∀ a ∈ s, a.role = Role.main) :
-    (s.map (fun a => AveragingRate.biasZ a)).sum
-      ≤ (Multiset.card s : ℤ)
-          - 4 * (Multiset.countP (fun a : AgentState L K => 3 ≤ a.smallBias.val) s) := by
+    (Multiset.card s : ℤ) - 4 * (Multiset.countP (fun a : AgentState L K => 3 ≤ a.smallBias.val) s)
+      ≤ -(s.map (fun a => AveragingRate.biasZ a)).sum := by
   classical
   induction s using Multiset.induction with
   | empty => simp
@@ -175,19 +178,16 @@ theorem highCount_core (s : Multiset (AgentState L K))
     have hMs : ∀ b ∈ s, b.role = Role.main := fun b hb => hM b (Multiset.mem_cons_of_mem hb)
     have hMa : a.role = Role.main := hM a (Multiset.mem_cons_self a s)
     have hih := ih hMs
-    rw [Multiset.map_cons, Multiset.sum_cons, Multiset.card_cons, Multiset.countP_cons,
-      Nat.cast_add, Nat.cast_one]
+    rw [Multiset.map_cons, Multiset.sum_cons, Multiset.card_cons, Multiset.countP_cons]
     have hbias : AveragingRate.biasZ a = (a.smallBias.val : ℤ) - 3 := by
       unfold AveragingRate.biasZ; rw [if_pos hMa]
     by_cases h : 3 ≤ a.smallBias.val
     · rw [if_pos h]
-      simp only [Nat.cast_one]
-      -- a high Main: biasZ a = val − 3 ≤ +3, highCount up by 1.
-      rw [hbias]; have := a.smallBias.isLt; omega
+      -- a high Main (val ≥ 3): −biasZ = 3 − val ≤ 0, highCount up by 1; need −3 ≤ 3 − val (val ≤ 6).
+      rw [hbias]; have := a.smallBias.isLt; push_cast; omega
     · rw [if_neg h]
-      simp only [Nat.cast_zero, add_zero]
-      -- a low Main (val ≤ 2): biasZ a = val − 3 ≤ −1, highCount unchanged.
-      rw [hbias]; omega
+      -- a low Main (val ≤ 2): −biasZ = 3 − val ≥ 1, highCount unchanged.
+      rw [hbias]; push_cast; omega
 
 /-! ### From the multiset cores to the `centredBiasSum` bound and the count floor.
 
@@ -206,7 +206,7 @@ theorem sum_count_filter_eq_countP (p : AgentState L K → Prop) [DecidablePred 
     _ = ∑ a : AgentState L K, (c.filter p).count a := by
         refine Finset.sum_congr rfl (fun a _ => ?_)
         show _ = Multiset.count a (c.filter p)
-        rw [Multiset.count_filter]
+        rw [Multiset.count_filter]; rfl
     _ = (c.filter p).card :=
         Multiset.sum_count_eq_card (fun a _ => Finset.mem_univ a)
     _ = Multiset.countP (fun a => p a) c := (Multiset.countP_eq_card_filter _ _).symm
@@ -224,7 +224,7 @@ theorem four_mul_lowCount_ge_of_entry (n g : ℕ) (c : Config (AgentState L K))
   have hcardZ : (Multiset.card c : ℤ) = (n : ℤ) := by exact_mod_cast hcard
   rw [hsum, hcardZ] at hcore
   -- centredBiasSum ≤ |centredBiasSum| ≤ g
-  have hle : AveragingRate.centredBiasSum c ≤ (g : ℤ) := le_trans (le_abs_self _) hbound
+  obtain ⟨_, hle⟩ := abs_le.mp hbound
   omega
 
 /-- **The honest counting bound (high side), config form.**  `n − g ≤ 4·#{Main : val ≥ 3}` from
@@ -239,10 +239,8 @@ theorem four_mul_highCount_ge_of_entry (n g : ℕ) (c : Config (AgentState L K))
   have hsum : (c.map (fun a => AveragingRate.biasZ a)).sum = AveragingRate.centredBiasSum c := rfl
   have hcardZ : (Multiset.card c : ℤ) = (n : ℤ) := by exact_mod_cast hcard
   rw [hsum, hcardZ] at hcore
-  -- −g ≤ −|S| ≤ S  (from |S| ≤ g)
-  have hge : -(g : ℤ) ≤ AveragingRate.centredBiasSum c := by
-    have := neg_le_neg hbound
-    exact le_trans this (neg_abs_le _)
+  -- core: n − 4·highCount ≤ −S; and −g ≤ S (from |S| ≤ g).
+  obtain ⟨hge, _⟩ := abs_le.mp hbound
   omega
 
 /-- **`countP (val ≤ 3) = (lowSet).sum count` on the all-Main window.**  Every agent is a Main, so
@@ -253,14 +251,12 @@ theorem lowSet_sum_count_eq_countP (n g : ℕ) (c : Config (AgentState L K))
       = Multiset.countP (fun a : AgentState L K => a.smallBias.val ≤ 3) c := by
   obtain ⟨⟨_, hph⟩, _⟩ := h
   rw [AveragingRate.lowSet]
-  rw [show (fun a : AgentState L K => AveragingRate.low a)
-      = (fun a => AveragingRate.low a) from rfl]
   rw [sum_count_filter_eq_countP (fun a => AveragingRate.low a) c]
   -- countP low c = countP (val ≤ 3) c, since every member is a Main.
   apply Multiset.countP_congr rfl
   intro a ha
   have hM : a.role = Role.main := (hph a ha).2
-  simp only [AveragingRate.low, hM, true_and, decide_eq_decide]
+  simp only [AveragingRate.low, hM, true_and]
 
 /-- **`countP (val ≥ 3) = (highSet).sum count` on the all-Main window.** -/
 theorem highSet_sum_count_eq_countP (n g : ℕ) (c : Config (AgentState L K))
@@ -273,7 +269,7 @@ theorem highSet_sum_count_eq_countP (n g : ℕ) (c : Config (AgentState L K))
   apply Multiset.countP_congr rfl
   intro a ha
   have hM : a.role = Role.main := (hph a ha).2
-  simp only [AveragingRate.high, hM, true_and, decide_eq_decide]
+  simp only [AveragingRate.high, hM, true_and]
 
 /-- **The low-side partner floor, consumer count form.**  On an `EntrySumPinned n g` window, the
 low-side partner pool has at least `(n − g + 3) / 4` Mains (ℕ-division round-up of `(n−g)/4`):
