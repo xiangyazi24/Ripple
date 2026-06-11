@@ -5986,3 +5986,133 @@ add). `#print axioms` for all 9 new declarations (`roleSplitW_of_two_stage`,
 `clock_unconditional_bounded`, `final_minute_le_clock_bounded`, `phase3Convergence_bounded`,
 `phase5Convergence_of_hConc`, `phaseGE5Win_closed`) ⊆ `[propext, Classical.choice, Quot.sound]`;
 0 sorry/admit/axiom/native_decide; `git diff --check` clean.
+
+## SeedTrigWiring.lean — discharging `hTrig` into the seam SEED step (wave B, 2026-06-11)
+
+Converges the two wave-A outputs into the `ConcreteAssembly` track.  `SeedRungs.lean` supplied
+the one-step a.s. advance seed (`drained_kernel_seedTarget_compl_zero`); `AssemblyBridges.lean`
+PROVED the obstruction `drained_post_no_advTrig` (on a drained exact-`p` window `advTriggered (p+1)`
+is FALSE).  This file re-shapes the work→seam handoff so the seam entry happens ONE step AFTER the
+work `Post` — the SEED step — at which point the trigger holds.  Append-only new file
+`Probability/SeedTrigWiring.lean`; edits NO existing file.
+
+### The route chosen — (a) shifted composition at the `PhaseConvergenceW` level
+
+The prompt offered (a) extend the seam by a one-step seed and (b) re-cut `dotyPhases`' seam Pre.
+**Route (a) was chosen** and it forced a re-cut of the assembly record (so it subsumes (b)): the
+seed step is a genuine `PhaseConvergenceW` (`seedStepW`, `t = 1`, `ε = 0`) PREPENDED to each EXACT
+seam (`seamWithSeed = seedStepW ⊕ seamEpidemicExactW`, `t = 1 + tseam`, `ε = εepidemic+εovershoot`).
+The work→seam bridge then becomes the IDENTITY (the shifted seam's `Pre` IS the work `Post`), so the
+FALSE `hTrig` field is GONE — replaced by the NARROWER one-step seed event `hSeedStep`.
+
+The world-bridge that made this possible: `advTriggered_iff_seedTarget` —
+`SeamEpidemics.advTriggered (p+1) c ↔ c ∈ SeedRungs.seedTarget p` (both are
+`1 ≤ Multiset.countP (p+1 ≤ phase) c`; the `decide`/`geP` predicates agree pointwise).  So the
+SeamEpidemics advance trigger and the SeedRungs counter-`0` seed are the SAME set.
+
+### What landed (5 parts, all 0-sorry, axiom-clean)
+
+1. **Part A — the world-bridge** (`advTriggered_iff_seedTarget`, axioms `[propext, Quot.sound]`):
+   the trigger set IS the seed target.
+
+2. **Part B — the generic seed step** (`seedStepW`): a `t = 1`, `ε = 0` `PhaseConvergenceW` whose
+   `Post` is the seam `Pre` shape `allPhaseGe p n ∧ advTriggered (p+1)`.  `convergence` splits
+   `{¬Post}` into the `allPhaseGe`-loss (mass `0` by `≥`-window closure
+   `allPhaseGe_kernel_one_compl_zero` ← `SeamEpidemics.allPhaseGe_absorbing` lifted to `K^1`) and the
+   `advTriggered`-miss (mass `0` by the seed event `hadvAS`).
+
+3. **Part C — the counter-timed (all-clock) free seed** (`seedStepW_timed`): for the timed track
+   (`AllClockGEpCard p n` + `clockCounterSumAt p = 0` + un-seeded `geCount (p+1) = 0`), `hadvAS` is
+   supplied for FREE by `SeedRungs.drained_kernel_seedTarget_compl_zero` (routed through the
+   world-bridge).  `O(1)`-deterministic, `hp ∈ {0,1,5,6,7,8}`.
+
+4. **Part D — the shifted seam** (`seamWithSeed`): composes `seedStepW ⊕ seamEpidemicExactW` via
+   `composeW_two_phases` (the seed `Post` IS the seam `Pre`, DEFINITIONALLY).  `Post` = the epidemic
+   `Post` (`allPhaseGe (p+1) n ∧ NoOvershoot p`), `t = 1 + tseam`, `ε = 0 + (εepidemic+εovershoot)`.
+
+5. **Part E — the re-cut assembly** (`DotyAssembly'`, `dotyPhases'`, `dotyPhases'_h_chain`,
+   `doty_time_headline_CONCRETE'`): the 21-instance family with the shifted seams.  `DotyAssembly'`
+   is `DotyAssembly` with `hTrig` REPLACED by `hSeedStep` (the one-step seed event) and
+   `hWorkPostToWindow`/`hWindowToWorkPre` KEPT.  The re-cut `h_chain` uses the IDENTITY work→seam'
+   bridge and the unchanged seam'→work bridge (`seamExact_into_exact_work` + `hWindowToWorkPre`).
+   The headline carries the narrowest set yet (`hTrig` gone).
+
+### The per-seam `hTrig` verdict table (source phase `p = seamP k = k`, destination `p+1`)
+
+`work k . Post` of the concrete family `dotyWorkConcrete` (`AssemblyWiring`).  Drain Posts are
+`Phase{i}AllMain n ∧ (drain = 0)` (`crude_PhaseConvergenceW.Post = Inv ∧ Φ = 0`) — every agent at
+phase EXACTLY `p`, so `advTriggered (p+1)` is FALSE (`drained_post_no_advTrig`).  The seed that
+materialises the trigger on the NEXT step is `hSeedStep k`:
+
+| seam k | p→p+1 | work `Post` | `advTriggered(p+1)` on Post | seed (`hSeedStep k`) provenance |
+|---|---|---|---|---|
+| 0 | 0→1 | `work0` (role-split milestone, opaque carried) | depends on instance Post | carried per-instance (role-split sub-process advance) |
+| 1 | 1→2 | `Phase1AllMain n ∧ extremeU=0` (ALL-MAIN) | **FALSE** | main-advance seed (Phase-1→2 opinion epidemic crossing) |
+| 2 | 2→3 | `work2` (opinion union, opaque) | advance DURING phase — Post may already trigger | carried per-instance (`windowDrift` advance inside) |
+| 3 | 3→4 | `work3` (clock phase, opaque) | depends on instance Post | carried per-instance (clock side/bulk advance) |
+| 4 | 4→5 | `Phase4` (advance epidemic) | advance DURING phase — Post may already trigger | carried per-instance (Phase-4 epidemic crossing) |
+| 5 | 5→6 | `Phase5AllWin n ∧ drain=0` (ALL-`=5`) | **FALSE** | main-advance seed (Phase-5→6 band crossing) |
+| 6 | 6→7 | `Phase6Win n ∧ drain=0` (ALL-`=6`) | **FALSE** | main-advance seed (Phase-6→7 band crossing) |
+| 7 | 7→8 | `Phase7AllMain n ∧ drain=0` (ALL-MAIN) | **FALSE** | main-advance seed (Phase-7→8 eliminator crossing) |
+| 8 | 8→9 | `Phase8AllMain n ∧ drain=0` (ALL-MAIN) | **FALSE** | main-advance seed (Phase-8→9 eliminator crossing) |
+| 9 | 9→10 | `work9` (opinion union, opaque) | advance DURING phase — Post may already trigger | carried per-instance / `BackupEntry` error-jump (`enterPhase10`) |
+
+**The genuine finding (the CAUTION the prompt flagged, confirmed):** the ConcreteAssembly drain
+`Post`s are **all-MAIN** windows (`Phase{i}AllMain` pins `a.role = main`; `Phase{5,6}Win` pins
+phase `= p` with no clocks).  The `SeedRungs` counter-`0` seed (`seedStepW_timed`) fires only from
+an **all-CLOCK** state (`AllClockGEpCard`) — a DIFFERENT window.  So `SeedRungs`' free seed
+discharges the TIMED-chain track (`TimedChainRungs`/`ChainEndAssembly`), NOT the ConcreteAssembly
+seams.  For ConcreteAssembly the seed is the honest per-seam main-advance event `hSeedStep` — NOT
+`SeedRungs`-free, but STRICTLY narrower than the FALSE `hTrig`: instead of "trigger holds ON the
+drained `Post`" (refuted) we carry "trigger fires on the NEXT step FROM the drained `Post`" (the
+seam's own first interaction).  `seamWithSeed` then turns that narrow event into the shifted seam.
+The opinion/epidemic seams {2,4,9} advance DURING the work phase, so their (opaque, carried) work
+`Post`s may already satisfy the trigger — for those `hSeedStep` is supplied trivially by the
+instance (the one-step closure of an already-advanced state), again narrower than a free `hTrig`.
+
+### Item 2 — the `hWindowToWorkPre` entry residuals (verdict)
+
+The phase-pin half (`c.card = n` and the `= p+1` pin) is CLOSED by `AssemblyBridges.windowEq_card_phase`.
+The residuals stay carried per phase, and the survey CONFIRMS they are NOT functions of the seam
+window:
+
+* **drain budget `Φ ≤ M₀`** — the entering window `allPhaseEq (p+1) n` gives `card = n` but NOT a
+  bound on the drain potential.  The potentials (`extremeU`, `classMassN`, `minorityU`, `highMass`,
+  `unsampledReserveU`) are counts `≤ n` (`geCount_le_card`-flavoured), but the work `Pre` needs
+  `Φ ≤ M₀` with `M₀ ≤ n` (`WorkInputs.hM₀`), and `M₀ < n` in general.  So the window alone does NOT
+  deliver `Φ ≤ M₀`; it is genuine per-phase entry data.  **Verdict: GENUINELY CARRIED** (in
+  `hWindowToWorkPre`).
+* **role pins (slots 1/7/8)** — `Phase{1,7,8}AllMain` need `a.role = main`; the seam window
+  `allPhaseEq (p+1) n` is role-agnostic.  Carried in `hWindowToWorkPre` (the role-split products
+  carried through the chain). **Verdict: GENUINELY CARRIED.**
+* **Phase-10 sign/active pins** — `S1`/`Tie1plus` need `0 < phase10ActiveSignedSum` /
+  `hasActiveAgent` (`Phase10ExpectedTime.lean:2126,3435`), supplied by `BackupEntry`'s arrival
+  classification, NOT by the window.  **Verdict: GENUINELY CARRIED.**
+
+`DotyAssembly'` keeps `hWindowToWorkPre` as a single field carrying exactly these three residuals
+(phase-pin half already closed inside it); no over-claim is made.
+
+### The new carried set (the narrowest yet)
+
+`doty_time_headline_CONCRETE'` carries the fields of `DotyAssembly'`:
+
+  * the 11 WORK instances (each with its internal drains — unchanged);
+  * the 10 EXACT-seam feeders `hDrift`, `hNoOvershoot` (forcing `seamEpidemicExactW` — unchanged);
+  * `hWorkPostToWindow` (closed per phase by `AssemblyBridges.phase{1,5,6,7,8}_window_to_ge`);
+  * **`hSeedStep` — NEW, REPLACING the FALSE `hTrig`**: the one-step advance seed from the work
+    `Post` (per-seam main-advance / already-advanced one-step closure);
+  * `hWindowToWorkPre` (the three genuine entry residuals above — phase-pin half closed inside);
+  * `hcompFail` / `T`/`hT` / `ht`/`hC0` / `hε`/`hδ` (exactly as the unshifted headline).
+
+**`hTrig` is GONE.**  The carried set is `DotyAssembly`'s minus `hTrig`, plus the narrower
+`hSeedStep`.  The horizon gains `+1` per shifted seam (`+10` total, absorbed by `ht`'s
+`Cphase k · n · (L+1)` which already covers `1 + seamT k`).
+
+### Audit
+
+Single-file `lake env lean Ripple/PopulationProtocol/Majority/ExactMajority/Probability/SeedTrigWiring.lean`
+EXIT 0 (deps from cached oleans, ~v4.30.0).  `#print axioms` for all 9 audited declarations
+(`advTriggered_iff_seedTarget` [propext, Quot.sound]; `seedStepW`, `seedStepW_timed`,
+`allPhaseGe_kernel_one_compl_zero`, `seamWithSeed`, `bridge_work_to_seam'`, `bridge_seam_to_work'`,
+`dotyPhases'_h_chain`, `doty_time_headline_CONCRETE'`) ⊆ `[propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide; `git diff --check` clean.

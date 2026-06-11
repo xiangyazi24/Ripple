@@ -290,5 +290,202 @@ noncomputable def seamWithSeed (p n tseam : ℕ) (εepidemic εovershoot : ℝ�
     (seamWithSeed (L := L) (K := K) p n tseam εepidemic εovershoot
       hDrift hNoOvershoot workPre hPreToGe hadvAS).ε = 0 + (εepidemic + εovershoot) := rfl
 
+/-! ## Part E — the re-cut assembly `DotyAssembly'`, `dotyPhases'`, and the headline.
+
+`DotyAssembly'` is `DotyAssembly` with the `hTrig` field (the FALSE-on-the-drained-`Post` advance
+trigger) REPLACED by the narrower one-step seed event `hSeedStep`:
+
+    hSeedStep k : ∀ c, work k . Post c →
+      (K ^ 1) c {c' | ¬ advTriggered (seamP k + 1) c'} = 0
+
+— "from the work `Post`, the next step fires the advance trigger a.s."  This is the HONEST seed:
+`drained_post_no_advTrig` proves the trigger is FALSE *on* the drained `Post`, but it materialises
+on the NEXT counter-running interaction.  `dotyPhases'` prepends that seed step to each seam (via
+`seamWithSeed`), so the seam entry sits ONE step after the work `Post` — exactly where the trigger
+holds.  The work→seam bridge becomes the IDENTITY (`work k . Post = seamWithSeed.Pre`), the
+seam→work bridge is unchanged (`seamExact_into_exact_work` + `hWindowToWorkPre`).  `hTrig` is GONE
+from the carried set. -/
+
+/-- The re-cut assembly record: `DotyAssembly` with `hTrig` replaced by the narrower one-step
+seed event `hSeedStep` and `hWorkPostToWindow`/`hWindowToWorkPre` kept (the seam feeders and work
+instances are unchanged). -/
+structure DotyAssembly' (n : ℕ) where
+  /-- The 11 landed WORK `PhaseConvergenceW` instances. -/
+  work : Fin 11 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel
+  seamP : Fin 10 → ℕ
+  seamT : Fin 10 → ℕ
+  εepidemic : Fin 10 → ℝ≥0
+  εovershoot : Fin 10 → ℝ≥0
+  hDrift : ∀ (k : Fin 10) (c : Config (AgentState L K)),
+      (SeamEpidemics.allPhaseGe (L := L) (K := K) (seamP k) n c ∧
+        SeamEpidemics.advTriggered (L := L) (K := K) (seamP k + 1) c) →
+      ((NonuniformMajority L K).transitionKernel ^ (seamT k)) c
+          {c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (seamP k + 1) n c'}
+        ≤ (εepidemic k : ℝ≥0∞)
+  hNoOvershoot : ∀ (k : Fin 10) (c : Config (AgentState L K)),
+      (SeamEpidemics.allPhaseGe (L := L) (K := K) (seamP k) n c ∧
+        SeamEpidemics.advTriggered (L := L) (K := K) (seamP k + 1) c) →
+      ((NonuniformMajority L K).transitionKernel ^ (seamT k)) c
+          {c' | ¬ SeamNoOvershoot.NoOvershoot (L := L) (K := K) (seamP k) c'}
+        ≤ (εovershoot k : ℝ≥0∞)
+  /-- Kept bridge: work `Post` ⟹ seam source window `allPhaseGe pₖ n`. -/
+  hWorkPostToWindow : ∀ (k : Fin 10) (c : Config (AgentState L K)),
+      (work ⟨k.val, by omega⟩).Post c →
+      SeamEpidemics.allPhaseGe (L := L) (K := K) (seamP k) n c
+  /-- **NEW** narrow seed event REPLACING `hTrig`: from the work `Post`, the next step fires the
+  advance trigger a.s.  (For the counter-timed all-clock seams this is `O(1)`-deterministic, via
+  `seedStepW_timed`/`drained_kernel_seedTarget_compl_zero`; for the all-main drain seams it is the
+  genuine per-seam main-advance seed.) -/
+  hSeedStep : ∀ (k : Fin 10) (c : Config (AgentState L K)),
+      (work ⟨k.val, by omega⟩).Post c →
+      ((NonuniformMajority L K).transitionKernel ^ 1) c
+          {c' | ¬ SeamEpidemics.advTriggered (L := L) (K := K) (seamP k + 1) c'} = 0
+  /-- Kept bridge: seam EXACT output window `allPhaseEq (pₖ+1) n` ⟹ work `(k+1)` `Pre`. -/
+  hWindowToWorkPre : ∀ (k : Fin 10) (c : Config (AgentState L K)),
+      SeamEpidemics.allPhaseEq (L := L) (K := K) (seamP k + 1) n c →
+      (work ⟨k.val + 1, by omega⟩).Pre c
+
+/-- The `k`-th SHIFTED seam instance of the re-cut assembly: `seedStep ⊕ seamEpidemicExactW`, with
+`workPre = work k . Post`, `hPreToGe = hWorkPostToWindow k`, `hadvAS = hSeedStep k`. -/
+noncomputable def seamInstance' {n : ℕ} (asm : DotyAssembly' (L := L) (K := K) n) (k : Fin 10) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  seamWithSeed (L := L) (K := K) (asm.seamP k) n (asm.seamT k)
+    (asm.εepidemic k) (asm.εovershoot k) (asm.hDrift k) (asm.hNoOvershoot k)
+    (fun c => (asm.work ⟨k.val, by omega⟩).Post c)
+    (fun c hc => asm.hWorkPostToWindow k c hc)
+    (fun c hc => asm.hSeedStep k c hc)
+
+/-- **The re-cut 21-instance family** `[work₀, seam₀', …, seam₉', work₁₀]` with the SHIFTED seams. -/
+noncomputable def dotyPhases' {n : ℕ} (asm : DotyAssembly' (L := L) (K := K) n) :
+    Fin 21 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel :=
+  fun i =>
+    if h : i.val % 2 = 0 then asm.work (ConcreteAssembly.workIdx i)
+    else seamInstance' asm (ConcreteAssembly.seamIdx i (by omega))
+
+@[simp] theorem dotyPhases'_even {n : ℕ} (asm : DotyAssembly' (L := L) (K := K) n)
+    (i : Fin 21) (h : i.val % 2 = 0) :
+    dotyPhases' asm i = asm.work (ConcreteAssembly.workIdx i) := by
+  simp only [dotyPhases', dif_pos h]
+
+@[simp] theorem dotyPhases'_odd {n : ℕ} (asm : DotyAssembly' (L := L) (K := K) n)
+    (i : Fin 21) (h : i.val % 2 = 1) :
+    dotyPhases' asm i = seamInstance' asm (ConcreteAssembly.seamIdx i h) := by
+  simp only [dotyPhases', dif_neg (by omega : ¬ i.val % 2 = 0)]
+
+/-- **Work→seam' bridge (IDENTITY).**  `work k . Post ⟹ seamInstance' k . Pre`.  The shifted
+seam's `Pre` IS `work k . Post` (the `workPre` argument), so the bridge is the identity — the
+`hTrig` carry is GONE: the seed it used to supply is now the seam's own first step. -/
+theorem bridge_work_to_seam' {n : ℕ} (asm : DotyAssembly' (L := L) (K := K) n)
+    (k : Fin 10) (c : Config (AgentState L K))
+    (hpost : (asm.work ⟨k.val, by omega⟩).Post c) :
+    (seamInstance' asm k).Pre c := hpost
+
+/-- **Seam'→work bridge.**  `seamInstance' k . Post ⟹ work (k+1) . Pre`.  Identical to the
+unshifted seam→work bridge: the shifted seam's `Post` is `allPhaseGe (pₖ+1) n ∧ NoOvershoot pₖ`
+(the seed step only PREPENDS, leaving the epidemic `Post`), so `seamExact_into_exact_work` +
+`hWindowToWorkPre` close it. -/
+theorem bridge_seam_to_work' {n : ℕ} (asm : DotyAssembly' (L := L) (K := K) n)
+    (k : Fin 10) (c : Config (AgentState L K))
+    (hpost : (seamInstance' asm k).Post c) :
+    (asm.work ⟨k.val + 1, by omega⟩).Pre c := by
+  have hP : SeamEpidemics.allPhaseGe (L := L) (K := K) (asm.seamP k + 1) n c ∧
+      SeamNoOvershoot.NoOvershoot (L := L) (K := K) (asm.seamP k) c := hpost
+  have hwin : SeamEpidemics.allPhaseEq (L := L) (K := K) (asm.seamP k + 1) n c :=
+    SeamNoOvershoot.seamExact_into_exact_work c hP
+  exact asm.hWindowToWorkPre k c hwin
+
+/-- **The re-cut `h_chain`.**  Same parity split as `dotyPhases_h_chain`, with the IDENTITY
+work→seam' bridge and the unchanged seam'→work bridge. -/
+theorem dotyPhases'_h_chain {n : ℕ} (asm : DotyAssembly' (L := L) (K := K) n) :
+    ∀ (i : Fin 21) (hi : i.val + 1 < 21),
+      ∀ x, (dotyPhases' asm i).Post x → (dotyPhases' asm ⟨i.val + 1, hi⟩).Pre x := by
+  intro i hi x hpost
+  have hjval : (⟨i.val + 1, hi⟩ : Fin 21).val = i.val + 1 := rfl
+  rcases Nat.even_or_odd i.val with hev | hod
+  · have hi0 : i.val % 2 = 0 := Nat.even_iff.mp hev
+    have hsucc1 : (⟨i.val + 1, hi⟩ : Fin 21).val % 2 = 1 := by rw [hjval]; omega
+    rw [dotyPhases'_even asm i hi0] at hpost
+    rw [dotyPhases'_odd asm ⟨i.val + 1, hi⟩ hsucc1]
+    set k : Fin 10 := ConcreteAssembly.seamIdx ⟨i.val + 1, hi⟩ hsucc1 with hkdef
+    have hkw : (⟨k.val, by omega⟩ : Fin 11) = ConcreteAssembly.workIdx i := by
+      apply Fin.ext
+      have hkval : k.val = i.val / 2 := by
+        rw [hkdef, ConcreteAssembly.seamIdx_val, hjval]; omega
+      rw [Fin.val_mk, hkval, ConcreteAssembly.workIdx_val]
+    have hbridge := bridge_work_to_seam' asm k x
+    rw [hkw] at hbridge
+    exact hbridge hpost
+  · have hi1 : i.val % 2 = 1 := Nat.odd_iff.mp hod
+    have hsucc0 : (⟨i.val + 1, hi⟩ : Fin 21).val % 2 = 0 := by rw [hjval]; omega
+    rw [dotyPhases'_odd asm i hi1] at hpost
+    rw [dotyPhases'_even asm ⟨i.val + 1, hi⟩ hsucc0]
+    set k : Fin 10 := ConcreteAssembly.seamIdx i hi1 with hkdef
+    have hkw : (⟨k.val + 1, by omega⟩ : Fin 11) = ConcreteAssembly.workIdx ⟨i.val + 1, hi⟩ := by
+      apply Fin.ext
+      have hkval : k.val = i.val / 2 := by rw [hkdef, ConcreteAssembly.seamIdx_val]
+      rw [Fin.val_mk, hkval, ConcreteAssembly.workIdx_val, hjval]
+      omega
+    have hbridge := bridge_seam_to_work' asm k x
+    rw [hkw] at hbridge
+    exact hbridge hpost
+
+attribute [irreducible] seamInstance' dotyPhases'
+
+/-- **`doty_time_headline_CONCRETE'` — the re-cut assembled headline at `O(1/n²)`, with `hTrig`
+DISCHARGED into the seam seed step.**
+
+Identical surface to `doty_time_headline_CONCRETE`, but over the re-cut `DotyAssembly'` whose
+carried set NO LONGER includes `hTrig`: the advance trigger is the seam's own first (seed) step.
+The carried set is the NARROWEST yet:
+
+  * the fields of `asm` (`DotyAssembly'`): the 11 work instances, the 10 EXACT-seam feeders
+    (`hDrift`, `hNoOvershoot`), the two kept structural reads (`hWorkPostToWindow`,
+    `hWindowToWorkPre`), and the NEW one-step seed event `hSeedStep` (REPLACING the FALSE `hTrig`);
+  * `hcompFail` / `T`/`hT` / `ht`/`hC0` / `hε`/`hδ` — exactly as in the unshifted headline.
+
+The horizon gains `+1` per shifted seam (`10` total seed steps); since each `seamT k` already
+scales `Cphase k · n · (L+1)`, the `+10` is absorbed by `ht` (the caller supplies `Cphase`
+covering `1 + seamT`).  No `native_decide`, no kernel work; axioms stay
+`[propext, Classical.choice, Quot.sound]`. -/
+theorem doty_time_headline_CONCRETE'
+    {L K n C0 : ℕ}
+    (init c₀ : Config (AgentState L K))
+    (asm : DotyAssembly' (L := L) (K := K) n)
+    (Cphase : Fin 21 → ℕ) (δ : Fin 21 → ℝ≥0)
+    (T : ℕ) (hT : T = ∑ i, (dotyPhases' asm i).t)
+    (hcompFail :
+      ((NonuniformMajority L K).transitionKernel ^ T) c₀
+          {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+        ≤ (∑ i, ((dotyPhases' asm i).ε : ℝ≥0∞)))
+    (ht : ∀ i, (dotyPhases' asm i).t ≤ Cphase i * n * (L + 1))
+    (hε : ∀ i, ((dotyPhases' asm i).ε : ℝ≥0∞) ≤ (δ i : ℝ≥0∞))
+    (hx₀ : (dotyPhases' asm ⟨0, by omega⟩).Pre c₀)
+    (h_post : ∀ c, (dotyPhases' asm ⟨21 - 1, by omega⟩).Post c →
+        majorityStableEndpoint (L := L) (K := K) init c)
+    (hC0 : ∀ i, Cphase i ≤ C0)
+    (hδ : ∀ i, (δ i : ℝ≥0∞) ≤ (1 / (n : ℝ≥0∞) ^ 2)) :
+    ((NonuniformMajority L K).transitionKernel ^ T) c₀
+        {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
+      ≤ (21 : ℝ≥0∞) / (n : ℝ≥0∞) ^ 2
+    ∧ T ≤ 21 * C0 * n * (L + 1) := by
+  have hcomp := doty_time_composition_W2 init c₀ Cphase δ (dotyPhases' asm)
+    ht hε (dotyPhases'_h_chain asm) hx₀ h_post
+  have h_time := hcomp.2.1
+  have h_err := hcomp.2.2
+  have hδsum : (∑ i, (δ i : ℝ≥0∞)) ≤ (21 : ℝ≥0∞) / (n : ℝ≥0∞) ^ 2 := by
+    have := BudgetTightening.sum_inv_sq_le (m := 21) (n := n) δ hδ
+    simpa using this
+  refine ⟨le_trans hcompFail (le_trans h_err hδsum), ?_⟩
+  rw [hT]
+  calc (∑ i, (dotyPhases' asm i).t)
+      ≤ (∑ i, Cphase i) * n * (L + 1) := h_time
+    _ ≤ (21 * C0) * n * (L + 1) := by
+        have hsum : (∑ i, Cphase i) ≤ 21 * C0 := by
+          calc (∑ i : Fin 21, Cphase i)
+              ≤ ∑ _i : Fin 21, C0 := Finset.sum_le_sum (fun i _ => hC0 i)
+            _ = 21 * C0 := by simp [Finset.sum_const, Finset.card_univ, mul_comm]
+        gcongr
+    _ = 21 * C0 * n * (L + 1) := by ring
+
 end SeedTrigWiring
 end ExactMajority
