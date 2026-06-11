@@ -565,3 +565,63 @@ delta over the two removed / two added agents of one `StepRel` step (`elimAbove_
 the bridge), the config-level aggregate of the PROVEN per-pair ledger. With `hBand` supplied,
 `survivalBand_ae_along_trajectory` ⟹ full a.e. trajectory band and the chain closes to
 `Phase7To8Structure`. No probability remains; this is pure multiset bookkeeping.
+
+---
+
+## tip #2b — `MinorityAboveFloor` settled as a dynamic floor invariant (Probability/MinorityFloorGap.lean)
+
+**NEW append-only** `Probability/MinorityFloorGap.lean` (single-file `lake env lean` EXIT_0; all 7
+headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide;
+`git diff --check` clean). No existing file edited; `git add` the specific path only.
+
+### Geometry verdict (the honest dichotomy)
+
+**Q1 — is `MinorityAboveFloor` (live σ-minority at index `≥ l+1`) TRUE at the Phase-6 Post?**  **NO.**
+`highMass l c = 0` reads (`phase6Post_iff`) as *every biased Main at index `≥ l`*, and a σ-minority Main
+sitting EXACTLY at `l` satisfies `l ≤ l`. The Post does NOT forbid it. So `MinorityAboveFloor` is **not**
+a static consequence of the landed Post.
+
+**Q2 — does the eliminators-ABOVE re-orientation (Phase-8 `elimAbove`) dissolve the requirement?**
+**NO — because Phase-7's binding consumer is gap-1-BELOW.** Surveyed both consumer defs:
+- Phase-7 `elimGap1 σ i` = σ-opposite Mains at index `i`, paired `i+1 = j` ⟹ eliminators ONE INDEX
+  BELOW the minority. This is the frozen `MarginLedgers.Phase6To7Structure` shape (carries the seed).
+- Phase-8 `elimAbove σ i` = σ-opposite Mains at index `> i` ⟹ eliminators ABOVE. Genuinely floor-free
+  (proved `elimAbove_floorFree`: under `AllBiasedMainAbove l`, every band member's index is `≥ l`
+  automatically, no `l+1` seed needed).
+So the orientation asymmetry is real, but the Phase-7 below-orientation BINDS — the re-cut does NOT
+dissolve `MinorityAboveFloor`. Verdict: **`MinorityAboveFloor` is a genuine DYNAMIC floor invariant**,
+seeded one notch above the Post and preserved by the frozen Phase-7 step.
+
+### What is PROVED (the dynamic-invariant discharge)
+
+- `AllBiasedMainAbove m c` — sign-agnostic threshold floor "every biased Main at index `≥ m`".
+  `m = l` IS the Phase-6 Post (`allBiasedMainAbove_of_post`, def-unfolds `phase6Post_iff`).
+- `cancelSplit_preserves_index_floor` — **the frozen-`cancelSplit` structural core**: for two Mains
+  `s t` whose biased inputs are all at index `≥ m`, BOTH outputs of `cancelSplit L K s t` carry index
+  `≥ m`. Exhaustive case split on ALL frozen branches (same-level → unbiased; gap-1/gap-1' → smaller
+  index incremented UP, partner cancelled; gap-2/gap-2' → one index +1, other unchanged; same-sign /
+  zero → returned). KEY FACT: **`cancelSplit` never LOWERS a biased index** — it only moves Mains UP
+  (toward the floor) or cancels them. So the threshold floor is preserved for ANY `m`.
+- `cancelStep_preserves_AllBiasedMainAbove` — the config-replacement lift: a `cancelSplit` of two
+  Mains from a config satisfying `AllBiasedMainAbove m` keeps the floor on the two replaced agents
+  (the untouched agents already satisfy it) — the deterministic atom for the trajectory lift.
+- `minorityAboveFloor_of_allBiasedMainAbove` — the seed `AllBiasedMainAbove (l+1)` DISCHARGES
+  `GapAlignment.MinorityAboveFloor σ l c` for BOTH signs simultaneously (sign-agnostic seed ⟹ both the
+  σ-minority and the σ-opposite eliminators sit `≥ l+1`, exactly the honest geometry GapAlignment
+  isolated).
+- `elimAbove_floorFree` — the Phase-8 orientation is floor-free (the re-orientation verdict, formal).
+- `minorityAboveFloor_both_of_seed` / `minorityAboveFloor_verdict` — CAPSTONE: the seed discharges
+  `MinorityAboveFloor` for all signs AND the seed at `l+1` is `cancelSplit`-stable. Bundles the
+  dischargeable content (1: seed ⟹ residual; 2: seed step-stable).
+
+### Net for tip #2b
+
+`MinorityAboveFloor` is **dissolved AS a standalone residual** and **reduced to one threshold seed**
+`AllBiasedMainAbove (l+1)` at the Phase-6 Post boundary. The seed is (a) ONE notch above the landed
+Post `highMass l = 0` (the honest carried gap = *the Phase-6 drain clears the floor index `l` itself
+for the σ-minority before the partner band is read*), (b) PROVEN `cancelSplit`-stable through Phase 7
+(no probability — pure index monotonicity of the frozen rule), (c) PROVEN to discharge
+`MinorityAboveFloor` for both signs. The carried residual went from a per-sign per-level placement to a
+single sign-agnostic threshold with proven step-stability; the only remaining brick is exporting the
+`l+1` seed from the Phase-6 convergence proof (the drain's floor-index clearing), which is strictly the
+same statement as the existing `highMass`-drain Post with the threshold bumped by one.

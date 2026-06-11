@@ -4237,3 +4237,29 @@ probability in the Phase-7→8 survival lift:
 (the genuinely-stochastic step the blueprint §C.2 flagged) DISCHARGED via the support template; the
 only remaining piece is the deterministic per-step `countP`-monotonicity of `elimAbove` against the
 live minority (the multiset aggregate of the proven per-pair ledger) — no probability, no new tail.
+
+---
+
+## tip #2b — `MinorityAboveFloor` = dynamic floor invariant (MinorityFloorGap.lean)
+
+NEW append-only `Probability/MinorityFloorGap.lean` (EXIT_0; 7 headlines axiom-clean ⊆
+[propext, Classical.choice, Quot.sound]; 0 sorry/admit/axiom/native_decide; diff --check clean).
+
+**Geometry verdict.** `MinorityAboveFloor σ l c` (live σ-minority at `≥ l+1`) is NOT a Phase-6 Post
+fact — a minority AT index `l` satisfies `highMass l = 0` (`l ≤ l`). The eliminators-ABOVE re-cut
+(Phase-8 `elimAbove`, index `> i`) IS floor-free (`elimAbove_floorFree`), but the BINDING consumer is
+Phase-7's gap-1-BELOW `elimGap1` (frozen `Phase6To7Structure` shape), which DOES carry the placement.
+So the re-orientation does NOT dissolve it; `MinorityAboveFloor` is a genuine DYNAMIC invariant.
+
+**Discharge.** Settled to ONE sign-agnostic threshold seed `AllBiasedMainAbove (l+1)` (every biased
+Main at index `≥ l+1`), proven:
+- `cancelSplit_preserves_index_floor` — the frozen `cancelSplit` NEVER lowers a biased index (full
+  branch audit: same/gap-1/gap-1'/gap-2/gap-2'/no-fire all move Mains UP or cancel). Threshold floor
+  preserved for any `m` ⟹ the `l+1` seed is Phase-7-step-stable WITHOUT probability.
+- `minorityAboveFloor_of_allBiasedMainAbove` — the seed discharges `MinorityAboveFloor` for BOTH signs.
+- `minorityAboveFloor_verdict` (capstone) — seed ⟹ residual (both signs) + seed step-stable.
+
+**Net.** Carried residual reduced from per-sign per-level placement to a single threshold seed (the
+Phase-6 `highMass`-drain Post with the floor bumped by one — the drain clearing the floor INDEX itself
+for the σ-minority). Only remaining brick: export `AllBiasedMainAbove (l+1)` from the Phase-6
+convergence proof (same statement as the landed drain, threshold +1).
