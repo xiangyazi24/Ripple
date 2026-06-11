@@ -1,6 +1,64 @@
 
 ---
 
+## ClockCeiling.lean — the width-Post → `ClocksBelowHour` derivation: the §6 positional chain collapses onto the width machinery (2026-06-11)
+
+New append-only file `Probability/ClockCeiling.lean` supplies the SINGLE load-bearing bridge the
+positional cluster was missing, and event-conditions the WHOLE §6 positional chain on the landed
+clock-front WIDTH Post.  Single-file `lake env lean` clean (EXIT 0, no warnings); `#print axioms ⊆
+[propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide; `git diff --check`
+clean; append-only (no existing file edited).
+
+### The crux: PROVING the provenance `PositionalCluster` left as a note
+
+`PositionalCluster.lean` DEFINED `ClocksBelowHour h c` (every clock `minute < (h+1)·K`) as a snapshot
+with the note "provenance: the window `Window h`/`cAbove h = 0` confines the clocks below the current
+hour", and proved the per-step engine `ClocksBelowHour h ⟹ drag stamps hour ≤ h` (+ the cancel
+coupling to the index ceiling).  This file PROVES that provenance from the landed width machinery:
+
+* `clocksBelowHour_of_rBeyond_eq_zero` — `rBeyond ((h+1)·K) c = 0` (empty front above the hour
+  boundary) ⟹ `ClocksBelowHour h c`, via the landed `ClockFrontShape.clock_lt_of_rBeyond_eq_zero`.
+  The hour-`h` boundary IS the minute `(h+1)·K`; `capMinute = K·(L+1)` is the `h = L` instance.
+* `rBeyond_eq_zero_of_goodWidth_of_bulk_below` — the level-`M` contrapositive of the landed
+  `ClockFrontProfile.GoodFrontWidth` width invariant: on the good-width event, if the `0.1` bulk has
+  not reached within `W` of `M` (`10·rBeyond (M−W) c < card`), then `rBeyond M c = 0`.  This GENERALISES
+  `ClockFrontProfile.frontSync_of_goodWidth_of_bulk_below` (the `M = capMinute` / `FrontSync`
+  instance) to EVERY hour boundary `M = (h+1)·K`.
+* `clocksBelowHour_of_goodWidth` — the composite, the load-bearing bridge: **`GoodFrontWidth W c` +
+  bulk-behind ⟹ `ClocksBelowHour h c`**, deterministic, zero new probabilistic content.
+* `clocksBelowHour_cap_of_goodWidth` — the cap-hour `h = L` instance, tying the positional
+  `ClocksBelowHour` to the landed `FrontSync` cap-safety (one width event drives both).
+
+### How much of the §6 positional chain became event-conditioned
+
+The ENTIRE positional cluster collapses onto the single width Post `GoodFrontWidth W`:
+
+```
+GoodFrontWidth W  ─►  rBeyond ((h+1)K) c = 0  ─►  ClocksBelowHour h
+   (Part 2)              (Part 1)
+ClocksBelowHour h ─►  drag/cancel hour ceiling  ─►  MainHourBelow h
+   (PositionalCluster.dragLeft/Right_mainHour_le + mainHour_le_of_clockBelow_cancelSplit;
+    re-exported here as dragLeft/Right_mainHour_le_of_clocksBelow + mainHourBelow_step)
+MainHourBelow h   ─►  AllBiasedMainBelow h  (WindowReconciliation; allBiasedMainBelow_of_snapshots)
+AllBiasedMainBelow ─► MajorityTopEdge / band top edges  (majorityTopEdge_of_snapshots)
+                   ─►  CeilingRoute / phase6To7_surface_widthConditioned  (the corrected Phase6→7
+                       surface, the band-edge + drag-control consumers)
+```
+
+So the positional roster's remaining snapshots — the hour ceiling `MainHourBelow (l+2)`, the index
+ceiling `AllBiasedMainBelow (l+2)`, the band top edges, and the `SupplyRegion`/`SupplyDispatch` drag
+control downstream — are all event-conditioned on the SINGLE landed width budget.  Their
+probabilistic complement is exactly the landed width-budget tail (`WidthTransport` /
+`CrossHourSide` / `ClockBudgets.WidthSideP`), so this file adds NO new probabilistic content: the
+§6 positional cluster is now a deterministic readout of the one clock-front width event.
+
+### Status marker
+
+`clock_ceiling_status : True` documents the build/audit; the load-bearing decls are
+`clocksBelowHour_of_goodWidth` and `phase6To7_surface_widthConditioned`.
+
+---
+
 ## SlotAtoms.lean — roster #10 + #15 + #4 (WAVE 2, B-class one-instantiation items) (2026-06-11)
 
 New append-only file `Probability/SlotAtoms.lean` discharges three WAVE-2 roster items by wiring
