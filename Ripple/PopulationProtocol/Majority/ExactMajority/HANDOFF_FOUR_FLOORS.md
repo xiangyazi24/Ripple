@@ -49,6 +49,41 @@ Source: ChatGPT Pro (family3, Ripple connector). 16,998 B via network. Verbatim 
     (Mocquard et al., Corollary 1). Exposed as a hypothesis exactly as Phases 1/7/8 expose theirs;
     everything structural around it is discharged.
 
+- **Phase-1 averaging DRAIN RATE** (§1 residual #5 — the carried `q` atom) — DELIVERED in NEW
+  `Probability/AveragingRate.lean` (0-sorry, axioms ⊆ [propext, Classical.choice, Quot.sound];
+  single-file `lake env lean` EXIT_0; all 11 headlines audited). This discharges the structural
+  content behind the `hdrop` slot `AveragingCollapse` carried — the rate is no longer free, it is
+  the far × centre strict-drop rectangle, derived honestly from the FROZEN `avgFin7` rule (NO [45]
+  import), via the SAME pair-counting the landed `extremeU` chain uses
+  (`Phase7Convergence.drop_prob_of_rect`).
+  - HONESTY TRAP resolved: a naive "`secondMomentN ≥ θ ⟹ gap-2 pair`" is FALSE — a config whose
+    Mains all sit in a width-1 stall window `{a,a+1}` has zero per-step drop yet `secondMomentN` up
+    to `9·|M|` (e.g. window `{0,1}`/`{5,6}`). The genuine escape is the **window `{2,3,4}`
+    second-moment ceiling**: a Main with `val ∈ {2,3,4}` is at squared distance `≤ 1` from origin 3
+    (`sqDist3N_le_one_of_not_far`, exhaustive `decide`), so NO far Main (`val ≤ 1` or `val ≥ 5`)
+    ⟹ `secondMomentN ≤ |M| = n` (`secondMomentN_le_card_of_no_far`). Contrapositive (the structure
+    lemma `farExists_of_secondMoment_gt_n`): `secondMomentN c > n ⟹ a far Main exists`, and every
+    far Main has a gap-≥2 partner on the centre side.
+  - STAGE 1 (sum invariant): `centredBiasSum c = Σ_{Mains}(smallBias.val − 3)` is `avgFin7`-conserved
+    (`centredBiasSum_stepOrSelf_eq`, lifting `avgFin7_preserves_sum`); the honest entry predicate
+    `SumPinned n c` (`|S₀| ≤ n`, true at entry since each Main encodes a ±1 opinion) is `K`-closed
+    (`invClosed_sumPinned`). The sum invariant is what excludes the `{0,1}`/`{5,6}` stall windows
+    (they force `|S₀| ≥ 2n`); the `{2,3,4}` ceiling is the per-step conversion mechanism.
+  - STAGE 2/3 (rate): two strict-drop rectangles `farHighSet(val≥5) ×ˢ lowSet(val≤3)` and
+    `farLowSet(val≤1) ×ˢ highSet(val≥3)` — each cell has `val`-gap `≥ 2` so drop `= ⌊gap²/2⌋ ≥ 2`
+    (`avgFin7_sqDist3_pair_drop_high/_low`, exhaustive `decide`) — thread through `drop_prob_of_rect`
+    (`secondMomentN_drop_prob_rect_high/_low`) to the per-level `hdrop`
+    `secondMomentN_hdrop_of_struct_high/_low` at `q m = 1 − ofReal(P/(n(n−1)))`, P the partner margin.
+  - STAGE 4 (wiring): `phase1_pullPos_floor_whp_of_struct` feeds the derived `q` into
+    `AveragingCollapse.phase1_pullPos_floor_whp`; `hdrop_realizable_high` exhibits the rate as the
+    concrete rectangle floor (constructive, not free).
+  - TIME BUDGET (documented in file): consumer needs the floor at level `m = 4(n−P)+1`; level-tail
+    gives failure `≤ (1 − P/(n(n−1)))^t`. With a **single far witness** (P=1) the rate is
+    `1 − 1/(n(n−1))`, horizon `t = Θ(n²·log n)` for `O(1/n²)` failure (crude regime). With a
+    **constant-fraction partner floor** (P=Θ(n), the carried centre-mass content [45] Cor.1 supplies)
+    the rate is `1 − Θ(1/n)`, horizon `t = Θ(n·log n)` — paper-faithful Lemma 5.3. The partner floor
+    `P` is the ONLY remaining carried atom (same status as the `extremeU` chain's `hpull`).
+
 ---
 
 [intro]

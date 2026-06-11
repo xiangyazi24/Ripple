@@ -4078,3 +4078,66 @@ protocol residuals: (i) per-regime final-rung bridge `potBelow Φ 1 ⟹ StableDo
 deterministic clock-floor VALUE `mC` (Lemma 5.2). Spine construction, telescope wiring,
 clock-role preservation, classifier assembly: DISCHARGED. Classification scope is honest
 checkpoint-conditional.
+
+---
+
+## Residual #5: Phase-1 averaging drain rate (`Probability/AveragingRate.lean`, 2026-06-10)
+
+NEW append-only file (0-sorry, axioms ⊆ [propext, Classical.choice, Quot.sound]; single-file
+`lake env lean` EXIT_0; 11 headlines axiom-audited). Discharges the structural content behind the
+per-level second-moment drain rate `q : ℕ → ℝ≥0∞` that `AveragingCollapse.lean` carried as the
+`hdrop` hypothesis of `secondMoment_level_tail` / `phase1_pullPos_floor_whp`. The rate is derived
+HONESTLY from the FROZEN `avgFin7` rule (NO reference-[45] import), via the SAME rectangle
+pair-counting the landed `extremeU` chain uses (`Phase7Convergence.drop_prob_of_rect`).
+
+**The honesty trap (caught and resolved).** The per-rule ledger drop `= ⌊(x−y)²/2⌋` is ZERO for
+gap ≤ 1, so a config whose Mains all sit in a width-1 stall window `{a,a+1}` STALLS with possibly
+huge second moment (window `{0,1}`/`{5,6}` ⟹ secondMomentN up to `9·|M|`). Hence a naive
+"`secondMomentN ≥ θ ⟹ gap-2 pair exists`" is FALSE. The genuine escape (the actual mechanism, not a
+wishful constant) is the **window `{2,3,4}` second-moment ceiling**:
+
+- `sqDist3N_le_one_of_not_far`: `val ∈ {2,3,4}` ⟹ `sqDist3N ≤ 1` (exhaustive `decide`).
+- `secondMomentN_le_card_of_no_far`: NO far Main (`val ≤ 1` or `val ≥ 5`) ⟹ `secondMomentN ≤ |M|=n`.
+- `farExists_of_secondMoment_gt_n` (the structure lemma): `secondMomentN c > n ⟹ ∃ far Main`.
+
+The `{0,1}`/`{5,6}` stall windows are excluded by the **sum invariant** (Stage 1):
+`centredBiasSum c = Σ_{Mains}(smallBias.val − 3)` is `avgFin7`-conserved
+(`centredBiasSum_stepOrSelf_eq`, lifting `Phase1Convergence.avgFin7_preserves_sum`); at the Doty
+entry each Main encodes a ±1 opinion so `|S₀| ≤ |M| = n` — the predicate `SumPinned n c`, which is
+`K`-closed (`invClosed_sumPinned`). A `{0,1}`-window config has `S₀ ≤ −2|M|`, contradicting
+`|S₀| ≤ n`. So the conserved sum pins the stall windows out of reach and the `{2,3,4}` ceiling is the
+per-step "Φ large ⟹ strict-drop rectangle exists" conversion.
+
+**Stages 2/3 — the rate.** Two strict-drop rectangles, mirroring `DrainThreading`'s
+`extremePosSet ×ˢ pullPosSet` exactly:
+- `farHighSet(val≥5) ×ˢ lowSet(val≤3)` and `farLowSet(val≤1) ×ˢ highSet(val≥3)`. Each cell has
+  `val`-gap `≥ 2`, so `avgFin7_sqDist3_pair_drop_high/_low` (exhaustive `decide`) give drop
+  `= ⌊gap²/2⌋ ≥ 2 ≥ 1` — a STRICT secondMomentN drop. Disjointness of the two state-finsets is by
+  value (`farHigh_low_disjoint`, `farLow_high_disjoint`).
+- `secondMomentN_stepOrSelf_drop_high/_low` lift the per-pair strict drop to the config kernel;
+  `secondMomentN_drop_prob_rect_high/_low` thread through `drop_prob_of_rect` to the kernel
+  drop-probability floor `≥ ofReal((#far · #partner)/(n(n−1)))`.
+- `secondMomentN_hdrop_of_floor` (mirror of `extremeU_hdrop_of_floor`) and
+  `secondMomentN_hdrop_of_struct_high/_low` give the per-level `hdrop` at
+  `q m = 1 − ofReal(P/(n(n−1)))`, `P` the carried partner margin and `1 ≤ #far` the far witness.
+
+**Stage 4 — wiring + time budget.** `phase1_pullPos_floor_whp_of_struct` feeds the derived `q` into
+`AveragingCollapse.phase1_pullPos_floor_whp`; `hdrop_realizable_high` exhibits the rate as the
+concrete rectangle floor (constructive). Time budget (documented in-file): consumer needs the floor
+at level `m = 4(n−P)+1`, level-tail gives failure `≤ (1 − P'/(n(n−1)))^t`.
+
+| partner floor `P'` | rate `q m`        | horizon `t` for `O(1/n²)` failure | regime          |
+|--------------------|-------------------|-----------------------------------|-----------------|
+| single witness (1) | `1 − 1/(n(n−1))`  | `Θ(n²·log n)`                     | crude           |
+| `Θ(n)` (const frac)| `1 − Θ(1/n)`      | `Θ(n·log n)`                      | paper Lemma 5.3 |
+
+The constant-fraction partner floor `P' = Θ(n)` is the centre-mass content [45] Cor.1 supplies and
+is the ONLY remaining carried atom — same status as the `extremeU` chain's `hpull` partner floor.
+Everything STRUCTURAL around the rate (existence of the dropping rectangle, the strict-drop cells,
+the rectangle→kernel-mass conversion, the level-tail wiring) is now DISCHARGED.
+
+**Campaign residual table update:** residual #5 (the carried Phase-1 second-moment `q`) → the rate's
+structural derivation is now a THEOREM modulo the single carried partner-margin floor `P' = Θ(n)`
+(the [45] Cor.1 centre-mass count, identical status to the landed `extremeU`/Phase-7/8 partner
+floors). The far-witness existence, the `{2,3,4}` ceiling, the sum invariant, the strict-drop
+rectangles, and the `drop_prob_of_rect` threading: DISCHARGED, 0-sorry, axiom-clean.
