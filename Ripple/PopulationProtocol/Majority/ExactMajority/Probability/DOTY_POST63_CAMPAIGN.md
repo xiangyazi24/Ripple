@@ -1,6 +1,76 @@
 
 ---
 
+## FinalAssemblyV2.lean — F1+F2+F3 final-audit fix (whp half) (2026-06-11)
+
+The final adversarial audit (`/tmp/codex_final_audit.md`) flagged three defects in
+`FinalAssembly.doty_theorem_3_1_whp`.  `FinalAssemblyV2.lean` fixes all three, append-only (edits no
+existing file), single-file `lake env lean` clean (`#print axioms ⊆ [propext, Classical.choice,
+Quot.sound]`; 0 sorry/admit/axiom/native_decide).
+
+**F1 (CRITICAL) — `hcompFail` PRODUCED, not carried.**  The old whp theorem carried `hcompFail` (the
+assembled bad-event bound) as a FREE binder — tautological.  V2 produces it: `doty_time_composition_W2`
+applied at the concrete honest family `phases'V2 ra` delivers `.1` (failure mass at the LITERAL sum
+horizon `∑ i, (phases'V2 ra i).t`), and `hcompFail_produced` folds it to the opaque `T`.
+
+The wall (extensively characterised): the assembled failure bound `(K^T)… ≤ …` is intractable to
+PRODUCE-and-CONSUME at the *sum* horizon in a downstream file.  The composition's `.1` extraction is
+tractable only IN the file where `doty_time_composition_W2` is first used (DotyTimeHeadline /
+BudgetTightening) — over an abstract `phases`/`asm`, where `(dotyPhases' asm i).t` is an
+irreducibly-stuck projection.  Once that output's *type* (which carries `(K^(∑ … i).t)`) is consumed
+downstream — via `obtain`, `.1`, `subst`, `rw [hT]; exact`, or `▸` — the defeq checker must `whnf`
+the kernel power against the `Fin 21` sum, which diverges (measured: still times out at 3M, and
+running at 8M for >12 min — NOT heavy-finite, so a bare `set_option maxHeartbeats` does NOT land,
+route (c) rejected).
+
+The winning route is a metavar-assignment fold (route b, born in T-form):
+* `BudgetTightening.doty_time_headline_W2_inv_sq` is the LANDED in-file `.1`-producer giving
+  `(K^(∑ … i).t)… ≤ 21/n² ∧ ∑ … ≤ 21·C0·n·(L+1)` over an abstract `phases`.
+* `fold_pair_to_T {S : ℕ}` takes the produced pair as `hpair` at the OPAQUE/implicit `S` and a fold
+  `hT : T = S`, concluding `(K^T)…`.  `S` is IMPLICIT, so when the W2-inv-sq result is passed as
+  `hpair`, unification ASSIGNS `?S := ∑ (dotyPhases' asm i).t` by metavar assignment — NOT a defeq
+  `whnf` of two `(K^∑…)` terms (the divergent direction).  The `subst hT; exact hpair` is then
+  syntactic.  (This is the `AssemblyBridges.hcompFail_of_composition` idiom — `hpair` arrives free —
+  refined so the horizon is captured by an implicit metavar, the single move that clears the wall.)
+* `whp_of_asm'` packages production+fold over a FREE `asm : DotyAssembly'`, concluding at the opaque
+  `T`.  `doty_theorem_3_1_whp_v2` INSTANTIATES it at `asm := toAssembly'V2 ra` (the honest assembly):
+  pure substitution of an already-checked proof, and the opaque-`T` output is consumed cheaply.
+
+`hcompFail` is GONE from `doty_theorem_3_1_whp_v2`.  No `set_option maxHeartbeats`, no axiom beyond
+`[propext, Classical.choice, Quot.sound]`.
+
+**F2+F3 — the work family made HONEST (levels engine; the dead per-level inputs on the path).**  The
+old `AssemblyWiring.dotyWorkConcrete` used the CRUDE single-step `potDone` rate for slots 1/5/7/8
+(`DrainRates.lean`'s own doc: "structurally vacuous for `Φ ≥ 2`", matching the floor only at `m=1`),
+while the honest per-level machinery was landed but DEAD off the path.  V2's `dotyWorkHonest` builds
+slots 1/5/7/8 on `OneSidedCancel.levels_PhaseConvergenceW` (the Phase-6 engine), consuming:
+* slot 1 — `DrainRates.hdrop1_of_chain` (the +3 extreme witness + the Lemma-5.3 partner-pool floor);
+* slot 5 — a LEVELS drain on `unsampledReserveU` (`DrainRates.hdrop5_of_chain`, the Theorem-6.2
+  biased-Main floor) composed with the carried sampling concentration `hConc` at the levels horizon
+  `∑ tWin5 m` (mirroring `Phase5Convergence.phase5Convergence`);
+* slot 7 — the gap-1 eliminator margin `hPhase6Post7` (Lemma 7.4), through `slot7_hdrop_direct`
+  (an inlined `slot7_levels_hdrop`, minority witness PROVED);
+* slot 8 — the above-level eliminator margin `hPhase7Post8` (Lemma 7.6), through `slot8_hdrop_direct`.
+
+Each honest slot has the SAME `Pre`/`Post` as the crude one (both engines: `Pre = Inv ∧ Φ ≤ M₀`,
+`Post = Inv ∧ Φ = 0`), so every downstream bridge / seam connects unchanged.  The level engine wants
+the per-level binder at every `m`; the landed `hdrop{5,7,8}_of_chain` are guarded `1 ≤ m`, so the
+rate is `qHat E n m = if 1 ≤ m then levelRate E n m else 1` (the `m=0` binder is the trivial
+`K b (potBelow Φ 0)ᶜ ≤ 1`; the budget sum over `Icc 1 M₀` only reads `m ≥ 1`, where `qHat =
+levelRate`).
+
+`WorkInputsHonest` is the re-cut residual record: the crude `hstep1/5/7/8` are DROPPED; the carried
+per-slot atoms are now the structural floors (`hext1`/`hpull1`/`hmain5`), the eliminator margins
+(`hPhase6Post7`/`hPhase7Post8` — the advertised events now CONSUMED, not dead), the per-level budgets
+(`hpt1/5/7/8`), and the sampling concentration (`hConc`).
+
+**V2 surface.**  `doty_theorem_3_1_whp_v2 : (K^T) c₀ {¬ majorityStableEndpoint} ≤ 21/n² ∧ T ≤
+21·C0·n·(L+1) ∧ T ≤ 21·C0·n·(⌈log₂ n⌉+1)`, over `DotyRegime n L K` + `DotyResidualAtomsV2`.  Remaining
+binders: `hReg` (regime), `ra` (residual atoms — now the honest bundle), `T`/`hT` (horizon
+bookkeeping), `ht`/`hε` (budget/time arithmetic), `hx₀` (start pin), `h_post` (endpoint bridge).
+`hcompFail` is gone (produced).  The expected half (`doty_theorem_3_1_expected`) is unchanged in
+`FinalAssembly.lean`; V2 covers the whp half, the audit's crux.
+
 ## DoublingEdges.lean — hour-gated top edge + occupancy verdict (2026-06-10)
 
 The §6 "doubling chain passes through every level, band is 3 levels" positional content of
