@@ -691,3 +691,61 @@ concentration is NOT reproved here.
 **Carried verbatim (still open, other waves):** `wih` (#6–#11, #15 work-slot atoms), `hSeedStep`
 (#4), `hStart` (#12 D), `hPhase10Sign` (#13), and the budget/config/regime scalars
 (`Cphase/δ/c₀/init/hC0/hδ`).
+
+---
+
+## SamplingAtoms.lean — roster #9 (Wave 3): the two slot-5 sampling-concentration atoms (2026-06-11)
+
+New append-only file `Probability/SamplingAtoms.lean` discharges the two remaining inputs of the
+slot-5 sampling concentration that `SampledClassTail.lean`'s `hConcDemand_of_real_window` left
+named: **ATOM 1** the rate floor `hrfloor`, and **ATOM 2** the clock-separation escape.  0 sorry/
+admit/axiom/native_decide; `#print axioms ⊆ {propext, Classical.choice, Quot.sound}`; single-file
+`lake env lean` clean + `lake build` green (3618 jobs); max line width 100; append-only.
+
+**ATOM 1 — `hrfloor` (the rate floor): PRODUCED.**  The per-step rise-probability floor the
+sampled-class drift consumes is `Phase5Convergence.sampledReserveClassU_rise_prob_rect5`
+(`Phase5Convergence:945`): on a phase-5 window the one-step rise probability is
+`≥ (#unsampledReserves · #classMains_σi)/(n(n−1))` — the cross-rectangle sampling mass, with the
+Main bias profile FROZEN through phase 5 (`biasedMainClassU_support_eq`, `Phase5Convergence:364`),
+so the rate is the ENTRY-time class profile.  `hrfloor_of_floors` produces the exact `hrfloor` shape
+from three named inputs by `Nat`-product monotonicity into that landed floor:
+* `classFloor ≤ (classMainStates σ i).sum c.count` — the entry class count (the Thm-6.2 `usefulMains`
+  chain's named entry input; FROZEN ⟹ carried `∀ c ∈ gate`);
+* `reserveFloor ≤ (unsampledReserves).sum c.count` — the unsampled-reserve floor (`RoleSplitGood`'s
+  `reserveCount ≥ (1−η)·n/4`-flavored export, `RoleSplitConcentration:105`, restricted to unsampled);
+* static persistence = the `∀ c ∈ gate` quantifier itself (the entry profile transported by the
+  FROZEN phase-5 rules).
+The constant rate is `rateFloor reserveFloor classFloor n = (reserveFloor·classFloor)/(n(n−1))`;
+`rateFloor_le_one` discharges `r ≤ 1` from the honest budget `reserveFloor·classFloor ≤ n(n−1)`.
+
+**ATOM 2 — the clock-separation escape: HONEST NEGATIVE VERDICT (named carry, not faked).**  The
+prompt's proposed route — instantiate the `ClockZeroTail`/`SeamNoOvershoot` seam tail with the
+`p=4→5` roles swapped for an `e^{−40(L+1)}` budget — is **STRUCTURALLY BLOCKED**, verified vs the
+FROZEN rules:
+* `seam_atRiskTail_of_entry` (`ClockZeroTail:147`) requires `CounterResetDest (p+1)`, i.e.
+  `p+1 ∈ {1,6,7,8}` (`SeamPairAdapter.CounterResetDest:80`).  Destination `5 ∉ {1,6,7,8}` —
+  `CounterResetDest 5` is FALSE (the set is `CounterTimedPhase` *minus phase 5*).
+* Structural cause (`SeamPairBound.lean` FINDING 2, lines 44–53): the predecessor `Phase4Transition`
+  advances clocks via `advancePhase` (big-bias gate), which does NOT run `phaseInit`/reset the
+  counter.  A clock counter-advanced from phase 4 into phase 5 keeps its OLD counter, so
+  `SeamEntryFullCounter 4` ("every phase-5 clock at full counter `50(L+1)`", `ClockZeroTail:91`) is
+  FALSE at phase-5 entry — `seamClockPotential_init_le`'s hypothesis cannot be discharged, breaking
+  the affine immigration tail.  (NB: `phaseInit 5` *would* reset — `Transition.lean:166` — but the
+  p=4→5 seam reaches phase 5 by `advancePhase`, not `phaseInit`.)
+So the `e^{−40(L+1)}` budget is unavailable through the seam machinery; the phase-5 counter-drain is
+governed by the dedicated minute/hour width machinery (`ClockOLogN`/`ClockReal*`).  We do NOT
+manufacture a false bound.  ATOM 2 stays the named per-`τ` prefix bound `clockSeparationEscape n s i
+K₀ t β` — the exact `hβ` field `hConcDemand_of_real_window` consumes — pinned with file:line
+provenance.
+
+**Slot-5 final surface.**  `hConcDemand_of_atoms` feeds ATOM 1 (produced) + ATOM 2 (named) into
+`SampledClassTail.hConcDemand_of_real_window`; `phase5Convergence_of_atoms` composes with
+`EndpointWiring.phase5Convergence_of_hConc`.  Slot 5 is now hypothesis-free except: the two entry
+floors `hres`/`hcls` + budget `hbudget` (ATOM 1's named inputs), the clock-separation exit bridge
+`hbridge` + per-`τ` escape `hesc`/`clockSeparationEscape` (ATOM 2's named remainder), the carried
+window closure `hClosed` / drain `hstep`, and the arithmetic fits `hε'`/`hεC`.
+
+| Atom | Status | Producer / remainder (file:line) |
+|---|---|---|
+| #9 ATOM 1 `hrfloor` | ✅ PRODUCED | `hrfloor_of_floors` ← `sampledReserveClassU_rise_prob_rect5` (`Phase5Convergence:945`) from `classFloor`+`reserveFloor`+budget |
+| #9 ATOM 2 escape | ⏸ NAMED REMAINDER (seam tail proven inapplicable) | `clockSeparationEscape`; honest verdict: `CounterResetDest 5` FALSE (`SeamPairBound` FINDING 2) — width machinery, not seam tail |
