@@ -4488,3 +4488,51 @@ failure — paper-faithful Lemma 5.3 / [45] Cor.1. The crude single-witness regi
 **Net:** the §1 averaging chain has NO remaining free quantitative atom — the partner margin `P` is
 the honest `Θ(n)` value `(n − g + 3)/4` derived from the conserved opinion-gap invariant. The only
 inputs are the protocol window, the entry gap `g`, and the far witness (config datum), all honest.
+
+---
+
+## Phase E4 — `Probability/TimedChainRungs.lean` (2026-06-10, 0-sorry, axiom-clean)
+
+The timed per-rung phase-advance expected-time bound — the Stage-4 residual `StableBridges`
+re-shaped to next-phase entry `{AllClockGEpCard (p+1) n}`.  Salvaged the predecessor's
+untracked draft (cut by usage limit): it had 3 build errors (`omega` missing the trivial
+`m=0`/`geCount≤n` cases in `advance_subset_potBelow`; an `exact_mod_cast Int.subNatNat`
+mismatch in `seam_rate_le_one`; an incomplete `seamQ_inv_le` with a `sorry`).  Rewrote
+cleanly; now single-file `lake env lean` EXIT_0, axioms ⊆ [propext, Classical.choice,
+Quot.sound] on every theorem.
+
+**Per-rung bound: `E[T from AllClockGEpCard p n → AllClockGEpCard (p+1) n] ≤ n²`** (crude
+uniform form; the `log` sharpening is orthogonal harmonic, same relation as
+`coupon_expectedHitting_le_uniform` to `H_n`).  Engine = the invariant-relative coupon
+capstone `coupon_expectedHitting_le_uniform_on`, instantiated with:
+- potential `seamPot p n c = n − geCount (p+1) c` (the unadvanced count);
+- invariant `AllClockGEpCard p n` (`InvClosed` for `3 ≤ p`, `AllClockGEpCard_InvClosed`);
+- drop rate `(n−m)·m/(n(n−1))` from `SeamEpidemics.ge_advance_prob` (the advanced×unadvanced
+  rectangle), packaged as `seam_hdrop`;
+- uniform ceiling `r = n` from `advance_floor_seam` (`(n−m)·m ≥ n−1`), `seamQ_inv_le`;
+- start level `M = n − 1` (the advance SEED `1 ≤ geCount (p+1) c`, the counter-drain
+  output's deterministic seam advance — at `m = n` the rate is `0`, epidemic stuck, so the
+  seed is essential; honest, not a smuggled hypothesis).
+
+**Assembled spine.** `seam_rung_to_chain_target_le_nsq` routes the bound from the bare drain
+set `potBelow(seamPot) 1` to the chain target `{AllClockGEpCard (p+1) n}` via the
+`InvClosed` slice (same technique as `phase10Majority_link_intersected`).
+`chain_two_phase_through_mid` telescopes two consecutive rungs `p → p+1 → p+2` via
+`expectedHitting_le_through_mid` (inclusion `AllClockGEpCard (p+2) n ⊆ AllClockGEpCard (p+1) n`),
+first summand discharged, band cross-term explicit (the honest cross-phase residual — the
+occupation-integral that `through_mid` always leaves, not a seam-specific gap).
+
+**Honest chain-end mechanism.** Seam rungs run at `p ∈ {5,6,7,8}` (`3 ≤ p` role-permanence ∩
+`{0,1,5,6,7,8}` counter-timed).  Phases `0,1,2,3,4` = untimed epidemic phases (upstream).
+Phase 9: NO counter, NO universal force-to-10 (all-backup route already rejected dishonest,
+§SeamPairBound).  Chain end = phase-`8 → 10` epidemic entry into the Phase-10 backup
+(`Transition_*_phase_ge_pair_max` `max`-spread → `S1`/`Tie1plus` whp), then `StableBridges`'
+Phase-10 bridges close at 0 cost.  The `8→10` backup entry (`O(n log n)`, Lemma 7.7) is the
+NAMED remainder — epidemic/backup, not a seam counter-drain rung.
+
+**TimedBigClock/TinyClock ladders reachable.** The strongest reachable per-rung ladder
+theorem is the chain-target cap `seam_rung_to_chain_target_le_nsq` (`≤ n²`), which plugs as
+the re-shaped rung-1 link feeding `RegimeClassification.ladderData_of_{bigClock,tinyClock}`'s
+telescope toward the Phase-10 backup; the residual that genuinely doesn't yield from the seam
+engine is the cross-phase band occupation (Part 8 cross-term) + the phase-`8→10` backup entry
+(Part 9), both named, not faked.

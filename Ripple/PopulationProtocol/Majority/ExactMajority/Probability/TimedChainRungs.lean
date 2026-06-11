@@ -515,6 +515,87 @@ theorem seam_rung_to_chain_target_le_nsq (p n : ℕ) (hp3 : 3 ≤ p) (hn : 2 ≤
     _ = expectedHitting ker c Bare := (expectedHitting_eq_tsum ker c Bare).symm
     _ ≤ ((n * n : ℕ) : ℝ≥0∞) := seam_rung_expectedHitting_le_nsq (L := L) (K := K) p n hp3 hn c hInvc htrig
 
+/-! ## Part 8 — the assembled two-phase chain link (honest cross-term)
+
+The full timed spine telescopes `AllClockGEpCard p n → AllClockGEpCard (p+1) n → … → 10`.
+A SINGLE per-rung link is `seam_rung_to_chain_target_le_nsq` (`≤ n²`).  Chaining two
+consecutive rungs `p → p+1 → p+2` uses `Phase10ExpectedTime.expectedHitting_le_through_mid`
+with `Done = {AllClockGEpCard (p+2) n}`, `Mid = {AllClockGEpCard (p+1) n}` — the inclusion
+`Done ⊆ Mid` holds (phase `≥ p+2 ⟹ ≥ p+1`).  The result is
+
+    E[T from p-regime → (p+2)-regime] ≤ E[T → (p+1)-regime] + (band cross-term),
+
+where the band cross-term `∑' t, (K^t) c (Mid ∩ Doneᶜ)` is the time-integrated occupation
+of the "advanced to `p+1` but not yet to `p+2`" band — exactly the `(p+1)`-seam epidemic's
+running region.  We deliver the through-mid decomposition with the first summand
+DISCHARGED by `seam_rung_to_chain_target_le_nsq`; the band cross-term is the honest
+cross-phase residual (its closed bound is the occupation-integral form of the next-rung
+seam cap, the same band-bookkeeping `expectedHitting_le_through_mid` always leaves open —
+not a `seam`-specific gap). -/
+
+/-- `AllClockGEpCard (p+2) n ⊆ AllClockGEpCard (p+1) n` (phase `≥ p+2 ⟹ ≥ p+1`): the
+chain-target inclusion that lets two consecutive rungs telescope through `Mid`. -/
+theorem chain_target_succ_subset (p n : ℕ) :
+    StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p + 1)
+      ⊆ StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p) := by
+  intro z hz
+  -- hz : AllClockGEpCard (p+2) n z; goal : AllClockGEpCard (p+1) n z.
+  have hz' : AllClockGEpCard (L := L) (K := K) (p + 1 + 1) n z := hz
+  refine ⟨?_, hz'.2⟩
+  intro a ha
+  exact ⟨(hz'.1 a ha).1, by have := (hz'.1 a ha).2; omega⟩
+
+/-- **The assembled two-phase chain link (through-mid decomposition).**
+
+From an `AllClockGEpCard p n`-start with the `(p+1)`-seed, the expected time to reach the
+`(p+2)`-regime is bounded by the `(p+1)`-regime hitting time (`≤ n²` via
+`seam_rung_to_chain_target_le_nsq`) PLUS the honest band cross-term — the time-integrated
+occupation of the `(p+1)`-seam band.  This is the genuine spine telescope step; iterating
+it through the timed phases `p ∈ {5,6,7,8}` (the `3 ≤ p` seam rungs) assembles the chain to
+the Phase-10 backup, closed by `StableBridges`' Phase-10 stability bridges. -/
+theorem chain_two_phase_through_mid (p n : ℕ) (hp3 : 3 ≤ p) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInvc : AllClockGEpCard (L := L) (K := K) p n c)
+    (htrig : 1 ≤ geCount (L := L) (K := K) (p + 1) c) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p + 1))
+      ≤ ((n * n : ℕ) : ℝ≥0∞)
+        + ∑' t : ℕ, ((NonuniformMajority L K).transitionKernel ^ t) c
+            (StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p)
+              ∩ (StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p + 1))ᶜ) := by
+  classical
+  -- through-mid: E[T→Done] ≤ E[T→Mid] + ∑ band, with Done ⊆ Mid.
+  have hsub := chain_target_succ_subset (L := L) (K := K) p n
+  have hmid := expectedHitting_le_through_mid (NonuniformMajority L K).transitionKernel hsub c
+  refine le_trans hmid ?_
+  -- bound the Mid hitting time by the per-rung seam cap; leave the band cross-term explicit.
+  gcongr
+  exact seam_rung_to_chain_target_le_nsq (L := L) (K := K) p n hp3 hn c hInvc htrig
+
+/-! ## Part 9 — the honest chain-end mechanism (survey, no fake bridge)
+
+**Which phases are timed seam rungs.**  The counter-drain engine and this seam engine
+require `3 ≤ p` (`AllClockGEpCard_InvClosed`'s role-permanence floor) AND
+`p ∈ {0,1,5,6,7,8}` (the counter-timed phases).  The intersection is `p ∈ {5,6,7,8}`: those
+four are the seam rungs delivered here, each capped `≤ n²` (Part 7) and telescoped (Part 8).
+Phases `0,1` (`p < 3`) and `2,3,4` are NOT counter-timed seam rungs — they are the paper's
+"untimed phases that pass by epidemic expected `O(log n)`" (§7), already carried by the
+`Phase4Convergence` / `seamEpidemicW` whp machinery upstream, not re-opened here.
+
+**Phase 9 and the Phase-10 entry (the chain end).**  The protocol has NO phase-9 timed
+counter and NO universal force-to-phase-10 (the campaign rejected the "all-backup" route as
+DISHONEST: clock-less states have no counter-drain route, and `phaseInit 1` can error an
+`mcr` to phase 10 only on the seam, not deterministically — `DOTY_POST63_CAMPAIGN.md`
+§SeamPairBound finding 2, lines 2906/3384/3807).  The honest chain end is therefore NOT a
+timed rung: the `≥`-window epidemic carries the population from phase `8`'s seam exit into
+the **Phase-10 backup** (the `AllPhase10` regime), whose ENTRY is the universal phase
+epidemic (`Transition_*_phase_ge_pair_max`, the same `max`-spread as every seam), reaching
+`S1` / `Tie1plus` whp; from there `StableBridges`' Phase-10 stability bridges
+(`phase10Majority_drained_mem_stableDone`, `phase10Tie_drained_mem_stableDone`) close to
+`StableDone` at `0` bridge cost.  This phase-`8 → 10` epidemic entry (an `O(n log n)`
+backup-stabilization, Lemma 7.7) is the named REMAINDER: it is an epidemic/backup expected
+bound, NOT a seam counter-drain rung, so it is honestly outside this file's seam engine and
+is supplied by the `Phase10ExpectedTime` backup machinery + `StableBridges` closure. -/
+
 end TimedChainRungs
 
 end ExactMajority

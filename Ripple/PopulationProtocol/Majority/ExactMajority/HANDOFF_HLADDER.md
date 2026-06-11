@@ -451,3 +451,45 @@ routed to the `S1`/`Tie1plus`-intersected drain target via the InvClosed slice a
 **Re-shaped (timed):** `timed_phase_chain_target` / `timed_chain_target_is_next_phase` name the honest
 next-phase rung target; the false direct timed bridge is deliberately NOT fake-discharged. The per-step
 phase-advance transition feeding the re-shaped chain is the named Stage-4 timed residual.
+
+---
+
+## Phase E4 — `Probability/TimedChainRungs.lean` COMPLETE (2026-06-10, 0-sorry, axiom-clean)
+
+The per-rung timed phase-advance expected-time bound — the Stage-4 timed residual
+`StableBridges` re-shaped to `{AllClockGEpCard (p+1) n}`.  Salvaged + rewrote the
+predecessor's untracked draft (it had 3 build errors + 1 `sorry`); now clean.
+
+**Mechanism.** From an `AllClockGEpCard p n` start the seam epidemic
+(`SeamEpidemics.ge_advance_prob`, rate `(n−m)·m/(n(n−1))`) advances every agent to phase
+`≥ p+1`.  Engine = `ConditionalPhaseProgress.Engine.coupon_expectedHitting_le_uniform_on`
+with potential `seamPot p n c = n − geCount (p+1) c`, invariant `AllClockGEpCard p n`
+(`InvClosed` for `3 ≤ p`), drop family `seamQ n m = 1 − (n−m)·m/(n(n−1))`, uniform ceiling
+`r = n` (via `advance_floor_seam`: `(n−m)·m ≥ n−1`).  Start level `M = n−1` (the seed
+`1 ≤ geCount (p+1) c` from the counter-drain output — at `m = n`, zero advanced, the rate
+is `0` and the epidemic is genuinely stuck; the seed is essential and honest).
+
+**Per-rung bound:** `E[T → next-phase regime] ≤ n²`.
+
+**Delivered (all 0-sorry, axioms ⊆ [propext, Classical.choice, Quot.sound]):**
+- `seamPot`, `seamQ` (potential + drop family); `allPhaseGe_of_allClockGEpCard`, `geCount_le_card`.
+- `seamPot_PotNonincrOn` (engine `hmono`); `advance_subset_potBelow`, `seam_hdrop` (engine `hdrop`,
+  rate from `ge_advance_prob`, with the `m=0` trivial-ceiling branch);
+- `seam_rate_le_one`, `seam_rate_ge_inv_n`, `seamQ_inv_le` (the `r = n` per-level ceiling);
+- **`seam_rung_expectedHitting_le_nsq`** — `E[T → potBelow(seamPot) 1] ≤ n²` (the capstone);
+- `seamPot_lt_one_iff_geFinished`, `drained_imp_allPhaseGe_succ`, `drained_invariant_imp_chain_target`
+  (the drain target = `StableBridges.timed_phase_chain_target` on the clock-role invariant);
+- **`seam_rung_to_chain_target_le_nsq`** — `E[T → {AllClockGEpCard (p+1) n}] ≤ n²` (the assembled
+  spine link, routed through `AllClockGEpCard_InvClosed` like the Phase-10 intersected link);
+- `chain_target_succ_subset`, **`chain_two_phase_through_mid`** — the two-phase telescope via
+  `Phase10ExpectedTime.expectedHitting_le_through_mid`, first summand DISCHARGED by the per-rung cap,
+  band cross-term left explicit (the honest cross-phase residual).
+
+**Chain-end mechanism (honest survey, Part 9 docstring).** Seam rungs run only at
+`p ∈ {5,6,7,8}` (`3 ≤ p` role-floor ∩ `{0,1,5,6,7,8}` counter-timed).  Phases `0,1,2,3,4`
+are the untimed epidemic phases (upstream `Phase4Convergence`/`seamEpidemicW`).  Phase 9 has
+NO counter and NO universal force-to-10 (all-backup route rejected as dishonest — campaign
+§SeamPairBound).  Chain end = phase-`8 → 10` epidemic ENTRY into the Phase-10 backup
+(`Transition_*_phase_ge_pair_max`), reaching `S1`/`Tie1plus` whp, then `StableBridges`'
+Phase-10 stability bridges close to `StableDone` at 0 bridge cost.  The `8→10` backup entry
+(`O(n log n)`, Lemma 7.7) is the NAMED remainder — an epidemic/backup bound, not a seam rung.
