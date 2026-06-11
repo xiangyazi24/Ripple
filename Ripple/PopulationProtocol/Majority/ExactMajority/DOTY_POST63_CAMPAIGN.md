@@ -5076,3 +5076,74 @@ verified deliverable is the **164-module live closure** (EXIT 0, axiom-clean), b
 still carries the named inventory above (notably C2: the `h_chain` bridges are honest only in the
 `W2` advancePhase-epidemic form). Recommend: (1) attic the 4 orphans, (2) confirm the bare default
 target green, (3) then the owner decides on the public push.
+
+---
+
+## F1 + F2 audit fix — the honest kernel-level `hConfine` surface (append-only)
+
+Independent adversarial audit (`/tmp/opus_audit_report.md`) flagged two compounding faithfulness
+defects in the §6-clock confinement surface. Both are now fixed in the new append-only file
+`Probability/ConfinementSurface.lean` (no existing file edited; the misleading wrappers are
+corrected by doc-note + honest replacement, not by editing their code).
+
+### What was wrong
+
+* **F1 (CRITICAL — inert mechanism / dead `let`).**
+  `ZeroSupplyCoupling.hConfine_surface_of_zeroSupply` (`ZeroSupplyCoupling.lean:308`) and its two
+  re-exports `SupplyDispatch.hConfine_of_window` (`SupplyDispatch.lean:429`) and
+  `WindowReconciliation.hConfine_of_windowReconciled` (`WindowReconciliation.lean:244`) all had the
+  proof term `let _hH := mainHourHypotheses_of_zeroSupply_whp hClock hSubcrit hcoupl;
+  theorem62_entry_of_confinement hPhase5 hMainFloor hConf`. The three §6 inputs fed ONLY the dead
+  `let _hH` (never used); the output `hConfine` field is the input `hConf` re-emitted verbatim
+  (both = `0.92·|M| ≤ #usefulMains`). The surfaces were pure REPACKAGINGS of an assumed
+  confinement, masquerading as squaring-window derivations.
+
+* **F2 (FALSE-on-reachable).** The carried `hcoupl : IntegerProfileSquaring θ c` is the
+  DETERMINISTIC pointwise form the campaign ITSELF proved order-impossible
+  (`ZeroSupplyCoupling.integerProfileSquaring_order_impossible`). The honest object is the whp event,
+  not the deterministic predicate.
+
+* **Orphan diagnosis.** The genuine kernel-level theorem
+  `MainExponentConfinement.theorem6_2_main_confinement_whp` (the whp confinement event bound from a
+  per-hour-union budget) was UNUSED by any consumer — the chain ran entirely on the pointwise
+  repackaging instead. The mechanism existed and was never wired in.
+
+### The honest fix (`Probability/ConfinementSurface.lean`)
+
+The confinement readout cannot be derived at a single reachable config (that IS F2). The honest
+object is **kernel-level**: `(transitionKernel ^ T) c₀ {¬ confinement} ≤ η`.
+
+* `mainConfinement_kernel_whp` — the honest kernel-level confinement surface. **Hypothesis set:**
+  `(n : ℕ)`, `(η : ℝ≥0∞)`, `(phase3to5Time : ℕ)`, `(c₀ : Config)`, and the SINGLE honest input
+  `hHourTail : (transitionKernel ^ phase3to5Time) c₀ {c | ¬ ConfinementEvent c} ≤ η`. Concludes the
+  same kernel-power event bound. Routes through the previously-orphaned
+  `theorem6_2_main_confinement_whp` (now wired in). Carries NO pointwise confinement and NO
+  deterministic `IntegerProfileSquaring`.
+* `confinement_hour_tail` — the per-hour single-hour squaring brick (LANDED
+  `main_profile_hour_squaring` = `WindowConcentration.windowDrift_tail` at the Main profile),
+  re-exported so the union budget `hHourTail` is grounded in the real §6 engine (Stage-1 zero-supply
+  ledger → Stage-2 single-hour drift → all-hours union), not a pointwise assumption.
+* `confinement_event_whp` / `hConfine_kernel_of_window` / `hConfine_kernel_of_windowReconciled` —
+  the three downstream surfaces RE-STATED honestly at the kernel level (one per flagged file), each
+  consuming `mainConfinement_kernel_whp`. Same honest hypothesis set (the union budget); no
+  order-false deterministic squaring carried.
+* `theorem62_entry_is_repackaging` — the corrective doc-note theorem: building
+  `Theorem62EntryHypotheses` from an ASSUMED confinement + Phase-5 window + role floor is a pure
+  repackaging (= `theorem62_entry_of_confinement`); the old wrappers' `hClock`/`hSubcrit`/`hcoupl`
+  binders were inert decoration. Stated WITHOUT the decorative §6 inputs to make that explicit.
+
+### Corrected carried inventory for the `hConfine` chain
+
+| object | OLD (flagged) carried set | NEW honest carried set |
+|---|---|---|
+| confinement surface | pointwise `hConf : MainProfileConfinedToUseful` + dead-`let` §6 inputs (`hClock`, `hSubcrit`, `hcoupl = IntegerProfileSquaring`, order-FALSE) | kernel-level union budget `hHourTail : (Kᵀ)c₀{¬confinement} ≤ η` (the honest per-hour squaring tails composed) |
+| §6 squaring entry | deterministic `IntegerProfileSquaring θ c` (false on reachable configs, F2) | whp per-hour drift inside `hHourTail` (via `confinement_hour_tail`, the LANDED `windowDrift_tail`) |
+| Theorem-6.2 entry hyps | `theorem62_entry_of_confinement` reached via dead-`let` wrapper (impostor) | reached honestly from the event success or, as repackaging, named explicitly `theorem62_entry_is_repackaging` |
+
+### Status of the old wrappers
+
+The three old per-config `hConfine_*` surfaces remain in the tree (not edited per discipline) but are
+now documented as pure repackagings; the honest derivation is `mainConfinement_kernel_whp`.
+Consumers wanting a derivation (not a repackaging) must route confinement as a kernel-level event,
+never assume it pointwise (F2). Single-file `lake env lean` EXIT 0; `#print axioms` ⊆
+`[propext, Classical.choice, Quot.sound]` for all six new theorems.
