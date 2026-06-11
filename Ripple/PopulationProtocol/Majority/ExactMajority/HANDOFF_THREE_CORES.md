@@ -4,6 +4,56 @@ Source: ChatGPT Pro (family2, Ripple connector). 15,421 B. Verbatim below.
 
 ---
 
+## UPDATE (2026-06-10) — `IntegerProfileSquaring` attacked in `Probability/ZeroSupplyCoupling.lean`
+
+Residual #1 of the definitive list — `ProfileSquaringRate.IntegerProfileSquaring` (the §6
+hour-boundary squaring `µ_{≥i+1}·|M| ≤ µ_{≥i}²`, equivalently the zero-supply coupling
+`Z_i ≲ µ_{≥i}`) — is now attacked in NEW append-only file `Probability/ZeroSupplyCoupling.lean`.
+No existing file edited. Single-file `lake env lean` EXIT_0; every headline `#print axioms ⊆
+[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide.
+
+HONEST GUARD DIRECTION (re-verified against FROZEN `phase3CancelSplit`):
+* Rule 3 (cancel) `(±j pair, i.val=j.val)` → TWO `.zero`s stamped `hour := j`. The ONLY producer of
+  a fresh hour-stamped zero. The cancel consumes two dyadic agents at exponent EXACTLY `j`.
+* Rule 4 (split) guard is `s2.hour.val > i.val`: a `.zero` doubles an exact-`i` agent iff `hour > i`.
+  So `zeroSupplyAt i := bias=.zero ∧ i < hour` (ProfileSquaringRate's def) is the correct eligibility.
+* Rule 2 (hour drag, `Phase3Transition`) re-stamps an existing zero's hour to `min L ⌊clock.min/K⌋`
+  WITHOUT creating a new zero — the clock-coupled second supply source (where the §6 clock front
+  enters). It does not produce fresh zeros, only raises existing ones across `i`.
+
+So a fresh `Z_i` zero (hour > i) is born only from a Rule-3 cancel at a level `j > i`, consuming TWO
+level-`(≥ i+1) ⊆ (≥ i)` agents. This is the `Z_i ≲ µ_{≥i}` ledger: supply is produced BY the
+level-`≥i` mass, never from thin air.
+
+DETERMINISTIC FORM IS FALSE (PROVEN). `IntegerProfileSquaring` is stated POINTWISE. The only
+deterministic order facts on one config are `0 ≤ B ≤ A ≤ M` (`B=µ_{≥i+1} ≤ A=µ_{≥i} ≤ M=|M|`), but
+`B·M ≤ A²` is FALSE under those alone (`B=A=1, M=2` ⇒ `2 ≤ 1` false). Genuine config witness: one
+Main biased at exactly `i+1` (`A=B=1`) plus many `.zero`-bias Mains (which inflate `mainCount` but
+NOT `mainProfileAbove`, which counts only `dyadic`-biased Mains). Hence the discharge is **whp**, not
+deterministic — `integerProfileSquaring_order_impossible` proves the impossibility.
+
+DELIVERED (all PROVEN, 0-sorry, axiom-clean):
+* Stage 1 (genuine new content): `supply_pair_cancelInd` — the per-pair zero-production ledger:
+  output `Z_i` count ≤ input `Z_i` count + `cancelInd` (= 2 exactly on a `±j` cancel with `j > i`),
+  mirroring `HourCouplingV2.mAbove_pair_dragInd`. `cancelInd_pos_consumes_high` — when the indicator
+  fires, BOTH consumed inputs are dyadic at exponent `> i` (the honest consumption identity).
+* Stage 2 (the honest verdict): `integerProfileSquaring_order_impossible` — deterministic form false.
+* Stage 3 (whp interface + adapter): `integerProfileSquaring_whp` instantiates the LANDED
+  `WindowConcentration.windowDrift_tail` for the bad event `{¬IntegerProfileSquaring}` (potential =
+  the `Z_i` counter, its drift the named remainder). `mainHourHypotheses_of_zeroSupply_whp` re-states
+  the consumer's `MainProfileHourHypotheses` build in the whp shape (matching
+  `ProfileSquaringRate.mainHourHypotheses_of_coupling`). `hConfine_surface_of_zeroSupply` records the
+  strongest reachable surface: the ONLY residual blocking a hypothesis-free `hConfine` is now the
+  single per-step DRIFT input `hdrift` of `integerProfileSquaring_whp` (the `Z_i` counter's
+  contraction governed by Stage 1 coupled to the clock front); everything downstream is closed.
+
+NEXT (the genuinely-remaining brick): discharge `hdrift` — the per-step contraction of the `Z_i`
+counter potential. The Stage-1 production ledger gives the per-pair source; lifting to a config-level
+supermartingale on the produced-counter (à la `HourCouplingV2.hour_drift`), coupled to the clock
+front so the Rule-2 drag is controlled, closes the whp form fully. This is the §6 hour-dynamics core.
+
+---
+
 ## STATUS (2026-06-10) — Brick A remainder attacked in `Probability/ProfileSquaringRate.lean`
 
 The single named remainder of Brick A — `MainExponentConfinement.MainProfileSquaredBound` (the

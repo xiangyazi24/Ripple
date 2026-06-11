@@ -3972,3 +3972,29 @@ named hypothesis (the AveragingCollapse residual is the dynamic per-level rate `
 **Net:** the two genuinely-numeric named side conditions (`hrecmass` ×2 consumers, `hnum`) are
 now closed at concrete constants. Residual #6 reduces to its non-numeric remainder, all of which
 is already named in the day-2 definitive list (items 1–5).
+
+---
+
+## UPDATE (2026-06-10) — residual #1 `IntegerProfileSquaring` attacked (ZeroSupplyCoupling.lean)
+
+NEW append-only `Probability/ZeroSupplyCoupling.lean` (single-file EXIT_0; all headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide).
+
+The residual `IntegerProfileSquaring` (the §6 hour-boundary `µ_{≥i+1}·|M| ≤ µ_{≥i}²`, i.e.
+`Z_i ≲ µ_{≥i}`) is reframed honestly:
+
+* HONEST GUARD (FROZEN `phase3CancelSplit` re-verified): split eligibility is `hour > i`
+  (`zeroSupplyAt i = .zero ∧ i < hour`); a fresh such zero is born ONLY from a Rule-3 cancel at a
+  level `j > i` consuming two dyadic agents at exponent EXACTLY `j ≥ i+1`. Rule-2 drag re-stamps an
+  existing zero's hour (clock-coupled, no fresh zero). → `Z_i` is produced BY the level-`≥i` mass.
+* DETERMINISTIC FORM IS FALSE (PROVEN, `integerProfileSquaring_order_impossible`): order alone
+  (`0 ≤ B ≤ A ≤ M`) does not give `B·M ≤ A²` (`B=A=1,M=2`). Config witness: one Main at exactly
+  `i+1` plus many `.zero`-bias Mains (inflate `mainCount`, not `mainProfileAbove`). → honest form whp.
+* DELIVERED: Stage 1 per-pair production ledger `supply_pair_cancelInd` (+ `cancelInd_pos_consumes_high`);
+  Stage 2 false-note; Stage 3 whp interface `integerProfileSquaring_whp` (LANDED `windowDrift_tail`
+  on the `Z_i`-counter potential) + adapter `mainHourHypotheses_of_zeroSupply_whp` +
+  `hConfine_surface_of_zeroSupply`.
+
+The TRUE remaining brick (one named drift fact): `hdrift` of `integerProfileSquaring_whp` — the
+per-step contraction of the `Z_i` counter potential, Stage-1 source lifted to a config-level
+supermartingale coupled to the clock front (controls the Rule-2 drag). Everything downstream closed.

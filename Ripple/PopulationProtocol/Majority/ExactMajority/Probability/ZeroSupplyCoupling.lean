@@ -172,35 +172,16 @@ theorem supply_pair_cancelInd (i : ℕ) (s t : AgentState L K) :
       -- pos,neg : cancel if same exponent (both outputs become `.zero` with hour = sj = tj).
       · simp only [hs, ht]
         by_cases hij : sj.val = tj.val
-        · simp only [hij, dif_pos]
-          -- outputs: `{s with bias:=.zero, hour:=sj}`, `{t with bias:=.zero, hour:=tj}`.
-          by_cases hi : i < sj.val
-          · -- cancel level > i ⇒ BOTH fresh zeros are supply; cancelInd = 2 covers them.
-            rw [if_pos ⟨hij, hi⟩]; omega
-          · -- cancel level ≤ i ⇒ neither fresh zero is supply (hour = sj = tj ≤ i).
-            rw [if_neg (by rintro ⟨_, h⟩; omega)]
-            have ho1 : ¬ supplyP (L := L) (K := K) i
-                ({ s with bias := .zero, hour := sj } : AgentState L K) := by
-              intro ⟨_, hh⟩; simp only at hh; omega
-            have ho2 : ¬ supplyP (L := L) (K := K) i
-                ({ t with bias := .zero, hour := tj } : AgentState L K) := by
-              intro ⟨_, hh⟩; simp only at hh; omega
-            rw [if_neg ho1, if_neg ho2]; omega
+        · -- both outputs `.zero` with hour sj (= tj); supplyP reduces to `i < hour`.
+          simp only [hij, dif_pos, supplyP, true_and]
+          -- goal in terms of decidable `i < sj`/`i < tj`/cancel `True ∧ i < tj`; case-split.
+          by_cases hi : i < tj.val <;> simp [hi, hij] <;> omega
         · simp only [hij, dif_neg, not_false_iff]; omega
       -- neg,pos : cancel if same exponent (symmetric).
       · simp only [hs, ht]
         by_cases hij : sj.val = tj.val
-        · simp only [hij, dif_pos]
-          by_cases hi : i < sj.val
-          · rw [if_pos ⟨hij, hi⟩]; omega
-          · rw [if_neg (by rintro ⟨_, h⟩; omega)]
-            have ho1 : ¬ supplyP (L := L) (K := K) i
-                ({ s with bias := .zero, hour := sj } : AgentState L K) := by
-              intro ⟨_, hh⟩; simp only at hh; omega
-            have ho2 : ¬ supplyP (L := L) (K := K) i
-                ({ t with bias := .zero, hour := tj } : AgentState L K) := by
-              intro ⟨_, hh⟩; simp only at hh; omega
-            rw [if_neg ho1, if_neg ho2]; omega
+        · simp only [hij, dif_pos, supplyP, true_and]
+          by_cases hi : i < tj.val <;> simp [hi, hij] <;> omega
         · simp only [hij, dif_neg, not_false_iff]; omega
       -- neg,neg : same-sign no-op.
       · simp only [hs, ht]; omega
