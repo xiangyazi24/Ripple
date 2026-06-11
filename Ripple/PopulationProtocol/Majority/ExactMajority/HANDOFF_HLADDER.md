@@ -421,3 +421,33 @@ they are theorems modulo (i) the per-regime final-rung bridge `potBelow Φ 1 ⟹
 and (ii) the deterministic floor VALUE `mC` (Lemma 5.2). Those two are the honest, named,
 genuinely-protocol residuals; the spine, the telescope wiring, the clock-role preservation,
 and the classifier assembly are discharged.
+
+---
+
+## STATUS — LANDED (2026-06-10): `Probability/StableBridges.lean` (tip #4a — final-rung bridges)
+
+Append-only new file (no existing file edited). Discharges the single explicit residual `hbridge`
+(`progressSet (potBelow Φ 1) ⟹ StableDone`) of `RegimeClassification.lean`'s four `ladderData_of_*`
+builders, for the two regimes where it is honestly true, and re-shapes the spine for the two where it
+is FALSE. Single-file `lake env lean … StableBridges.lean` EXIT_0; 12 headlines `#print axioms` ⊆
+`[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide.
+
+**Zero-state survey (the heart of the task).** `potBelow Φ 1 = {Φ = 0}`:
+- `wrongACount = 0` (Phase-10 majority) ⟺ all output `A` ⟹ (with `AllPhase10` + `0 < initialGap init`)
+  `phase10MajorityWitness` ⟹ `StableDone`. **The real stability bridge** (not the clock potential).
+- `wrongTCount = 0` (Phase-10 tie) ⟺ all output `T` ⟹ (with `AllPhase10` + `initialGap init = 0`)
+  `phase10MajorityWitness` (T-disjunct) ⟹ `StableDone`.
+- `clockCounterSumAt p = 0` (timed) means clocks all hit counter `0` ⟹ phase **ADVANCE**, NOT
+  stability. Direct `⟹ StableDone` is FALSE; honest target is next-phase entry (`AllClockGEpCard (p+1) n`),
+  ladder continues `p → ⋯ → 10 → stable`.
+
+**Closed (Phase-10):** `phase10Majority_drained_mem_stableDone`, `phase10Tie_drained_mem_stableDone`
+(membership bridges), `phase10Majority_link_intersected`, `phase10Tie_link_intersected` (E2 first link
+routed to the `S1`/`Tie1plus`-intersected drain target via the InvClosed slice argument),
+`phase10Majority_bridge_expectedHitting`, `phase10Tie_bridge_expectedHitting` (bridge = 0 via
+`expectedHitting_eq_zero_of_mem`), `ladderData_of_phase10Majority_bridged`,
+`ladderData_of_phase10Tie_bridged` (re-shaped spines, bridge DISCHARGED, no `hbridge` hypothesis).
+
+**Re-shaped (timed):** `timed_phase_chain_target` / `timed_chain_target_is_next_phase` name the honest
+next-phase rung target; the false direct timed bridge is deliberately NOT fake-discharged. The per-step
+phase-advance transition feeding the re-shaped chain is the named Stage-4 timed residual.

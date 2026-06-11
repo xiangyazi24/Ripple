@@ -4263,3 +4263,64 @@ Main at index `≥ l+1`), proven:
 Phase-6 `highMass`-drain Post with the floor bumped by one — the drain clearing the floor INDEX itself
 for the σ-minority). Only remaining brick: export `AllBiasedMainAbove (l+1)` from the Phase-6
 convergence proof (same statement as the landed drain, threshold +1).
+
+---
+
+## tip #4a — the honest per-regime final-rung stability bridges (StableBridges.lean)
+
+NEW append-only `Probability/StableBridges.lean` (single-file `lake env lean` EXIT_0; 12 headlines
+axiom-clean ⊆ [propext, Classical.choice, Quot.sound] — the two `timed_*` even drop `Classical.choice`;
+0 sorry/admit/axiom/native_decide; diff --check clean). No existing file edited.
+
+**What this discharges.** `RegimeClassification.lean` left ONE explicit residual per regime: the
+final-rung bridge `progressSet (potBelow Φ 1) ⟹ StableDone`, carried as the `hbridge` hypothesis of
+each `ladderData_of_*` builder. tip #4a surveys what each potential's ZERO-state means and proves the
+bridges that are honestly true, re-shaping the spine where the naive bridge is FALSE.
+
+**The survey verdict (what `potBelow Φ 1 = {Φ = 0}` means per regime).**
+- **Phase-10 majority** (`Φ = wrongACount`): `wrongACount = 0` ⟺ every agent outputs `A`. With the
+  regime fact `AllPhase10` (from `S1`) + the init-sign match `0 < initialGap init`, this IS
+  `phase10MajorityWitness init` (the A-disjunct of `majorityStableEndpoint`). **This is the real
+  stability bridge** — `wrongACount = 0` (not the clock potential) is what implies stability.
+- **Phase-10 tie** (`Φ = wrongTCount`): `wrongTCount = 0` ⟺ every agent outputs `T`; with `AllPhase10`
+  (from `Tie1plus`) + `initialGap init = 0`, this is `phase10MajorityWitness init` (the T-disjunct).
+- **Timed regimes** (`Φ = clockCounterSumAt p`): `clockCounterSumAt p = 0` means the phase-`p` clocks
+  all hit counter `0` — which triggers phase **ADVANCE**, NOT stability. So the direct bridge
+  `potBelow (clockCounterSumAt p) 1 ⟹ StableDone` is **FALSE** (drained clocks advance to phase
+  `p+1 < 10`, still mid-protocol). The honest rung target is **next-phase entry**, and the ladder must
+  continue `p → p+1 → ⋯ → 10 → stable` (the final Phase-10 rung closed by the bridges above).
+
+**Bridges CLOSED (the two Phase-10 regimes).**
+- `phase10Majority_drained_mem_stableDone` / `phase10Tie_drained_mem_stableDone` — the membership
+  bridges (pure protocol, no probability): drained Phase-10 state + init-sign match ⟹
+  `c ∈ StableDone L K init`. Proven by unfolding `wrongACount/wrongTCount = 0` (`Multiset.countP_eq_zero`)
+  into the right `phase10MajorityWitness` disjunct.
+- `phase10Majority_link_intersected` / `phase10Tie_link_intersected` — the first link to the
+  S1/Tie1plus-INTERSECTED drain target. The naive bridge over the BARE `potBelow Φ 1` is unprovable (an
+  arbitrary `wrongACount = 0` state need not be `S1`/stable); we re-shape the rung-1 target to
+  `{S1} ∩ potBelow wrongACount 1` so the membership bridge applies pointwise. The E2 cap
+  (`phase10_expected_stabilization{,_tie}_O_nsq_log` ≤ `3n²(1+2log n)` / `2n²(1+2log n)`) is routed to
+  the intersected target via the InvClosed slice argument (`pow_compl_inv_eq_zero_eh` keeps the
+  trajectory a.e. on `S1`/`Tie1plus`, so the not-Done tail = not-Bare tail).
+- `phase10Majority_bridge_expectedHitting` / `phase10Tie_bridge_expectedHitting` — the bridge as an
+  `expectedHitting … ≤ βbridge` cap: every intersected-target state is already in `StableDone`, so
+  `expectedHitting = 0` (`RecoveryBridges.expectedHitting_eq_zero_of_mem`, `StableDone` absorbing).
+- `ladderData_of_phase10Majority_bridged` / `ladderData_of_phase10Tie_bridged` — the re-shaped
+  Phase-10 ladder spines with the bridge **DISCHARGED** (no `hbridge` hypothesis). Builds the
+  `LadderData` to `StableDone` via the two-rung spine, intersected rung-1 target, E2 first link, and
+  the discharged second link. Consumes: `StableDone` measurable + absorbing (`hDoneMeas`/`hAbs`, the
+  campaign-wide surface) + the init-sign match (`0 < initialGap` / `= 0`).
+
+**Spine re-shaped (the two timed regimes).** `timed_phase_chain_target L K n p :=
+{AllClockGEpCard (p+1) n}` names the honest rung-1 target (next-phase domain, phase advance), with
+`timed_chain_target_is_next_phase` recording that it is next-phase entry, NOT `⟹ StableDone`. The timed
+spine re-shapes to the `n`-rung chain through phases via the `RecoveryBridges` telescope (which supports
+arbitrary ladders); the per-step deterministic `drained ⟹ next-phase-domain` advance transition is the
+named Stage-4 timed residual. We deliberately do NOT fake-discharge the false direct timed bridge.
+
+**Net narrowing of the E4 surface.** The two Phase-10 regime ladders are no longer modulo a carried
+bridge — they are theorems (modulo the init-sign match, a conserved-gap fact). The honest residual
+collapses to: (i) the deterministic timed phase-advance transitions feeding the re-shaped timed chain;
+(ii) the init-gap sign match for the Phase-10 regimes (gap conservation along reachable trajectories);
+(iii) `StableDone` absorption (campaign-wide). The stability characterization itself — what makes a
+drained Phase-10 state a `majorityStableEndpoint` — is now fully proven.

@@ -625,3 +625,55 @@ for the σ-minority before the partner band is read*), (b) PROVEN `cancelSplit`-
 single sign-agnostic threshold with proven step-stability; the only remaining brick is exporting the
 `l+1` seed from the Phase-6 convergence proof (the drain's floor-index clearing), which is strictly the
 same statement as the existing `highMass`-drain Post with the threshold bumped by one.
+
+## tip #3 final — config-level `countP` delta for `hBand` (BandStepBookkeeping.lean, 2026-06-10)
+
+**NEW file** `Probability/BandStepBookkeeping.lean` (append-only; 0 sorry/admit/axiom/native_decide;
+all 8 headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; single-file `lake env lean`
+green, 0 warnings). No existing file edited.
+
+Discharges the deterministic core of `hBand` of `SpendLedgerLift.phase7Surviving_step_of_band` — the
+config-level `Multiset.countP` aggregation of `SurvivalAccounting`'s PROVEN per-pair ledger.
+
+**The countP identity chain (the genuine config aggregation):** for a both-Main applicable step,
+`c' = c − {r₁,r₂} + {p₁,p₂}` with `{p₁,p₂} = cancelSplit r₁ r₂` (under `Phase7AllMain` ⟹
+`Transition_eq_cancelSplit_of_phase7_main`). Writing `A i c := countP (elimAbovePred σ i) c`
+(defeq the consumer `(elimAbove σ i).sum c.count` via `SpendLedgerLift.elimAbove_sum_eq_countP`):
+
+    A i c' = A i (c − {r₁,r₂}) + countP_elim {p₁,p₂}          -- Multiset.countP_add
+           = (A i c − countP_elim {r₁,r₂}) + countP_elim {p₁,p₂}  -- Multiset.countP_sub
+    ⟹  A i c ≤ A i c' + countP(collidingMinority σ i){r₁,r₂}   -- per-pair ledger, both comps
+
+i.e. the surviving above-`i` eliminator count drops by AT MOST the colliding σ-minority drained that
+step. This is the honest `Δ(elimAbove) ≥ −Δ(minority)` bookkeeping.
+
+**PROVED outright:**
+- `cancelSplit_elimAbove_snd_survives_or_charged` — the `.2`-component per-pair ledger (mirror of
+  `SurvivalAccounting.cancelSplit_elimAbove_survives_or_charged`, exhaustive frozen-`cancelSplit` cases
+  on the second output). Needed because `{p₁,p₂}` is an unordered multiset — BOTH outputs must be bounded.
+- `cancelSplit_elimAbove_pair_le` — the pair-level inequality (both ledgers, additive indicator form).
+- `elimAbove_countP_drop_le_colliding` — the **config-level delta** (applicable both-Main step).
+- `elimAbove_countP_step_drop_le_colliding` — the `stepDistOrSelf`-support form (`d = 0` on self /
+  non-applicable; `d =` colliding `countP` on applicable both-Main).
+- `survivalBand_step_closed_of_margin` — per-level conditional closure: a level with the per-step
+  colliding margin (`E + d ≤ A i c`) keeps the floor.
+- `survivalBandAbove_step_closed_of_marginBand` — the **`hBand`-shaped closure**: the margin band
+  `SurvivalBandMargin σ E` (floor `+2`, the max single-step spend) is step-closed into the floor band
+  `SurvivalBandAbove σ E`, conditional on minority-monotonicity `hLiveBack` (a level live at `c'` was
+  live at `c`).
+
+**THE HONEST RESIDUAL (what the fixed-`E` `hBand` still needs = residual #2's outputs):** the plain
+fixed-constant band `SurvivalBandAbove σ E` is NOT pointwise step-closed — a single same-level cancel
+spends one above-`i` eliminator (`d = 1`), so a level at the floor (`A i = E`) falls to `E − 1`. Two
+deterministic inputs close it, both from residual #2 (NOT a new probability tail):
+1. **Entry margin** — Phase-7 entry must carry `SurvivalBandMargin σ E` (floor `+2`, generally
+   `Entry ≥ E + total spend`). This is the `GapAlignedElimFloor` routing (`BandRouting`/`GapAlignment`)
+   + the sharpened Doty spend constant (`Spend = o(n)`, `SurvivalAccounting.survival_floor_honest`).
+2. **Minority monotonicity** (`hLiveBack`) — the per-level minority count never rises under a Phase-7
+   `cancelSplit` step (`Phase7Convergence.cancelSplit_minorityU_pair_le` / `minorityU_stepOrSelf_drop`),
+   so a level live at `c'` was live at `c` — the landed minority-survival upper bound, per level.
+
+With (1)+(2), `survivalBandAbove_step_closed_of_marginBand` supplies `hBand`,
+`SpendLedgerLift.survivalBand_ae_along_trajectory` lifts it along the whole kernel trajectory, and
+`SpendLedgerLift.phase7_to_phase8_via_canonicalSpend` closes the chain to
+`EliminatorMargins.Phase7To8Structure` with NO remaining probability.

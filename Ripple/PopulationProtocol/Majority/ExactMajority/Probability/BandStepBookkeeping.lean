@@ -398,14 +398,14 @@ theorem collidingMinority_pair_le_two (σ : Sign) (i : Fin (L + 1)) (s t : Agent
     Multiset.countP (collidingMinorityPred (L := L) (K := K) σ i)
       ({s, t} : Multiset (AgentState L K)) ≤ 2 := by
   refine le_trans (Multiset.countP_le_card _ _) ?_
-  simp [Multiset.card_pair]
+  simp
 
 /-- **Honest band step closure (per-step colliding margin).**  At a level `i` whose Phase-8-entry count
 carries the per-step colliding margin (the config delta budget `d` from Part 3), the floor `E ≤ A i c'`
 survives one step.  Concretely: from `A i c' ≥ A i c − d` (Part 3) and `A i c ≥ E + d`, get `E ≤ A i c'`.
 This is the conditional closure the trajectory ledger absorbs once the entry margin covers the spend. -/
-theorem survivalBand_step_closed_of_margin (σ : Sign) (i : Fin (L + 1)) (n E d : ℕ)
-    (c c' : Config (AgentState L K)) (hInv : Phase7Convergence.Phase7AllMain (L := L) (K := K) n c)
+theorem survivalBand_step_closed_of_margin (σ : Sign) (i : Fin (L + 1)) (E d : ℕ)
+    (c c' : Config (AgentState L K))
     (hmargin : E + d ≤ Multiset.countP (elimAbovePred (L := L) (K := K) σ i) c)
     (hdelta : Multiset.countP (elimAbovePred (L := L) (K := K) σ i) c
       ≤ Multiset.countP (elimAbovePred (L := L) (K := K) σ i) c' + d) :
@@ -443,9 +443,8 @@ theorem survivalBandAbove_step_closed_of_marginBand (σ : Sign) (n E : ℕ)
     rcases hdform with hd0 | ⟨s, t, _, hdeq⟩
     · omega
     · rw [hdeq]; exact collidingMinority_pair_le_two σ i s t
-  -- translate the margin/delta into the `countP` observable via the bridges.
+  -- translate the margin and the goal into the `countP` observable (`hdelta` is already in it).
   rw [elimAbove_sum_eq_countP] at hmarg ⊢
-  rw [elimAbove_sum_eq_countP] at hdelta
   omega
 
 /-! ## Scope summary (honest).
