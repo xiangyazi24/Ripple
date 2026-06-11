@@ -1100,3 +1100,104 @@ produces `AtomsV2.Phase10SignMatch init` from a single ACTIVE all-phase-10 root 
 (the `hc₀Reach`-flavoured conditioning surface the V3 expected theorem already carries); `post_of_rooted`
 composes with `AtomsV2.postOfSign` for `h_post`.  The two per-config oracles collapse into the single
 rooted activity+reachability hypothesis the correctness chain already owns.
+
+---
+
+## FinalAssemblyV4.lean — THE DEFINITIVE CONSOLIDATION: the Doty Theorem 3.1 pair on the HONEST family (2026-06-11)
+
+New append-only file `Probability/FinalAssemblyV4.lean` assembles the definitive pair.  It puts the
+genuinely HONEST work family `HonestDrainSlots.dotyWorkHonestV3` (slots 1/7/8 on the chain-honest
+phase-only windows `Phase{1,7,8}Honest`, NOT the all-Main UNSAT windows) ON THE PROOF PATH of the whp
+half, and re-bases the leaky off-event expected half on the same V4 residual bundle.  0 sorry/admit/
+axiom/native_decide; single-file `lake env lean` EXIT 0; `#print axioms ⊆ {propext, Classical.choice,
+Quot.sound}` for all nine declarations; `git diff --check` clean; edits NO existing file.
+
+### The two V4 signatures
+
+* **`doty_theorem_3_1_whp_v4`** (`FinalAssemblyV4:doty_theorem_3_1_whp_v4`): over `DotyRegime n L K`
+  + `DotyResidualAtomsV4 n C0`, `(K^T) c₀ {¬ majorityStableEndpoint init} ≤ 21/n² ∧ T ≤ 21·C0·n·(L+1)
+  ∧ T ≤ 21·C0·n·(⌈log₂ n⌉+1)`.  PRODUCED by instantiating the POLYMORPHIC
+  `FinalAssemblyV2.whp_of_asm'` (free `asm`; the `21/n²` bound produced through
+  `BudgetTightening.doty_time_headline_W2_inv_sq`) at the V4 honest assembly `toAssembly'V4`, whose
+  `work := dotyWorkHonestV3 wi`.  NO `hcompFail`; `hx₀`/`h_post` produced in-bundle (`hx₀_of_start_v4`
+  / `h_post_of_sign_v4`, the slot-0/20 pins through `dotyWorkHonestV3_carried_eq` — the honest re-cut
+  leaves slots 0/10 carried, so the pins reduce onto `wi.base.work0.Pre` / `Phase10Post`).
+* **`doty_theorem_3_1_expected_v4_final`** (`FinalAssemblyV4:doty_theorem_3_1_expected_v4_final`):
+  `OffEventEndgame.doty_theorem_3_1_expected_v4` (the leaky-good-invariant split-geometric: exact
+  `J = ReachableFrom` closure, leaky `G` membership, off-good mass charged to the leak `η` — NO
+  deterministic off-event ladder) re-based on the V4 bundle's `init`/`c₀`:
+  `E[T c₀ → StableDone] ≤ Tgood + δgood·sRec·(1 − (1/2 + η))⁻¹`.  Headline corollary
+  `doty_theorem_3_1_expected_v4_headline` lands `(21·C0 + 4·Cbad)·n·(L+1)` via
+  `OffEventEndgame.v4_headline_of_budget` exactly when the leak fits the recovery budget.
+
+Numeral corollaries at `C0 = 17`, `Cbad = 3`: `doty_theorem_3_1_whp_numeral_v4` (`≤ 21·17·n·(L+1)`),
+`doty_theorem_3_1_expected_v4_numeral` (`≤ (21·17 + 4·3)·n·(L+1) = 369·n·(L+1)`).
+
+### Consumption-sweep self-audit (every production ON path; every carried field genuinely open)
+
+* **ON the proof path:** `dotyWorkHonestV3 wi` (the honest family enters `whp_of_asm'` via
+  `toAssembly'V4`); the slot-0/20 pins via `dotyWorkHonestV3_carried_eq`; `hStart`/`hPhase10Sign`
+  produce `hx₀`/`h_post`; the seam fields enter `toAssembly'V4`; budget/regime via `whp_of_asm'`
+  arguments + `hReg.hLlog` for the `clog` form.  No dead decoration: `phases'V4_eq` is the recorded
+  unfold equality (the V2/V3 `phases'_eq` pattern), the `[local irreducible] dotyWorkHonestV3` blocks
+  the horizon-fold whnf divergence (placed AFTER the pins, which need the carried-slot reduction).
+* **GENUINELY OPEN (grep-verified NOT discharged by any plugged file):** each field below.
+
+### THE DEFINITIVE FINAL-SURFACE TABLE — `DotyResidualAtomsV4` (19 binders)
+
+Classification key: **OPEN** = genuinely-open named fact (the statement of what stands between this
+and FAITHFUL); **PROD** = production input (a calibration datum the landed producer consumes, the
+math is landed); **BOIL** = arithmetic/config boilerplate.
+
+| # | field | class | statement | paper citation + landed partial machinery |
+|---|---|---|---|---|
+| 1 | `wi : WorkInputsHonestV3 n` | **OPEN** (bundle) | the HONEST work record (slots 1/7/8 on chain-honest windows + the within-slot atoms) | bundles the genuinely-open within-slot facts below; survival forms via `WindowSurvival` (`hClosed{1,7,8}`) |
+| 1a | `wi.hext1H` (+3 extreme floor) | **OPEN** | `1 ≤ extremePosSet.sum b` on `Phase1Honest` | Doty Lemma 5.3 / [45]; `SmallSweep` proved survey's `extremeU>0` FALSE-as-stated (`extremeSt_val_zero_or_six` — the witness is val 0=−3 OR 6=+3; the +3 end is SIGN-SELECTED, structural saturation carry) |
+| 1b | `wi.hpull1H` (partner pool) | **OPEN** | `P1 ≤ pullPosSet.sum b` on `Phase1Honest` | Doty Lemma 5.3 partner pool; `EliminatorMargins.phase1_pullPos_floor_…` (:168) landed adapter (needs saturated-main count) |
+| 1c | `wi.hwit7` (gap-1 elim margin) | **OPEN** | per-config gap-1 eliminator margin on `Phase7Honest` | Doty Lemma 7.4; `MarginInstantiation.hPhase6Post7_singleLevel` (:131) instantiable from the §6 doubling-drain positional content + `SingleLevelWitness` |
+| 1d | `wi.hwit8` (above-level elim margin) | **OPEN** | per-config above-level eliminator margin on `Phase8Honest` | Doty Lemma 7.6; `MarginInstantiation.hPhase7Post8_of_survival` (:180), mirror of 1c one level up |
+| 1e | `wi.base.hmain5` + `P5` | **OPEN** | slot-5 Thm-6.2 biased-Main floor `P5 ≤ usefulMains.sum` | Doty §6 / Thm 6.2 bias-ledger collapse; `UsefulMainFloor.theorem6_2_usefulMains_floor` (:207) + `PaperRegime.theorem62Paper_implies_broad_floor` landed; the ledger collapse delivering `hConfine` is genuinely-new |
+| 1f | `wi.base.hConc` + `εConc` | **OPEN** | slot-5 Lemma-7.1 sampled-class concentration | Doty Lemma 7.1 / footnote 11; `SampledClassTail` killed tail landed; `SamplingAtoms` ATOM 1 `hrfloor` PRODUCED (`sampledReserveClassU_rise_prob_rect5`), ATOM 2 clock-sep escape NAMED (`clockSeparationEscape`, `CounterResetDest 5` FALSE — width machinery not seam tail) |
+| 1g | `wi.base.hClosed5` | **OPEN** | slot-5 honest-window closure `InvClosed K Phase5AllWin` | the carried within-seam closure (named, mirrors `phase6Convergence'` doctrine) |
+| 1h | `wi.base.hdrop6` + `q6` | **OPEN** | slot-6 Phase-6 band-drain per-level rate | Doty §6 Phase-6 drain rate (the core §6 width content); the within-band doubling-drain rate |
+| 1i | `wi.base.{work0,work2,work3,work9}` | **OPEN** (opaque) | carried `PhaseConvergenceW` stage instances (role-split / doubling seed / band-init / pre-phase-10) | `SmallSweep`: union ALGEBRA locked (`calibratedUnionW` at concrete `U=4`/`v=0`, `decide`); epidemic SCALARS `(s,t,ε)` genuinely free calibration inputs (`DotyParams` pins no phase-2 union rate) |
+| 2 | `seamP`/`seamT`/`εepidemic`/`εovershoot` | **PROD** | per-seam phase/horizon/budgets | calibration data the Wave-1 producers consume |
+| 3 | `hDrift` (seam epidemic drift) | **PROD** | `(K^seamT) c {¬allPhaseGe(p+1)} ≤ εepidemic` | Doty §10; `SeamQuickWins.wave1_hDrift` ← `SeamEpidemics.seam_drift` (:1093), modulo per-seam Phase-4-shape tail check |
+| 4 | `hNoOvershoot` (seam clock no-overshoot) | **OPEN** ({2,3,4,5,9} tails) | `(K^seamT) c {¬NoOvershoot p} ≤ εovershoot` | Doty Lemma 5.2 clock-separation; `wave1_hNoOvershoot` produces `DetSeamOvershootBridge`; `ClockZeroTail.seam_atRiskTail_of_entry` discharges the GATE for `{1,6,7,8}` reset dests; the non-reset {2,3,4,5,9} clock-zero tails (`AtRiskClockZero ≤ exp(−40(L+1))`) stay NAMED |
+| 5 | `hWorkPostToWindow` | **PROD** | `work.Post → allPhaseGe(seamP)` | `SeamQuickWins.wave1_hWorkPostToWindow` ← `AssemblyBridges.mk_hWorkPostToWindow` (:233) |
+| 6 | `hSeedStep` (one-step seed) | **OPEN** | `(K^1) c {¬advTriggered(p+1)} = 0` from `work.Post` | Doty §10 seed rung; `SmallSweep` NEGATIVE verdict (`seedStepEvent_needs_drained_state`): the phase-only window does NOT supply the drained ALL-CLOCK state the timed seed needs — `SeedStepEvent` survives |
+| 7 | `hWindowToWorkPre` | **OPEN** (per-phase entry) | `allPhaseEq(p+1) → next work.Pre` | card/phase half PRODUCIBLE (`AssemblyBridges.mk_hWindowToWorkPre_pin` :249); the per-phase drain-budget/role/sign entry pins carried |
+| 8 | `Cphase`/`δ`/`c₀`/`init`/`hC0`/`hδ` | **BOIL** | budget/config scalars + fits | arithmetic side conditions |
+| 9 | `hStart : Phase0Initial n c₀` | **OPEN** (primitive) | the all-`mcr` phase-0 START shape | Doty initial config (`RoleSplitConcentration:165`); honest hypothesis about the problem instance, produces `hx₀` |
+| 10 | `hWork0PreOfStart` | **PROD** (interface) | `Phase0Initial n c₀ → work0.Pre c₀` | slot-0 `Pre` deterministic interface pin |
+| 11 | `hPhase10Sign : Phase10SignMatch init` | **OPEN** | `∀c, Phase10Post c → phase10MajorityWitness init c` | Doty §11 phase-10 sign conservation; `SignMatch.phase10SignMatch_of_rooted` threads it from a single rooted activity+reachability invariant; `BackupEntry.arrival_classification` (:189) landed; full conservation is §11 backup-entry, produces `h_post` |
+
+**Expected-side additional binders (on `doty_theorem_3_1_expected_v4_final`, not in the V4 bundle):**
+
+| field | class | citation |
+|---|---|---|
+| `hOnGood : OnGoodSlotClassifier` | **OPEN** | the on-J-good classifier (regime data ONLY on the good slice); Doty §5–§11 chain-end regime cover; `OffEventEndgame` proved the over-quantified `DotySlotClassifier` DISHONEST (no off-event ladder, `BranchAndBudget` Part 4) |
+| `η` (leak budget) + `hLeak` | **OPEN** | the off-good escape budget (WindowSurvival-style `T·η` cemetery charge); the off-event mass is here, additively, NOT in a classifier |
+| `hGoodBlock` | **OPEN** | the good-slice per-block half-failure (produced from `hOnGood`'s good-slice caps) |
+| `hfail` | landed | the whp horizon (`doty_time_headline_W2` / `doty_theorem_3_1_whp_v4` output) |
+
+### What stands between this and FAITHFUL
+
+The honest residual is exactly the OPEN rows above: the §6 within-slot probability (Thm 6.2
+bias-ledger `1e`, Phase-6 drain rate `1h`, eliminator margins `1c`/`1d`, Lemma-7.1 clock-separation
+escape `1f`/`4`), the structural saturation carries (`1a`/`1b`), the §11 sign conservation (`11`), the
+opaque stage scalars (`1i`), the off-event leak `η`/`hLeak`/`hOnGood`, and the primitive start
+hypothesis `9` (`DotyRegime` + `Phase0Initial`).  Every other surface — the whp composition, the
+seam epidemic drift/window bridges, the leaky split-geometric Markov tail, the on-good branch
+production, `hx₀`/`h_post` — is DISCHARGED axiom-clean and ON the proof path of the V4 pair.
+
+### Axiom audit
+
+```
+doty_theorem_3_1_whp_v4            : [propext, Classical.choice, Quot.sound]
+doty_theorem_3_1_whp_numeral_v4    : [propext, Classical.choice, Quot.sound]
+doty_theorem_3_1_expected_v4_final : [propext, Classical.choice, Quot.sound]
+doty_theorem_3_1_expected_v4_headline : [propext, Classical.choice, Quot.sound]
+doty_theorem_3_1_expected_v4_numeral  : [propext, Classical.choice, Quot.sound]
+slot0_pre_pin_v4 / slot20_post_pin_v4 / hx₀_of_start_v4 / h_post_of_sign_v4 : same
+```
