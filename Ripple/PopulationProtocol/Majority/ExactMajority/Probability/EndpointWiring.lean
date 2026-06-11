@@ -158,12 +158,15 @@ theorem minute_tau_lt_run_horizon (tseed tbulk : ℕ) (hs : 0 < tseed + tbulk)
     omega
   have hile : i + 1 ≤ K * (L + 1) - 1 := by omega
   have hstep : (i + 1) * s ≤ (K * (L + 1) - 1) * s := Nat.mul_le_mul_right s hile
-  have hlt : (K * (L + 1) - 1) * s < (L + 1) * (K * s) := by
-    have hbase : (K * (L + 1) - 1) * s < K * (L + 1) * s :=
-      Nat.mul_lt_mul_right hs (by omega)
-    calc (K * (L + 1) - 1) * s < K * (L + 1) * s := hbase
-      _ = (L + 1) * (K * s) := by ring
-  omega
+  have hKLpos : 0 < K * (L + 1) := by omega
+  have hbase : (K * (L + 1) - 1) * s < K * (L + 1) * s :=
+    (Nat.mul_lt_mul_right hs).mpr (by omega)
+  have hfin : K * (L + 1) * s = (L + 1) * (K * s + 0) := by rw [Nat.add_zero]; ring
+  -- chain: τ < (i+1)·s ≤ (K(L+1)−1)·s < K(L+1)·s = (L+1)·(K·s+0).
+  calc τ < (i + 1) * s := hτ'
+    _ ≤ (K * (L + 1) - 1) * s := hstep
+    _ < K * (L + 1) * s := hbase
+    _ = (L + 1) * (K * s + 0) := hfin
 
 /-- **`window_sum_le_bounded`** — the inner per-minute window side-sum, consuming `hside` only on
 the bounded run horizon `τ < (L+1)·Mhour`.  Same conclusion as `ClockBudgets.window_sum_le`, but

@@ -203,5 +203,92 @@ noncomputable def seedStepW_timed (p : ℕ)
       rw [hset, pow_one]
       exact hzero)
 
+/-! ## Part D — the shifted seam: `seedStepW ⊕ seamEpidemicExactW` as one `PhaseConvergenceW`.
+
+`seamWithSeed p n tseam …` composes the seed step (`t = 1`, `ε = 0`) with the EXACT seam epidemic
+`SeamNoOvershoot.seamEpidemicExactW p n tseam …` (`t = tseam`, `ε = εepidemic + εovershoot`) into a
+single seam instance whose `Pre` is the (drained) work-window predicate and whose `Post` is the
+seam epidemic's `Post` (`allPhaseGe (p+1) n ∧ NoOvershoot p`).  Horizon `1 + tseam`, budget
+`0 + (εepidemic+εovershoot)`.  The `h_chain` glue is DEFINITIONAL: the seed step's `Post`
+(`seamSeedPost p n`) IS `seamEpidemicExactW`'s `Pre` (`allPhaseGe p n ∧ advTriggered (p+1)`).
+
+The seam epidemic is built directly from `seamEpidemicExactW` (NOT the sealed
+`ConcreteAssembly.seamInstance`), so its `Pre`/`Post` reduce definitionally — exactly the same
+instance `ConcreteAssembly.seamInstance asm k` IS (by its own definition), now with the seed step
+prepended. -/
+
+/-- **The shifted seam instance** `seedStepW ⊕ seamEpidemicExactW`.  `Pre` is the carried drained
+work-window predicate `workPre` (supplied with the `≥`-window read `hPreToGe` and the one-step
+seed event `hadvAS`); `Post` is the seam epidemic's `Post`; horizon `1 + tseam`; budget
+`εepidemic + εovershoot`. -/
+noncomputable def seamWithSeed (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+    (hDrift : ∀ c : Config (AgentState L K),
+        (SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+          SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c) →
+        ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c'}
+          ≤ (εepidemic : ℝ≥0∞))
+    (hNoOvershoot : ∀ c : Config (AgentState L K),
+        (SeamEpidemics.allPhaseGe (L := L) (K := K) p n c ∧
+          SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c) →
+        ((NonuniformMajority L K).transitionKernel ^ tseam) c
+            {c' | ¬ SeamNoOvershoot.NoOvershoot (L := L) (K := K) p c'}
+          ≤ (εovershoot : ℝ≥0∞))
+    (workPre : Config (AgentState L K) → Prop)
+    (hPreToGe : ∀ c, workPre c → SeamEpidemics.allPhaseGe (L := L) (K := K) p n c)
+    (hadvAS : ∀ c, workPre c →
+      ((NonuniformMajority L K).transitionKernel ^ 1) c
+          {c' | ¬ SeamEpidemics.advTriggered (L := L) (K := K) (p + 1) c'} = 0) :
+    PhaseConvergenceW (NonuniformMajority L K).transitionKernel where
+  Pre := workPre
+  Post := (SeamNoOvershoot.seamEpidemicExactW (L := L) (K := K) p n tseam
+            εepidemic εovershoot hDrift hNoOvershoot).Post
+  t := 1 + tseam
+  ε := 0 + (εepidemic + εovershoot)
+  convergence := by
+    intro c hPre
+    set seed := seedStepW (L := L) (K := K) p n workPre hPreToGe hadvAS with hseed
+    set seam := SeamNoOvershoot.seamEpidemicExactW (L := L) (K := K) p n tseam
+            εepidemic εovershoot hDrift hNoOvershoot with hseam
+    have hcompose := composeW_two_phases (K := (NonuniformMajority L K).transitionKernel)
+      seed seam
+      (fun x hx => by
+        -- seed.Post x = seamSeedPost p n x = seam.Pre x (both `allPhaseGe p n ∧ advTriggered`).
+        change seamSeedPost (L := L) (K := K) p n x at hx
+        exact hx)
+      c hPre
+    -- seed.t = 1, seam.t = tseam; seed.ε = 0, seam.ε = εepidemic + εovershoot.
+    have hts : seed.t + seam.t = 1 + tseam := rfl
+    have hes : (seed.ε : ℝ≥0∞) + (seam.ε : ℝ≥0∞) = ((0 + (εepidemic + εovershoot) : ℝ≥0) : ℝ≥0∞) := by
+      have h1 : seed.ε = 0 := rfl
+      have h2 : seam.ε = εepidemic + εovershoot := rfl
+      rw [h1, h2]; push_cast; ring
+    rw [hts] at hcompose
+    calc ((NonuniformMajority L K).transitionKernel ^ (1 + tseam)) c {y | ¬ seam.Post y}
+        ≤ (seed.ε : ℝ≥0∞) + (seam.ε : ℝ≥0∞) := hcompose
+      _ = ((0 + (εepidemic + εovershoot) : ℝ≥0) : ℝ≥0∞) := hes
+
+@[simp] theorem seamWithSeed_Pre (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+    (hDrift hNoOvershoot workPre hPreToGe hadvAS) (c : Config (AgentState L K)) :
+    (seamWithSeed (L := L) (K := K) p n tseam εepidemic εovershoot
+      hDrift hNoOvershoot workPre hPreToGe hadvAS).Pre c = workPre c := rfl
+
+@[simp] theorem seamWithSeed_Post (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+    (hDrift hNoOvershoot workPre hPreToGe hadvAS) (c : Config (AgentState L K)) :
+    (seamWithSeed (L := L) (K := K) p n tseam εepidemic εovershoot
+      hDrift hNoOvershoot workPre hPreToGe hadvAS).Post c
+      = (SeamEpidemics.allPhaseGe (L := L) (K := K) (p + 1) n c ∧
+          SeamNoOvershoot.NoOvershoot (L := L) (K := K) p c) := rfl
+
+@[simp] theorem seamWithSeed_t (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+    (hDrift hNoOvershoot workPre hPreToGe hadvAS) :
+    (seamWithSeed (L := L) (K := K) p n tseam εepidemic εovershoot
+      hDrift hNoOvershoot workPre hPreToGe hadvAS).t = 1 + tseam := rfl
+
+@[simp] theorem seamWithSeed_eps (p n tseam : ℕ) (εepidemic εovershoot : ℝ≥0)
+    (hDrift hNoOvershoot workPre hPreToGe hadvAS) :
+    (seamWithSeed (L := L) (K := K) p n tseam εepidemic εovershoot
+      hDrift hNoOvershoot workPre hPreToGe hadvAS).ε = 0 + (εepidemic + εovershoot) := rfl
+
 end SeedTrigWiring
 end ExactMajority

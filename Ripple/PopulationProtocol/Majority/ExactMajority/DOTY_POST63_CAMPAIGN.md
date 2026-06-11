@@ -5888,3 +5888,101 @@ v4.30.0). `#print axioms` for all 9 new declarations
 (`potDone_eq_potBelow_one`, `hstep_of_potBelow_one_floor`, `hdrop{1,5,6,7,8}_of_chain`,
 `levelRate_le_one`, `slot6_rate_discharged`) ⊆ `[propext, Classical.choice, Quot.sound]`;
 0 sorry/admit/axiom/native_decide; `git diff --check` clean.
+
+## EndpointWiring.lean — wiring the landed whp-chain endpoints (wave B, 2026-06-11)
+
+Three `WorkInputs` residuals whose DISCHARGERS already exist as landed theorems (per the
+`AssemblyWiring` table) are surveyed and wired. Append-only new file
+`Probability/EndpointWiring.lean`; edits NO existing file. (One STALE cached olean —
+`ReserveSampling.olean`, predating the `PhaseGE5Win` add of commit `0334bfce` — was rebuilt
+single-file in place with `lake env lean -o`; not an edit to source.)
+
+### The three wiring verdicts
+
+1. **slot 0 — role-split milestone hitting (`work0`): WIRED.**  `RoleSplitConcentration`'s landed
+   `phase0_roleSplit_whp_two_stage` is a generic three-phase Chapman–Kolmogorov composer
+   (`composeW_n_phases` at `m=3`) over `PhaseConvergenceW`: given the three stage instances
+   (Stage 1 `mcrCount → ≤1` via the diagonal `floorGate` milestone family
+   `phase0_stage1_whp_final`; Stage 1.5 the last-MCR bridge; Stage 2 the `crCount` drain on the
+   absorbing `noMCRShell`) and the two chain links, it lands the composed tail
+   `≤ ε₁ + ε₁·₅ + ε₂` on `¬ stage2.Post`. `EndpointWiring.roleSplitW_of_two_stage` packages THAT
+   composition as a single `PhaseConvergenceW` whose `convergence` field IS the landed two-stage
+   composition — so `work0` is no longer an opaque carry; the residual narrows to the three stage
+   instances + two chain links (the milestone hittings + the irreducible Lemma-5.1 `εfloor`
+   Chernoff content carried INSIDE each stage's `convergence`, per the `phase0_stage1_whp_final`
+   doctrine: the floor `∑_τ P(assignableCount<a₀)` is NOT assemblable from the deterministic count
+   atoms because the concurrent kernel's Rule-4 `−2` drains the unassigned-CR pool while `u>0`).
+
+2. **slot 3 — `hside`/`hεb` (§6 clock side budget): WIRED at checkpoint-granularity, restricted to
+   the genuine run horizon.**  The landed `hside` discharger `CrossHourSide.hside_concrete_bounded`
+   produces the side family ONLY for `τ < (L+1)·Mhour` (the bounded-horizon form — the blueprint's
+   correction over the unbounded `∀ τ`). The `HourComposition.phase3Convergence` consumer's nominal
+   `hside : ∀ T τ` is queried (by `ClockBudgets.window_sum_le`) ONLY at
+   `τ ∈ Ico (i·s+tseed) (i·s+tseed+tbulk)`, `i : Fin (K(L+1)−1)` — i.e. at
+   `τ < phase3Horizon = (K(L+1)−1)·s < K(L+1)·s = (L+1)·Mhour` (`s=tseed+tbulk>0`). So the bounded
+   family COVERS the consumer. The new chain rebuilds the clock budget consuming `hside` only on
+   the run horizon: `minute_tau_lt_run_horizon` (the τ-range arithmetic) →
+   `window_sum_le_bounded` → `minutes_sum_le_bounded` → `clock_unconditional_bounded`
+   (composing the capstone `clock_real_faithful_O_log_n_unconditional`, which needs NO `hside`,
+   with the bounded minute-sum) → `final_minute_le_clock_bounded` →
+   `phase3Convergence_bounded` (the slot-3 `PhaseConvergenceW`, same Pre/Post/t/ε as
+   `phase3Convergence` but fed by the bounded `hside`). The free-τ width feeder is the rate-fixed
+   `εWAt_chk` (δRem-free, no `+1`) that `WidthTransport` checkpoints; the surviving carried atom is
+   the hour-entry whp `hEntry` (εsync reseed mass) + the eight non-width §6 feeders inside `sideEps`.
+
+3. **slot 5 — `hConc` (Lemma 7.1 sampling concentration): NOT landed — stays a genuine carry,
+   pinned to provenance.**  Survey of `ReserveSampling.lean`: `phase5SampledConvergence` lands the
+   all-sampled DRAIN (`unsampledReserveU : ≤M₀ → =0`), NOT the sampled-CLASS concentration. The
+   `hConc` field demands the sampled-class floor tail `(K^t) c₀ {¬ sampledFloor i K₀} ≤ εConc`
+   (Chernoff floor `R_{−l} ≥ K₀`). The per-step pieces ARE landed —
+   `Phase5Convergence.sampledClass_lower_mgf_drift` (+ the builder rephrasing) and the threshold
+   link `sampledFloor_link` — but they do NOT assemble via `windowDrift_PhaseConvergence`, for two
+   honest reasons: (a) the start window `Phase5AllWin` is NOT absorbing (zero-counter clock pair
+   advances both to phase 6 — same leak as hClosed5), so it cannot be the builder's absorbing `Q`;
+   (b) the MGF drift requires a rise-probability floor `hrfloor` (the static-class-profile rate
+   bound), the genuine Chernoff content not derivable from the deterministic atoms.
+   `EndpointWiring.hConcDemand` restates the exact carried shape, and
+   `phase5Convergence_of_hConc` is the assembler that CONSUMES `hConc` (re-export of
+   `Phase5Convergence.phase5Convergence`): once `hConc` + `hClosed` + `hstep` are supplied, the
+   Lemma-7.1 instance (`Post = Phase5AllWin ∧ ReserveSampleGood`) is landed. Residual = `hConc`.
+
+### hClosed5 / hClosed6 — VERDICT: genuinely FALSE as stated (uniform windows leak up one phase).
+
+`hClosed5 : InvClosed K (Phase5AllWin n)` and `hClosed6 : InvClosed K (Phase6Win n)` are NOT
+provable: a zero-counter clock pair advances both clocks to phase 6 (`ReserveSampling` doctrine
+line 421-423: "`Phase5AllWin` is genuinely NOT one-step closed"), and the clock subroutine advances
+phase-6 agents to phase 7 (`Phase6Convergence` line 1666: "`Phase6Win` is NOT closed at phase 6").
+`InvClosed K Inv b` demands `K b {¬Inv} = 0`, which fails on those advancing pairs. The LANDED
+closure is the SUPERWINDOW `PhaseGE5Win n` (`card = n ∧ ∀ a, 5 ≤ a.phase`), proved `InvClosed` by
+`ReserveSampling.phaseGE5Win_InvClosed`; re-exported here as `EndpointWiring.phaseGE5Win_closed`.
+The `Phase5AllWin`/`Phase6Win` `hClosed5`/`hClosed6` forms STAY CARRIED as the structural adapters
+the calibrated drains pin (no `Phase6Win` superwindow `InvClosed` is landed; the phase-≥6 lift is
+carried separately per `Phase6Convergence` line 1667). This is the honest verdict: these two are
+NOT discharges — they are FALSE as uniform-window closures and remain carried.
+
+### The updated carried table (after wave B)
+
+| `WorkInputs` field | slot | wave-B status | wiring lemma |
+|---|---|---|---|
+| `work0` (role-split milestone) | 0 | **WIRED** (instance constructible) | `roleSplitW_of_two_stage` (← `phase0_roleSplit_whp_two_stage`); residual = 3 stage tails + εfloor |
+| `work3` / `hside`,`hεb` | 3 | **WIRED** (bounded run horizon) | `phase3Convergence_bounded` (← `hside_concrete_bounded`, checkpoint `εWAt_chk`); residual = `hEntry` + 8 §6 feeders |
+| `hConc` (Lemma 7.1) | 5 | **CARRIED** (not assemblable) | `phase5Convergence_of_hConc` consumes it; per-step `sampledClass_lower_mgf_drift`+`sampledFloor_link` landed, assembly blocked by non-absorbing `Phase5AllWin` + `hrfloor` |
+| `hClosed5` (Phase5AllWin) | 5 | **CARRIED** (false as stated) | landed superwindow `phaseGE5Win_closed`; uniform form leaks to phase 6 |
+| `hClosed6` (Phase6Win) | 6 | **CARRIED** (false as stated) | no superwindow closure landed; uniform form leaks to phase 7 |
+
+Slots 1,2,4,7,8,9,10 unchanged from the wave-A table (the per-phase rate/floor carries with their
+landed adapters). The genuinely-probabilistic residual after wave B is: `hConc` (slot 5 Chernoff
+floor), the slot-3 `hEntry` + 8 §6 feeders, the slot-0 three stage tails (incl. εfloor), the
+advance-epidemic rates (slots 2,4,9, proved-inside), and the per-step paper-confinement floors
+(slots 1,5,7,8). The two `hClosed` carries are deterministic-structural but FALSE-as-stated, kept as
+adapters to the landed superwindow form.
+
+### Audit
+
+Single-file `lake env lean Ripple/PopulationProtocol/Majority/ExactMajority/Probability/EndpointWiring.lean`
+EXIT 0 (deps from cached oleans, ReserveSampling.olean rebuilt single-file for the PhaseGE5Win
+add). `#print axioms` for all 9 new declarations (`roleSplitW_of_two_stage`,
+`minute_tau_lt_run_horizon`, `window_sum_le_bounded`, `minutes_sum_le_bounded`,
+`clock_unconditional_bounded`, `final_minute_le_clock_bounded`, `phase3Convergence_bounded`,
+`phase5Convergence_of_hConc`, `phaseGE5Win_closed`) ⊆ `[propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide; `git diff --check` clean.
