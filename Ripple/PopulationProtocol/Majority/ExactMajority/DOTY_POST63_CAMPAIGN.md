@@ -4141,3 +4141,40 @@ structural derivation is now a THEOREM modulo the single carried partner-margin 
 (the [45] Cor.1 centre-mass count, identical status to the landed `extremeU`/Phase-7/8 partner
 floors). The far-witness existence, the `{2,3,4}` ceiling, the sum invariant, the strict-drop
 rectangles, and the `drop_prob_of_rect` threading: DISCHARGED, 0-sorry, axiom-clean.
+
+---
+
+## ENTRY (2026-06-10) — tip #2a: honest band geometry for `GapAlignedElimFloor` (Probability/GapAlignment.lean)
+
+NEW append-only `Probability/GapAlignment.lean`. Single-file EXIT_0; all 6 headlines axiom-clean
+(`⊆ [propext, Classical.choice, Quot.sound]`); 0 sorry/admit/axiom/native_decide. No existing file edited.
+
+**Sign conventions resolved from the DEFS (not comments):** `minorityAt7 σ j` = σ-signed Main at `j`
+(minority carries sign σ); `elimGap1 σ i` = σ-OPPOSITE Main at `i`, consumer-paired `i+1 = j`
+(eliminator one index BELOW the minority). `highMass l = 0` ⟺ every biased Main of BOTH signs has
+index `≥ l`.
+
+**Honest geometric tension (the resolution).** `GapAlignedElimFloor σ E c` with `E ≥ 1` needs, per live
+minority `j`, an eliminator at `i = j−1`; that eliminator is a biased Main, so the floor forces `i ≥ l`,
+hence `j ≥ l+1` — **the minority sits STRICTLY above the floor.** A minority at the floor (`j = l`) has
+its partner at `l−1 < l` where the floor forbids any biased Main (`elimGap1 σ (l−1)` empty), so the
+routing is FALSE for it. Thus the routing is NOT a free consequence of the floor; its irreducible
+content is the drain fact `MinorityAboveFloor σ l c` plus per-partner placement.
+
+**Proven from the Post alone (no new carried assumption):**
+- `elim_index_ge_floor`, `elimGap1_eq_zero_below_floor` — floor on the eliminator band; band empty below
+  the floor.
+- `majoritySupportedOn_atFloor_of_post` — majority mass supported on `{i | l ≤ i.val}`. **Discharges the
+  LOWER half of `BandRouting.MajoritySupportedOn` from the Post; only the Theorem-6.2 UPPER edge `≤ l+2`
+  stays carried** (net reduction of the Stage-2b pigeonhole's band-support input).
+- `minorityAboveFloor_of_routing`, `gap1_predecessor_in_band`, `gapAligned_routing_forces_above_floor` —
+  the routing PROVES `MinorityAboveFloor` (geometry internally consistent), and under it every gap-1
+  partner lands inside the proven majority support. So the routing's target levels ⊆ the proven support;
+  the only carried content is the per-PARTNER pigeonhole placement.
+
+**Residual #2 status update.** The Stage-1 `MinorityConfinedGap1` was already proven (BandRouting). This
+entry settles the geometry of Stage-2 `MajorityBandAtGap1`/`GapAlignedElimFloor` and reduces its carried
+content to: (1) `MinorityAboveFloor` (Phase-6 `doSplit` drain clears the floor index → live minority at
+`≥ l+1`); (2) the per-partner-level placement of the `4n/45` band mass. Floor on both bands + lower band
+support + `4n/45` constant: PROVEN. Neither carried piece is a probability tail or a geometric
+impossibility — both are deterministic Phase-6 drain invariants to be exported by the convergence proof.

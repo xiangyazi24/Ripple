@@ -472,3 +472,50 @@ bookkeeping plus the landed minority-survival upper bounds", not a new tail.
 minority bound `β⁻ ≤ 0.004·|M|·2^{−l}` (spend `= o(n)`) lifts survivors `→ 4n/15 ≥ n/5` with NO new
 probability — plug the sharper `Spend` into `survivalBandAbove_of_spendLedger`. Tightening is a
 constant swap, not a tail.
+
+---
+
+## UPDATE (2026-06-10) — tip #2a: honest band geometry for `GapAlignedElimFloor` (Probability/GapAlignment.lean)
+
+NEW append-only `Probability/GapAlignment.lean` (single-file EXIT_0; all 6 headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide). No
+existing file edited; `git add` the specific path only.
+
+**The honest band geometry, re-derived from the DEFS (not comments):**
+- `minorityAt7 σ j` = the **σ-signed** Main at index `j` (the minority HAS sign σ).
+- `elimGap1 σ i` = the **σ-OPPOSITE**-signed Main at index `i` (eliminator), consumer-paired `i+1 = j`
+  (eliminator one index BELOW the minority).
+- `phase6Post_iff`: `highMass l c = 0` ⟺ **every biased Main (BOTH signs) has index `≥ l`**.
+
+**THE KEY TENSION RESOLVED.** `GapAlignedElimFloor σ E c` with `E ≥ 1` demands, for each live minority
+`j`, an eliminator at `i = j−1`. That eliminator is a biased Main, so the floor forces `i ≥ l`, i.e.
+**`j ≥ l+1`: the minority must sit STRICTLY ABOVE the floor.** A minority sitting AT the floor (`j = l`)
+has predecessor `l−1 < l` where the floor forbids ANY biased Main — so `(elimGap1 σ (l−1)).sum = 0` and
+the routing with `E ≥ 1` is FALSE for it. The routing is therefore NOT free from the floor; it carries
+exactly the drain fact "no live minority sits at the very floor" = `MinorityAboveFloor σ l c`.
+
+**PROVEN from the Post (NO new carried assumption):**
+- `elim_index_ge_floor` — the floor reading discharged to the σ-OPPOSITE (eliminator) band.
+- `elimGap1_eq_zero_below_floor` — below the floor (`i.val < l`) the eliminator band is EMPTY
+  (`(elimGap1 σ i).sum c.count = 0`). The honest obstruction certificate.
+- `majoritySupportedOn_atFloor_of_post` — the σ-opposite majority mass is supported on `{i | l ≤ i.val}`:
+  this DISCHARGES the LOWER half of `BandRouting.MajoritySupportedOn` from the Post alone. Only the
+  Theorem-6.2 UPPER edge `i ≤ l+2` remains carried (was: whole support carried). **Net reduction of the
+  Stage-2b pigeonhole input — the floor edge of the band-support finset is now free.**
+- `minorityAboveFloor_of_routing (hE : 1 ≤ E) (hl : 1 ≤ l) (hPost) (hRoute)` — the routing field PROVES
+  `MinorityAboveFloor σ l c`. Certifies the geometry is internally CONSISTENT: the routing is satisfiable
+  exactly when the minority is above the floor. Uses `exists_minority_witness` + the floor + the
+  contrapositive of `elimGap1_eq_zero_below_floor`.
+- `gap1_predecessor_in_band` + `gapAligned_routing_forces_above_floor` — under `MinorityAboveFloor`,
+  every gap-1 partner level sits at `≥ l`, i.e. INSIDE the proven majority support
+  `majoritySupportedOn_atFloor_of_post`. So the routing's target levels are a SUBSET of the proven
+  support; the only irreducible carried content is the per-PARTNER pigeonhole placement.
+
+**NET for tip #2a.** The honest geometry is settled: minority sign σ, eliminators opposite at `j−1`,
+floor on both bands ⟹ live minority at `≥ l+1`. The carried residual `GapAlignedElimFloor` is isolated
+to TWO components, both deterministic-drain content (NOT a probability tail, NOT a geometric
+impossibility): (1) `MinorityAboveFloor` — the Phase-6 drain clears the floor index; (2) the
+per-partner-level pigeonhole placement of the `4n/45` band mass at the SPECIFIC predecessor level. The
+floor on both bands, the lower band support, and the `4n/45` constant are all PROVEN. The remaining
+brick is the Phase-6 `doSplit` invariant that the surviving minority is one index above its partner
+eliminators — exactly `MinorityAboveFloor` — to be exported by the convergence proof.
