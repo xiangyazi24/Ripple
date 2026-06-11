@@ -6318,3 +6318,54 @@ clean.
 This is the END of the §6 discharge campaign: the carried set is exactly the genuinely-probabilistic
 paper events above, bundled in `DotyResidualAtoms`, and the two end-to-end theorems follow from it
 axiom-clean.
+
+## RELEASE RECORD — FINAL (V3) public main push (2026-06-11, third/honest round)
+
+**Fresh-checkout bare-build verification (uisai2, per /uisai2 discipline):**
+- Fresh shallow clone (`--depth 1 --branch opus-wip`) of `xiangyazi24/Ripple` into a NEW dir
+  `/dev/shm/xhuan5/Ripple-v3-verify`; head `28890ad656a12546b0510cd0cb55c8b47671069d`
+  (sync mirror "FinalAssemblyV3 round-2 unification rebase" of canonical `ad782933`). Head confirmed
+  == sync-mirror head via `git ls-remote` (TRUE remote, not the stale local remote-tracking ref).
+- Source staged to `/dev/shm`; mathlib reused from the shared bucket `/dev/shm/xhuan5/Ripple/.lake`
+  via the package symlinks (lean v4.30.0 + mathlib `c5ea00351c28`, the manifest-pinned rev; deps
+  manifest byte-identical to the bucket). No mathlib rebuild; shared bucket untouched.
+- **Bare default build (`lake build`, no explicit targets): EXIT 0 — "Build completed successfully
+  (4123 jobs)". Zero `✖` failed jobs; zero compilation-fatal errors** (the `error:`-substring log
+  lines are all `linter.style.header` echoes of comment/doc text plus the `DeltaF.lean:171`
+  docString-linter warning — none compilation-fatal). NOTE on process honesty: a FIRST bare-build
+  attempt reported `EXIT_CODE=1` on a single job (`SSEM/Convergence/Sets`, "no such file or
+  directory" on the *output* `.olean`). Root-caused as a transient `/dev/shm` output-write race
+  from TWO concurrently-running `lake build` processes on the same dir (a prior attempt's lake had
+  not actually terminated); `Sets.lean` compiles cleanly single-file (`lake env lean`, EXIT 0). Both
+  stale builds were killed, `.lake/build` wiped, and a SINGLE clean build re-run → EXIT 0 (4123 jobs,
+  0 failures). The green is the clean single-build, not the race victim.
+- **V3 deliverable explicitly verified (the bare build does NOT cover it).** `FinalAssemblyV3` and
+  its V2/Atoms/ChainEndRecut/PaperRegime/BudgetTightening chain are NOT in the default import closure
+  (`Ripple.lean` / `ExactMajority.lean` do not import them — the Lake Build Root Closure trap). So an
+  explicit module target `lake build …ExactMajority.Probability.FinalAssemblyV3` was run from the same
+  fresh clone: **EXIT 0 — "Build completed successfully (3620 jobs)", `FinalAssemblyV3.olean`
+  produced, 0 failures.**
+- **Axiom audit (V3 decls).** `#print axioms` for `doty_theorem_3_1_whp_numeral_v3`,
+  `doty_theorem_3_1_expected_v3`, `doty_theorem_3_1_expected_numeral_v3`, `hx₀_of_start`,
+  `h_post_of_sign` ⊆ `[propext, Classical.choice, Quot.sound]`; `hK_hN_threading_status` only
+  `[propext]`. No `sorryAx`/admit/axiom/native_decide.
+- shm staging removed after verification (1.4G freed; shm back to 22%); both bare-build and V3-target
+  logs preserved to disk at `uisai2:~/v3verify_clean_28890ad.log` + `~/v3_target_28890ad.log`; shared
+  mathlib bucket untouched.
+
+**Push:** verified SHA `28890ad` pushed to public `xiangyazi24/Ripple` **main** as a clean
+fast-forward (`e92b5ab..28890ad`; `e92b5ab` is an ancestor of `28890ad`, no force needed).
+
+**Tag:** `doty-thm31-v3-honest-2026-06-11` (annotated, tag object `039a404`, dereferences to
+`28890ad`): "Three audit rounds passed: V3 theorems CONDITIONAL-honest (no impostor, no dead fields,
+zero unexplained binders). whp: failure ≤ 21/n², T ≤ 21·17·n·(L+1). expected: E[T] ≤ 369·n·(L+1).
+Residual = the honest paper-probability atom bundle (DotyResidualAtomsV3) + DotyRegime."
+
+**Goal state per doctrine:** every surviving atom has documented terminal status — the V3 residual is
+exactly `DotyResidualAtomsV3` (wrapping the levels-engine `DotyResidualAtomsV2` honest-work path plus
+the `hStart` / `hPhase10Sign` honesty atoms; NO free `hx₀` / `h_post` — both PRODUCED in-bundle) under
+`PaperRegime.DotyRegime`. The unification rebase eliminated the V2-round impostor numeral whp
+corollary, the old-`phases'` expected fragment, the unwired `hStart`/`hPhase10Sign`, the dead K/N
+threading (recorded honestly via `hK_hN_threading_status`, not fake-threaded), and recorded the dead
+`WorkInputsHonest.hM₀` field. CONDITIONAL-honest = the two end-to-end theorems hold over this one
+inspectable, genuinely-probabilistic residual bundle, axiom-clean.

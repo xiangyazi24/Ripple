@@ -298,3 +298,24 @@ Ripple 整体仅余 Chudnovsky/Ramanujan deep identities + Apery.lean placeholde
   - CRT assembly compiled (~15min)
   - Bridge theorems (residual=0, uniqueness, assembly) compiled
   - SturmCRTBound.lean has Mathlib API compat issues (PowerSeries.coeff_sub renamed), needs fix
+
+## Run 2026-06-11 — Doty Theorem 3.1 FINAL (V3) release verification + push
+- doctrine version: Doty §6 honest-accounting doctrine (DOTY_POST63_CAMPAIGN.md)
+- role: release verifier, FINAL (V3) round; standing owner gate = fresh-checkout bare build green ⟹ push public main + tag
+- verified sha: opus-wip head `28890ad656a12546b0510cd0cb55c8b47671069d` (FinalAssemblyV3 round-2 unification rebase; mirror of canonical `ad782933`)
+- fresh-checkout build (uisai2, /dev/shm, shared mathlib bucket v4.30.0 @ `c5ea00351c28`):
+  - bare default `lake build`: EXIT 0, "Build completed successfully (4123 jobs)", 0 ✖ failures
+    (first attempt EXIT 1 root-caused to a transient /dev/shm output-write race from two concurrent
+    lake builds on the same dir; re-run clean single build → EXIT 0)
+  - explicit V3 target `lake build …FinalAssemblyV3` (NOT in default closure): EXIT 0, 3620 jobs,
+    FinalAssemblyV3.olean produced
+  - axiom audit: all V3 decls ⊆ [propext, Classical.choice, Quot.sound]; hK_hN_threading_status only
+    [propext]; no sorry/admit/axiom/native_decide
+- push: `28890ad` → public main, clean fast-forward (`e92b5ab..28890ad`); annotated tag
+  `doty-thm31-v3-honest-2026-06-11` (object `039a404` → `28890ad`)
+- release record: appended to `Ripple/PopulationProtocol/Majority/ExactMajority/DOTY_POST63_CAMPAIGN.md`
+  (third/honest round)
+- end: 2026-06-11
+- final result: V3 CONDITIONAL-honest released; goal state per doctrine: every surviving atom has
+  documented terminal status (residual = DotyResidualAtomsV3 + DotyRegime, axiom-clean, no impostor /
+  no dead fields / no unexplained binders)

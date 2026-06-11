@@ -407,3 +407,99 @@ All V3 decls (`doty_theorem_3_1_whp_numeral_v3`, `doty_theorem_3_1_expected_v3`,
 `h_post_of_sign`, `hK_hN_threading_status`) `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`
 (`hK_hN_threading_status` only `propext`).  No sorry/admit/axiom/native_decide; single-file
 `lake env lean` clean (no warnings).
+
+---
+
+## ATOM CAMPAIGN ROSTER — discharging `DotyResidualAtomsV3` toward a FAITHFUL Theorem 3.1 (2026-06-11)
+
+Strategy pass (read-only survey; NO Lean written). Goal: enumerate EVERY non-arithmetic /
+non-boilerplate carried field reachable from the two V3 final theorems
+(`FinalAssemblyV3.doty_theorem_3_1_{whp_numeral,expected}_v3`), give each its exact statement
+(file:line), landed machinery, classification, and a ranked attack order.
+
+### Classification key
+
+- **(A) dischargeable-from-landed** — the discharger already exists axiom-clean; only wiring /
+  an adapter / a structure-field instantiation is needed. No new math.
+- **(B) one-engine-instantiation away** — the engine + protocol facts exist; one honest
+  instantiation (or one residual side-condition discharge) is needed.
+- **(C) genuinely-new probability** — the missing mathematical object does not exist yet; state
+  the paper section.
+- **(D) primitive regime / start input** — belongs in `DotyRegime` / the initial-config shape;
+  not a dischargeable residual (it is an honest hypothesis about the problem instance).
+
+### Where the open content lives (3 nested buckets, all under `DotyResidualAtomsV3`)
+
+`DotyResidualAtomsV3 n C0` = `{ v2 : DotyResidualAtomsV2, hStart, hWork0PreOfStart, hPhase10Sign }`
+(`FinalAssemblyV3.lean:117-131`). `v2 : DotyResidualAtomsV2` (`FinalAssemblyV2.lean:460-494`) =
+`{ wih : WorkInputsHonest, seam feeders/bridges, Cphase/δ/c₀/init/hC0/hδ }`. `wih : WorkInputsHonest`
+(`FinalAssemblyV2.lean:325-422`) = the per-slot probabilistic atoms. The expected theorem additionally
+takes `hSlotClass : DotySlotClassifier` (`FinalAssemblyV3.lean:197`, the F4 branch oracle).
+
+### The roster
+
+| # | Atom (field) | Statement file:line | Consumers | Landed machinery (wave) | Class |
+|---|---|---|---|---|---|
+| 1 | `hDrift` (seam epidemic drift) | `FinalAssemblyV2.lean:467` (= `DotyAssembly'.hDrift`, `SeedTrigWiring.lean:319`) | `toAssembly'V2` → `dotyPhases'` seam instances → whp composition | **`SeamEpidemics.seam_drift` (SeamEpidemics:1093)** PRODUCES exactly this shape, axiom-clean, modulo the Phase-4-shape tail check `hε` (pure arithmetic on `s,t,ε`). `seamEpidemicW_calibrated` (:1129) is the ready wrapper. | **A** |
+| 2 | `hWorkPostToWindow` (work.Post → allPhaseGe) | `FinalAssemblyV2.lean:479` | seam→work bridge in `dotyPhases'` | **`AssemblyBridges.mk_hWorkPostToWindow` (AssemblyBridges:233)** builds it from a per-slot card/phase pin (`work.Post → card=n ∧ phase=seamP k`). Deterministic; the pin is a `Post`-shape read each honest slot already has. | **A** |
+| 3 | `hWindowToWorkPre` (allPhaseEq → next work.Pre) | `FinalAssemblyV2.lean:486` | seam→work entry in `dotyPhases'` | **`AssemblyBridges.mk_hWindowToWorkPre_pin` (AssemblyBridges:249)** delivers the card/phase pin half. PARTIAL: the drain-budget / role / sign entry pins per phase are carried separately (the per-phase `Pre` content). Wiring + the small per-phase entry adapters. | **A** (card/phase) / **B** (per-phase entry pins) |
+| 4 | `hSeedStep` (one-step advTriggered seed) | `FinalAssemblyV2.lean:482` | seed rung in `dotyPhases'` | **`SeedRungs.drained_kernel_seedTarget_compl_zero` (SeedRungs:319)** proves the one-step a.s. seed (`kernel c (seedTarget)ᶜ = 0`) for `p ∈ {0,1,5,6,7,8}` from `AllClockGEpCard ∧ drained ∧ unseeded`. The `advTriggered = 0` shape is `advTriggered_iff_geCount` (SeamEpidemics:1076) away. Adapter: connect `work.Post` ⟹ the drained/unseeded guard. | **A**/**B** |
+| 5 | `hNoOvershoot` (seam clock no-overshoot) | `FinalAssemblyV2.lean:473` (= `DotyAssembly'.hNoOvershoot`, `SeedTrigWiring.lean:325`) | seam instances → whp composition | **`SeamNoOvershoot.seam_noOvershoot_tail` (SeamNoOvershoot:731)** + `hNoOvershoot_one_seam` (:763) produce the shape, modulo TWO residuals: (a) `DetSeamOvershootBridge p` — **DISCHARGED** by `SeamOvershootBridge.detSeamOvershootBridge_of_wf` (:1607) from seam-region `Wf` reachability invariants; (b) the per-τ `AtRiskClockZero ≤ exp(−40(L+1))` clock-zero tail — NOT yet landed as a kernel bound. | **B** ((a) done; (b) is the open within-seam clock-zero concentration) |
+| 6 | `hPhase6Post7` (slot-7 gap-1 eliminator margin, Lemma 7.4) | `FinalAssemblyV2.lean:403` | `slot7Honest` → `slot7_hdrop_direct` → levels engine | **§6 doubling cluster landed**: `DoublingEdges.phase6To7_surface_of_doubling_edges` (:289) + `PositionalCluster.phase6To7_surface_perLevel/singleLevel` (:268/:282) produce `Phase6To7Structure` from the hour-ceiling (deterministic clock-front) + a co-population / per-level occupancy event. The hour ceiling is PROVEN; the occupancy is the carried within-hour timing event. | **B** (occupancy/co-population timing event is the one probabilistic instantiation) |
+| 7 | `hPhase7Post8` (slot-8 above-level eliminator margin, Lemma 7.6) | `FinalAssemblyV2.lean:412` | `slot8Honest` → `slot8_hdrop_direct` → levels engine | `EliminatorMargins.Phase7To8Structure` (:202) is the consumer; `lemma7_6_phase8_elimAbove_floor` is landed. The margin's existence (above-level minority mass ≥ E8) is the same §6 doubling-drain positional content as #6, one level up — no dedicated surface theorem landed yet (mirror of #6). | **B** |
+| 8 | `hmain5` + `P5` (slot-5 Theorem-6.2 biased-Main floor) | `FinalAssemblyV2.lean:376` | `slot5Honest` → `slot5DrainLevels` → `DrainRates.hdrop5_of_chain` | **`UsefulMainFloor.theorem6_2_usefulMains_floor` (:207)** PRODUCES `P ≤ usefulMains.sum` from `Theorem62EntryHypotheses` + `P ≤ 23n/75`. The named entry hypotheses' `hConfine` (the broad both-sign floor) is the carried whp fact; `PaperRegime.theorem62Paper_implies_broad_floor` shows it follows from the paper-faithful `majorityConfined3`. The bias-ledger collapse delivering `hConfine`/`majorityProfileMass_floor` is genuinely-new. | **C** (Doty §6 / Thm 6.2 bias-ledger collapse) |
+| 9 | `hConc` + `εConc` (slot-5 Lemma 7.1 sampled-class concentration) | `FinalAssemblyV2.lean:383` | `slot5Honest` convergence (union with drain) | **`SampledClassTail` wave landed** the pure killed tail (`sampledClass_killed_tail` :135, absorption blocker dissolved, axiom-clean) and `hConcDemand_of_real_window` (:233). TWO genuinely-probabilistic residuals remain as named hypotheses: (b) the rate floor `hrfloor` (in-house Chernoff rise-probability) + the Phase-5/6 clock-separation exit bridge. | **C** (Doty Lemma 7.1 / footnote 11 + Lemma 5.2 clock-separation) |
+| 10 | `hext1` / `hpull1` + `P1` (slot-1 extreme + partner-pool floors, Lemma 5.3 / [45]) | `FinalAssemblyV2.lean:353` / `:356` | `slot1Honest` → `DrainRates.hdrop1_of_chain` | `hext1` (`1 ≤ extremePos.sum`) is a structural saturation floor (persistence-carried). `hpull1` (`P1 ≤ pullPos.sum`) is Lemma 5.3 partner-pool; `EliminatorMargins.phase1_pullPos_floor_of_mainCount_and_saturated_bound` (:168) is the landed floor adapter — needs the saturated-main count instantiation. | **B** (hpull1 via landed adapter) / **C** (hext1 persistence is structural-but-carried) |
+| 11 | `hdrop6` + `q6` (slot-6 Phase-6 band drain per-level rate) | `FinalAssemblyV2.lean:392` | `dotyWorkHonest` slot 6 → `phase6Convergence_calibrated` | The §6 band-drain levels engine; the per-level rate `q6` is the carried Phase-6 drain probability (the within-band doubling-drain rate). Same engine as slots 1/5/7/8, carried abstractly here. | **C** (Doty §6 Phase-6 drain rate; the core §6 width content) |
+| 12 | `hStart : Phase0Initial n c₀` + `hWork0PreOfStart` | `FinalAssemblyV3.lean:122` / `:126` | `hx₀_of_start` → slot-0 `Pre` | `Phase0Initial n c := card=n ∧ ∀a, phase=0 ∧ role=mcr` (`RoleSplitConcentration:165`) — the all-`mcr` phase-0 START shape. This is an honest fact ABOUT the initial configuration, not a residual to prove. `hWork0PreOfStart` is the slot-0 `Pre = Phase0Initial`-flavoured pin (deterministic interface). | **D** (start) / `hWork0PreOfStart` is **A** (slot-0 `Pre` interface) |
+| 13 | `hPhase10Sign : Phase10SignMatch init` | `FinalAssemblyV3.lean:131` (def `AtomsV2.lean:142`) | `h_post_of_sign` → `postOfSign` → slot-20 `Post` → endpoint | `Phase10SignMatch init := ∀c, Phase10Post c → phase10MajorityWitness init c` (agreed output matches init-gap sign). On the good chain this is the conserved `phase10ActiveSignedSum = initialGap`; **`BackupEntry.arrival_classification` (:189)** produces the `S1`/`Tie1plus` sign classification from `validInitial + Reachable + AllPhase10 + 0 ≤ gap`. The full sign-match conservation is the Doty §11 phase-10 backup-entry argument. | **C** (Doty §11 phase-10 sign conservation) |
+| 14 | `hSlotClass : DotySlotClassifier n init Brecover βfinal` (EXPECTED only) | `FinalAssemblyV3.lean:197` (def `AtomsV2.lean:109`) | `branchOfClassifier` → `hBranch` → `doty_expected_time_chain_end'` | Per-reachable-not-done-state supply of `SlotRegimeData` (a `ChainSlotData`, or a phase-10 maj/tie dispatch witness). `branchOfClassifier` (`AtomsV2:118`) PRODUCES `hBranch` axiom-clean from it via the landed `branch_of_slot` / `branch_of_phase10_*` builders. The OPEN content = the per-state slot regime data exists for every off-trajectory state (the §6/§11 off-event regime cover). | **C** (the genuine expected-side open content: off-event slot dispatch — Doty §5–§11 chain-end regime cover) |
+| 15 | `work0` / `work2` / `work3` / `work9` (carried opaque `PhaseConvergenceW` instances) | `FinalAssemblyV2.lean:344-347` | `dotyWorkHonest` slots 0/2/3/9 | Structural phases (role-split, doubling seed, band-init, pre-phase-10). Named constructors exist (`EndpointWiring.roleSplitW_of_two_stage` for slot 0, `phase3Convergence_bounded`, etc.); each carried as a finished instance. Instantiating them faithfully = wiring the landed per-phase constructors with their own residuals (recursively classified, mostly structural). | **B** (named constructor instantiation, residuals mostly structural) |
+| — | `hM₀ : (M₀:ℝ) ≤ n` (DEAD field) | `FinalAssemblyV2.lean:342` | NONE (provably unread on the V3 proof-term chain) | Dead V2-internal debt; recorded honestly in `hM₀_is_dead`. Removed by a future non-append V2 re-cut. NOT a residual. | — (dead) |
+
+### Ranked attack order
+
+**Wave 1 — the (A) quick wins (deterministic seam wiring; no new math).** Discharge the seam
+feeders/bridges that already have axiom-clean producers; this collapses the seam half of
+`DotyResidualAtomsV2` to pure arithmetic side-conditions:
+1. **#1 `hDrift`** ← `seam_drift` / `seamEpidemicW_calibrated` (adapter only).
+2. **#2 `hWorkPostToWindow`** ← `mk_hWorkPostToWindow` (per-slot card/phase pin read).
+3. **#3 `hWindowToWorkPre`** (card/phase half) ← `mk_hWindowToWorkPre_pin`.
+4. **#12 `hWork0PreOfStart`** (slot-0 `Pre` interface) — deterministic pin.
+5. **#5(a) `DetSeamOvershootBridge`** ← `detSeamOvershootBridge_of_wf` (already landed; just thread `Wf`).
+   These five share one wiring file and let the seam composition close on landed terms.
+
+**Wave 2 — the (B) one-instantiation items, by downstream weight.** Each gates a whole slot or
+the no-overshoot seam:
+6. **#5(b) `AtRiskClockZero` clock-zero tail** — highest weight (gates EVERY seam's `hNoOvershoot`,
+   10 seams); one within-seam clock-zero concentration bound (`≤ exp(−40(L+1))` per step).
+7. **#6 `hPhase6Post7`** (slot-7 eliminator margin) — gates slot 7; instantiate the landed
+   `phase6To7_surface_singleLevel` with the single-level occupancy event.
+8. **#7 `hPhase7Post8`** (slot-8) — mirror of #6 one level up; build the Lemma-7.6 above-level surface.
+9. **#10 `hpull1`** (slot-1 partner-pool) — instantiate `phase1_pullPos_floor_…` with the saturated-main count.
+10. **#15 `work0/2/3/9`** — instantiate the named per-phase constructors (residuals mostly structural).
+11. **#4 `hSeedStep`** — connect `work.Post` ⟹ drained/unseeded guard, then `drained_kernel_seedTarget_compl_zero`.
+
+**Wave 3 — the (C) genuinely-new probability, by paper-difficulty ASCENDING.** These need a new
+mathematical object; do the most-scaffolded first:
+12. **#9 `hConc` residuals** — most scaffolded (killed tail landed; only `hrfloor` Chernoff +
+    clock-separation exit bridge remain). Doty Lemma 7.1 / footnote 11.
+13. **#13 `hPhase10Sign`** — `arrival_classification` landed; remaining = the conserved
+    `phase10ActiveSignedSum = initialGap` (Doty §11 backup-entry).
+14. **#8 `hmain5` (Theorem 6.2 floor)** — `PaperRegime.majorityConfined3` object + projections
+    landed; remaining = the bias-ledger collapse delivering `hConfine` (Doty §6 Thm 6.2).
+15. **#11 `hdrop6` / q6** (Phase-6 band-drain rate) — the §6 width core (within-band doubling-drain rate).
+16. **#14 `hSlotClass`** — the expected-side off-event slot-dispatch cover (Doty §5–§11 chain-end
+    regime); hardest, the whole off-trajectory regime map. Sequenced last.
+
+**(D) primitive — not on the attack path:** #12 `hStart : Phase0Initial` (honest start hypothesis,
+belongs to the instance, not dischargeable); the dead `hM₀` (remove in a future V2 re-cut).
+
+### Recommended first three waves (summary)
+
+- **Wave 1 (A, quick wins):** #1 `hDrift`, #2 `hWorkPostToWindow`, #3 `hWindowToWorkPre` (card/phase),
+  #12 `hWork0PreOfStart`, #5(a) `DetSeamOvershootBridge`. One seam-wiring file; all producers landed.
+- **Wave 2 (B, by weight):** #5(b) `AtRiskClockZero` tail (gates all 10 no-overshoot seams), then
+  #6 `hPhase6Post7`, #7 `hPhase7Post8`, #10 `hpull1`, #15 `work0/2/3/9`, #4 `hSeedStep`.
+- **Wave 3 (C, easiest paper-math first):** #9 `hConc` residuals → #13 `hPhase10Sign` → #8 Thm-6.2
+  floor → #11 Phase-6 drain rate → #14 `hSlotClass` (the off-event regime cover, last).
