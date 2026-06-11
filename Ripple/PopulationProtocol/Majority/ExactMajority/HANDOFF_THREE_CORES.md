@@ -576,3 +576,34 @@ UsefulMainFloor
  
 
 EliminatorMargins
+
+---
+
+## tip #1a — `integerProfileSquaring_whp`'s `hdrift` DISCHARGED (`Probability/ZeroSupplyDrift.lean`)
+
+The single drift input of `ZeroSupplyCoupling.integerProfileSquaring_whp` is now proven at rate `r = 1`.
+
+**Drift derived.** The zero-supply counter `Φ = Z_i` is `Config.sumOf` of the `{0,1}`-supply indicator
+`supplyIndic i` (= `ZeroSupplyCoupling.supplyP i` as `ℝ≥0∞`). The general lever in
+`Basic/PopulationProtocol.lean` (`stepRel_sumOf_eq` / `stepOrSelf_sumOf_eq`) weakens to the honest
+sub-additive engine `sumOf_subadditive_drift_le`: if `f` is pairwise sub-additive on every APPLICABLE
+scheduled pair — `f(δ r₁ r₂).1 + f(δ r₁ r₂).2 ≤ f r₁ + f r₂` — then `∫⁻ (sumOf f) dK(c) ≤ (sumOf f)(c)`,
+i.e. the pure-multiplicative drift at `r = 1`. Proof = `Phase0Window.lintegral_transitionKernel_eq_sum`
+(pair sum) + per-pair `stepOrSelf_sumOf_le` + `∑ interactionProb = 1`.
+
+**Region used (the precisely-named carried clock remainder).** `SupplySubadditive i c` :=
+"every applicable pair of `c` is supply-sub-additive". By the Stage-1 ledger
+(`supply_pair_cancelInd` / `cancelInd_pos_consumes_high`) the ONLY way this fails is a Rule-3 cancel of a
+`±j` pair at exponent `j > i`; inside a good front window (`ClockFrontProfile.WindowedFrontProfile`) that
+firing is suppressed (cancel indicator `0`, band-limited Rule-2 drag), so the landed clock front realises
+`SupplySubadditive`. We CONSUME it as the region hypothesis; we do NOT re-prove the clock side.
+
+**Wired result.** `supplyPotential_drift_le` is exactly the `hdrift` shape (`r = 1`).
+`integerProfileSquaring_whp_of_region` re-states `integerProfileSquaring_whp` with `hdrift` ELIMINATED:
+the hour-boundary failure probability is `≤ 1^hourLen · Φ(c₀) / thr = Φ(c₀)/thr`. The only remaining
+inputs are the structural absorbing-window/threshold bookkeeping (`hQ_abs`, `hthr`, `hlink`) plus the
+carried `SupplySubadditive` region.
+
+**Audit.** `#print axioms` on `sumOf_subadditive_drift_le`, `stepOrSelf_sumOf_le`,
+`supplyPotential_drift_le`, `integerProfileSquaring_whp_of_region` ⊆ `[propext, Classical.choice,
+Quot.sound]`. No sorry/admit/axiom/native_decide. Single-file `lake env lean` clean.

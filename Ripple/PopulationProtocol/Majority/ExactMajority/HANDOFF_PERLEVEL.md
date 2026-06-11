@@ -519,3 +519,49 @@ per-partner-level pigeonhole placement of the `4n/45` band mass at the SPECIFIC 
 floor on both bands, the lower band support, and the `4n/45` constant are all PROVEN. The remaining
 brick is the Phase-6 `doSplit` invariant that the surviving minority is one index above its partner
 eliminators — exactly `MinorityAboveFloor` — to be exported by the convergence proof.
+
+---
+
+## tip #3a — `Phase7SpendLedger` lift (SpendLedgerLift.lean, 2026-06-10)
+
+**NEW file** `Probability/SpendLedgerLift.lean` (append-only; 0 sorry/admit/axiom/native_decide; axioms
+⊆ [propext, Classical.choice, Quot.sound]; single-file `lake env lean` green).
+
+Lifts `SurvivalAccounting`'s PROVEN per-pair ledger (`cancelSplit_elimAbove_survives_or_charged`) to
+the trajectory aggregate carried as `Phase7SpendLedger`.
+
+**What closed (PROVED outright):**
+- `elimAbove_sum_eq_countP` / `minorityAt_sum_eq_countP` — the consumer-shape `(Finset.univ.filter
+  P).sum c.count` bridges to the multiset observable `Multiset.countP P c` (local re-derivation of
+  `Phase6Convergence.countP_eq_sum_count6`). This is the deterministic-`StepRel`-actionable form.
+- **`phase7SpendLedger_canonical` — `SurvivalAccounting.Phase7SpendLedger` discharged at EVERY config**
+  in its EXACT consumer shape, via the canonical spend `Spend i := Entry ∸ (elimAbove σ i).sum c.count`.
+  In ℕ truncated subtraction `Entry ≤ x + (Entry ∸ x)` is unconditional ⟹ the named carried field is
+  CLOSED. The trajectory content is thereby reduced to the absorb hypothesis.
+- `canonicalAbsorb_of_survivalBand` — the absorb hypothesis `E + Spend i ≤ Entry` for the canonical
+  spend IS `BandLocalization.SurvivalBandAbove σ E c` (under the trivial `elimAbove ≤ Entry`). The
+  genuine content is exactly the survival band.
+- **`survivalBand_ae_along_trajectory` / `survivalBand_trajectory_not_pred_eq_zero` — the
+  GENUINELY-STOCHASTIC lift.** The joint predicate `Phase7Surviving n σ E := Phase7AllMain n ∧
+  SurvivalBandAbove σ E` holds a.e. along EVERY kernel power, via the landed support-preservation
+  template `MarkovChain.ae_of_stepDistOrSelf_support_preserved`. ALL probability is discharged here.
+- `phase7Surviving_step_of_band` — factors the per-step closure through the landed structural closure
+  `Phase7Convergence.Phase7AllMain_support_closed`, isolating the SINGLE deterministic atom = band
+  step-closure.
+- `survivalBandAbove_via_canonicalSpend` / `phase7_to_phase8_via_canonicalSpend` — wiring:
+  canonical-spend ledger + survival band ⟹ `EliminatorMargins.Phase7To8Structure` (Phase-8 `hdrop`
+  consumer) at honest constants. `honest_survival_floor` records `Entry−Spend ≥ 14n/75`.
+
+**Joint per-pair inequality used (route c, derived from `SurvivalAccounting`'s cases):** the only
+elimAbove loss is the same-level cancel, which FORCES the partner to be a drained σ-minority at the
+same index (the per-pair ledger's `right` branch). So while a σ-minority is live at level `i`, the
+surviving above-`i` supply cannot be exhausted below `E` — the joint quantity (`elimAbove` supply vs
+the live-minority witness) only spends an eliminator against a drained minority. The lift carries this
+pointwise fact along the trajectory via the support template WITHOUT any new probability.
+
+**REMAINING deterministic atom (NOT stochastic):** `hBand` of `phase7Surviving_step_of_band` — that
+one `cancelSplit` step preserves `SurvivalBandAbove` while a live minority remains. It is a `countP`-
+delta over the two removed / two added agents of one `StepRel` step (`elimAbove_sum_eq_countP` gives
+the bridge), the config-level aggregate of the PROVEN per-pair ledger. With `hBand` supplied,
+`survivalBand_ae_along_trajectory` ⟹ full a.e. trajectory band and the chain closes to
+`Phase7To8Structure`. No probability remains; this is pure multiset bookkeeping.

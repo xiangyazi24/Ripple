@@ -4178,3 +4178,62 @@ content to: (1) `MinorityAboveFloor` (Phase-6 `doSplit` drain clears the floor i
 `≥ l+1`); (2) the per-partner-level placement of the `4n/45` band mass. Floor on both bands + lower band
 support + `4n/45` constant: PROVEN. Neither carried piece is a probability tail or a geometric
 impossibility — both are deterministic Phase-6 drain invariants to be exported by the convergence proof.
+
+---
+
+## tip #1a — the zero-supply drift `hdrift` is discharged (`Probability/ZeroSupplyDrift.lean`, r = 1)
+
+`ZeroSupplyCoupling.integerProfileSquaring_whp` carried a single dynamic input: the per-step drift
+`∀ c, Q c → ∫⁻ Φ dK(c) ≤ r · Φ c` of the `Z_i`-counter potential. This is now PROVEN at `r = 1`.
+
+**Layer A (general, hypothesis-free).** `sumOf_subadditive_drift_le` — for any `Protocol Λ` and any
+`f : Λ → ℝ≥0∞` pairwise sub-additive on the applicable scheduled pairs, the kernel expectation of
+`Config.sumOf f` does not increase: `∫⁻ (sumOf f) dK(c) ≤ (sumOf f)(c)`. The honest engine; it weakens
+the FROZEN additive invariant `Basic/PopulationProtocol.lean stepRel_sumOf_eq` to a sub-additive ≤ and
+sums it against the interaction law (`Phase0Window.lintegral_transitionKernel_eq_sum` + `∑ prob = 1`).
+Helper `stepOrSelf_sumOf_le` does the per-pair multiset bookkeeping (`Multiset.sub_add_cancel`).
+
+**Layer B (instantiation).** `supplyPotential i := Config.sumOf (supplyIndic i)` is the `Z_i`-counter;
+`supplyPotential_measurable` (discrete σ-algebra). The region `SupplySubadditive i c` is exactly "no
+applicable pair produces fresh `Z_i` supply", which the Stage-1 ledger (`supply_pair_cancelInd`,
+`cancelInd_pos_consumes_high`) pins to "no Rule-3 cancel of a `±j` pair at `j > i`" — suppressed inside a
+good clock front window (band-limited Rule-2 drag, cancel indicator 0). `supplyPotential_drift_le` is the
+discharged `r = 1` drift; `integerProfileSquaring_whp_of_region` wires the whp tail with `hdrift`
+ELIMINATED (failure prob `≤ Φ(c₀)/thr`).
+
+**What remains** (downstream of this drift): only the structural absorbing-window/threshold bookkeeping
+(`hQ_abs`, `hthr`, `hlink`) and the carried clock-front region `SupplySubadditive` (realised by the
+landed `WindowedFrontProfile` — clock side NOT re-proven here). The `r = 1` rate is honest: the supply
+counter is genuinely NON-INCREASING off the cancel events, so no contraction below 1 is claimed or needed
+for the whp Markov tail.
+
+**Audit.** All four new theorems `#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]`; no
+sorry/admit/axiom/native_decide; single-file `lake env lean` clean; `git diff --check` clean.
+
+---
+
+## tip #3a — `Phase7SpendLedger` trajectory lift (SpendLedgerLift.lean, 2026-06-10)
+
+**NEW** `Probability/SpendLedgerLift.lean` (append-only, 0 sorry/admit/axiom/native_decide, axioms ⊆
+[propext, Classical.choice, Quot.sound], single-file `lake env lean` green).
+
+Closes the named carried field `SurvivalAccounting.Phase7SpendLedger` and discharges all the
+probability in the Phase-7→8 survival lift:
+
+- **`Phase7SpendLedger` discharged at every config** (`phase7SpendLedger_canonical`) via canonical
+  spend `Entry ∸ elimAbove` — ℕ identity `Entry ≤ x + (Entry ∸ x)`. The carried field is no longer a
+  residual; the survival content is rerouted to `SurvivalBandAbove`.
+- **Stochastic lift fully discharged** (`survivalBand_ae_along_trajectory`): the joint predicate
+  `Phase7AllMain ∧ SurvivalBandAbove` is a.e.-preserved along every kernel power via the landed
+  support-preservation template. Reduces the entire trajectory aggregate to ONE deterministic per-step
+  band-closure (`hBand`), which is the multiset `countP`-delta of the PROVEN per-pair ledger
+  (`cancelSplit_elimAbove_survives_or_charged`).
+- **Consumer bridge** (`elimAbove_sum_eq_countP`, `minorityAt_sum_eq_countP`): `Finset.sum c.count` ↔
+  `Multiset.countP`, making the `StepRel` transition actionable on the consumer shapes.
+- **End-to-end** (`phase7_to_phase8_via_canonicalSpend`): canonical-spend ledger + survival band ⟹
+  `EliminatorMargins.Phase7To8Structure` at honest floor `14n/75` (`honest_survival_floor`).
+
+**Net for residual #3 (`SurvivalBandAbove`):** `Phase7SpendLedger` CLOSED; the Markov-trajectory lift
+(the genuinely-stochastic step the blueprint §C.2 flagged) DISCHARGED via the support template; the
+only remaining piece is the deterministic per-step `countP`-monotonicity of `elimAbove` against the
+live minority (the multiset aggregate of the proven per-pair ledger) — no probability, no new tail.
