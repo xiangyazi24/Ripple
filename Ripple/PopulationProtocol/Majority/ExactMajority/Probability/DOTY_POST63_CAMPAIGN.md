@@ -1037,3 +1037,66 @@ window closure `hClosed` / drain `hstep`, and the arithmetic fits `hε'`/`hεC`.
 |---|---|---|
 | #9 ATOM 1 `hrfloor` | ✅ PRODUCED | `hrfloor_of_floors` ← `sampledReserveClassU_rise_prob_rect5` (`Phase5Convergence:945`) from `classFloor`+`reserveFloor`+budget |
 | #9 ATOM 2 escape | ⏸ NAMED REMAINDER (seam tail proven inapplicable) | `clockSeparationEscape`; honest verdict: `CounterResetDest 5` FALSE (`SeamPairBound` FINDING 2) — width machinery, not seam tail |
+
+---
+
+## SmallSweep.lean — small-items sweep: #10 `hext1` / #15 work2,work9 / #4 SeedStepEvent / #13-14 SignMatch threading (2026-06-11)
+
+New append-only file `Probability/SmallSweep.lean` (0 sorry/admit/axiom/native_decide; all 17 decls
+`#print axioms ⊆ {propext, Classical.choice, Quot.sound}`; single-file `lake env lean` EXIT 0; max
+line width 100; `git diff --check` clean; edits NO existing file).  Four verdicts:
+
+| atom | verdict | landed decls |
+|---|---|---|
+| **(1) `hext1`** (slot-1 extreme) | survey claim FALSE-as-stated; `SlotAtoms` verdict PROVEN sharp | `extremeU_pos_of_extremePos_sum`, `exists_extremeSt_of_extremeU_pos`, `extremeSt_val_zero_or_six`, `hext1_not_from_extremeU` |
+| **(2) `work2`/`work9`** epidemic params | union ALGEBRA locked (`decide`); epidemic SCALARS NOT pinned by `DotyParams` | `Ucal`/`vcal` (+7 `decide` union facts), `calibratedUnionW`, `calibratedUnionW_eq_phase2` |
+| **(3) `SeedStepEvent`** drain-seam | window repair did NOT dissolve it | `hSeedStep_timed_of_drained`, `seedStepEvent_needs_drained_state`, `hSeedStep_of_event` |
+| **(4) SignMatch threading** | both per-config oracles threaded from one rooted invariant | `hasActiveAgent_of_reachable`, `phase10SignMatch_of_rooted`, `post_of_rooted`, `reachableFrom_kernel_closed_export` |
+
+### (1) `hext1` — survey claim FALSE-as-stated (the `extremeU > 0` witness is two-sided)
+
+The survey hoped `extremeU > 0` literally IS the `Hext1` witness.  It is NOT: `extremeU =
+countP extremeSt` and `extremeSt a = (main ∧ extremeVal a.smallBias)` with
+`extremeVal v = (v.val = 0 ∨ v.val = 6)` (`Phase1Convergence:114`) — it counts the saturated
+extremes at BOTH ends.  But `Hext1`/`extremePosSet` pins the `+3` end ALONE
+(`extremePos a = main ∧ smallBias.val = 6`, `DrainThreading:226`).  PROVEN: the `+3` → `extremeU`
+direction (`extremeU_pos_of_extremePos_sum`, the `+3` extremes ARE counted), the two-sided extraction
+(`exists_extremeSt_of_extremeU_pos`, mirror of `EliminatorMargins.exists_minorityAt_of_minorityU_pos`),
+and the sharp separation `extremeSt_val_zero_or_six` (the witness is val `0` = `−3` OR val `6` = `+3`).
+So `extremeU > 0` does NOT force a `+3` extreme — `hext1` is the SIGN-SELECTED `+3` floor, a structural
+saturation carry, exactly `SlotAtoms`' original verdict now proven sharp (not chain-dischargeable).
+
+### (2) `work2`/`work9` — union algebra locked, epidemic scalars NOT
+
+Survey of `DotyParams.lean`: NO phase-2 opinion-union epidemic rate is pinned (no `s`/`t`/`ε` for the
+doubling seed).  So the SCALARS are genuinely free calibration inputs; only the union ALGEBRA is
+pinned (concrete `Fin 8` bit arithmetic).  `calibratedUnionW` instantiates
+`Phase2Convergence.phase2Convergence` at the CONCRETE single-sign pair `U = 4` (`+1`-only), `v = 0`
+(empty) — all seven union-algebra side conditions (`singleSign`, the four `opinionsUnion` idempotents,
+`U ≠ v`) discharged by `decide` — embedded weak via `.toW`.  Both slot 2 (doubling seed) and slot 9
+(pre-phase-10 union) are the SAME `calibratedUnionW`; only the carried epidemic horizon `(s,t,ε)` and
+budget `hε` differ (the honest scalar residual).
+
+### (3) `SeedStepEvent` — window repair did NOT dissolve it (likely-windfall check = NEGATIVE)
+
+The campaign hypothesised the `HonestDrainSlots` window repair (all-Main → phase-only honest windows
+WHERE CLOCKS EXIST) lets the FREE timed seed `SeedRungs.drained_kernel_seedTarget_compl_zero` apply on
+the drained Post, dissolving `SeedStepEvent`.  **It does NOT.**  The honest Post `Phase{1,8}Honest`
+(`HonestWindows:125/133`) is phase-ONLY (`card = n ∧ ∀ a ∈ c, a.phase.val = p`); it permits clocks to
+coexist but pins NOTHING about clock counters.  The timed seed needs the drained ALL-CLOCK state
+`AllClockGEpCard p n ∧ clockCounterSumAt p = 0 ∧ geCount (p+1) = 0` — none of which the phase-only Post
+supplies (`seedStepEvent_needs_drained_state` makes the missing drained-state premise explicit).  So
+`SeedStepEvent` survives as the genuine one-step remainder; the two honest worlds (counter-timed
+`hSeedStep_timed_of_drained`; all-Main/honest-window carried event) are unchanged.
+
+### (4) SignMatch threading — two oracles → one rooted invariant
+
+`SignMatch.phase10SignMatch_of_reachable` carried two per-config oracles `hreach`/`hact`.  THREADED:
+reachability rides on `reachableFrom_kernel_closed` (`ReachableLadder:96`); the activity invariant
+`hasActiveAgent` propagates along the all-phase-10 chain by `phase10_hasActiveAgent_preserved_by_step`
+(`Analysis/Phase10Backup:1946`, the public Phase-10 liveness lemma) + `phase10_phase_preserved_by_step`,
+chained over `ReflTransGen` reachability in `hasActiveAgent_of_reachable`.  `phase10SignMatch_of_rooted`
+produces `AtomsV2.Phase10SignMatch init` from a single ACTIVE all-phase-10 root + the chain reachability
+(the `hc₀Reach`-flavoured conditioning surface the V3 expected theorem already carries); `post_of_rooted`
+composes with `AtomsV2.postOfSign` for `h_post`.  The two per-config oracles collapse into the single
+rooted activity+reachability hypothesis the correctness chain already owns.
