@@ -1,6 +1,94 @@
 
 ---
 
+## SlotAtoms.lean — roster #10 + #15 + #4 (WAVE 2, B-class one-instantiation items) (2026-06-11)
+
+New append-only file `Probability/SlotAtoms.lean` discharges three WAVE-2 roster items by wiring
+landed machinery (no new math).  Single-file `lake env lean` clean (uisai2 /dev/shm, v4.30.0 @
+mathlib c5ea0035, EXIT 0, no warnings); all 19 exported decls `#print axioms ⊆ [propext,
+Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide; max line width 100; append-only.
+
+### #10 — `hpull1` PRODUCED + entry-gap VERDICT + far-witness side selection
+
+The slot-1 partner-pool floor `WorkInputsHonest.hpull1` (`∀ b, Phase1AllMain n b → P1 ≤
+pullPosSet.sum count`) is PRODUCED from the landed Phase-1 chain (`AveragingRate` strict-drop
+rectangles + the `{2,3,4}` ceiling → `PartnerMargin` Θ(n) floors → `AveragingCollapse` variance):
+
+* `lowSet_subset_pullPosSet` / `lowSet_sum_le_pullPosSet` — the lift `lowSet ⊆ pullPosSet`
+  (Main `val ≤ 3` ⊆ Main `val ≤ 4`), the missing inclusion connecting the chain's `lowSet` floor to
+  the field's `pullPosSet`.
+* `pullPos_floor_of_entry` — the DETERMINISTIC floor `(n − g + 3)/4 ≤ pullPosSet.sum count` from
+  `PartnerMargin.EntrySumPinned n g b` (= `Phase1AllMain ∧ |centredBiasSum| ≤ g`) via
+  `lowSet_floor_of_entry` + the lift.
+* `hpull1_of_gap_persistence` — **the #10 adapter**: produces the EXACT `hpull1` field at
+  `P1 = (n − g + 3)/4 = Θ(n)` from the ENTRY-GAP PERSISTENCE
+  `hgap : ∀ b, Phase1AllMain n b → |centredBiasSum b| ≤ g`.
+* `hdrop1_of_gap_persistence` — composes `Hext1` (carried) + the produced `hpull1` through
+  `DrainRates.hdrop1_of_chain`, giving the full slot-1 per-level rate `levelRate ((n−g+3)/4) n`.
+* `far_high_side` / `far_low_side` — the far-witness side selection (re-exports of
+  `secondMomentN_hdrop_of_entry_{high,low}`): a far-high witness pairs against the `lowSet` floor, a
+  far-low witness against the `highSet` floor — the per-config datum the structure lemma
+  `farExists_of_secondMoment_gt_n` leaves open.
+
+**Entry-gap VERDICT.**  The chain start (`PartnerMargin.EntrySumPinned n g`) pins `|centredBiasSum| ≤
+g`, where `g` is the CONSERVED initial opinion gap: each Main encodes a `±1` opinion, so
+`centredBiasSum = #plus − #minus = gap`, `avgFin7`-conserved (`centredBiasSum_stepOrSelf_eq`) and
+one-step support-closed (`EntrySumPinned_support_closed`).  So the gap-persistence input `hgap` is
+NOT an extra residual — it holds on every in-window config because the chain stays inside
+`EntrySumPinned n g` from the Doty εn-gap entry.  The `{2,3,4}`-ceiling `Θ(n)` margin yields the
+paper-faithful `q = 1 − Θ(1/n)`, `t = Θ(n log n)` horizon (Lemma 5.3 / [45], NOT the crude `g = n`
+degenerate `P = ⌈0/4⌉`).  **`hext1` VERDICT:** `Hext1` (`1 ≤ extremePosSet.sum`, the `+3`-saturated
+extreme floor) is a STRUCTURAL SATURATION floor — genuinely persistence-carried, NOT
+chain-dischargeable (the `|centredBiasSum| ≤ g` invariant bounds the SIGNED sum, not the existence of
+a saturated extreme); it is the partner of `hpull1` in the `+3 × partner` strict-drop rectangle.
+
+### #15 — the opaque work slots, replace-by-constructor (constructor table)
+
+| slot | constructor | source | rate status |
+|---|---|---|---|
+| `work0` | `slot0W` ← `EndpointWiring.roleSplitW_of_two_stage` | three-stage role-split CK union | stage tails carried |
+| `work2` | `slot2W` ← `(Phase2Convergence.phase2Convergence …).toW` | opinion-union doubling seed | `s,t,ε` PARAMETER-carried |
+| `work3` | `slot3W` ← `EndpointWiring.phase3Convergence_bounded` | §6 clock side budget (bounded horizon) | side `εside` carried |
+| `work9` | `slot9W` ← `(Phase2Convergence.phase2Convergence …).toW` | pre-phase-10 opinion-union | `s,t,ε` PARAMETER-carried |
+
+`SlotInstanceInputs` carries the four constructors' named calibration data; `SlotInstanceInputs.work{0,2,3,9}`
+are the per-slot constructed instances; `slotInstances_of_named` is the **bundle adapter** exhibiting
+the four opaque `WorkInputsHonest.work{0,2,3,9}` fields as the named constructors (no longer anonymous
+instances).  Survey finding on the `Phase2Convergence.toW` instances: they are NOT parameter-closed —
+they CARRY the epidemic rate `s`, horizon `t`, budget `ε` and the union-algebra hypotheses
+(`singleSign`, `opinionsUnion` idempotents) as honest scalar/structural inputs (the wiring-table's
+"epidemic rate in instance").  `PhaseConvergence.toW` forgets the absorption to the weak instance the
+work family uses.
+
+### #4 — `hSeedStep` honest mechanism (the drain-seam verdict)
+
+**The honest mechanism FOUND.**  The drain work `Post`s (`Phase1AllMain`, `Phase8AllMain`) are
+DRAINED EXACT windows — `card = n`, every agent at phase EXACTLY `p`, ALL Main.  On such a window
+`advTriggered (p+1)` is FALSE (`AssemblyBridges.drained_post_no_advTrig`, re-exported as
+`drained_no_advTrig`): no agent is at phase ≥ p+1.  So `hSeedStep` is genuinely NOT a `Post` read — it
+is the ONE-STEP seam-entry event "the next interaction advances some agent into phase p+1".  Whose
+phase advances is seeded by phase-`(p+1)` PRESENCE (`AtRiskClockZero p` → `advTriggered (p+1)`,
+`AssemblyBridges.advTriggered_of_atRiskClockZero`).  Two honest worlds:
+
+* **(a) counter-timed seams** — the seam-start configuration is the drained ALL-CLOCK state
+  (`AllClockGEpCard p n ∧ clockCounterSumAt p = 0 ∧ geCount (p+1) = 0`).  The seed fires for FREE
+  (full rectangle, advance rate 1): `hSeedStep_timed_of_drained` ← `SeedRungs.drained_kernel_seedTarget_compl_zero`
+  (`p ∈ {0,1,5,6,7,8}`), re-stated in the `advTriggered` set via `advTriggered_iff_seedTarget`.
+* **(b) all-Main drain seams** — re-reading `ConcreteAssembly`'s window structure resolved the
+  prompt's "Mains + clocks coexist?" question: the work-window predicate `Phase1AllMain`/`Phase8AllMain`
+  is genuinely ALL-MAIN (`c.card = n ∧ ∀ a ∈ c, Main` — the ENTIRE multiset is Mains, `n` is the full
+  card; there are NO clocks in `c`).  So the structural clock-advance seed is UNAVAILABLE (no clocks
+  to tick), and the all-Main `Post` cannot manufacture the phase-`(p+1)` agent (it pins all `n` agents
+  to phase `p`).  The seed is therefore a genuine per-seam one-step event — the precise named
+  remainder `SeedStepEvent (seamP k) ((work k).Post)`.  `hSeedStep_of_event` PRODUCES the
+  `DotyAssembly'.hSeedStep` field from the per-seam `SeedStepEvent` family (trivial wiring; for
+  counter-timed seams `SeedStepEvent` is `hSeedStep_timed_of_drained` ∘ the drained-state read).
+
+**Verdict:** for the all-Main drain seams `hSeedStep` is NOT the clock seed (no clocks present); it is
+the genuine main-advance one-step seam-entry event, isolated as the named `SeedStepEvent` remainder.
+
+---
+
 ## ClockZeroTail.lean — roster #5(b): the AtRiskClockZero seam tail GATE, closed (2026-06-11, WAVE 2)
 
 New append-only file `Probability/ClockZeroTail.lean` discharges WAVE-2 roster item **#5(b)** — the
