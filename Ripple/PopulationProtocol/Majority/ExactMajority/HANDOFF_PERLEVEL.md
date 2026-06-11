@@ -677,3 +677,28 @@ With (1)+(2), `survivalBandAbove_step_closed_of_marginBand` supplies `hBand`,
 `SpendLedgerLift.survivalBand_ae_along_trajectory` lifts it along the whole kernel trajectory, and
 `SpendLedgerLift.phase7_to_phase8_via_canonicalSpend` closes the chain to
 `EliminatorMargins.Phase7To8Structure` with NO remaining probability.
+
+---
+
+## SeedExport.lean — the `AllBiasedMainAbove (l+1)` seed exported (2026-06-10, EXIT_0, axiom-clean)
+
+NEW append-only `Probability/SeedExport.lean` (single-file `lake env lean` EXIT_0; 13 headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide;
+`git diff --check` clean). Salvaged the predecessor's UNTRACKED draft VERBATIM — it compiled as-is;
+all five referenced landed signatures (`Phase6Convergence.phase6Convergence'`,
+`DrainThreading.phase6_hdrop_of_struct`, `DrainCalibration.phase6Convergence_calibrated`,
+`BandRouting.phase6_to_phase7_of_post` / `.minorityConfinedGap1_of_post`,
+`MinorityFloorGap.minorityAboveFloor_verdict`) were cross-checked against the actual files and matched
+exactly, so no rewrite was needed.
+
+**`l+1` CLOSED.** The Phase-6 drain is symbolic in the band level `l`, so instantiating at `l+1` is a
+verbatim re-application — no new probability. The SOLE new content is the budget side-condition
+`hlL2 : l + 2 ≤ L` (`succ_witnessHour_of_budget`): the `l+1` band-top index `l` needs a sampling hour
+`l < h.val < L`, i.e. TWO free hours above the band floor (vs ONE for the bare-`l` Post). Exposed
+explicitly, not hidden. Matches Doty §7 "one notch" separation, available while the clock has not
+saturated top hour `L`.
+
+**Surface delivered:** `phase6To7_surface_of_seed` / `phase6To7_surface_of_succ_post` — the strongest
+reachable Phase6→7 form: `EliminatorMargins.Phase6To7Structure σ E c` + `MinorityAboveFloor l τ c` for
+EVERY sign + the `l+1`-floor `cancelSplit` step-stability, all from the single seed. The carried
+`MinorityFloorGap` `MinorityAboveFloor` residual is now PRODUCED by the bumped drain, no longer assumed.

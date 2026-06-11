@@ -4366,3 +4366,65 @@ minority count never rises (`Phase7Convergence.cancelSplit_minorityU_pair_le`). 
 **Final Phase7→8 surface:** the residual-#3 chain is now deterministic end-to-end modulo the entry
 margin band and the minority-monotonicity carry; all probability is discharged in
 `SpendLedgerLift.survivalBand_ae_along_trajectory` via the landed support-preservation template.
+
+---
+
+## SeedExport.lean landed — the `AllBiasedMainAbove (l+1)` seed (2026-06-10, EXIT_0, axiom-clean)
+
+NEW append-only `Probability/SeedExport.lean` (single-file `lake env lean` EXIT_0, 0 warnings; all 13
+headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide;
+`git diff --check` clean). No existing file edited.
+
+This is the LAST brick of `MinorityFloorGap.lean`'s verdict: that file proved the carried
+`MinorityAboveFloor` residual is a step-stable dynamic floor invariant seeded by `AllBiasedMainAbove
+(l+1) c`, preserved by the frozen `cancelSplit`, discharging `MinorityAboveFloor` for both signs — but
+left OPEN *where the seed comes from at Phase-7 entry*. SeedExport answers it.
+
+**The load-bearing parameterization audit (verified against the landed API, not comments):** the entire
+Phase-6 drain machinery is symbolic in the band level `l`:
+- `Phase6Convergence.phase6Convergence' l n …` — `l : ℕ` free; `Post c = Phase6Win n c ∧ highMass l c = 0`.
+- `DrainThreading.phase6_hdrop_of_struct σ l n m hn hl1 hlL b … h hhgt hhne …` — `l` enters only via
+  `hl1 : 1 ≤ l`, `hlL : l ≤ L`, and the witness hour `h : Fin (L+1)` with `l-1 < h.val`, `h.val ≠ L`.
+- `DrainCalibration.phase6Convergence_calibrated l n M₀ q tWin …` — `l` free, budget `l`-agnostic.
+
+So instantiating the engine at `l+1` is a VERBATIM re-application at the bumped parameter — no new
+probability content. All five referenced signatures were cross-checked against the actual landed files
+and matched exactly; the file compiles verbatim with EXIT_0.
+
+**`l+1` IS CLOSED, up to one honest budget side-condition:**
+- `succ_witnessHour_of_budget (hlL2 : l + 2 ≤ L)` — the `l+1` band-top index is `(l+1)-1 = l`; the
+  witness sampling hour needs `l < h.val < L`, which exists iff `l + 2 ≤ L`. **This is the SOLE new
+  content of the level bump.** The bare-`l` Post needs one free hour above the band floor; the `l+1`
+  seed needs TWO (band-top `l` + sampling reserve strictly above). Honest budget arithmetic, exposed as
+  the explicit hypothesis `hlL2 : l + 2 ≤ L`. Matches Doty §7: the drain pushes the σ-minority strictly
+  BELOW the σ-majority band by clearing floor index `l` itself ("one notch" separation), available
+  exactly while the clock has not saturated the top hour `L`.
+- `phase6_succ_hdrop_of_struct` (caller supplies the witness `h`) and `phase6_succ_hdrop_of_struct_budget`
+  (witness produced internally from `l+2 ≤ L`) — the landed `DrainThreading` per-level `hdrop` at `l+1`.
+- `phase6Convergence_succ` / `phase6Convergence_succ_calibrated` — the convergence engines at `l+1`,
+  definitional (engine symbolic in `l`).
+
+**The seed export (the `phase6Post_iff` analogue):**
+- `seedExport_of_post_succ (hPost : highMass (l+1) c = 0) : AllBiasedMainAbove (l+1) c` — the `l+1` Post
+  IS the seed, by `MinorityFloorGap.allBiasedMainAbove_of_post` at the bumped level.
+- `seed_of_phase6_succ_post` — reads the seed off the `Post` second conjunct.
+
+**The wired chain seed → verdict → consumers:**
+- `post_of_seed` — the seed WEAKENS to the bare `l` Post `highMass l c = 0` (every biased Main `≥ l+1`
+  trivially `≥ l`), feeding the bare-`l` consumers.
+- `verdict_of_seed` — discharges `MinorityFloorGap.minorityAboveFloor_verdict`: `MinorityAboveFloor` for
+  both signs + the `cancelSplit` step-stability of the `l+1` floor.
+- `minorityConfinedGap1_of_seed`, `phase6_to_phase7_of_seed` — via `post_of_seed` into the landed
+  `BandRouting` adapters ⟹ `EliminatorMargins.Phase6To7Structure`.
+- `phase6To7_surface_of_seed` / `phase6To7_surface_of_succ_post` — the STRONGEST reachable Phase6→7
+  surface from the single seed: the standard `Phase6To7Structure` σ E c PLUS the simultaneous
+  `MinorityAboveFloor l τ c` for EVERY sign (which the bare Post canNOT give) PLUS the `l+1`-floor
+  `cancelSplit` step-stability. The carried `MinorityFloorGap` residual is now PRODUCED by the landed
+  (bumped) drain, no longer an open assumption.
+
+**Net:** `MinorityAboveFloor` is fully closed AS A RESIDUAL — reduced to the single sign-agnostic seed
+`AllBiasedMainAbove (l+1)`, and that seed is now exported as the LANDED Phase-6 drain run one level
+higher. The seam to Phase 7 is the strongest reachable form (`Phase6To7Structure` + simultaneous
+`MinorityAboveFloor` + step-stability). The only honest input is the budget `l + 2 ≤ L` (two free hours
+above the band floor) — documented explicitly, NOT hidden. No probability obstruction; the bump is the
+verbatim engine at the bumped parameter.
