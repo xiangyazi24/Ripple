@@ -4324,3 +4324,45 @@ collapses to: (i) the deterministic timed phase-advance transitions feeding the 
 (ii) the init-gap sign match for the Phase-10 regimes (gap conservation along reachable trajectories);
 (iii) `StableDone` absorption (campaign-wide). The stability characterization itself — what makes a
 drained Phase-10 state a `majorityStableEndpoint` — is now fully proven.
+
+---
+
+## §6 residual #3 (`SurvivalBandAbove`) — config-level `countP` delta closing `hBand` (BandStepBookkeeping.lean, 2026-06-10)
+
+NEW append-only `Probability/BandStepBookkeeping.lean` (single-file `lake env lean` green, 0 warnings;
+all 8 headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/
+native_decide). No existing file edited.
+
+Closes the deterministic core of the LAST atom in the #3 chain: `hBand` of
+`SpendLedgerLift.phase7Surviving_step_of_band`. `SurvivalAccounting.cancelSplit_elimAbove_survives_or_charged`
+PROVED the per-pair eliminator ledger (`.1` component). This file (a) proves the missing `.2`-component
+mirror, (b) aggregates both to a pair-level inequality, (c) lifts it to the **config-level `countP`
+delta** over one `StepRel` step, and (d) records the honest entry-margin residual.
+
+**countP identity chain (config aggregation of the per-pair ledger):**
+`A i c' = (A i c − countP_elim {r₁,r₂}) + countP_elim {p₁,p₂}` (`Multiset.countP_add`/`countP_sub`,
+`{p₁,p₂} = cancelSplit r₁ r₂` via `Transition_eq_cancelSplit_of_phase7_main`), so
+`A i c ≤ A i c' + countP(collidingMinority σ i){r₁,r₂}` — the surviving above-`i` eliminator count
+drops by at most the σ-minority drained that step. (`A i := countP (elimAbovePred σ i)`, defeq the
+consumer `(elimAbove σ i).sum c.count`.)
+
+**Headlines:** `cancelSplit_elimAbove_snd_survives_or_charged` (the `.2` ledger),
+`cancelSplit_elimAbove_pair_le` (pair inequality), `elimAbove_countP_drop_le_colliding` (config delta,
+applicable step), `elimAbove_countP_step_drop_le_colliding` (`stepDistOrSelf`-support form),
+`survivalBand_step_closed_of_margin` (per-level conditional closure),
+`survivalBandAbove_step_closed_of_marginBand` (the `hBand`-shaped closure of the margin band
+`SurvivalBandMargin σ E` into the floor band `SurvivalBandAbove σ E`, conditional on minority
+monotonicity).
+
+**Honest residual recorded (= residual #2's outputs).** The fixed-`E` band is NOT pointwise step-closed
+(one same-level cancel ⟹ `A i = E → E−1`). The closure needs, BOTH deterministic (no new probability
+tail): (1) the **entry margin** `Entry ≥ E + spend` = the `GapAlignedElimFloor` routing + sharpened
+Doty spend (`SurvivalAccounting.survival_floor_honest`); (2) **minority monotonicity** — the per-level
+minority count never rises (`Phase7Convergence.cancelSplit_minorityU_pair_le`). With both,
+`survivalBandAbove_step_closed_of_marginBand` ⟹ `hBand` ⟹
+`SpendLedgerLift.survivalBand_ae_along_trajectory` ⟹ `phase7_to_phase8_via_canonicalSpend` ⟹
+`EliminatorMargins.Phase7To8Structure`, NO remaining probability.
+
+**Final Phase7→8 surface:** the residual-#3 chain is now deterministic end-to-end modulo the entry
+margin band and the minority-monotonicity carry; all probability is discharged in
+`SpendLedgerLift.survivalBand_ae_along_trajectory` via the landed support-preservation template.
