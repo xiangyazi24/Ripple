@@ -314,3 +314,96 @@ All new decls (`doty_theorem_3_1_expected_v2`, `_whp_numeral`, `_expected_numera
 `branchOfClassifier`, `branchOfSlotRegime`, `postOfSign`, `C0_numeral_above_recut`,
 `regime_threads_{K,N}`) `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.  No
 sorry/admit/axiom/native_decide.
+
+---
+
+## Round-2 unification rebase — `FinalAssemblyV3.lean`
+
+Round-2 audit (`/tmp/codex_final_audit2.md`) confirmed `FinalAssemblyV2.doty_theorem_3_1_whp_v2` is a
+genuine whp repair (no free `hcompFail`; bound PRODUCED through
+`BudgetTightening.doty_time_headline_W2_inv_sq`; slots 1/5/7/8 on the levels engine) but pinned the
+residual items as cross-file debt: the numeral whp corollary was still an IMPOSTOR (old `FinalAssembly`
++ `hcompFail`), the expected theorem a FRAGMENT (old `FinalAssembly.DotyResidualAtoms`/`phases'`),
+`hStart`/`hPhase10Sign` documented but unwired, K/N threading dead, and `WorkInputsHonest.hM₀` a true
+dead field.  `FinalAssemblyV3.lean` performs the unification rebase, append-only.
+
+### What was wired vs honestly documented
+
+* **(item 1) numeral whp rebased onto V2** — `doty_theorem_3_1_whp_numeral_v3` :=
+  `FinalAssemblyV2.doty_theorem_3_1_whp_v2` at `C0 = AtomsV2.C0_numeral = 17`.  NO `hcompFail`
+  anywhere; the bound is produced through the V2 path.  (Replaces AtomsV2's IMPOSTOR corollary.)
+* **(item 2) expected rebased onto the honest work family** — `doty_theorem_3_1_expected_v3` feeds the
+  GENERIC capstone `ChainEndRecut.doty_expected_time_chain_end'` the family `FinalAssemblyV2.phases'V2
+  ra.v2` (levels-engine `dotyWorkHonest`) + the V2 chain map `FinalAssemblyV2.phases'V2_h_chain`; the
+  global `hBranch` is PRODUCED from `AtomsV2.DotySlotClassifier` via `AtomsV2.branchOfClassifier`.
+  Numeral corollary `doty_theorem_3_1_expected_numeral_v3` at `(21·17 + 4·3) = 369`.  (Replaces
+  AtomsV2's FRAGMENT, which still threaded `FinalAssembly.DotyResidualAtoms`/`phases'`.)
+* **(item 3a) `hStart` WIRED** — the V3 bundle carries `hStart : Phase0Initial n c₀` + the slot-0
+  `Pre` pin `hWork0PreOfStart`; `hx₀_of_start` PRODUCES `(phases'V2 ra.v2 ⟨0⟩).Pre c₀` through
+  `slot0_pre_pin` (`(phases'V2 ra ⟨0⟩).Pre = work0.Pre`, reduced past the `irreducible`
+  `dotyWorkHonest` by `unfold`).  The free `hx₀` binder is GONE from the V3 surfaces.
+* **(item 3b) `hPostOfSign` WIRED** — the V3 bundle carries `hPhase10Sign : AtomsV2.Phase10SignMatch
+  init`; `h_post_of_sign` PRODUCES `h_post` via `AtomsV2.postOfSign` through `slot20_post_pin`
+  (`(phases'V2 ra ⟨20⟩).Post → Phase10Post`).  The free `h_post` binder is GONE from the V3 surfaces.
+* **(item 4) K/N threading — HONESTLY DOCUMENTED, not fake-threaded.**  Survey of the V2 work slots
+  (`slot1Honest` / `slot5Honest` / `slot7Honest` / `slot8Honest` / `slot5DrainLevels`): every
+  constructor takes `2 ≤ n` only — NONE carries a `45 ≤ K` or `N₀ ≤ n` hypothesis.  No
+  `DotyResidualAtomsV2` field consumes them either.  So there is NO current instance hypothesis that
+  genuinely needs `hReg.hK` / `hReg.hN`; threading them would be a binder consumed nowhere (dishonest).
+  `hK_hN_threading_status` records that the helpers are derivable from `hReg` (available, not
+  fabricated), while the V3 theorems honestly consume only `hReg.hLlog` (once, for the `clog` form).
+* **(item 5) dead `hM₀` ABSORBED (honest deadness record).**  `FinalAssemblyV2.WorkInputsHonest.hM₀ :
+  (M₀ : ℝ) ≤ n` is never referenced on the proof-term chain.  The V3 surfaces never read it; it is
+  dead V2-internal debt.  Append-only discipline forbids editing the V2 structure, so the field
+  remains physically present, but it is provably absent from the V3 final-theorem proof terms
+  (documented in `hM₀_is_dead` prose; the V3 bundle's content is start/sign atoms + the V2 work-family
+  interface, none touching `hM₀`).
+
+### V3 final-surface binder table (zero unexplained binders)
+
+Classification key: **regime** = `DotyRegime` size/log pins; **residual-bundle** = the V3 residual
+atoms (`DotyResidualAtomsV3`, which embeds `DotyResidualAtomsV2` + start/sign); **boilerplate** =
+measurability / absorbing / positivity / reachability plumbing; **arithmetic** = time/budget/mass
+inequalities consumed by the composition.
+
+#### `doty_theorem_3_1_whp_numeral_v3` (6 binders)
+
+| binder | class | role |
+|---|---|---|
+| `hReg : DotyRegime n L K` | regime | the `clog` form (`hReg.hLlog`: `L = ⌈log₂ n⌉`); only `hLlog` consumed |
+| `ra : DotyResidualAtomsV3 n 17` | residual-bundle | the V2 honest-path atoms + `hStart`/`hPhase10Sign` (PRODUCE `hx₀`/`h_post`) |
+| `T : ℕ` | arithmetic | the opaque sum horizon |
+| `hT : T = ∑ i, (phases'V2 ra.v2 i).t` | arithmetic | folds the produced bound to `T` |
+| `ht : ∀ i, (phases'V2 ra.v2 i).t ≤ ra.v2.Cphase i · n · (L+1)` | arithmetic | per-instance time budget |
+| `hε : ∀ i, (phases'V2 ra.v2 i).ε ≤ ra.v2.δ i` | arithmetic | per-instance failure budget |
+
+No free `hcompFail` (item 1); no free `hx₀` / `h_post` (item 3, produced in-bundle).
+
+#### `doty_theorem_3_1_expected_v3` (12 binders)
+
+| binder | class | role |
+|---|---|---|
+| `hReg : DotyRegime n L K` | regime | the `clog` form (`hReg.hLlog`); only `hLlog` consumed |
+| `ra : DotyResidualAtomsV3 n C0` | residual-bundle | V2 honest atoms + `hStart`/`hPhase10Sign` |
+| `hc₀Reach : ReachableFrom L K init c₀` | boilerplate | reachable-relative conditioning surface |
+| `ht : …t ≤ Cphase·n·(L+1)` | arithmetic | per-instance time budget |
+| `hε : …ε ≤ δ` | arithmetic | per-instance failure budget |
+| `hDone : MeasurableSet (StableDone …)` | boilerplate | hitting-set measurability |
+| `hDoneAbs : ∀ x ∈ StableDone, K x (StableDone)ᶜ = 0` | boilerplate | `StableDone` absorbing |
+| `hBpos : 0 < Brecover` | boilerplate | recovery-cap positivity |
+| `βfinal : Config → ℝ≥0∞` | residual-bundle | per-state recovery budget function (branch param) |
+| `hSlotClass : DotySlotClassifier n init Brecover βfinal` | residual-bundle | F4 per-slot regime data (PRODUCES `hBranch`) |
+| `hδ : ∑ i, δ i ≤ 1/n` | arithmetic | aggregate failure mass |
+| `hrecmass : (1/n)·(2·Brecover)·(1−1/2)⁻¹ ≤ 4·Cbad·n·(L+1)` | arithmetic | split-geometric recovery mass cap |
+
+No free `hBranch` (F4, produced from `hSlotClass`); no free `hx₀` / `h_post` (item 3, produced
+in-bundle).  The family is `phases'V2` (levels-engine honest work), not the old crude `phases'`
+(item 2).
+
+### Axiom audit
+
+All V3 decls (`doty_theorem_3_1_whp_numeral_v3`, `doty_theorem_3_1_expected_v3`,
+`doty_theorem_3_1_expected_numeral_v3`, `slot0_pre_pin`, `slot20_post_pin`, `hx₀_of_start`,
+`h_post_of_sign`, `hK_hN_threading_status`) `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`
+(`hK_hN_threading_status` only `propext`).  No sorry/admit/axiom/native_decide; single-file
+`lake env lean` clean (no warnings).
