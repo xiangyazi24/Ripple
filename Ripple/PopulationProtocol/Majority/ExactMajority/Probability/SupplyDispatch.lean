@@ -106,18 +106,20 @@ theorem phaseEpidemicUpdate_id_of_phase3 (s t : AgentState L K)
     phaseEpidemicUpdate L K s t = (s, t) := by
   have hphase_eq : s.phase = t.phase := Fin.ext (by omega)
   have hmax : max s.phase t.phase = s.phase := by rw [hphase_eq, max_self]
+  have hmaxval : (max s.phase t.phase).val = s.phase.val := by rw [hmax]
+  have htval : t.phase.val = s.phase.val := by omega
   -- `{s with phase := max …} = s` and `{t with phase := max …} = t`.
   have hsself : ({ s with phase := max s.phase t.phase } : AgentState L K) = s := by
-    rw [hmax]; cases s; rfl
+    rw [hmax]
   have htself : ({ t with phase := max s.phase t.phase } : AgentState L K) = t := by
-    rw [hmax, hphase_eq]; cases t; rfl
+    rw [hmax, hphase_eq]
   -- the two `runInitsBetween` reduce to the identity (`p p`, no newly-entered phase).
   have hs' : runInitsBetween L K s.phase.val (max s.phase t.phase).val
       { s with phase := max s.phase t.phase } = s := by
-    rw [hsself, hmax, runInitsBetween_self_api]
+    rw [hsself, hmaxval, runInitsBetween_self_api]
   have ht' : runInitsBetween L K t.phase.val (max s.phase t.phase).val
       { t with phase := max s.phase t.phase } = t := by
-    rw [htself, hmax, ← hphase_eq, runInitsBetween_self_api]
+    rw [htself, hmaxval, htval, runInitsBetween_self_api]
   -- the Phase-10 guard is false: neither agent is at Phase 10.
   have hne : ¬ ((s.phase.val < 10 ∨ t.phase.val < 10) ∧ (s.phase.val = 10 ∨ t.phase.val = 10)) := by
     rintro ⟨-, h10⟩; omega
@@ -137,11 +139,9 @@ theorem Transition_eq_phase3CancelSplit_of_phase3_main (s t : AgentState L K)
   have hPhase3 : Phase3Transition L K s t = phase3CancelSplit L K s t := by
     unfold Phase3Transition
     -- Rule-1 clock guard false; Rule-2 clock guards false; both Main ⇒ the if fires.
-    have hs_not_clock : ¬ (s.role = Role.clock ∧ t.role = Role.clock) := by
-      rw [hsM]; rintro ⟨h, -⟩; exact absurd h (by decide)
     have ht_not_clock : t.role ≠ Role.clock := by rw [htM]; decide
     have hs_not_clock2 : s.role ≠ Role.clock := by rw [hsM]; decide
-    simp only [hs_not_clock, ht_not_clock, hs_not_clock2, and_false, if_false]
+    simp only [ht_not_clock, hs_not_clock2, and_false, if_false]
     -- both Main: the final `if` selects `phase3CancelSplit`.
     rw [if_pos ⟨hsM, htM⟩]
   -- `phaseEpidemicUpdate` is identity; dispatch on `s.phase = ⟨3, _⟩`; `finishPhase10Entry` id.
@@ -150,8 +150,13 @@ theorem Transition_eq_phase3CancelSplit_of_phase3_main (s t : AgentState L K)
     rw [(phase3CancelSplit_phase_preserved (L := L) (K := K) s t).1]; omega
   have hout_phase2 : (phase3CancelSplit L K s t).2.phase.val ≠ 10 := by
     rw [(phase3CancelSplit_phase_preserved (L := L) (K := K) s t).2]; omega
-  simp only [Transition, phaseEpidemicUpdate_id_of_phase3 (L := L) (K := K) s t hsP htP,
-    hsphase, hPhase3,
+  unfold Transition
+  rw [phaseEpidemicUpdate_id_of_phase3 (L := L) (K := K) s t hsP htP]
+  dsimp only
+  rw [hsphase]
+  show (finishPhase10Entry L K s (Phase3Transition L K s t).1,
+        finishPhase10Entry L K t (Phase3Transition L K s t).2) = phase3CancelSplit L K s t
+  rw [hPhase3,
     finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ hout_phase1,
     finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ hout_phase2]
 
@@ -251,7 +256,10 @@ private lemma stdCounterSubroutine_bias_hour_eq_of_le_one (a : AgentState L K)
   split_ifs with hc
   · unfold advancePhaseWithInit
     have hadv : (advancePhase L K a).phase.val ≤ 2 := by
-      unfold advancePhase; split_ifs <;> simp <;> omega
+      unfold advancePhase
+      split_ifs with h
+      · show a.phase.val.succ ≤ 2; omega
+      · omega
     obtain ⟨hb, hh⟩ := phaseInit_bias_hour_eq_of_le_two (L := L) (K := K)
       (advancePhase L K a).phase (advancePhase L K a) hadv
     exact ⟨by rw [hb, advancePhase_bias_eq], by rw [hh, advancePhase_hour_eq]⟩
@@ -294,15 +302,15 @@ theorem phase1_supplyP_neutral (i : ℕ) (s t : AgentState L K)
   unfold supplyP Phase1Transition
   by_cases hmain : s.role = .main ∧ t.role = .main
   · -- averaging branch: smallBias changed, bias/hour read from `{ · with smallBias := · }`
-    simp only [hmain, if_true]
+    rw [if_pos hmain]
     obtain ⟨hsb, hsh⟩ := clockCounterStep_bias_hour_eq_of_le_one (L := L) (K := K)
       ({ s with smallBias := (avgFin7 s.smallBias t.smallBias).1 }) (by simpa using hs)
     obtain ⟨htb, hth⟩ := clockCounterStep_bias_hour_eq_of_le_one (L := L) (K := K)
       ({ t with smallBias := (avgFin7 s.smallBias t.smallBias).2 }) (by simpa using ht)
     refine ⟨?_, ?_⟩
-    · rw [hsb, hsh]; rfl
-    · rw [htb, hth]; rfl
-  · simp only [hmain, if_false]
+    · rw [hsb, hsh]
+    · rw [htb, hth]
+  · rw [if_neg hmain]
     obtain ⟨hsb, hsh⟩ := clockCounterStep_bias_hour_eq_of_le_one (L := L) (K := K) s hs
     obtain ⟨htb, hth⟩ := clockCounterStep_bias_hour_eq_of_le_one (L := L) (K := K) t ht
     exact ⟨by rw [hsb, hsh], by rw [htb, hth]⟩
@@ -323,10 +331,11 @@ theorem phase2_supplyP_neutral_of_stay (i : ℕ) (s t : AgentState L K)
   have hstay' : (hasMinusOne (opinionsUnion s.opinions t.opinions)
       && hasPlusOne (opinionsUnion s.opinions t.opinions)) = false := by
     simpa using hstay
-  constructor <;>
-  · unfold supplyP Phase2Transition
-    simp only [hstay', if_false]
-    split_ifs <;> rfl
+  -- In every non-advancing branch the outputs are `{ s with opinions := univ }`-shape (or with an
+  -- `output` write), which never touches `bias`/`hour`; so the supply predicate is preserved.
+  refine ⟨?_, ?_⟩ <;>
+  · simp only [supplyP, Phase2Transition, hstay', Bool.false_eq_true, if_false]
+    split_ifs <;> simp only
 
 /-- **Phase 4 is supply-neutral (PROVEN).**  `Phase4Transition` only advances `phase`
 (`advancePhase`), never writing `bias`/`hour`.  (Audit-table row "Phase 4".) -/
@@ -350,7 +359,7 @@ theorem phase10_supplyP_neutral (i : ℕ) (s t : AgentState L K) :
   constructor <;>
   · unfold supplyP Phase10Transition
     dsimp only
-    split_ifs <;> rfl
+    split_ifs <;> simp only
 
 /-- **The Phase-3 split branch REMOVES supply (PROVEN).**  When `phase3CancelSplit` fires the
 Rule-4 split (a `.zero` doubling a dyadic), BOTH outputs are `dyadic`, hence NOT `.zero`, so
@@ -419,7 +428,7 @@ region over the FULL `Transition` — is now CLOSED (supplied by the population 
 carried as a clock event. -/
 theorem hConfine_of_window {θ : ℝ} {n : ℕ} {c : Config (AgentState L K)}
     (hClock : ClockFrontProfile.WindowedFrontProfile (L := L) (K := K) θ c)
-    (hSubcrit : ProfileSquaringRate.mainFrac (L := L) (K := K) 0 c ≤ 1 / 10)
+    (hSubcrit : MainExponentConfinement.mainFrac (L := L) (K := K) 0 c ≤ 1 / 10)
     (hcoupl : ProfileSquaringRate.IntegerProfileSquaring (L := L) (K := K) θ c)
     (hPhase5 : ReserveSampling.Phase5AllWin (L := L) (K := K) n c)
     (hMainFloor : (n : ℝ) / 3 ≤ (RoleSplitConcentration.mainCount (L := L) (K := K) c : ℝ))
