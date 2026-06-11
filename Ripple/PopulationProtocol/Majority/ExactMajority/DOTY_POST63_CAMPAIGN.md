@@ -5404,3 +5404,84 @@ sorry/admit/axiom/native_decide; `git diff --check` clean. Single-file build ver
 `/dev/shm` (v4.30.0 + mathlib c5ea00351c28, same bucket): `lake build …Probability.HourUnion` EXIT 0
 ("Build completed successfully (3599 jobs)"); `lake env lean` axiom audit clean (comment-only
 line-length style warnings, matching the existing `ConfinementSurface.lean` convention).
+
+---
+
+## Codex audit F6 fix — dead `hFloors` binder + over-quantified timed `hfinal` (`ChainEndRecut.lean`, 2026-06-11)
+
+Append-only fix for the codex adversarial-faithfulness audit's **F6** (`/tmp/codex_audit_report.md
+§F6`, MEDIUM): the assembled E4 surfaces of `ReachableLadder.lean` / `ChainEndAssembly.lean` carry
+two honesty defects. New file `Probability/ChainEndRecut.lean` (does NOT edit the existing files;
+discipline: append-only, single-file `lake env lean`).
+
+### F6 (a) — the dead `hFloors` binder
+
+`ReachableLadder.reachable_hLadder` takes `_hFloors : ReachableClockFloors …` but IGNORES it — it
+returns `hClass.ladder` via a 4-way match (`ReachableLadder.lean:452-467`). Yet
+`doty_expected_time_reachable` (`:521-523`) and `doty_expected_time_chain_end`
+(`ChainEndAssembly.lean:509-511`) still CARRY `hFloors` and feed it into that dead slot. The
+advertised "floor propagation consumed here" is therefore NOT in the proof term: the floor data is
+already baked into the regime/classification data (the timed engines put `mC`/floor inside the
+carried `LadderData` BEFORE this site), so the top-surface binder is pure dead weight that
+misadvertises where floors are consumed.
+
+**Fix.** `ChainEndRecut.reachable_hLadder'` — the same `hClass.ladder` extraction, WITHOUT the dead
+binder. Then `doty_expected_time_reachable'` and `doty_expected_time_chain_end'` re-cut the two top
+surfaces, building the per-state recovery cap through `reachable_hLadder'`, so the dead `hFloors`
+parameter is DROPPED. Same conclusion `E[T c₀ → StableDone] ≤ (21·C0 + 4·Cbad)·n·(L+1)` from a
+STRICTLY SMALLER, honestly-advertised hypothesis set. (The old surfaces remain in the tree,
+unedited per discipline; the route a consumer should use is the primed re-cut.)
+
+### F6 (b) — the over-quantified timed `hfinal`
+
+`ChainEndAssembly.timedSpine_ladderData`'s final rung carries
+`hfinal : ∀ y ∈ {AllClockGEpCard 10 n}, E[T y → StableDone] ≤ βfinal`
+(`ChainEndAssembly.lean:241-242`), quantifying over ALL phase-10 entry states. But the PROVEN
+phase-10 bridges are regime/gap restricted: the majority drain needs `S1` (reachable + `0 < gap`);
+the tie drain needs `Tie1plus` (reachable + `gap = 0` + active). An arbitrary `AllClockGEpCard 10 n`
+state carries no gap-sign witness, so `hfinal` is STRONGER than the proven route delivers — honestly
+deliverable only on the regime-restricted slice
+`{AllClockGEpCard 10 n} ∩ {ReachableFrom init} ∩ {gap-sign event}`.
+
+**Fix (the InvClosed-slice / `entry_to_S1_le_nsq` technique).** `ChainEndRecut` re-shapes the final
+rung to the honest restricted target and DISCHARGES it from the landed chain-end bounds:
+
+* `allClockGEpCard_ten_imp_allPhase10` — `AllClockGEpCard 10 n ⟹ AllPhase10` (every clock at phase
+  `≥ 10` is at phase `10`, `phase : Fin 11`, via `BackupEntry.phase_val_eq_ten_of_ge`).
+* `phase10_finalRung_majority_discharge` — on the slice (reachable + `0 < gap`): route
+  `AllPhase10 ∧ card = n` through `BackupEntry.allPhase10_majority_imp_S1` (the arrival
+  classification) into `S1`, then `ChainEndAssembly.phase10Majority_drain_to_stableDone_le` delivers
+  `E[T y → StableDone] ≤ 3·n²·(1 + 2 log n)`.
+* `phase10_finalRung_tie_discharge` — on the slice (reachable + `gap = 0` + active): via
+  `allPhase10_tie_imp_Tie1plus` into `Tie1plus`, then `phase10Tie_drain_to_stableDone_le` delivers
+  `≤ 2·n²·(1 + 2 log n)`.
+* `finalRungSliceMajority` / `finalRungSliceTie` — the regime-restricted slice sets (the honest
+  intersected target); `hfinal_majority_on_slice` / `hfinal_tie_on_slice` — the `hfinal` cap on
+  those slices, DISCHARGED from the landed bound (not carried over all of `{AllClockGEpCard 10 n}`).
+
+So the final rung is wired from `BackupEntry.arrival_classification` + `ChainEndAssembly`'s own
+within-Phase-10 drains, exactly as `chainEnd_majority_total_le` does, instead of being carried
+over-quantified through `timedSpine_ladderData`'s `hfinal`.
+
+### Fix (3) — the strongest re-cut `doty_expected_time` form + carried set
+
+`doty_expected_time_chain_end'` is the strongest re-cut: per-state classifier supplied as regime
+CONTENT (`hBranch : ChainEndBranch`), this file BUILDING the four ladders
+(`regimeClassification_of_chainEndBranch`), with both F6 fixes — dead `hFloors` DROPPED, `hBranch`'s
+timed `hfinal` rung the restricted/discharged slice form (caller supplies the gap-sign witness and
+discharges via `hfinal_{majority,tie}_on_slice`).
+
+| carried (post-F6) | role | honesty |
+|---|---|---|
+| 21-phase block (`phases`,`ht`,`hε`,`h_chain`,`hx₀`,`h_post`,`hC0`) | abstract whp headline (`doty_time_headline_W2`) | conditional-honest FRAGMENT (audit F5) |
+| `hBranch : ∀ reachable not-done b, ChainEndBranch …` | per-regime exhibition + per-rung seeds + the **DISCHARGED restricted** phase-10 entry-drain (no longer over-quantified) | honest residual |
+| `hδ`, `hrecmass` | budget arithmetic (`∑ δ ≤ 1/n`; recovery mass `≤ 4·Cbad·n·(L+1)`) | sound |
+| ~~`hFloors`~~ | ~~clock floors~~ | **DROPPED** (F6 (a)) — was dead; floors live inside the regime data |
+
+### Audit
+
+Single-file `lake env lean Ripple/PopulationProtocol/Majority/ExactMajority/Probability/ChainEndRecut.lean`
+EXIT 0 on uisai2 `/dev/shm` (v4.30.0 + mathlib c5ea00351c28, same bucket; dep closure
+`lake build …Probability.ChainEndAssembly` EXIT 0, 3574 jobs). `#print axioms` for all 8 new
+declarations ⊆ `[propext, Classical.choice, Quot.sound]` (`allClockGEpCard_ten_imp_allPhase10` uses
+only `[propext, Quot.sound]`); 0 sorry/admit/axiom/native_decide; `git diff --check` clean.

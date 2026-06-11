@@ -267,10 +267,11 @@ The carried set is therefore (inspectable, finite):
   * `h_post` (the close `work₁₀ . Post ⟹ majorityStableEndpoint`).
 The `h_chain` binder — the 20 bridges — is GONE from the surviving set (closed here).
 
-(The elaboration unifies `dotyPhases asm` against the polymorphic `phases` slot of
-`doty_time_headline_W2_inv_sq`, reducing the `dite`-interleave at the endpoints `0` / `20`;
-`maxHeartbeats` is raised for this benign defeq cost — no `native_decide`, no kernel work.) -/
-set_option maxHeartbeats 0 in
+(The application is done in `by exact` tactic mode — term-mode unification of the
+polymorphic `phases` slot against `dotyPhases asm` triggers a pathological defeq blowup in
+the base `doty_time_headline_W2_inv_sq` itself, independent of this file; `exact` defers it.
+A modest `maxHeartbeats` raise covers the residual cost — no `native_decide`, no kernel work.) -/
+set_option maxHeartbeats 800000 in
 theorem doty_time_headline_CONCRETE
     {L K n C0 : ℕ}
     (init c₀ : Config (AgentState L K))
@@ -286,8 +287,8 @@ theorem doty_time_headline_CONCRETE
     ((NonuniformMajority L K).transitionKernel ^ (∑ i, (dotyPhases asm i).t)) c₀
         {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
       ≤ (21 : ℝ≥0∞) / (n : ℝ≥0∞) ^ 2
-    ∧ (∑ i, (dotyPhases asm i).t) ≤ 21 * C0 * n * (L + 1) :=
-  BudgetTightening.doty_time_headline_W2_inv_sq
+    ∧ (∑ i, (dotyPhases asm i).t) ≤ 21 * C0 * n * (L + 1) := by
+  exact BudgetTightening.doty_time_headline_W2_inv_sq
     init c₀ Cphase δ (dotyPhases asm) ht hε
     (dotyPhases_h_chain asm) hx₀ h_post hC0 hδ
 
@@ -311,8 +312,8 @@ theorem doty_time_headline_CONCRETE_self
     ((NonuniformMajority L K).transitionKernel ^ (∑ i, (dotyPhases asm i).t)) c₀
         {c | ¬ majorityStableEndpoint (L := L) (K := K) init c}
       ≤ (21 : ℝ≥0∞) / (n : ℝ≥0∞) ^ 2
-    ∧ (∑ i, (dotyPhases asm i).t) ≤ 21 * C0 * n * (L + 1) :=
-  doty_time_headline_CONCRETE init c₀ asm Cphase
+    ∧ (∑ i, (dotyPhases asm i).t) ≤ 21 * C0 * n * (L + 1) := by
+  exact doty_time_headline_CONCRETE init c₀ asm Cphase
     (fun i => (dotyPhases asm i).ε) ht (fun _ => le_refl _) hx₀ h_post hC0 hεcal
 
 end ConcreteAssembly
