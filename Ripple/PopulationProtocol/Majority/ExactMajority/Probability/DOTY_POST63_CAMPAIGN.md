@@ -109,3 +109,73 @@ carry into an explicit assembler consuming exactly those two atoms.
 c5ea0035).  All four exported theorems `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`;
 0 sorry/admit/axiom/native_decide; `git diff --check` clean; max line width 100. Append-only; no
 existing file edited.
+
+## PositionalCluster.lean — §6 hour-ceiling consequence + occupancy honest core (2026-06-11, wave C)
+
+The last POSITIONAL cluster: the carried snapshots riding on the clock-front / hour machinery.
+Append-only; no existing file edited.  Single-file `lake env lean` clean; all 11 exports
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide;
+`git diff --check` clean; max line width 100.
+
+### Item 1 — the hour-stamp ceiling `MainHourBelow (l+2)`: VERDICT = clock-front consequence.
+
+The Main `hour` FIELD is written by exactly TWO frozen mechanisms (verified `Protocol/Transition.lean`):
+
+1. the **Phase-3 Rule-2 Main-Clock drag** (`HourCoupling.phase3_drag_left`/`_right`):
+   `hour := min L (clock.minute / K)`.  Under the landed clock-front confinement
+   `ClocksBelowHour h` (every clock `minute < (h+1)·K`, i.e. `¬ HourCoupling.clockAboveP h`) the
+   floor arithmetic `dragStamp_le_of_clockBelow` gives `min L (minute/K) ≤ h`.  So the drag stamps the
+   Main `hour ≤ h` BY the clock front being below hour `h+1` — the honest content of the carried
+   "hour stamps ≤ current hour index".  `dragLeft_mainHour_le` / `dragRight_mainHour_le` PROVE this.
+
+2. the **Phase-3 Rule-3 cancel** branch of `phase3CancelSplit` (Transition.lean:583/587):
+   `hour := i` (the agent's OWN exponent index).  This COUPLES the hour ceiling to the INDEX ceiling:
+   `mainHour_le_of_clockBelow_cancelSplit` proves `phase3CancelSplit` preserves `hour ≤ top` GIVEN
+   both `hour ≤ top` AND `index ≤ top` (the index ceiling `AllBiasedMainBelow top`) on the inputs.
+   This is the honest subtlety the audit-table did not name: unlike the index top-edge
+   (`DoublingEdges.phase3CancelSplit_preserves_top_edge`), the hour ceiling genuinely NEEDS the index
+   hypothesis, because the cancel re-stamps `hour := index`.  The Rule-4 split writes only `bias`
+   (hour untouched); identity branches preserve.
+
+`mainHourBelow_step_mainMain` assembles the clock-free (Main×Main) step: the move is exactly
+`phase3CancelSplit`, so the hour ceiling propagates one step from the index ceiling alone.
+
+**Hour-ceiling derivation verdict.**  `MainHourBelow (l+2)` is NOT an independent carry — it is a
+CONSEQUENCE of the SAME two facts the index ceiling `AllBiasedMainBelow (l+2)` rides on: the
+clock-front confinement `ClocksBelowHour (l+2)` (drag side) + the index ceiling (cancel side, the
+coupling).  One clock-front confinement event drives BOTH snapshots; the hour snapshot's
+reachability form is exactly the index ceiling's reachability form.  The per-agent
+`BiasedMainIndexLeHour` stays FALSE-step (`CeilingRoute.biasedMainIndexLeHour_not_step_preserved`,
+unchanged); the GLOBAL hour ceiling the corrected `CeilingRoute` surface needs IS the step-preserved
+clock-front consequence.  `phase6To7_surface_positional` re-exports the corrected surface fed the
+genuinely-step-preserved index ceiling.  (The FULL `Phase3Transition` step — incl. clock×clock
+minute dynamics, reserve/mcr/cr roles, `stdCounterSubroutine` — lives in `HourCouplingV2`'s `Window`
+supermartingale; we expose the two load-bearing hour-writing mechanisms, which is what the consumer
+rides on.)
+
+### Item 2 — occupancy honest core: per-live-minority-level, NOT both-levels-unconditional.
+
+Re-reading the ACTUAL consumer `EliminatorMargins.Phase6To7Structure` (def line 191):
+`∀ j, 1 ≤ minorityAt7 σ j → ∃ i, i+1 = j ∧ E ≤ elimGap1 σ i` — the PER-LIVE-MINORITY form (for each
+live `j`, mass at the SPECIFIC predecessor `j−1`), definitionally `BandLocalization.MajorityBandAtGap1`.
+
+**Honest core.**  The carried `BandEdges.TwoLevelOccupancy` (BOTH `{l,l+1}` carry `≥ E`) is needed
+ONLY when the minority STRADDLES both band levels `{l+1, l+2}`.  When the minority collapses to a
+SINGLE level `j₀` (the common case under the doubling drain), the consumer needs occupancy at the
+SINGLE predecessor `j₀−1` alone — `majorityBandAtGap1_of_single_level` PROVES this.
+
+**Honest constants (proved).**  Pigeonhole of the global majority budget
+`MarginLedgers.majorityProfileMass_floor = 4n/15` over the 2-element predecessor set `{l,l+1}` gives
+ONE level `≥ 2n/15`; `single_level_E_le_consumer` admits `E ≤ 2n/15` into the consumer's `E ≤ 4n/15`.
+BOTH levels at the per-level share `E = 2n/15` consume `2·(2n/15) = 4n/15` — EXACTLY the global
+budget, the BOUNDARY case (`twoLevel_E_boundary_exact : 2·(2n/15) = 4n/15`, zero slack).  So
+two-level occupancy is honest only AT the budget boundary; the per-level (single-pigeonhole-level)
+form is the genuinely-minimal honest surface.
+
+### Item 3 — the narrowest surface.
+
+`phase6To7_surface_perLevel` routes through `BandLocalization.Phase6BandPositionFacts` (per-level
+band position) — strictly narrower than the carried `TwoLevelOccupancy` (which forces BOTH `{l,l+1}`
+regardless of where the minority sits): it needs occupancy ONLY at the actually-occupied predecessor
+levels.  `phase6To7_surface_singleLevel` is the minimal end-to-end discharge for the single-level
+minority (occupancy at ONE predecessor, fed `E ≤ 2n/15`, no boundary-case appeal).

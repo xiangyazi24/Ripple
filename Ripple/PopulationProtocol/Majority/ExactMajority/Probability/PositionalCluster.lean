@@ -199,14 +199,11 @@ theorem mainHourBelow_step_mainMain {top : ℕ} (s2 t2 : AgentState L K)
       ∧ (Phase3Transition L K s2 t2).2.hour.val ≤ top := by
   classical
   -- On Main×Main, `Phase3Transition` reduces to `phase3CancelSplit` (no drag, both-Main guard fires).
-  have hsClk : s2.role ≠ Role.clock := by rw [hsM]; decide
-  have htClk : t2.role ≠ Role.clock := by rw [htM]; decide
   have hP3 : Phase3Transition L K s2 t2 = phase3CancelSplit L K s2 t2 := by
     unfold Phase3Transition
     -- Rule-1 (both Clock) inert: s1 = s2, t1 = t2.  Rule-2 (drag) inert: needs a Clock partner.
     -- Both-Main guard fires → `phase3CancelSplit`.
-    simp only [hsClk, htClk, hsM, htM, false_and, and_false, and_true, if_false, if_true,
-      and_self, reduceCtorEq, ite_self]
+    simp only [hsM, htM, and_false, if_false, and_self, ite_self, reduceCtorEq, if_true]
   rw [hP3]
   exact mainHour_le_of_clockBelow_cancelSplit s2 t2 hsh hth hsi hti
 
