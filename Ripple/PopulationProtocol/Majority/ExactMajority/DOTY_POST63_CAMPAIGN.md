@@ -4625,3 +4625,32 @@ additively composed with the `≤ n²` entry by `expectedHitting_le_through_mid`
 (`Mid = {AllPhase10 ∧ card}`, `Done = StableDone`); (b) the seed-establishment whp that
 `1 ≤ geCount 10 c` from the phase-8 seam exit. Both epidemic-establishment + backup-drain
 composition, NOT seam counter-drain rungs — honestly outside the entry engine.
+
+---
+
+## §6 squaring — SupplyRegion.lean: the carried `SupplySubadditive` remainder is a POPULATION fact
+
+`ZeroSupplyDrift.lean` proved the `r = 1` zero-supply drift ON `SupplySubadditive i c` and CARRIED that
+region as a `ClockFrontProfile.WindowedFrontProfile` clock-front event. `SupplyRegion.lean` settles its
+honest status by reading the FROZEN ledger, and the verdict is: **the region is a population fact, not a
+clock event.** The Rule-3 cancel (the sole producer of fresh `Z_i` supply) is a Main-Main interaction
+gated only by the role guard — no clock condition — so the suppression is the band/confinement predicate
+`NoMinoritySignAbove i σ c` (σ-minority confined to/below the squaring level), a sibling of the LANDED
+`MinorityFloorGap.AllBiasedMainAbove` / `GapAlignment.MinorityAboveFloor`, NOT the carried clock front.
+
+**How much of the squaring chain closed (region → drift, hypothesis-free).** The full genuinely-dynamic
+core is closed at `r = 1`: region kills the cancel indicator on every pair
+(`cancelInd_zero_of_noMinorityAbove`) ⟹ per-pair supply sub-additivity
+(`supplyIndic_subadditive_of_region`, exactly the Layer-A engine's input) ⟹ the discharged Phase-3 drift
+`∫⁻ Φ dK_phase3(c) ≤ Φ(c)` (`phase3_supplyPotential_drift_le`), with NO clock input. The region is
+step-stable up to the split's one-level slack (`phase3CancelSplit_NoMinoritySignAbove_succ`), exact on the
+supply-producing cancel branch (`cancel_branch_preserves_ceiling_exactly`) — mirroring `MinorityFloorGap`'s
+`l+1` seed dualised to a ceiling. Capstone: `supplyRegion_verdict`.
+
+**Named remainder (genuinely open).** Bridging `NoMinoritySignAbove → ZeroSupplyDrift.SupplySubadditive`
+over the full `Transition` dispatcher is the FROZEN per-phase bookkeeping (Phase-3 Main-Main routing +
+non-Phase-3 phases producing no fresh `Z_i` supply), not the dynamic content. Everything dynamic — cancel
+suppression, drift, stability — is hypothesis-free and clock-free.
+
+**Audit.** All 7 `SupplyRegion` theorems `#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide; single-file `lake env lean` clean.

@@ -51,12 +51,14 @@ schedule when the minority above the band is drained — NOT the carried
    drift): instantiating `ZeroSupplyDrift`'s general Layer-A engine on the FROZEN
    `phase3CancelSplit` sub-protocol, the zero-supply counter's per-step kernel
    expectation does not increase on the region.  No clock input is consumed.
-5. **`phase3CancelSplit_preserves_NoMinoritySignAbove`** (step-stability core): the
-   FROZEN `phase3CancelSplit` never creates a fresh σ-minority biased Main above
-   `i` — cancel removes a sign, split keeps the sign but only raises an index that
-   was already `> i` (vacuous for the σ-ceiling), so the ceiling is preserved per
-   pair.  This is the population analogue of `MinorityFloorGap`'s floor
-   step-stability, lifting the region across the Phase-3 step.
+5. **`phase3CancelSplit_NoMinoritySignAbove_succ`** (step-stability core): the
+   FROZEN `phase3CancelSplit` degrades the σ-ceiling by at most ONE level — cancel
+   removes a sign (vacuous), split copies the partner's sign at index `+1`, so a
+   σ-ceiling `≤ i` on both inputs emerges as `≤ i+1` on both outputs.  The split's
+   single `+1` is the only slack; the supply-producing cancel preserves `≤ i`
+   exactly (`cancel_branch_preserves_ceiling_exactly`).  This is the population
+   analogue of `MinorityFloorGap`'s floor step-stability (a ceiling, dualised),
+   lifting the region across the Phase-3 step.
 6. **`supplyRegion_verdict`** (the honest dichotomy, packaged): the region is a
    population fact (cancel ungated by clock); it is realised by the landed
    confinement predicates; and it discharges the `r = 1` drift hypothesis-free.
@@ -273,8 +275,9 @@ theorem phase3CancelSplit_NoMinoritySignAbove_succ (i : ℕ) (σ : Sign)
   cases hsb : s.bias with
   | zero =>
     cases htb : t.bias with
-    | zero => exact ⟨fun j hj => by simp at hj, fun j hj => by simp at hj⟩
+    | zero => simp only [hsb, htb]; exact ⟨fun j hj => by simp at hj, fun j hj => by simp at hj⟩
     | dyadic tsgn tj =>
+      simp only [hsb, htb]
       by_cases hgt : s.hour.val > tj.val
       · -- split: both outputs `dyadic tsgn ⟨tj+1⟩`.
         simp only [hgt, dif_pos]
@@ -287,11 +290,12 @@ theorem phase3CancelSplit_NoMinoritySignAbove_succ (i : ℕ) (σ : Sign)
         · refine ⟨fun j hj => ?_, fun j hj => ?_⟩ <;>
             (simp only at hj; injection hj with hsgn _; exact absurd hsgn htσ)
       · simp only [hgt, dif_neg, not_false_iff]
-        exact ⟨fun j hj => Nat.le_succ_of_le (hs j (by simpa [hsb] using hj)),
-               fun j hj => Nat.le_succ_of_le (ht j (by simpa [htb] using hj))⟩
+        exact ⟨fun j hj => Nat.le_succ_of_le (hs j hj),
+               fun j hj => Nat.le_succ_of_le (ht j hj)⟩
   | dyadic ssgn sj =>
     cases htb : t.bias with
     | zero =>
+      simp only [hsb, htb]
       by_cases hgt : t.hour.val > sj.val
       · simp only [hgt, dif_pos]
         by_cases hsσ : ssgn = σ
@@ -306,7 +310,7 @@ theorem phase3CancelSplit_NoMinoritySignAbove_succ (i : ℕ) (σ : Sign)
         exact ⟨fun j hj => Nat.le_succ_of_le (hs j (by simpa [hsb] using hj)),
                fun j hj => Nat.le_succ_of_le (ht j (by simpa [htb] using hj))⟩
     | dyadic tsgn tj =>
-      cases ssgn <;> cases tsgn
+      cases ssgn <;> cases tsgn <;> simp only [hsb, htb]
       -- pos,pos : same-sign no-op.
       · exact ⟨fun j hj => Nat.le_succ_of_le (hs j (by simpa [hsb] using hj)),
                fun j hj => Nat.le_succ_of_le (ht j (by simpa [htb] using hj))⟩
@@ -334,7 +338,7 @@ Rule-3 cancel actually fires (a `±j` pair at the same exponent), BOTH outputs a
 honest fact that the slack in `phase3CancelSplit_NoMinoritySignAbove_succ` comes
 ENTIRELY from the Rule-4 split (index-raising), never from the supply-producing
 Rule-3 cancel — which is the branch the region exists to suppress. -/
-theorem cancel_branch_preserves_ceiling_exactly (σ : Sign) (s t : AgentState L K)
+theorem cancel_branch_preserves_ceiling_exactly (s t : AgentState L K)
     {ps pt : Sign} {js jt : Fin (L + 1)}
     (hsb : s.bias = Bias.dyadic ps js) (htb : t.bias = Bias.dyadic pt jt)
     (hopp : ps ≠ pt) (heq : js.val = jt.val) :
@@ -343,7 +347,54 @@ theorem cancel_branch_preserves_ceiling_exactly (σ : Sign) (s t : AgentState L 
   classical
   unfold phase3CancelSplit
   rw [hsb, htb]
-  cases ps <;> cases pt <;> simp_all <;> rw [dif_pos heq] <;> simp
+  cases ps <;> cases pt <;> simp_all
+
+/-! ## Part 6 — the honest dichotomy, packaged (clock event vs population fact).
+
+The capstone records the verdict and bundles the dischargeable content: the carried
+`SupplySubadditive`-style remainder of `ZeroSupplyDrift` is, at its genuinely
+dynamic core, a **population fact** (the σ-minority confined to/below the squaring
+level), NOT a clock-front event — the producing Rule-3 cancel is ungated by the
+clock.  The region (i) kills the cancel indicator on every pair, (ii) discharges
+the `r = 1` zero-supply drift on the Phase-3 step with no clock input, and (iii) is
+step-stable up to the split's single-level slack (exact on the supply-producing
+cancel branch). -/
+
+/-- **The honest verdict (capstone, PROVEN).**  For a region config (σ-minority
+confined to `≤ i`, all agents Main, size `≥ 2`), the three dischargeable facts that
+settle the carried `SupplySubadditive` remainder as a POPULATION fact:
+
+1. the Rule-3 cancel indicator is identically `0` on every pair (suppression);
+2. the `r = 1` zero-supply drift holds on the Phase-3 kernel step (no clock input);
+3. the region is preserved by the FROZEN `phase3CancelSplit` up to one level of
+   split-slack (and EXACTLY on the cancel branch).
+
+This is the honest analogue of `MinorityFloorGap.minorityAboveFloor_verdict`,
+dualised to the supply ceiling: the §6 squaring's drift hypothesis is realised by
+the landed confinement, not by the clock front. -/
+theorem supplyRegion_verdict (i : ℕ) {σ : Sign} (c : Config (AgentState L K))
+    (hc : 2 ≤ Multiset.card c)
+    (hMain : ∀ a ∈ c, a.role = Role.main)
+    (hreg : NoMinoritySignAbove (L := L) (K := K) i σ c) :
+    (∀ s t : AgentState L K, s ∈ c → t ∈ c →
+        cancelInd (L := L) (K := K) i s t = 0) ∧
+    (∫⁻ c', supplyPotential (L := L) (K := K) i c'
+        ∂((phase3Protocol L K).transitionKernel c)
+      ≤ supplyPotential (L := L) (K := K) i c) ∧
+    (∀ s t : AgentState L K,
+      (∀ (j : Fin (L + 1)), s.bias = Bias.dyadic σ j → j.val ≤ i) →
+      (∀ (j : Fin (L + 1)), t.bias = Bias.dyadic σ j → j.val ≤ i) →
+      (∀ (j : Fin (L + 1)),
+          (phase3CancelSplit L K s t).1.bias = Bias.dyadic σ j → j.val ≤ i + 1) ∧
+      (∀ (j : Fin (L + 1)),
+          (phase3CancelSplit L K s t).2.bias = Bias.dyadic σ j → j.val ≤ i + 1)) := by
+  refine ⟨?_, ?_, ?_⟩
+  · intro s t hs ht
+    exact cancelInd_zero_of_noMinorityAbove (L := L) (K := K) i hreg hs ht
+      (hMain s hs) (hMain t ht)
+  · exact phase3_supplyPotential_drift_le (L := L) (K := K) i (σ := σ) c hc hMain hreg
+  · intro s t hs ht
+    exact phase3CancelSplit_NoMinoritySignAbove_succ (L := L) (K := K) i σ s t hs ht
 
 end SupplyRegion
 

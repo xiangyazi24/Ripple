@@ -607,3 +607,44 @@ carried `SupplySubadditive` region.
 **Audit.** `#print axioms` on `sumOf_subadditive_drift_le`, `stepOrSelf_sumOf_le`,
 `supplyPotential_drift_le`, `integerProfileSquaring_whp_of_region` ⊆ `[propext, Classical.choice,
 Quot.sound]`. No sorry/admit/axiom/native_decide. Single-file `lake env lean` clean.
+
+---
+
+## SupplyRegion.lean — the honest region is a POPULATION fact, not a clock event (NEW)
+
+**Verdict (clock event vs population fact).** Reading the FROZEN `phase3CancelSplit`, the SOLE producer
+of fresh `Z_i` supply — the Rule-3 cancel of a `±j` pair at `j > i` — is a **Main-Main** interaction
+gated ONLY by the role guard `s.role = .main ∧ t.role = .main` (`Phase3Transition`), with **NO clock/hour
+condition**. So the suppression of a fresh cancel above level `i` is **not a clock fact** (there is no
+clock guard to invoke); it is a **population fact**: if one of the two signs is absent above `i`, no `±j`
+pair at `j > i` can form. The carried `ClockFrontProfile.WindowedFrontProfile` framing of
+`ZeroSupplyDrift.SupplySubadditive` is OVERTURNED — the honest region is the band/confinement predicate
+`NoMinoritySignAbove i σ c` ("σ-minority sign carries no biased Main at index `> i`"), a sibling of the
+LANDED `MinorityFloorGap.AllBiasedMainAbove` / `GapAlignment.MinorityAboveFloor`.
+
+**Region ⟹ drift (PROVEN, 0-sorry, no clock input).**
+- `cancelInd_zero_of_noMinorityAbove`: on a region config, `cancelInd i s t = 0` for every pair drawn
+  from `c` (consumes `cancelInd_pos_consumes_high`: a positive indicator forces a `±j` pair at the same
+  `j > i`, killed by the absent σ-sign).
+- `phase3CancelSplit_supplyP_subadditive_of_region`: via the FROZEN Stage-1 ledger
+  `supply_pair_cancelInd` with `cancelInd = 0`, the output supply COUNT never exceeds the input count.
+- `supplyIndic_subadditive_of_region`: the `ℝ≥0∞` `supplyIndic` form — exactly the per-pair hypothesis of
+  `ZeroSupplyDrift.sumOf_subadditive_drift_le` (the Layer-A engine).
+- `phase3_supplyPotential_drift_le`: instantiating the Layer-A engine on the FROZEN `phase3CancelSplit`
+  sub-protocol (`phase3Protocol`), the `r = 1` zero-supply drift `∫⁻ Φ dK_phase3(c) ≤ Φ(c)` — the honest
+  `hdrift` discharge from the population region ALONE.
+
+**Step-stability (PROVEN).** `phase3CancelSplit_NoMinoritySignAbove_succ`: the σ-ceiling degrades by at
+most ONE level (cancel → `.zero`, vacuous; split → partner's sign at index `+1`), so `≤ i` on inputs ⟹
+`≤ i+1` on outputs. `cancel_branch_preserves_ceiling_exactly`: the supply-PRODUCING cancel branch
+preserves `≤ i` EXACTLY — the slack is entirely the index-raising Rule-4 split, mirroring
+`MinorityFloorGap`'s `l+1` seed (ceiling, dualised). Capstone `supplyRegion_verdict` bundles all three.
+
+**Remaining gap to `SupplySubadditive` over full `Transition`.** The genuinely-dynamic content (cancel
+suppression + drift + stability) is fully closed at the `phase3CancelSplit` ledger level. The only honest
+remainder is the phase-dispatch BRIDGE: full `Transition` routes a Main-Main Phase-3 pair to
+`phase3CancelSplit`, and the non-Phase-3 phases produce no fresh `Z_i` supply — FROZEN `Transition`
+per-phase bookkeeping, not the dynamic core. Named, not carried as a clock fact.
+
+**Audit.** `#print axioms` on all 7 theorems ⊆ `[propext, Classical.choice, Quot.sound]`. No
+sorry/admit/axiom/native_decide. Single-file `lake env lean` clean.
