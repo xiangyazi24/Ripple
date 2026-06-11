@@ -5147,3 +5147,91 @@ now documented as pure repackagings; the honest derivation is `mainConfinement_k
 Consumers wanting a derivation (not a repackaging) must route confinement as a kernel-level event,
 never assume it pointwise (F2). Single-file `lake env lean` EXIT 0; `#print axioms` ⊆
 `[propext, Classical.choice, Quot.sound]` for all six new theorems.
+
+---
+
+## F3 audit fix — Phase-7 `hmono : PotNonincrOn Inv7Sum K minorityU` is FALSE; replaced by σ-class mass (append-only)
+
+**Audit finding (F3, `/tmp/opus_audit_report.md`).** The Part-I Phase-7 surface
+`Phase7Convergence.phase7Convergence'` (`Phase7Convergence.lean:1200`) carried
+`hmono : PotNonincrOn Inv7Sum K minorityU` — a *deterministic* per-step non-increase of the
+minority **count** `minorityU σ`. The file's OWN proven lemma
+`gap2_minorityU_rise_compatible_with_pos_sum` (`:1147`) exhibits a gap-2 opposite-sign
+`cancelSplit` step (`σ`-minority Main at smaller index `i`, `σ.flip` Main at `j = i+2`) that
+RAISES `minorityU σ` by exactly `1` while CONSERVING the signed sum. So on any
+`Inv7Sum`-compatible config carrying such a gap-2 pair the kernel can strictly INCREASE
+`minorityU σ`; `PotNonincrOn Inv7Sum K minorityU` is FALSE-on-reachable, and every consumer
+downstream of that carried `hmono` was conditionally vacuous.
+
+### Survey of what the engine actually NEEDS (consumers)
+
+The crude/levels engine (`OneSidedCancel.crude_PhaseConvergenceW`, `levels_PhaseConvergenceW`)
+needs an `hmono` (`Φ` non-increasing on `Inv`) + the per-cell drain `hstep`/`hdrop`. The campaign
+had ALREADY re-routed the live Phase-7 consumers onto the honest σ-class-MASS potential
+`classMassN σ` *before* this fix:
+- `DrainThreading.lean` Part C (`phase7_drop_floor_of_struct`, `phase7_hdrop_of_struct`,
+  `phase7_hstep_of_struct_one`) is stated on `classMassN σ`, not `minorityU σ`.
+- `DrainCalibration.phase7Convergence_calibrated` instantiates `phase7Convergence''`
+  (`classMassN`), not `phase7Convergence'`.
+- `PhaseFloors.phase7_hdrop_wired` consumes the structural gap-1 floor, potential-agnostic.
+
+So the ONLY residual carrier of the false `minorityU`-`hmono` was the orphaned Part-I surface
+`phase7Convergence'`; the honest Part-K surface `phase7Convergence''` (with
+`hmono = potNonincrOn_classMassN` PROVED internal, `hClosed = invClosed_Inv7Sum` PROVED) was
+already the live one.
+
+### The honest per-pair RISE/DROP ledger (frozen `cancelSplit`)
+
+Per pair, by branch:
+- same-sign / `zero` / gap ≥ 3 — identity: count `=`, mass `=`.
+- **gap 0** (opposite, `i = j`) — both zero out: count `≤`, mass `≤` (equal removal).
+- **gap 1** (opposite, larger index zeros) — eliminator×minority drain: count drops,
+  σ-class mass STRICT drop by `2^{L−j} ≥ 1` (`cancelSplit_classMass_pair_drop`).
+- **gap 2** (opposite, smaller-index sign copied onto both outputs) — count RISES by exactly
+  `+1` (`gap2_minorityU_rise_compatible_with_pos_sum`), σ-class mass DROPS by `2^{L−(i+2)}`
+  (`cancelSplit_classMass_pair_le`), signed mass conserved.
+
+The rise is bounded (`+1` per gap-2 firing) and it is a rise of the COUNT, not the MASS:
+`classMass σ` is per-pair NON-INCREASING in **every** branch with NO index-ordering hypothesis
+(`cancelSplit_classMass_pair_le`). So `classMassN σ := (classMass σ).toNat` is the honest
+one-sided engine potential, and `{classMassN σ = 0} ⊆ {minorityU σ = 0} = NoMinority σ`
+(`minorityU_eq_zero_of_classMassN_zero`; each σ-signed Main contributes mass `≥ 1`). The gap-2
+count-rise is exactly what the mass argument absorbs — no upward-drift/immigration budget is
+needed because the chosen potential simply does not rise.
+
+### Engine used
+
+No drift/immigration engine is required: the substitution count → mass turns the would-be
+"bounded upward rate vs floor-rate drops" into a clean one-sided potential, so the existing
+`OneSidedCancel.crude_PhaseConvergenceW` / levels machinery applies verbatim with `Φ = classMassN σ`.
+
+### Deliverable — `Probability/Phase7HonestDrain.lean` (new, append-only, 0-sorry, axiom-clean)
+
+Imports only `Phase7Convergence`; edits no existing file. Contents:
+- `gap2_count_rises_exactly_one_mass_drops` — the F3 divergence as one named ledger
+  (count `+1`, mass `≤`, signed mass `=`).
+- `classMass_pair_noincr` — the universal per-pair mass non-increase.
+- `false_hmono_forbids_gap2_rise` — the audit finding as a THEOREM: ANY
+  `PotNonincrOn Inv7Sum K minorityU` proof, together with a kernel-support successor that raises
+  `minorityU σ` (the gap-2 fire), yields `False`. Certifies F3 is real, not just "honestly named".
+- `phase7HonestDrain` — the honest Phase-7 `PhaseConvergenceW` (= `phase7Convergence''` re-exposed):
+  `hClosed`/`hmono` BOTH internal, only the σ-class-mass drain `hstep` carried.
+- `phase7HonestDrain_post_noMinority` — re-wired post bridge: the honest `Post` delivers the
+  count target `minorityU σ = 0` the false-`hmono` chain advertised, false hypothesis removed.
+- `honest_hmono` / `honest_hClosed` — the two internal discharges re-exported as citable facts.
+
+### Carried items, precisely named
+
+Only the σ-class-MASS drain `hstep`
+(`∀ b, Inv7Sum n b → 1 ≤ classMassN σ b → K b (potDone classMassN σ)ᶜ ≤ q`) remains carried —
+the Doty Lemma 7.4/7.5 eliminator-mass floor — exactly as for `phase7Convergence''`. No structural
+floor on the gap-2 rise-mass is needed (the mass potential does not rise). The false
+`minorityU`-`hmono` is GONE from the honest surface.
+
+### Verification
+
+Single-file `lake env lean` EXIT 0; `#print axioms` for all seven declarations =
+`[propext, Classical.choice, Quot.sound]`; no `sorry`/`admit`/`axiom`/`native_decide`;
+`git diff --check` clean. The Part-I `phase7Convergence'` remains in `Phase7Convergence.lean` as a
+deliberately-flagged dead surface (its `hmono` honestly named but false); `Phase7HonestDrain` is the
+surface consumers should cite.
