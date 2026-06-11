@@ -179,3 +179,68 @@ band position) — strictly narrower than the carried `TwoLevelOccupancy` (which
 regardless of where the minority sits): it needs occupancy ONLY at the actually-occupied predecessor
 levels.  `phase6To7_surface_singleLevel` is the minimal end-to-end discharge for the single-level
 minority (occupancy at ONE predecessor, fed `E ≤ 2n/15`, no boundary-case appeal).
+
+---
+
+## AtomsV2 — the F4/F5/F6 honesty re-cut (final adversarial audit `/tmp/codex_final_audit.md`)
+
+_Appended 2026-06-11.  New append-only file `Probability/AtomsV2.lean` (0-sorry, axiom-clean,
+single-file `lake env lean` verified).  Owns the ATOMS/EXPECTED side; the concurrent
+`FinalAssemblyV2.lean` owns the disjoint assembly side (no overlapping names — `AtomsV2` namespace,
+all decls `…V2`/`…_v2`/`…_numeral`)._
+
+### F4 — global `hBranch` oracle → per-slot regime data atom (PRODUCED, not bound)
+
+`FinalAssembly.doty_theorem_3_1_expected` carried the global
+`hBranch : ∀ b, Reachable → notDone → ChainEndBranch n init b Brecover (βfinal b)` as a free binder —
+an oracle the off-event has no deterministic discharge for (proven dishonest, `BranchAndBudget` Part 4
+/ `HANDOFF_HLADDER`).  The fix moves the classification INTO the bundle as the precisely-scoped atom:
+
+* `SlotRegimeData n init b Brecover βfinal` — the per-reachable-not-done-state FINITE regime data
+  (`Sum`-type): a timed-slot `BranchAndBudget.ChainSlotData` witness, OR an `S1` phase-10-majority
+  dispatch witness, OR a `Tie1plus` phase-10-tie dispatch witness.  Inspectable finite per-slot data,
+  NOT a global `ChainEndBranch`.
+* `branchOfSlotRegime` PRODUCES `ChainEndBranch` from that data via the landed on-chain builders
+  `BranchAndBudget.branch_of_slot` / `branch_of_phase10_{majority,tie}` (a `def`, i.e. theorem).
+* `DotySlotClassifier` = the per-state supply of `SlotRegimeData`; `branchOfClassifier` produces the
+  full global `hBranch` content from it.
+* `doty_theorem_3_1_expected_v2` is the de-freed expected theorem: same conclusion, but the global
+  oracle is REPLACED by `hSlotClass : DotySlotClassifier …`, from which `hBranch` is produced and
+  threaded to `FinalAssembly.doty_theorem_3_1_expected`.  The genuinely-open content is now the
+  finite per-slot regime data, not a global oracle.
+
+### F5 — numeral constants pinned + K/N threaded
+
+* **(a) numerals.**  Dominant per-instance window = the honest slot-8 re-cut `α₈' = 14/75`, horizon
+  `(3/α₈')·n·log n = (225/14)·n·log n ≈ 16.07·n·log n`.  `BranchAndBudget.recut_window_coeff_bounds`
+  proves `16 < 225/14 < 17`, so the honest integer ceiling is `C0 = 17` (`C0_numeral`, certified
+  above the re-cut window by `C0_numeral_above_recut`).  `Cbad = 3` (`Cbad_numeral`) is the phase-10
+  majority backup cap `3·n²·(1+2 log n)` (larger of maj `3` / tie `2`).  Delivered:
+  `doty_theorem_3_1_whp_numeral` (`T ≤ 21·17·n·(L+1)`, failure `≤ 21/n²`) and
+  `doty_theorem_3_1_expected_numeral` (`E[T] ≤ (21·17 + 4·3)·n·(L+1) = 369·n·(L+1)`), both with the
+  `clog` form, at LITERAL constants.
+* **(b) K/N threading.**  `regime_threads_K` (`45 ≤ K`, the §6 minutes/hour width tie) and
+  `regime_threads_N` (`DotyParams.N₀ ≤ n`, the finite-`n` floor) consume `hReg.hK` / `hReg.hN` —
+  live, not dead.  `regime_two_le_n` derives `2 ≤ n` from the threaded regime.
+
+### F6 — opaque-instance / hx₀ / h_post
+
+* **(a)/(b) hx₀.**  `(phases' ra ⟨0⟩).Pre = work0.Pre`; slot 0 is `EndpointWiring.roleSplitW_of_two_stage`
+  (`Pre = stage1.Pre`).  The honest start is a `Phase0Initial`-flavoured `Pre`; the bridge is the
+  identity on the slot-0 `Pre` pin (carried as `hx₀`, derivable from the initial config through the
+  slot-0 `Pre` interface — no extra residual beyond the start pin).
+* **(c) h_post — the honest VERDICT (genuine residual).**  `(phases' ra ⟨20⟩).Post = Phase10Post`
+  (slot-10 = `Phase10Drop.phase10Convergence`, `Post = ∃ o, ∀ a ∈ c, phase=10 ∧ output=o`).  This does
+  NOT imply `majorityStableEndpoint`: the disjunct is `phase10MajorityWitness init c`, which requires
+  the agreed output `o` to MATCH the init-gap sign (`.A`/`.B`/`.T` for `gap >`/`<`/`= 0`).  `Phase10Post`
+  leaves `o` unpinned.  So `h_post` is a GENUINE residual: the conserved gap-sign match
+  `Phase10SignMatch` (the chain-conserved `phase10ActiveSignedSum = initialGap`,
+  `BackupEntry.arrival_classification`) is carried, and `postOfSign` PRODUCES `h_post` from it.  Verdict
+  recorded honestly: NOT freely dischargeable from `Phase10Post` alone.
+
+### Axiom audit
+
+All new decls (`doty_theorem_3_1_expected_v2`, `_whp_numeral`, `_expected_numeral`,
+`branchOfClassifier`, `branchOfSlotRegime`, `postOfSign`, `C0_numeral_above_recut`,
+`regime_threads_{K,N}`) `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`.  No
+sorry/admit/axiom/native_decide.
