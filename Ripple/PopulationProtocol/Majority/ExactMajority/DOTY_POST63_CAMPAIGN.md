@@ -6476,3 +6476,85 @@ guards (`CounterResetDest (p+1)`, `SeamRegimeDispatch p`, size/log/timing) and t
 wave-1 produced bridge (#5a) through.  The ONLY adaptation is the per-seam budget step; the bridge and
 the clock-zero tail are consumed verbatim (never reproved).  So the wave-1 produced-seam `hNoOvershoot`
 chain (`SeamQuickWins.wave1_hNoOvershoot`) is now end-to-end from {wave-1 bridge + ClockZeroTail entry tail}.
+
+---
+
+## 2026-06-11 — CRITICAL FINDING: all-Main drain windows UNSATISFIABLE on chain; honest re-scoping (`Probability/HonestWindows.lean`, NEW)
+
+**The finding (source-verified, now formally pinned).**  The drain work windows
+`Phase1AllMain` / `Phase7AllMain` / `Phase8AllMain` are `card = n ∧ ∀ a ∈ c, phase = p ∧ role = main`
+— they require EVERY agent to be a phase-`p` MAIN.  But the phase-0 role split
+(`RoleSplitConcentration.RoleSplitGood`) leaves `clockCount ≥ n/5 > 0` clocks coexisting with
+`mainCount ≥ n/3` mains, and role counts are PERMANENT in phases 1–8 (no frozen rule converts
+Main↔Clock).  Hence on every reachable full-population config (`n ≥ 5`) the all-Main windows are
+UNSATISFIABLE: the 21-instance assembly's drain slots 1/7/8 are conditionally vacuous at those work
+slots.  Doty arXiv:2106.10201v2 §6 analyzes the *Main sub-population* for the bias dynamics; the
+formalization over-idealized the windows to the full population.
+
+`HonestWindows.incompat_allMain_with_chain_roles` PROVES `Phase1AllMain n c ∧ RoleSplitGood η n c → False`
+(`η ≤ 1/25`, `n ≥ 5`).  Axiom-clean.
+
+### The 11-slot impact-survey verdict table
+
+| slot | phase | window predicate | role pin? | verdict | re-scoping |
+|------|-------|------------------|-----------|---------|-----------|
+| 0  | role-split | `phase0_roleSplit` 3-stage milestone | establishes the split | **(i) full-population-honest** | none (it MAKES the split) |
+| 1  | 1 | `Phase1AllMain` = `card=n ∧ ∀a, phase=1 ∧ role=main` | **YES** | **(ii) all-Main-idealized → UNSAT** | `Phase1Honest` (phase-only) ✅ TEMPLATE |
+| 2  | 2 | `card=n ∧ ∀a, phase=2 ∧ opinion∈{U,v}` | no | **(i) honest** (opinion epidemic) | none |
+| 3  | 3 | `work3` clock side-budget | no | **(i) honest** | none |
+| 4  | ≥4 | `Q4` = `card=n ∧ ∀a, phase≥4` / `advFinished` | no | **(i) honest** (≥-window) | none |
+| 5  | 5 | `Phase5AllWin` = `card=n ∧ ∀a, phase=5` | no | **(i) honest** | none (already phase-only) |
+| 6  | 6 | `Phase6Win` = `card=n ∧ ∀a, phase=6` | no | **(i) honest** | none (already phase-only) |
+| 7  | 7 | `Phase7AllMain` = `…∧ phase=7 ∧ role=main` | **YES** | **(ii) all-Main-idealized → UNSAT** | `Phase7Honest` (phase-only) ✅ |
+| 8  | 8 | `Phase8AllMain` = `…∧ phase=8 ∧ role=main` | **YES** | **(ii) all-Main-idealized → UNSAT** | `Phase8Honest` (phase-only) ✅ |
+| 9  | 9 | `card=n ∧ ∀a, phase=9 ∧ opinion∈{U,v}` | no | **(i) honest** (opinion epidemic) | none |
+| 10 | 10 | `AllPhase10` = `∀a, phase=10` (+sign/active) | no | **(i) honest** | none |
+
+**3 of 11 slots are all-Main-idealized/UNSAT (1, 7, 8).**  The other 8 are full-population-honest
+(phase-only / ≥-window / opinion-epidemic / milestone) — they already admit Clocks/Reserves.
+
+### What the all-Main hypothesis actually fed (and what survives)
+
+The landed `drop_prob_rect` lower bounds sum the drop probability over the TARGET RECTANGLE only
+(a Main–Main pair that drops the potential).  Mixed pairs (Main–Clock / Clock–Clock / Main–Reserve)
+are NO-OPs on the rectangle — they reduce neither the rectangle mass nor the bound.  So the all-Main
+hypothesis was NEVER feeding the drop lower bound.  It fed (a) closure and (b) `PotNonincrOn`.
+
+* **Potential non-increase — SURVIVES (re-derived, 0-sorry, axiom-clean).**  All four drain
+  potentials read ONLY Main-role fields (`extremeU` ⊃ `role=main`; `minoritySt`/`highMass` ⊃ `role=main`).
+  In `Phase{1,7,8}Transition` a Main paired with a non-Main is returned IDENTICALLY (the `if both-Main`
+  branch fails; the trailing clock step is identity on a Main); any advanced Clock stays a non-Main, so
+  contributes 0 to every potential before and after.  Hence the per-pair potential bound — exactly the
+  `PotNonincrOn` ingredient — holds on the phase-only window with NO role hypothesis.  The hour-drag
+  (Phase-3 Rule 2, writes a Main's `hour`) does NOT fire in phases 1/7/8 and no slot-{1,5,6,7,8}
+  potential reads `hour`.  DELIVERED: `potNonincrOn_extremeU_honest` (slot 1), `potNonincrOn_minorityU_honest8`
+  (slot 8), and slot-7 mixed-pair bound `Transition_minorityU_pair_le_of_not_both_main7` (+ role
+  permanence) ready to close `PotNonincrOn` once Lemma-7.4's eliminator-gap carry `hgap` is supplied.
+
+* **Window closure — same status as Phase 6 (genuine NAMED gap, not faked).**  A Clock–Clock
+  interaction can advance a clock to phase `p+1` (`stdCounterSubroutine`) — or even to phase 10
+  (`phaseInit`-at-2 overshoot for an extreme-`smallBias` clock) — so the phase-only window is NOT
+  one-step closed.  This is IDENTICAL to `Phase6Win`, which the campaign already does NOT treat as the
+  engine `InvClosed` (closure is the seam/working-window doctrine's separate concern — the §6 clock
+  timing windows).  Pinned as `clock_advance_breaks_phase_closure`.  The `PotNonincrOn` lift the
+  drop-rectangle consumes survives WITHOUT closure (it is a per-step ≤, not a window-membership claim).
+
+* **The ONE genuinely-carried side fact** (`Transition_eq_Phase1Transition_of_phase1`'s no-10 hyp):
+  the clock-no-overshoot `W` (`smallBias ∈ {2,3,4}`, the chain invariant of `HANDOFF_SEAM_NOOVERSHOOT`).
+  The POTENTIAL bound does NOT need it (a phase-10 clock is still a non-Main → not extreme/minority).
+
+### Deliverables (`Probability/HonestWindows.lean`, append-only; edits NO existing file)
+
+- Part A: `incompat_allMain_with_chain_roles` + `clockCount_eq_zero_of_phase1AllMain` (UNSAT proof).
+- Part B: `Phase{1,7,8}Honest` (phase-only) + `phase{1,7,8}Honest_of_allMain` (honest ⊇ all-Main).
+- Part C (SLOT 1 TEMPLATE): role permanence `Transition_role_phase1`; mixed-pair `extremeU` bound
+  `Transition_extremeU_pair_le_of_not_both_main`; any-roles `Transition_extremeU_pair_le_honest`;
+  engine `potNonincrOn_extremeU_honest` on `Phase1Honest`.
+- Part D: named closure gap `clock_advance_breaks_phase_closure`.
+- Part E: SLOT 8 (`potNonincrOn_minorityU_honest8`, unconditional) + SLOT 7 (mixed bound + role
+  permanence, both-Main keeps Lemma-7.4 `hgap` carry) + SLOT 6 identification (`Phase6Win` already
+  phase-only honest, `phase6Win_is_honest_shape`).
+
+Single-file `lake env lean HonestWindows.lean` EXIT 0 (~4.5s, deps cached).  0 sorry/admit/axiom/
+native_decide.  `#print axioms` for all headlines ⊆ `[propext, Classical.choice, Quot.sound]`.
+`git diff --check` clean.
