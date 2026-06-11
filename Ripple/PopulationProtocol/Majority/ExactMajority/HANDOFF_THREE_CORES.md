@@ -648,3 +648,31 @@ per-phase bookkeeping, not the dynamic core. Named, not carried as a clock fact.
 
 **Audit.** `#print axioms` on all 7 theorems ⊆ `[propext, Classical.choice, Quot.sound]`. No
 sorry/admit/axiom/native_decide. Single-file `lake env lean` clean.
+
+---
+
+## SupplyDispatch.lean — `NoMinoritySignAbove → SupplySubadditive` over the FULL `Transition` (NEW)
+
+The named remainder of `SupplyRegion.lean` — the phase-dispatch bridge from the population region to
+`ZeroSupplyDrift.SupplySubadditive` over the FULL multi-phase `Transition` dispatcher — is now CLOSED,
+scoped honestly to the §6 squaring window, in NEW append-only file `Probability/SupplyDispatch.lean`.
+0-sorry, axiom-clean, single-file `lake env lean` EXIT_0.
+
+**Honest verdict.** The supply indicator `supplyP i a := a.bias=.zero ∧ i<a.hour.val` over the FULL
+`Transition` has fresh-supply sources BEYOND the Main-Main Phase-3 cancel: the Phase-3 Rule-2 hour DRAG
+(Main-Clock, re-stamps an existing zero's hour) and the Phase-6/7/8 CANCELS (dyadic→`.zero` keeping
+hour) are SEPARATE sources `NoMinoritySignAbove` does NOT control (it caps only the σ-minority dyadic
+exponent index, not zero hours). So an UNCONDITIONAL bridge over the full dispatcher is FALSE; the
+honest bridge scopes to `Phase3MainMainWindow c := ∀ a∈c, a.phase.val=3 ∧ a.role=.main` (the level-`i`
+squaring regime), where `Transition` reduces to `phase3CancelSplit` and SupplyRegion's per-pair
+sub-additivity lifts verbatim. The other sources are audited as honest field-level facts, NOT folded in.
+
+**Chain (PROVEN).** `phaseEpidemicUpdate_id_of_phase3` → `Transition_eq_phase3CancelSplit_of_phase3_main`
+→ `supplyIndic_subadditive_Transition_of_region` → `supplySubadditive_of_region` (full-dispatcher
+`SupplySubadditive` from the population window) → `supplyPotential_drift_le_of_window` (`r=1` drift on the
+REAL kernel) → `integerProfileSquaring_whp_of_window` → `hConfine_of_window`. Per-phase audit lemmas:
+`enterPhase10_supplyP`, `finishPhase10Entry_supplyP`, `phase1/2/4/10_supplyP_*`, `phase3_split_supplyP_false`.
+
+**Final `hConfine` carried set:** (a) `IntegerProfileSquaring θ c` (drift now discharged BY the window);
+(b) `WindowedFrontProfile θ c`; (c) `mainFrac 0 c ≤ 1/10`; (d) `Phase5AllWin n c` + `n/3 ≤ mainCount c`;
+(e) `MainProfileConfinedToUseful c` (def'lly `hConfine`). Phase-dispatch supply region: CLOSED.

@@ -534,3 +534,66 @@ additively composed with the `≤ n²` entry via `expectedHitting_le_through_mid
 (`Mid = {AllPhase10 ∧ card}`, `Done = StableDone`); (b) the seed-establishment probability that
 `1 ≤ geCount 10 c` from the phase-8 seam exit. Both are epidemic-establishment + backup-drain
 composition, NOT seam counter-drain rungs — honestly outside this file's entry engine.
+
+---
+
+## Phase E4 chain-end COMPOSITION — `Probability/ChainEndAssembly.lean` (2026-06-10, the assembly)
+
+Append-only new file (no existing file edited). Assembles `BackupEntry`'s two Part-6 named
+remainders into the chain-end compositions and PRODUCES the timed-branch ladders.  Single-file
+`lake env lean … ChainEndAssembly.lean` EXIT_0; 8 headlines `#print axioms`
+⊆ `[propext, Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide; whitespace clean.
+
+**(a) within-Phase-10 drain composition (the composed chain-end bound).**
+- `phase10Majority_drain_to_stableDone_le` / `phase10Tie_drain_to_stableDone_le` — the
+  within-Phase-10 drain packaged on every `S1` / `Tie1plus` state: `E[T y → StableDone] ≤
+  3n²(1+2 log n)` / `2n²(1+2 log n)`, built from `StableBridges.ladderData_of_phase10{Majority,Tie}_bridged`
+  (the E2 drain `phase10_expected_stabilization{,_tie}_O_nsq_log` + the 0-cost membership bridge)
+  run through `recoveryClass_of_ladderData`.
+- `entry_to_S1_le_nsq` — the entry epidemic routed to the `S1`-intersected regime: from a
+  reachable, seeded `AllClockGEpCard 9 n` start with `0 < gap`, `E[T → {S1 n}] ≤ n²`.  Routes
+  `BackupEntry.backup_entry_to_regime_le_nsq` through the `ReachableFrom` InvClosed slice
+  (`reachableFrom_kernel_closed`): entry-regime ∩ reachable ⊆ S1 by `allPhase10_majority_imp_S1`.
+- **`chainEnd_majority_total_le`** (the composed chain-end bound): from a reachable, seeded
+  `AllClockGEpCard 9 n` start with `0 < gap`,
+  `E[T → StableDone] ≤ n² + 3n²(1+2 log n)` — entry ⊕ within-Phase-10 drain, composed by
+  `expectedHitting_seqcomp_of_uniform` (`Mid = {S1 n}`).
+
+**(b) full timed-spine assembly (the assembled timed ladders).**
+- `timedSpineSet` / **`timedSpine_ladderData`** — the timed `LadderData` for a phase-`p` start
+  (`3 ≤ p`, `p + q = 10`): the spine `{AllClockGEpCard p n} → ⋯ → {AllClockGEpCard 10 n} →
+  StableDone`, per clock-phase rung capped `≤ n²` by `TimedChainRungs.seam_rung_to_chain_target_le_nsq`,
+  the final phase-10 rung by `hfinal`, telescoped via `RecoveryBridges.expectedHitting_ladder_le`
+  (built as the `LadderData` record; total `q·n² + βfinal ≤ Brecover`).
+- **`bigClockRegime_of_data` / `tinyClockRegime_of_data`** — PRODUCE the
+  `ReachableLadder.TimedBigClockRegime` / `TimedTinyClockRegime` with the `ladder` field BUILT
+  by `timedSpine_ladderData` from the `RegimeClassification.Timed{Big,Tiny}ClockData` content (the
+  timed ladders are no longer opaque carried data).
+
+**capstone.** `doty_expected_time_chain_end` — `E[T] ≤ (21·C0 + 4·Cbad)·n·(L+1)`, consuming the
+regime CONTENT `hBranch` (a `ChainEndBranch` per reachable not-done state) and BUILDING the four
+regime ladders from it via `regimeClassification_of_chainEndBranch` (Phase-10 via `StableBridges`,
+timed via `timedSpine_ladderData`), then feeding `doty_expected_time_reachable`. The timed branches'
+ladders are PRODUCED, not carried (not a bare re-export).
+
+**The final E4 carried set (precisely).**
+1. **per-regime EXHIBITION** (`hClassify`): for each reachable not-done `b`, produce ONE of the
+   four `*Data` witnesses — the deterministic phase-regime classification (honest for states
+   reachable from a GOOD role-split checkpoint; unconditional version is whp-on-checkpoint).
+2. **per-rung advance seeds** `hseed` (timed branches): `1 ≤ geCount (p+i+1) y` on each
+   clock-phase rung.  **SURVEY RESULT (the prompt's question):** the previous rung's drained
+   output `AllClockGEpCard (p+i) n` gives `geCount (p+i) = n` but NOT `geCount (p+i+1) ≥ 1`; the
+   seed is NOT supplied by E3's drained output — it is a genuine per-rung whp input (one
+   `enterPhase` advance must fire to seed the next-phase epidemic), the same `htrig` shape as
+   `BackupEntry.backup_entry_spread_le_nsq`.
+3. **phase-10 entry-drain** `hfinal`: `{AllClockGEpCard 10 n} ⟹ StableDone` (the Part-1
+   within-Phase-10 drain; needs the arrival classification's `reachable` + gap-sign to route the
+   entry state into S1/Tie1plus, then the E2 drain + membership bridge).
+4. **cross-phase band cross-terms**: the occupation integrals
+   `∑' t, (K^t) c ({AllClockGEpCard (p+i) n} ∩ {AllClockGEpCard (p+i+1) n}ᶜ)` — already absorbed
+   into the per-rung `≤ n²` cap via the InvClosed slice in `seam_rung_to_chain_target_le_nsq`, so
+   NOT separately carried in the ladder form here.
+5. **Lemma-5.2 clock floors** `hFloors`: the deterministic floor value `mC` (`n/5` big, `2` tiny).
+
+Everything else — the timed spine, the phase telescope, the seqcomp/ladder transfer, the
+reachability-relative split-geometric, the whp composition — is DISCHARGED.

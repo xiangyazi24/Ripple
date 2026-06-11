@@ -106,25 +106,23 @@ theorem phaseEpidemicUpdate_id_of_phase3 (s t : AgentState L K)
     phaseEpidemicUpdate L K s t = (s, t) := by
   have hphase_eq : s.phase = t.phase := Fin.ext (by omega)
   have hmax : max s.phase t.phase = s.phase := by rw [hphase_eq, max_self]
-  unfold phaseEpidemicUpdate
-  -- both `s'`/`t'` are `runInitsBetween _ p p _ = self` (no newly-entered phases).
-  simp only [hmax]
-  rw [show ({ s with phase := s.phase } : AgentState L K) = s by cases s; rfl]
-  rw [show max s.phase t.phase = s.phase from hmax] at *
-  -- after the rewrite the two `runInitsBetween _ _ s.phase.val` collapse to the inputs.
-  have hs' : runInitsBetween L K s.phase.val s.phase.val s = s :=
-    runInitsBetween_self_api (L := L) (K := K) s.phase.val s
-  have ht'phase : t.phase.val = s.phase.val := by omega
-  have ht' : runInitsBetween L K t.phase.val s.phase.val { t with phase := s.phase } = t := by
-    have h1 : ({ t with phase := s.phase } : AgentState L K) = t := by
-      cases t; simp_all
-    rw [h1, ← ht'phase, runInitsBetween_self_api]
-  -- the Phase-10 guard is false: neither result is at Phase 10 (both at 3).
-  rw [hs', ht']
-  have hne : ¬ ((s.phase.val < 10 ∨ t.phase.val < 10) ∧
-      (s.phase.val = 10 ∨ t.phase.val = 10)) := by
+  -- `{s with phase := max …} = s` and `{t with phase := max …} = t`.
+  have hsself : ({ s with phase := max s.phase t.phase } : AgentState L K) = s := by
+    rw [hmax]; cases s; rfl
+  have htself : ({ t with phase := max s.phase t.phase } : AgentState L K) = t := by
+    rw [hmax, hphase_eq]; cases t; rfl
+  -- the two `runInitsBetween` reduce to the identity (`p p`, no newly-entered phase).
+  have hs' : runInitsBetween L K s.phase.val (max s.phase t.phase).val
+      { s with phase := max s.phase t.phase } = s := by
+    rw [hsself, hmax, runInitsBetween_self_api]
+  have ht' : runInitsBetween L K t.phase.val (max s.phase t.phase).val
+      { t with phase := max s.phase t.phase } = t := by
+    rw [htself, hmax, ← hphase_eq, runInitsBetween_self_api]
+  -- the Phase-10 guard is false: neither agent is at Phase 10.
+  have hne : ¬ ((s.phase.val < 10 ∨ t.phase.val < 10) ∧ (s.phase.val = 10 ∨ t.phase.val = 10)) := by
     rintro ⟨-, h10⟩; omega
-  simp only [hne, if_false]
+  unfold phaseEpidemicUpdate
+  simp only [hs', ht', hne, if_false]
 
 /-- **The FULL `Transition` reduces to `phase3CancelSplit` on a Phase-3 Main-Main pair
 (PROVEN, the dispatch readout).**  The epidemic front matter is the identity
@@ -135,47 +133,27 @@ theorem Transition_eq_phase3CancelSplit_of_phase3_main (s t : AgentState L K)
     (hsP : s.phase.val = 3) (htP : t.phase.val = 3)
     (hsM : s.role = Role.main) (htM : t.role = Role.main) :
     Transition L K s t = phase3CancelSplit L K s t := by
-  unfold Transition
-  rw [phaseEpidemicUpdate_id_of_phase3 (L := L) (K := K) s t hsP htP]
-  -- dispatch on `s.phase`: it is `⟨3, _⟩`.
-  have hsphase : s.phase = (⟨3, by omega⟩ : Fin 11) := Fin.ext (by simpa using hsP)
   -- Phase3Transition reduces: Rules 1,2 clock-gated (both Main), so = phase3CancelSplit.
   have hPhase3 : Phase3Transition L K s t = phase3CancelSplit L K s t := by
     unfold Phase3Transition
     -- Rule-1 clock guard false; Rule-2 clock guards false; both Main ⇒ the if fires.
-    simp only [hsM, htM, Role.main.injEq, and_true, true_and]
-    -- s1 = s, t1 = t (Rule 1 guard `s.role=.clock ∧ …` false since role=main).
     have hs_not_clock : ¬ (s.role = Role.clock ∧ t.role = Role.clock) := by
       rw [hsM]; rintro ⟨h, -⟩; exact absurd h (by decide)
-    simp only [hs_not_clock, if_false]
-    -- Rule-2 left guard `s.role=.main ∧ s.bias=.zero ∧ t.role=.clock` false (t Main).
     have ht_not_clock : t.role ≠ Role.clock := by rw [htM]; decide
     have hs_not_clock2 : s.role ≠ Role.clock := by rw [hsM]; decide
-    simp only [ht_not_clock, hs_not_clock2, and_false, if_false]
+    simp only [hs_not_clock, ht_not_clock, hs_not_clock2, and_false, if_false]
     -- both Main: the final `if` selects `phase3CancelSplit`.
     rw [if_pos ⟨hsM, htM⟩]
-  rw [show
-      (match s.phase with
-        | ⟨0, _⟩ => Phase0Transition L K s t
-        | ⟨1, _⟩ => Phase1Transition L K s t
-        | ⟨2, _⟩ => Phase2Transition L K s t
-        | ⟨3, _⟩ => Phase3Transition L K s t
-        | ⟨4, _⟩ => Phase4Transition L K s t
-        | ⟨5, _⟩ => Phase5Transition L K s t
-        | ⟨6, _⟩ => Phase6Transition L K s t
-        | ⟨7, _⟩ => Phase7Transition L K s t
-        | ⟨8, _⟩ => Phase8Transition L K s t
-        | ⟨9, _⟩ => Phase9Transition L K s t
-        | ⟨10, _⟩ => Phase10Transition L K s t
-        | _ => (s, t)) = Phase3Transition L K s t by rw [hsphase]]
-  rw [hPhase3]
-  -- finishPhase10Entry is the identity: the cancel/split output stays at phase 3 ≠ 10.
-  have hout_phase1 : (phase3CancelSplit L K s t).1.phase.val = 3 := by
-    rw [(phase3CancelSplit_phase_preserved (L := L) (K := K) s t).1]; exact hsP
-  have hout_phase2 : (phase3CancelSplit L K s t).2.phase.val = 3 := by
-    rw [(phase3CancelSplit_phase_preserved (L := L) (K := K) s t).2]; exact htP
-  rw [finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ (by omega),
-      finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ (by omega)]
+  -- `phaseEpidemicUpdate` is identity; dispatch on `s.phase = ⟨3, _⟩`; `finishPhase10Entry` id.
+  have hsphase : s.phase = (⟨3, by omega⟩ : Fin 11) := Fin.ext (by simpa using hsP)
+  have hout_phase1 : (phase3CancelSplit L K s t).1.phase.val ≠ 10 := by
+    rw [(phase3CancelSplit_phase_preserved (L := L) (K := K) s t).1]; omega
+  have hout_phase2 : (phase3CancelSplit L K s t).2.phase.val ≠ 10 := by
+    rw [(phase3CancelSplit_phase_preserved (L := L) (K := K) s t).2]; omega
+  simp only [Transition, phaseEpidemicUpdate_id_of_phase3 (L := L) (K := K) s t hsP htP,
+    hsphase, hPhase3,
+    finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ hout_phase1,
+    finishPhase10Entry_eq_self_of_after_ne_10 (L := L) (K := K) _ _ hout_phase2]
 
 /-! ## Part 2 — the per-pair supply bridge to the FULL `Transition`'s `SupplySubadditive`. -/
 
@@ -342,9 +320,12 @@ theorem phase2_supplyP_neutral_of_stay (i : ℕ) (s t : AgentState L K)
         ↔ supplyP (L := L) (K := K) i s) ∧
     (supplyP (L := L) (K := K) i (Phase2Transition L K s t).2
         ↔ supplyP (L := L) (K := K) i t) := by
+  have hstay' : (hasMinusOne (opinionsUnion s.opinions t.opinions)
+      && hasPlusOne (opinionsUnion s.opinions t.opinions)) = false := by
+    simpa using hstay
   constructor <;>
   · unfold supplyP Phase2Transition
-    simp only [hstay, Bool.false_eq_true, if_false]
+    simp only [hstay', if_false]
     split_ifs <;> rfl
 
 /-- **Phase 4 is supply-neutral (PROVEN).**  `Phase4Transition` only advances `phase`
@@ -357,7 +338,7 @@ theorem phase4_supplyP_neutral (i : ℕ) (s t : AgentState L K) :
   constructor <;>
   · unfold supplyP Phase4Transition
     dsimp only
-    split_ifs <;> simp [advancePhase_bias_eq, advancePhase_hour_eq]
+    split_ifs <;> simp only [advancePhase_bias_eq, advancePhase_hour_eq]
 
 /-- **Phase 10 is supply-neutral (PROVEN).**  `Phase10Transition` only rewrites
 `output`/`full`, never `bias`/`hour`.  (Audit-table row "Phase 10".) -/

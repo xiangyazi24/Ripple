@@ -4654,3 +4654,121 @@ suppression, drift, stability — is hypothesis-free and clock-free.
 
 **Audit.** All 7 `SupplyRegion` theorems `#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]`;
 0 sorry/admit/axiom/native_decide; single-file `lake env lean` clean.
+
+---
+
+## §ChainEndAssembly — assembling the E4 chain-end compositions (2026-06-10)
+
+`ChainEndAssembly.lean` (append-only) closes the two Part-6 named remainders left by
+`BackupEntry.lean` and PRODUCES the timed-branch ladders that `RegimeClassification`/`ReachableLadder`
+carried as opaque data.
+
+**(a) The composed chain-end bound.** `chainEnd_majority_total_le`: from a reachable, seeded
+`AllClockGEpCard 9 n` start with `0 < initialGap init`,
+`E[T → StableDone] ≤ n² + 3n²(1+2 log n)`. Mechanism: the entry epidemic to the `S1`-intersected
+regime (`entry_to_S1_le_nsq`, `≤ n²`, routing `BackupEntry.backup_entry_to_regime_le_nsq` through the
+`ReachableFrom` InvClosed slice — entry-regime ∩ reachable ⊆ S1 by `allPhase10_majority_imp_S1`),
+composed with the within-Phase-10 drain (`phase10Majority_drain_to_stableDone_le`, `≤ 3n²(1+2 log n)`,
+= `StableBridges` two-rung Phase-10 ladder) via `expectedHitting_seqcomp_of_uniform` (`Mid = {S1 n}`).
+Tie analogue: `phase10Tie_drain_to_stableDone_le` (`≤ 2n²(1+2 log n)`).
+
+**(b) The assembled timed ladders.** `timedSpine_ladderData` builds the timed `LadderData` for a
+phase-`p` start (`3 ≤ p`, `p+q=10`) by telescoping `{AllClockGEpCard p n} → ⋯ → {AllClockGEpCard 10 n}
+→ StableDone` via `RecoveryBridges.expectedHitting_ladder_le` — each clock-phase rung capped `≤ n²` by
+`TimedChainRungs.seam_rung_to_chain_target_le_nsq`, the final phase-10 rung by `hfinal`.
+`bigClockRegime_of_data`/`tinyClockRegime_of_data` then produce the `ReachableLadder.Timed{Big,Tiny}ClockRegime`
+with the `ladder` field BUILT (no longer opaque). Capstone `doty_expected_time_chain_end` re-exports
+`doty_expected_time_reachable` with all four regime ladders constructed.
+
+**The seed survey (the key §6 question, answered).** Does E3's drained output supply the per-rung
+advance seed? **NO.** A rung's drained output `AllClockGEpCard (p+i) n` gives `geCount (p+i) = n` but NOT
+`geCount (p+i+1) ≥ 1`. The next-phase epidemic must be independently seeded (one `enterPhase` advance must
+fire) — the same `htrig` shape as the chain-end entry. So `hseed` is a genuine per-rung whp residual, not
+discharged by the upstream drain. This is the doctrinal confirmation that the timed spine, like the
+chain-end entry, is an epidemic-establishment object: the seeds are honest carried inputs, NOT free.
+
+**Final E4 carried set.** (1) per-regime exhibition `hClassify` (deterministic classification, honest
+on a good role-split checkpoint); (2) per-rung advance seeds `hseed` (timed, NOT from E3 output —
+survey above); (3) phase-10 entry-drain `hfinal` (Part-1 within-Phase-10 drain + arrival classification);
+(4) cross-phase band cross-terms (already absorbed into the per-rung `≤ n²` via the InvClosed slice);
+(5) Lemma-5.2 clock floors `hFloors` (the floor value `mC`). Everything else — spine, telescope,
+seqcomp/ladder transfer, reachability split-geometric, whp composition — DISCHARGED.
+
+**Audit.** 8 headlines `#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide; single-file `lake env lean` EXIT_0; whitespace clean.
+
+---
+
+## STATUS (2026-06-10) — phase-dispatch bridge landed in `Probability/SupplyDispatch.lean`
+
+The phase-dispatch BRIDGE `NoMinoritySignAbove → ZeroSupplyDrift.SupplySubadditive` over the FULL
+multi-phase `Transition` dispatcher (the named remainder of `SupplyRegion.lean`) is now closed —
+*scoped honestly* to the §6 squaring window — in NEW append-only file `Probability/SupplyDispatch.lean`.
+No existing file edited. Single-file `lake env lean` EXIT_0; all headlines `#print axioms ⊆ [propext,
+Classical.choice, Quot.sound]`; no sorry/admit/axiom/native_decide.
+
+### The honest verdict on the bridge (the genuinely new content)
+
+`ZeroSupplyDrift.SupplySubadditive i c` quantifies the supply indicator
+`supplyP i a := a.bias = .zero ∧ i < a.hour.val` over the FULL `Transition L K`, NOT over
+`phase3CancelSplit`. A per-phase audit of the FROZEN `Transition` (epidemic update → phase dispatch →
+finishPhase10Entry) reveals that the Main-Main Phase-3 cancel is NOT the only thing that can set
+`bias = .zero` at `hour > i`: the Phase-3 Rule-2 hour-DRAG (Main-Clock; re-stamps an existing zero's
+hour) and the Phase-6/7/8 CANCELS (dyadic → `.zero` keeping `hour`) are genuinely SEPARATE fresh-supply
+sources that `NoMinoritySignAbove` (which only caps the σ-minority's dyadic EXPONENT index, not zero
+hours) does NOT control. So an UNCONDITIONAL `NoMinoritySignAbove → SupplySubadditive` over the full
+dispatcher is **FALSE**. The honest bridge therefore scopes to the **Phase-3 Main-Main squaring
+window** `Phase3MainMainWindow c := ∀ a ∈ c, a.phase.val = 3 ∧ a.role = .main` — the level-`i` squaring
+regime where the only supply source is the region-controlled Main-Main cancel (the drag needs a Clock
+interactor; the later cancels are out of window). The separate sources belong to different §6
+sub-arguments, not the level-`i` squaring; they are audited here as honest field-level facts, NOT
+folded into the region.
+
+### Per-phase supply audit table (PROVEN as Lean field-level facts)
+
+| phase | rule(s) writing `bias`/`hour`             | fresh `Z_i` supply? | lemma |
+|-------|-------------------------------------------|---------------------|-------|
+| epidemic `phaseInit p=3` | `bias := newBias`, `hour := 0`    | NO (zeros stamped `hour=0 ≤ i`) | (doc) |
+| epidemic `enterPhase10`  | preserves `bias`/`hour`            | NO | `enterPhase10_supplyP` |
+| `finishPhase10Entry`     | preserves `bias`/`hour`            | NO | `finishPhase10Entry_supplyP` |
+| Phase 0 | role/smallBias/assigned/counter only       | NO | (doc; clock-counter ⊆ phase≤2 init) |
+| Phase 1 | smallBias (Fin 7) averaging, clock counter | NO | `phase1_supplyP_neutral` |
+| Phase 2/9 | opinions/output/phase-init only          | NO (stay branch) | `phase2_supplyP_neutral_of_stay` |
+| **Phase 3 cancel (Main-Main)** | `bias:=.zero, hour:=j` for `±j` pair | **SOLE region-controlled source** (SupplyRegion) | — |
+| Phase 3 split (Main-Main)| `bias := .dyadic …`                | NO (REMOVES supply) | `phase3_split_supplyP_false` |
+| Phase 3 hour-drag (Main-Clock) | re-stamps existing zero's `hour` | SEPARATE clock-coupled (off-window) | (doc) |
+| Phase 4 | phase advance only                          | NO | `phase4_supplyP_neutral` |
+| Phase 5 | `hour:=exponentOf`, `bias:=.dyadic`         | NO (dyadic writes REMOVE) | (doc) |
+| Phase 6/7/8 cancel | `bias:=.zero` keeping `hour`     | SEPARATE later-phase (off-window) | (doc) |
+| Phase 10 | output/full only                           | NO | `phase10_supplyP_neutral` |
+
+### The bridge chain (PROVEN)
+
+1. `phaseEpidemicUpdate_id_of_phase3` — epidemic update is the identity on a same-Phase-3 pair.
+2. `Transition_eq_phase3CancelSplit_of_phase3_main` — the FULL `Transition` reduces to
+   `phase3CancelSplit` on a Phase-3 Main-Main pair (epidemic + finishPhase10 wrappers vacuous,
+   Phase-3 Rules 1–2 clock-gated vacuous when both Main).
+3. `supplyIndic_subadditive_Transition_of_region` — per-pair supply sub-additivity of the FULL
+   `Transition` on the region (via #2 + SupplyRegion's `supplyIndic_subadditive_of_region`).
+4. `supplySubadditive_of_region` — the full-dispatcher `ZeroSupplyDrift.SupplySubadditive i c` on a
+   window+region config (the carried region discharged from the POPULATION fact alone).
+5. `supplyPotential_drift_le_of_window` — the `r=1` zero-supply drift `∫⁻ Φ dK(c) ≤ Φ(c)` over the
+   REAL `NonuniformMajority` kernel (not just the `phase3Protocol` sub-protocol).
+6. `integerProfileSquaring_whp_of_window` — the whp hour-boundary tail with `SupplySubadditive`
+   supplied BY the window (no carried clock region in the drift input).
+7. `hConfine_of_window` — the strongest hypothesis-free Thm 6.2 `hConfine` form reachable.
+
+### The final `hConfine` carried set (after this bridge)
+
+`hConfine_of_window` ⟹ `UsefulMainFloor.Theorem62EntryHypotheses` (carrying `hConfine`) carries exactly:
+(a) `IntegerProfileSquaring θ c` — the whp-realised hour coupling (its drift now discharged BY the
+    window via `integerProfileSquaring_whp_of_window`, no carried clock event);
+(b) `ClockFrontProfile.WindowedFrontProfile θ c` — the landed clock window;
+(c) `mainFrac 0 c ≤ 1/10` — the sub-critical Main fraction;
+(d) `ReserveSampling.Phase5AllWin n c` + `n/3 ≤ mainCount c` — the landed Phase-5 window + role floor;
+(e) `MainExponentConfinement.MainProfileConfinedToUseful c` — the confinement readout (def'lly `hConfine`).
+The phase-dispatch supply region over the FULL `Transition` is now CLOSED (population window), not
+carried as a clock event.
+
+**Audit.** All headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0
+sorry/admit/axiom/native_decide; single-file `lake env lean` EXIT_0; `git diff --check` clean.

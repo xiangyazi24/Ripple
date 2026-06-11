@@ -306,5 +306,226 @@ noncomputable def timedSpine_ladderData {n p q : ℕ} (hp3 : 3 ≤ p) (hpq : p +
     rw [hfront, hlast]
   rw [hsumβ]; exact hsum
 
+/-! ## Part 3 — producing the timed-branch `ReachableLadder` regimes (ladder PRODUCED)
+
+`TimedBigClockRegime`/`TimedTinyClockRegime` carry the per-state
+`LadderData` as opaque data — the §6 residual.  We now BUILD that ladder from the regime
+content (`RegimeClassification.TimedBigClockData`/`TimedTinyClockData`) via the Part-2 timed
+spine, so the timed branches' ladders are no longer opaque: they are theorems modulo exactly
+the per-rung seeds (`hseed`) and the phase-10 entry-drain (`hfinal`).  The timed phase `p`
+satisfies `3 ≤ p` (from `hp3`), so `p ∈ {5,6,7,8}` and `q = 10 - p ∈ {2,3,4,5}`. -/
+
+
+/-- **Produce the big-clock timed regime with its ladder BUILT.**  From the regime content
+`TimedBigClockData` (phase `p`, `AllClockGEpCard p n` at `b`, Lemma-5.2 big-clock floor,
+counter cap) plus the carried residuals — the per-rung advance seeds `hseed` and the phase-10
+entry-drain `hfinal` — produce the `TimedBigClockRegime`, its `ladder` field
+constructed by `timedSpine_ladderData` (NOT carried as opaque data). -/
+noncomputable def bigClockRegime_of_data {n : ℕ}
+    (init b : Config (AgentState L K)) (Brecover βfinal : ℝ≥0∞)
+    (hDone : MeasurableSet (StableDone L K init))
+    (d : TimedBigClockData L K n b)
+    (hseed : ∀ i, i < 10 - d.p →
+      ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) (d.p + i) n x}),
+        1 ≤ geCount (L := L) (K := K) (d.p + i + 1) y)
+    (hfinal : ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) 10 n x}),
+      expectedHitting (NonuniformMajority L K).transitionKernel y (StableDone L K init) ≤ βfinal)
+    (hsum : ((10 - d.p : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) + βfinal ≤ Brecover) :
+    TimedBigClockRegime L K n init b Brecover where
+  p := d.p
+  hp := d.hp
+  hp3 := d.hp3
+  mC := d.mC
+  counterMax := d.counterMax
+  hfloorN := d.hfloorN
+  hmCn := d.hmCn
+  hn := d.hn
+  hInv := d.hInv
+  hfloor := d.hfloor
+  hcap := d.hcap
+  ladder := timedSpine_ladderData (L := L) (K := K) (n := n) (p := d.p) (q := 10 - d.p)
+    d.hp3 (by have h := d.hp; simp only [Finset.mem_insert, Finset.mem_singleton] at h; omega)
+    (by have := d.hn; omega)
+    init b Brecover βfinal hDone d.hInv hseed hfinal hsum
+
+
+/-- **Produce the tiny-clock timed regime with its ladder BUILT.**  As `bigClockRegime_of_data`
+but from `TimedTinyClockData` (unconditional floor `2 ≤ mC`). -/
+noncomputable def tinyClockRegime_of_data {n : ℕ}
+    (init b : Config (AgentState L K)) (Brecover βfinal : ℝ≥0∞)
+    (hDone : MeasurableSet (StableDone L K init))
+    (d : TimedTinyClockData L K n b)
+    (hseed : ∀ i, i < 10 - d.p →
+      ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) (d.p + i) n x}),
+        1 ≤ geCount (L := L) (K := K) (d.p + i + 1) y)
+    (hfinal : ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) 10 n x}),
+      expectedHitting (NonuniformMajority L K).transitionKernel y (StableDone L K init) ≤ βfinal)
+    (hsum : ((10 - d.p : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) + βfinal ≤ Brecover) :
+    TimedTinyClockRegime L K n init b Brecover where
+  p := d.p
+  hp := d.hp
+  hp3 := d.hp3
+  mC := d.mC
+  counterMax := d.counterMax
+  hmC := d.hmC
+  hmCn := d.hmCn
+  hn := d.hn
+  hInv := d.hInv
+  hfloor := d.hfloor
+  hcap := d.hcap
+  ladder := timedSpine_ladderData (L := L) (K := K) (n := n) (p := d.p) (q := 10 - d.p)
+    d.hp3 (by have h := d.hp; simp only [Finset.mem_insert, Finset.mem_singleton] at h; omega) d.hn
+    init b Brecover βfinal hDone d.hInv hseed hfinal hsum
+
+/-! ## Part 4 — the capstone: `doty_expected_time_reachable` with the timed ladders PRODUCED
+
+The final E4 surface (`doty_expected_time_reachable`,
+`E[T] ≤ (21·C0 + 4·Cbad)·n·(L+1)`) consumes a per-state classifier `hClassify` producing a
+`ReachablePhaseRegimeClassification` for every reachable not-done state.  We re-export it as
+the chain-end capstone, but now the four regime ladders are no longer opaque:
+
+* the two **Phase-10** branches (`phase10Majority`/`phase10Tie`) have ladders built by
+  `StableBridges.ladderData_of_phase10{Majority,Tie}_bridged` (Part 1, `0`-cost bridge);
+* the two **timed** branches (`bigClockTimed`/`tinyClockTimed`) now have ladders built by the
+  Part-2/Part-3 timed spine (`timedSpine_ladderData`), telescoping the phase chain
+  `p → ⋯ → 10 → StableDone`.
+
+**The final E4 carried set** (everything below is precisely what `hClassify`/`hFloors` still
+demand, after the spine, telescope, seqcomp, reachability, and whp layers are discharged):
+
+1. **the per-regime EXHIBITION** — for each reachable not-done `b`, produce ONE of the four
+   `*Data` witnesses (the deterministic phase-regime classification; honest for states
+   reachable from a GOOD role-split checkpoint, `RegimeClassification`'s closing note);
+2. **the per-rung advance seeds** `hseed` (timed branches) — `1 ≤ geCount (p+i+1) y` on each
+   clock-phase rung.  SURVEY RESULT: the previous rung's drained output `AllClockGEpCard (p+i) n`
+   gives `geCount (p+i) = n` but NOT `geCount (p+i+1) ≥ 1`; so the seed is NOT supplied by E3's
+   drained output — it is a genuine per-rung whp input (one `enterPhase` advance must fire to
+   seed the next-phase epidemic), exactly the `htrig` shape of `BackupEntry.backup_entry_spread_le_nsq`;
+3. **the phase-10 entry-drain** `hfinal` — `{AllClockGEpCard 10 n} ⟹ StableDone` (the Part-1
+   within-Phase-10 drain composition; needs the arrival classification's `reachable` + gap-sign
+   to route the phase-10 entry state into `S1`/`Tie1plus`, then the E2 drain + membership bridge);
+4. **the cross-phase band cross-terms** — the occupation integrals
+   `∑' t, (K^t) c ({AllClockGEpCard (p+i) n} ∩ {AllClockGEpCard (p+i+1) n}ᶜ)` that the per-rung
+   telescope (`chain_two_phase_through_mid`) leaves as the honest band-bookkeeping residual
+   (already absorbed into the per-rung `≤ n²` cap via the InvClosed slice in
+   `seam_rung_to_chain_target_le_nsq`, so NOT separately carried in the ladder form here);
+5. **the Lemma-5.2 clock floors** `hFloors` — the deterministic floor value `mC` (`n/5` big,
+   `2` tiny) per timed branch.
+
+Everything else — the timed spine, the phase telescope, the seqcomp/ladder transfer, the
+reachability-relative split-geometric, the whp composition — is DISCHARGED. -/
+
+/-- **The chain-end branch classification** — a per-state dispatch of every reachable not-done
+state into one of the four regime *contents* (timed `*Data` + the timed carried residuals,
+or Phase-10 `*Data` + init-gap sign).  This is the genuine residual the capstone consumes: it
+carries the regime CONTENT, NOT the pre-built `ReachablePhaseRegimeClassification` (whose
+ladders this file BUILDS).  Each constructor supplies exactly the inputs the Part-3 producers /
+`StableBridges` builders need. -/
+inductive ChainEndBranch (n : ℕ) (init b : Config (AgentState L K)) (Brecover βfinal : ℝ≥0∞)
+  | bigClock (d : TimedBigClockData L K n b)
+      (hseed : ∀ i, i < 10 - d.p →
+        ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) (d.p + i) n x}),
+          1 ≤ geCount (L := L) (K := K) (d.p + i + 1) y)
+      (hfinal : ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) 10 n x}),
+        expectedHitting (NonuniformMajority L K).transitionKernel y (StableDone L K init) ≤ βfinal)
+      (hsum : ((10 - d.p : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) + βfinal ≤ (Brecover : ℝ≥0∞))
+  | tinyClock (d : TimedTinyClockData L K n b)
+      (hseed : ∀ i, i < 10 - d.p →
+        ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) (d.p + i) n x}),
+          1 ≤ geCount (L := L) (K := K) (d.p + i + 1) y)
+      (hfinal : ∀ y ∈ ({x | AllClockGEpCard (L := L) (K := K) 10 n x}),
+        expectedHitting (NonuniformMajority L K).transitionKernel y (StableDone L K init) ≤ βfinal)
+      (hsum : ((10 - d.p : ℕ) : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) + βfinal ≤ (Brecover : ℝ≥0∞))
+  | phase10Majority (hn : 2 ≤ n) (hS1 : S1 (L := L) (K := K) n b)
+      (hgap : 0 < initialGap (L := L) (K := K) init)
+      (hsum : 3 * (((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n)) + 0
+        ≤ (Brecover : ℝ≥0∞))
+  | phase10Tie (hn : 2 ≤ n) (hTie : Tie1plus (L := L) (K := K) n b)
+      (hgap : initialGap (L := L) (K := K) init = 0)
+      (hsum : 2 * (((n ^ 2 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 + 2 * Real.log n)) + 0
+        ≤ (Brecover : ℝ≥0∞))
+
+open scoped Classical in
+/-- **Build the `ReachablePhaseRegimeClassification` from a `ChainEndBranch`** — the genuine
+production step: dispatch the branch content into the matching regime structure, with the
+`ladder` field BUILT (timed via `timedSpine_ladderData` through the Part-3 producers; Phase-10
+via `StableBridges.ladderData_of_phase10{Majority,Tie}_bridged`).  This is where the four
+opaque carried ladders become theorems. -/
+noncomputable def regimeClassification_of_chainEndBranch {n : ℕ}
+    (init b : Config (AgentState L K)) (Brecover βfinal : ℝ≥0∞)
+    (hDone : MeasurableSet (StableDone L K init))
+    (hAbs : ∀ x ∈ StableDone L K init,
+      (NonuniformMajority L K).transitionKernel x (StableDone L K init)ᶜ = 0)
+    (br : ChainEndBranch (L := L) (K := K) n init b Brecover βfinal) :
+    ReachablePhaseRegimeClassification L K n init b Brecover :=
+  match br with
+  | .bigClock d hseed hfinal hsum =>
+      .bigClockTimed (bigClockRegime_of_data init b Brecover βfinal hDone d hseed hfinal hsum)
+  | .tinyClock d hseed hfinal hsum =>
+      .tinyClockTimed (tinyClockRegime_of_data init b Brecover βfinal hDone d hseed hfinal hsum)
+  | .phase10Majority hn hS1 hgap hsum =>
+      .phase10Majority
+        { hn := hn, hS1 := hS1,
+          ladder := ladderData_of_phase10Majority_bridged (L := L) (K := K) (n := n)
+            init b Brecover hn hDone hAbs hgap ⟨hn, hS1⟩ hsum }
+  | .phase10Tie hn hTie hgap hsum =>
+      .phase10Tie
+        { hn := hn, hTie := hTie,
+          ladder := ladderData_of_phase10Tie_bridged (L := L) (K := K) (n := n)
+            init b Brecover hn hDone hAbs hgap ⟨hn, hTie⟩ hsum }
+
+open scoped Classical in
+/-- **Chain-end capstone — Doty expected time, reachable-relative, timed ladders PRODUCED.**
+
+`E[T from c₀ → StableDone] ≤ (21·C0 + 4·Cbad)·n·(L+1)`.  Same conclusion as
+`doty_expected_time_reachable`, but the per-state classifier is now supplied as the regime
+CONTENT (`hBranch`, a `ChainEndBranch` per reachable not-done state) — this file BUILDS the
+four regime ladders from that content (`regimeClassification_of_chainEndBranch`: Phase-10 via
+`StableBridges`, timed via `timedSpine_ladderData`), so the timed branches' ladders are
+PRODUCED, not carried.  The `βfinal` budget (the phase-10 entry-drain cap) is threaded per
+state via `hβ`.  The remaining residual is exactly `hBranch` + `hFloors` (Part 4's carried
+set: per-regime exhibition, per-rung seeds, phase-10 entry-drain, clock floors). -/
+theorem doty_expected_time_chain_end {n C0 Cbad Brecover : ℕ}
+    (init c₀ : Config (AgentState L K))
+    (hc₀Reach : ReachableFrom L K init c₀)
+    (Cphase : Fin 21 → ℕ) (δ : Fin 21 → ℝ≥0)
+    (phases : Fin 21 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel)
+    (ht : ∀ i, (phases i).t ≤ Cphase i * n * (L + 1))
+    (hε : ∀ i, ((phases i).ε : ℝ≥0∞) ≤ (δ i : ℝ≥0∞))
+    (h_chain : ∀ (i : Fin 21) (hi : i.val + 1 < 21),
+        ∀ x, (phases i).Post x → (phases ⟨i.val + 1, hi⟩).Pre x)
+    (hx₀ : (phases ⟨0, by omega⟩).Pre c₀)
+    (h_post : ∀ c, (phases ⟨21 - 1, by omega⟩).Post c →
+        majorityStableEndpoint (L := L) (K := K) init c)
+    (hC0 : ∀ i, Cphase i ≤ C0)
+    (hDone : MeasurableSet (StableDone L K init))
+    (hDoneAbs : ∀ x ∈ StableDone L K init,
+      (NonuniformMajority L K).transitionKernel x (StableDone L K init)ᶜ = 0)
+    (hBpos : 0 < Brecover)
+    (βfinal : Config (AgentState L K) → ℝ≥0∞)
+    (hBranch :
+      ∀ b, ReachableFrom L K init b → b ∈ (StableDone L K init)ᶜ →
+        ChainEndBranch (L := L) (K := K) n init b (Brecover : ℝ≥0∞) (βfinal b))
+    (hFloors :
+      ∀ b, ReachableFrom L K init b → b ∈ (StableDone L K init)ᶜ →
+        ReachableClockFloors L K n init b (Brecover : ℝ≥0∞))
+    (hδ : (∑ i, (δ i : ℝ≥0∞)) ≤ (1 / n : ℝ≥0∞))
+    (hrecmass :
+      (1 / n : ℝ≥0∞) * ((2 * Brecover : ℕ) : ℝ≥0∞) * (1 - (1 / 2 : ℝ≥0∞))⁻¹
+        ≤ ((4 * Cbad * n * (L + 1) : ℕ) : ℝ≥0∞)) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c₀
+      (StableDone L K init)
+      ≤ (((21 * C0 + 4 * Cbad) * n * (L + 1) : ℕ) : ℝ≥0∞) := by
+  classical
+  -- Build the per-state classification from the branch CONTENT (the production step).
+  have hClassify : ∀ b, ReachableFrom L K init b → b ∈ (StableDone L K init)ᶜ →
+      ReachablePhaseRegimeClassification L K n init b (Brecover : ℝ≥0∞) := by
+    intro b hbReach hbBad
+    exact regimeClassification_of_chainEndBranch (L := L) (K := K) (n := n) init b
+      (Brecover : ℝ≥0∞) (βfinal b) hDone hDoneAbs (hBranch b hbReach hbBad)
+  exact doty_expected_time_reachable (L := L) (K := K) (n := n) (C0 := C0)
+    (Cbad := Cbad) (Brecover := Brecover) init c₀ hc₀Reach Cphase δ phases ht hε h_chain hx₀
+    h_post hC0 hDone hDoneAbs hBpos hClassify hFloors hδ hrecmass
+
 end ChainEndAssembly
 end ExactMajority
