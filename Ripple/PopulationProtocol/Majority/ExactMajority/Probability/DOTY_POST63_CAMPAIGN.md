@@ -1,6 +1,72 @@
 
 ---
 
+## EntryFloor.lean — the §6 hour-induction BASE CASE: the Phase-3 entry band floor (hStart) (2026-06-11)
+
+New append-only file `Probability/EntryFloor.lean` supplies the base case that `HourInduction.lean`'s
+`hourInduction` / `movingBand_union` consume as `hStart` — `BandConfined l₀ c₀`, the band floor at
+the Phase-3 entry — and surveys its HONEST provenance from the frozen `phaseInit 3` (Transition.lean).
+Single-file `lake env lean` clean (EXIT 0); `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`
+for every theorem; 0 sorry/admit/axiom/native_decide; `git diff --check` clean; append-only.
+
+### The provenance chain (where the entry floor comes from)
+
+The §6 dyadic-exponent track does NOT exist in Phases 1–2:
+
+* **Phase 1** averages the **`smallBias`** field (the `Fin 7` "small bias" track, values `0..6`) — NOT
+  the dyadic `Bias L` exponent track.  `phaseInit 1` only touches roles/counters.
+* **Phase 2** detects opinions from `smallBias` (`phaseInit 2`: error if `|smallBias|` out of band,
+  else `opinions := sign(smallBias)`).  Still no dyadic track.
+* **Phase 3** BORNS the dyadic track.  `phaseInit 3` at a Main runs the smallBias → dyadic conversion:
+  `newBias := if smallBias.val < 3 then .dyadic .neg ⟨0,_⟩ else if > 3 then .dyadic .pos ⟨0,_⟩ else .zero`,
+  then `{ a with bias := newBias, hour := ⟨0,_⟩ }`.  So every biased Main enters at dyadic exponent
+  index **exactly `0`** (the SHALLOWEST level, bias `±1`; `Bias.lean`: `i=0 ↔ ±1`).  DETERMINISTIC.
+
+### The entry floor `l₀ = 0` (proven, sharp)
+
+`AllBiasedMainAbove m c` = every biased Main sits at index `≥ m`.  At Phase-3 entry every biased
+Main's index is the init value `0`:
+
+* `allBiasedMainAbove_zero` — `AllBiasedMainAbove 0 c` for ANY config (the dyadic index is a
+  `Fin (L+1)`, so `0 ≤ i.val` unconditionally).  The trivially-honest floor; `l₀ = 0`.
+* `bandConfined_entry` — the same in `HourInduction.BandConfined 0` shape (the `hStart` the induction
+  consumes).  Holds for any start config — no nontrivial entry hypothesis needed.
+* `phaseInit3_main_bias_index_zero` — the SHARP provenance: a *biased* Main (`smallBias.val ≠ 3`)
+  entering Phase 3 has bias `.dyadic ss ⟨0,_⟩`, so its index is literally `0` (achieved, not merely
+  `≥ 0`).  This is the deterministic init mapping that pins `l₀ = 0`.
+
+### The hour arithmetic (`numHours = l + 1`; where `l` sits relative to `L`)
+
+`hourInduction` deepens `l₀ → l₀ + numHours`.  The seed consumers (`SeedExport.seedExport_of_post_succ`,
+`phase6To7_surface_of_seed`, `Theorem62Paper.hConfine3`) ride on the TERMINAL floor
+`AllBiasedMainAbove (l+1)`.  Matching: `l₀ + numHours = l + 1` with `l₀ = 0` ⟹ **`numHours = l + 1`**.
+The §6 schedule budgets one hour per level; the clock carries `L+1` hours (indices `0..L`).
+`SeedExport`'s `l+1` drain runs while a free sampling hour exists strictly above the band-top `l` and
+below the saturated top `L`, i.e. the explicit budget side-condition `l + 2 ≤ L`.  Hence:
+
+```
+l ≤ L − 2   ⟹   terminal seed level  l + 1 ≤ L − 1,
+   numHours = l + 1 ≤ L − 1 < L + 1   (two hours of slack: the band-top hour l and the top hour L).
+```
+
+`entryFloor_hour_arithmetic` records this honestly: `0 + (l+1) = l+1 ∧ l+1 ≤ L−1 ∧ L−1 < L+1` from
+`l + 2 ≤ L`.
+
+### What is PROVEN here
+
+1. `allBiasedMainAbove_zero` / `bandConfined_entry` — the entry floor `l₀ = 0` (the `hStart` shape).
+2. `phaseInit3_main_bias_index_zero` — the SHARP phaseInit-3 provenance (entry index literally `0`).
+3. `entryFloor_hour_arithmetic` — the hour accounting `numHours = l+1 ≤ L−1 < L+1`.
+4. `hourInduction_from_entry` — the headline wiring: `HourInduction.hourInduction` instantiated at
+   `l₀ = 0`, `numHours = l + 1`, delivering the terminal seed `BandConfined (l+1)` failure `≤ η` over
+   the Phase-3→5 horizon from any start config + the landed per-hour drain tails + the budget.
+
+This closes the §6 induction's BASE CASE: the entry floor is `l₀ = 0` (phaseInit-3-seeded), and the
+deepening budget `numHours = l + 1` fits the `(L+1)`-hour schedule.  Pairs with `HourInduction.lean`
+(the moving-band induction) and `SeedExport.lean` (the single-notch drain).
+
+---
+
 ## HourInduction.lean — the §6 moving-band hour induction: Thm 6.5 → 6.2 skeleton assembled (2026-06-11)
 
 New append-only file `Probability/HourInduction.lean` assembles the genuinely-open GLUE of the §6
