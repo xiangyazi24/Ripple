@@ -366,3 +366,58 @@ template at `t = 1`. So `hReachClosed` is no longer a hypothesis — it is disch
 
 Everything above these two residuals — the reachability layer, the `_on` split-geometric,
 the seqcomp/telescope transfer (`RecoveryBridges`), the whp composition — is discharged.
+
+---
+
+## STATUS — LANDED (2026-06-10): `Probability/RegimeClassification.lean` (residual #4 attack)
+
+Append-only new file `Probability/RegimeClassification.lean` (no existing file edited).
+Attacks the TWO honest residuals left by `ReachableLadder.lean` — the regime classification
+and the clock floors — by REPLACING the opaque carried-`LadderData` field of the four
+`ReachableLadder` regime structures with explicit ladder-SPINE constructions. Single-file
+`lake env lean … RegimeClassification.lean` EXIT_0; all twelve headlines `#print axioms`
+⊆ `[propext, Classical.choice, Quot.sound]` (the two `floorProp_*` even drop
+`Classical.choice`); no sorry/admit/axiom/native_decide.
+
+**(a) Regime content, ladder-free.** `TimedBigClockData`, `TimedTinyClockData`,
+`Phase10MajorityData`, `Phase10TieData` — the regime CONTENT (phase membership +
+`AllClockGEpCard` invariant + Lemma-5.2 floor + counter cap, resp. `S1`/`Tie1plus`) WITHOUT
+the carried ladder. The ladder is now a CONCLUSION, not an input.
+
+**(b) Per-regime ladder spines (the substance).** `ladderData_of_two_rung` (the 2-rung
+spine builder: `Dom → Prog → StableDone`) + the four instantiations
+`ladderData_of_{bigClock,tinyClock,phase10Majority,phase10Tie}`. Each BUILDS the
+`LadderData` to `StableDone` from the landed E3/E2 cap as the FIRST link
+(`timed_phase_progress_real_{big,tiny}Clock` ≤ `counterMax·11n` / `counterMax·n²`;
+`phase10_expected_stabilization{,_tie}_O_nsq_log` ≤ `3n²(1+2log n)` / `2n²(1+2log n)`) and the
+`RecoveryBridges` telescope (`expectedHitting_telescope_from_start`) to assemble. The SINGLE
+isolated residual per regime is the final-rung bridge `progressSet (potBelow Φ 1) ⟹
+StableDone` (`βbridge`) — supplied as an explicit hypothesis; everything else is discharged.
+
+**(c) Floor propagation.** `clockRole_preserved_all_time` (re-export of
+`RecoveryBridges.allClockGEpCard_pow_preserved`: the FROZEN-transition "clocks never
+destroyed at phase ≥ 3" all-time kernel fact) + `floorProp_{big,tiny}Clock` (the Lemma-5.2
+floor as the genuinely-true UNIFORM-over-`AllClockGEpCard`-invariant-states fact, for the
+regime's OWN phase). **Honest non-claim:** `ReachableLadder.ReachableClockFloors`'s `big`/`tiny`
+fields quantify a FREE outer phase `p` (`∀ p, …Regime → ∃ mC, … ∀ y, AllClockGEpCard p n y → …`),
+while a single regime carries a floor only for its OWN `h.p`; no clock floor holds at every
+phase simultaneously, so that structure is NOT fake-discharged. The genuinely-true content is
+the per-regime `floorProp_*`, which is exactly what the timed E3 engines consume via `hfloor`.
+
+**(d) Checkpoint-conditional classifier.**
+`regimeClassification_{bigClock,tinyClock,phase10Majority,phase10Tie}` assemble the
+`ReachablePhaseRegimeClassification` from the ladder-free `*Data` + the per-regime bridge
+(the carried `ladder` field now BUILT via (b)). **Honest scope:** the remaining `hClassify`
+residual of `doty_expected_time_reachable` is exactly "for every reachable not-done `b`,
+EXHIBIT one of the four `*Data` witnesses + its bridge". This is honest for states reachable
+from a GOOD role-split checkpoint (the whp `RoleSplitGood` event, `clockCount_linear_of_RoleSplitGood`
+→ `n/5 ≤ |Clock|`); the UNCONDITIONAL classifier (arbitrary reachable states) is OUT OF SCOPE
+and honestly so — pre-role-split states hold main/reserve roles (no `AllClockGEpCard` invariant,
+no floor) and a FAILED role split has no deterministic `2 ≤ mC`. The unconditional version is a
+whp statement conditioned on the checkpoint event, documented as such in the file's closing note.
+
+**Net narrowing of the E4 surface:** the regime ladders are no longer opaque carried fields —
+they are theorems modulo (i) the per-regime final-rung bridge `potBelow Φ 1 ⟹ StableDone`
+and (ii) the deterministic floor VALUE `mC` (Lemma 5.2). Those two are the honest, named,
+genuinely-protocol residuals; the spine, the telescope wiring, the clock-role preservation,
+and the classifier assembly are discharged.

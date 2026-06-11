@@ -4049,3 +4049,32 @@ new tail.
 **Campaign residual table update:** `SurvivalBandAbove` → per-pair ledger PROVED + honest `14n/75`
 floor PROVED + wired; carried remainder narrowed from "protocol survival lower bound" to the single
 trajectory-aggregate field `Phase7SpendLedger` (+ the documented sharp-bound constant tightening).
+
+---
+
+## LANDED 2026-06-10 — `Probability/RegimeClassification.lean` (E4 residual #4: regime ladder spines)
+
+New append-only file. De-opaques the four `ReachableLadder` regime structures: their carried
+`LadderData` field is replaced by explicit ladder-SPINE constructions built from the landed
+E3/E2 caps + the `RecoveryBridges` telescope. Single-file EXIT_0; 12 headlines axiom-clean
+(⊆ propext/Classical.choice/Quot.sound); 0 sorry/axiom/native_decide. Two commits ((a)+(b),
+(c)+(d)).
+
+* **(a)** ladder-free regime content: `TimedBigClockData` / `TimedTinyClockData` /
+  `Phase10MajorityData` / `Phase10TieData`.
+* **(b)** ladder spines: `ladderData_of_two_rung` (Dom→Prog→StableDone) + the four
+  `ladderData_of_*`. First link = the named E3/E2 cap; isolated residual = the final-rung
+  bridge `potBelow Φ 1 ⟹ StableDone`.
+* **(c)** `clockRole_preserved_all_time` (FROZEN "clocks never destroyed at phase ≥3",
+  re-export) + `floorProp_{big,tiny}Clock` (Lemma-5.2 floor, uniform over invariant states,
+  own phase). ReachableClockFloors's free-outer-`p` shape NOT fake-discharged (honest).
+* **(d)** `regimeClassification_*` (checkpoint-conditional classifier). Unconditional
+  classification of arbitrary reachable states documented OUT OF SCOPE (no deterministic
+  floor pre-role-split / on failed role split).
+
+**Campaign residual table update:** residual #4 (`ReachablePhaseRegimeClassification` +
+`ReachableClockFloors`) → the regime ladders are now THEOREMS modulo two named, genuinely-
+protocol residuals: (i) per-regime final-rung bridge `potBelow Φ 1 ⟹ StableDone`, (ii) the
+deterministic clock-floor VALUE `mC` (Lemma 5.2). Spine construction, telescope wiring,
+clock-role preservation, classifier assembly: DISCHARGED. Classification scope is honest
+checkpoint-conditional.
