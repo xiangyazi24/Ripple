@@ -4536,3 +4536,37 @@ the re-shaped rung-1 link feeding `RegimeClassification.ladderData_of_{bigClock,
 telescope toward the Phase-10 backup; the residual that genuinely doesn't yield from the seam
 engine is the cross-phase band occupation (Part 8 cross-term) + the phase-`8→10` backup entry
 (Part 9), both named, not faked.
+
+---
+
+## Chain-end DELIVERED — `Probability/BackupEntry.lean` (2026-06-10)
+
+The phase-`8 → 10` backup entry (`TimedChainRungs` Part-9 named remainder) is now supplied
+in its strongest reachable form, 0-sorry / axiom-clean.
+
+**Honest entry mechanism.** FROZEN `Protocol.Transition` enters phase 10 by exactly two
+routes, both `phaseInit`'s `enterPhase10` seam: error-jumps `phaseInit 1` (`mcr`),
+`phaseInit 2`/`9` (`biasMagGT1`), and canonical `phaseInit 10`. NO universal force-to-10,
+NO phase-9 counter. The SEED is `1 ≤ geCount 10 c` (one agent error-jumped); thereafter the
+universal `max`-phase epidemic (`Transition_*_phase_ge_pair_max` = `ge_advance_prob` at `p=9`)
+spreads phase 10 to all.
+
+**Assembled chain-end (the three+one deliverables):**
+1. first-entry mechanism + expected time: `backup_entry_spread_le_nsq`
+   (`E[T → {geCount 10 ≥ n}] ≤ n²`, the seam engine instantiated at `p=9`);
+2. epidemic-spread coupon `E ≤ n²` (crude `O(n²)` of the paper's `O(n log n)` parallel);
+3. arrival classification: `arrival_classification`
+   (`reachable ∧ AllPhase10 ∧ card ∧ gap-sign ⟹ S1 ∨ Tie1plus`), via the conserved
+   `phase10ActiveSignedSum = initialGap` (`Phase10Backup`, the correctness half);
+4. assembled chain-end: `backup_entry_to_regime_le_nsq`
+   (`E[T from seeded phase-8 target → {AllPhase10 ∧ card}] ≤ n²`, routed through the
+   `AllClockGEpCard 9 n` `InvClosed` invariant), plus membership endpoints
+   `{majority,tie}_chain_end_mem_stableDone` (drained arrival ∈ `StableDone` via the
+   `StableBridges` Phase-10 bridges at 0 cost).
+
+**Named protocol-open remainders.** (a) within-Phase-10 cancel/absorb drain
+(`wrongACount`/`wrongTCount → 0`, the `Phase10ExpectedTime` 3-stage `O(n² log n)` engine),
+additively composed with the `≤ n²` entry by `expectedHitting_le_through_mid`
+(`Mid = {AllPhase10 ∧ card}`, `Done = StableDone`); (b) the seed-establishment whp that
+`1 ≤ geCount 10 c` from the phase-8 seam exit. Both epidemic-establishment + backup-drain
+composition, NOT seam counter-drain rungs — honestly outside the entry engine.

@@ -493,3 +493,44 @@ NO counter and NO universal force-to-10 (all-backup route rejected as dishonest 
 (`Transition_*_phase_ge_pair_max`), reaching `S1`/`Tie1plus` whp, then `StableBridges`'
 Phase-10 stability bridges close to `StableDone` at 0 bridge cost.  The `8→10` backup entry
 (`O(n log n)`, Lemma 7.7) is the NAMED remainder — an epidemic/backup bound, not a seam rung.
+
+---
+
+## Phase E4 chain-end — `Probability/BackupEntry.lean` (2026-06-10, the named remainder)
+
+The phase-`8 → 10` backup ENTRY — `TimedChainRungs` Part-9 NAMED remainder — delivered in its
+strongest reachable form (the epidemic-spread half of Lemma 7.7, crude `O(n²)`).
+
+**Honest entry mechanism (FROZEN `Protocol.Transition` survey).** Two routes only, both via
+`phaseInit`'s `enterPhase10` seam: per-phase Init error-jumps `phaseInit 1` (`mcr`, line 136),
+`phaseInit 2`/`9` (`biasMagGT1`, lines 143/176), `phaseInit 10` (canonical, line 184). NO
+universal force-to-10, NO phase-9 timed counter (all-backup route rejected — §SeamPairBound
+finding 2). Once one agent has crossed (`geCount 10 ≥ 1`, the SEED), the FROZEN universal
+phase epidemic (`Transition_*_phase_ge_pair_max`, `max`-spread) spreads phase 10 to all — the
+SAME seam epidemic object at `p = 9` (`ge_advance_prob`).
+
+**Assembled chain-end bound.** `E[T from seeded `AllClockGEpCard 9 n` → `{AllPhase10 ∧ card}`] ≤ n²`
+(`backup_entry_to_regime_le_nsq`), then the conserved `phase10ActiveSignedSum = initialGap`
+classifies arrival into `S1` (gap > 0) / `Tie1plus` (gap = 0), and `StableBridges`' Phase-10
+bridges close to `StableDone` at 0 bridge cost.
+
+**Delivered (all 0-sorry, axioms ⊆ [propext, Classical.choice, Quot.sound]):**
+- `phase_val_eq_ten_of_ge`, `allPhaseGe_ten_iff_allPhase10`, `seamPot_nine_drained_imp_allPhase10`
+  (the entry-regime identity `allPhaseGe 10 n ⟺ AllPhase10 ∧ card`, via `Fin 11`);
+- **`backup_entry_spread_le_nsq`** — `E[T → {geCount 10 ≥ n}] ≤ n²` (the seam engine at `p=9`,
+  deliverables 1+2: honest entry + expected time);
+- `allPhase10_majority_imp_S1`, `allPhase10_tie_imp_Tie1plus`, **`arrival_classification`**
+  (`reachable ∧ AllPhase10 ∧ card ∧ gap-sign ⟹ S1 ∨ Tie1plus`, via conserved signed-sum =
+  `initialGap`, deliverable 3);
+- `majority_chain_end_mem_stableDone`, `tie_chain_end_mem_stableDone` (drained arrival ∈
+  `StableDone`, both branches — `StableBridges` bridge closure);
+- `phase10EntryTarget`, `seam_drain_nine_imp_entryTarget`, **`backup_entry_to_regime_le_nsq`**
+  (the assembled chain-end ENTRY cap `≤ n²`, routed through `AllClockGEpCard 9 n` `InvClosed`
+  like the per-rung seam link, deliverable 4).
+
+**Named protocol-open remainders (Part 6 survey).** (a) the within-Phase-10 cancel/absorb
+drain `wrongACount`/`wrongTCount → 0` (the `Phase10ExpectedTime` 3-stage `O(n² log n)` engine),
+additively composed with the `≤ n²` entry via `expectedHitting_le_through_mid`
+(`Mid = {AllPhase10 ∧ card}`, `Done = StableDone`); (b) the seed-establishment probability that
+`1 ≤ geCount 10 c` from the phase-8 seam exit. Both are epidemic-establishment + backup-drain
+composition, NOT seam counter-drain rungs — honestly outside this file's entry engine.
