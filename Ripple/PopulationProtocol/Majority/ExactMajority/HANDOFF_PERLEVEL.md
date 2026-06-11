@@ -383,3 +383,49 @@ The stochastic part of Phase 7 is already the drain/survival upper bound. What i
 
 4. **Use existing adapters.**  
    Do not reopen `PhaseFloors`: the hdrop consumers are already wired through `EliminatorMargins` and `MarginLedgers`.
+
+---
+
+## UPDATE (2026-06-10, agent: BandRouting.lean landed — residual #2 part (1) CLOSED, EXIT_0, axiom-clean)
+
+New file `Probability/BandRouting.lean` (append-only; no existing file edited). Single-file
+`lake env lean … BandRouting.lean` EXIT_0; `#print axioms` on all 7 headlines ⊆
+[propext, Classical.choice, Quot.sound]; no sorry/admit/axiom/native_decide.
+
+This file EXPORTS `BandLocalization.Phase6BandPositionFacts` from the LANDED Phase-6 Post instead of
+assuming it. Survey verdict: the landed Phase-6 convergence (`Phase6Convergence.phase6Convergence'`)
+has `Post = (highMass l c = 0)`, read by `Phase6Convergence.phase6Post_iff` as **every biased Main
+has exponent index ≥ l** (the band FLOOR). That is enough to PROVE half of the residual:
+
+**Stage 1 — `MinorityConfinedGap1` GENUINELY PROVEN (no carried assumption).**
+- `exists_minority_witness`: a live minority level `j` (`1 ≤ (minorityAt7 σ j).sum c.count`) yields an
+  actual biased-Main witness `a ∈ c`, `a.bias = dyadic σ j` (positive finset count-sum ⟹ member).
+- `minorityConfinedGap1_of_post (hl : 1 ≤ l) (hPost : highMass l c = 0)`: the witness has index `≥ l ≥ 1`,
+  so `j.val ≥ 1` and the gap-1 predecessor `j − 1` exists. **Closes part (1) of `Phase6BandPositionFacts`
+  from the landed drain Post + `1 ≤ l` only.**
+
+**Stage 2 — the genuine routing residual + honest per-level constant.**
+- `GapAlignedElimFloor σ E c` (defeq `BandLocalization.MajorityBandAtGap1`): the ONE carried routing
+  field — `≥ E` σ-opposite eliminators AT each live minority's predecessor `j − 1`. Honest obstruction:
+  the band floor `highMass l = 0` does NOT pin a SPECIFIC partner level; the global budget
+  `majorityProfileMass ≥ 4n/15` (PROVED, `MarginLedgers.majorityProfileMass_floor`) could sit anywhere
+  in the band. This is the irreducible per-level routing the `doSplit` magnitude-halving achieves.
+- `exists_band_level_floor` + `exists_band_level_floor_4n45`: the honest DETERMINISTIC content the
+  global budget DOES give once Theorem-6.2 confines the majority mass to a 3-level band finset `S`
+  (`MajoritySupportedOn`, `S.card ≤ 3`): by pigeonhole SOME band level carries `≥ 4n/45`. This pins
+  the per-level constant (`4n/45 = (4n/15)/3`) but does NOT give the per-PARTNER-level placement
+  (that remains `GapAlignedElimFloor`). `majorityAtExp = elimGap1` and
+  `majorityProfileMass = ∑ elimGap1` are defeq (verified), so the pigeonhole consumes the landed floor.
+
+**Stage 3 — assembly + wiring.**
+- `phase6BandPositionFacts_of_post (hl) (hPost) (hRoute)`: `Phase6BandPositionFacts` from the Phase-6
+  Post (part 1 proven) + the routing field (part 2 carried).
+- `phase6_to_phase7_of_post`: end-to-end through `BandLocalization.phase6_to_phase7_of_bandPosition`
+  to `EliminatorMargins.Phase6To7Structure` — band FLOOR discharged from the drain Post, GLOBAL budget
+  from `hA`, only per-level routing `hRoute` carried.
+
+**Net for residual #2:** part (1) `MinorityConfinedGap1` fully closed (was assumed, now proven from
+the landed Phase-6 Post); part (2) `MajorityBandAtGap1` reduced to the single named per-level routing
+field `GapAlignedElimFloor` with its constant pinned at `4n/45` by the band pigeonhole. The honest
+remaining brick is the Phase-6 `doSplit`-routing-to-partner-level invariant (the per-level placement,
+not the per-level count) — the precise thing the convergence proof must additionally maintain.
