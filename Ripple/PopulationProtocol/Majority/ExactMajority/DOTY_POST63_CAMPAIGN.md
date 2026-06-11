@@ -4772,3 +4772,86 @@ carried as a clock event.
 
 **Audit.** All headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0
 sorry/admit/axiom/native_decide; single-file `lake env lean` EXIT_0; `git diff --check` clean.
+
+## ROUND 1–6 CONSOLIDATION (2026-06-10/11 night)
+
+Six residual-attack rounds complete (18 agents, all 0-sorry axiom-clean). Every
+original residual is now either CLOSED or reduced to precisely-named events.
+
+### CONSOLIDATED CARRIED SET (everything else proven)
+Window/positional events (deterministic shapes, provenance = §6 clock Posts):
+- AllBiasedMainBelow (l+2) — the hour ceiling (DoublingEdges)
+- Phase3MainMainWindow — the squaring window (SupplyDispatch)
+- ClockFrontProfile.WindowedFrontProfile + mainFrac 0 ≤ 1/10 (hConfine set)
+Timing/whp events:
+- PredecessorLevelsCoPopulated (occupancy timing, DoublingEdges)
+- per-rung advance seeds hseed + chain-end seed establishment (ChainEndAssembly)
+- IntegerProfileSquaring's hour-coupling readout (drift discharged by window)
+Classification/floors:
+- hBranch/hClassify (reachable regime exhibition, checkpoint-conditional)
+- hFloors (Lemma-5.2 clock-floor value propagation)
+Spend/entry plumbing:
+- Phase-7 entry SurvivalBandAbove start (= #2 chain outputs, now produced)
+
+### Next: window-event reconciliation (map each carried window event to the
+landed §6/clock Posts and discharge those that are already exports), then the
+1/n² budget tightening sweep, then Phase F.
+
+---
+
+## 1/n² BUDGET TIGHTENING SWEEP (2026-06-10) — `Probability/BudgetTightening.lean`
+
+The dad-approved cleanup item is DONE. New append-only file `Probability/BudgetTightening.lean`
+(no existing file edited). The sweep's verdict: **every per-instance budget was already
+calibrated at the `n⁻²` flavor; the ONLY place `1/n` entered was the composite union target**
+(`hδ : ∑ δ ≤ 1/n`) in the headlines/E4. The tightening is therefore pure re-instantiation of
+the SAME parametric composition arithmetic at the `C/n²` target — no engine reopened, no
+window lengthened, no constant bumped.
+
+### Budget table (per-instance landed vs. `n⁻²`-target)
+
+| instance / engine                       | landed ε                        | target | status / lemma                            |
+|-----------------------------------------|---------------------------------|--------|-------------------------------------------|
+| RoleSplit work₀ (3-stage)               | `εRole = 1/n²` (Janson)         | `1/n²` | already n⁻² (`roleSplitTail_le_inv_sq`)   |
+| Phase 1/5/6/7/8 drains (OneSidedCancel) | `budgetNN = 1/(M₀ n²)`          | `1/n²` | already n⁻² (`budgetNN_le_inv_sq`)        |
+| Phase-0 floor prefix                    | `εfloor = n⁻²`                  | `1/n²` | already n⁻² (`floor_prefix_le_inv_sq`)    |
+| Phase-3 §6 seam side budget `sideEps`   | parametric (εQ…εWAt…εsucc)      | `1/n²` | parametric (calibrate width slice → n⁻²)  |
+| 10 seam epidemics                       | `εepidemic + εovershoot`        | `1/n²` | parametric (geometric tail `hε` → n⁻²)    |
+| **composite union (`hδ`)**              | **`∑ δ ≤ 1/n`**                 | `C/n²` | **BOTTLENECK — was the SOLE `1/n` site**  |
+
+The headline-summary line "the headline consumed `hδ ≤ 1/n` at one point" resolves HERE: the
+`1/n` lived ONLY at `DotyTimeHeadline.doty_time_headline_W2`'s `hδ` and the identical
+`DotyExpectedTime.doty_expected_time`'s `hδ` — the union step that DISCARDED the per-instance
+`n⁻²` calibration. Summing 21 instances each `≤ 1/n²` gives `∑ ≤ 21/n² = O(1/n²)`, strictly
+tighter than `1/n` for `n ≥ 21` (`inv_sq_const_le_inv`). No bottleneck term was at `1/n`
+intrinsically — all 21 engines deliver `n⁻²`.
+
+### What was tightened (the 7 new theorems, all 0-sorry axiom-clean)
+
+* `sum_inv_sq_le` — 21 instances each `≤ 1/n²` ⟹ `∑ ≤ 21/n²` (the recovered composite).
+* `inv_sq_const_le_inv` / `inv_sq_const_chain` — `C/n² ≤ 1/n` for `C ≤ n` (certifies the
+  tightening is a genuine improvement, and bridges to any downstream `1/n` consumer).
+* `doty_time_headline_W2_tight` — the seam-corrected 21-instance headline RE-STATED at
+  `hδ : ∑ δ ≤ C/n²`, concluding failure `≤ C/n²` (vs. the old `≤ 1/n`). Time bound unchanged
+  `T ≤ 21·C0·n·(L+1)`.
+* `doty_time_headline_W2_inv_sq` — the drop-in `C = 21` instantiation: each `δᵢ ≤ 1/n²`
+  ⟹ composite failure `≤ 21/n²`, the honest tightest composite headline.
+* `doty_expected_time_tight` — E4/E[T] re-stated at the `C/n²` good-horizon budget,
+  conclusion `E[T] ≤ Cexp·n·(L+1)` preserved.
+* `recovery_term_inv_sq` — the exact E4 recovery-term magnitude at the tightened budget:
+  `(C/n²)·sRecover·(1−1/2)⁻¹ = 2C·sRecover/n²` (vs. the `1/n` value `2·sRecover/n`).
+
+### The E4 (Cexp) impact
+
+`δgood` enters `E[T] ≤ Tgood + δgood·sRecover·(1−1/2)⁻¹`. Replacing `δgood = 1/n` by `21/n²`
+divides the recovery contribution by `n/21`: from `2·sRecover/n` down to `42·sRecover/n²`.
+With the campaign's `sRecover = 2·Brecover` and E2-dominated `Brecover = O(n²(L+1))`:
+* old `1/n` form: recovery `= O(n(L+1))` — the dominant-order term forcing `Cexp = 21·C0 + 4·Cbad`;
+* new `n⁻²` form: recovery `= O(L+1)` — LOWER order than the `O(n(L+1))` good horizon.
+
+So under the tightened budget the recovery term drops out of `Cexp`'s leading constant:
+`E[T] ≤ 21·C0·n·(L+1)` up to lower-order, the recovery is asymptotically free. The `Cbad`
+contribution to `Cexp` is a consequence of the loose `1/n`, not intrinsic.
+
+**Audit.** 7/7 new theorems `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0
+sorry/admit/axiom/native_decide; single-file `lake env lean` EXIT_0; `git diff --check` clean.
