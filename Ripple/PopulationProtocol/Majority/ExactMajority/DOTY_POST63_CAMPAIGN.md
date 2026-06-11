@@ -5568,3 +5568,81 @@ EXIT 0 (~5s, default heartbeats; deps from cached oleans). `#print axioms` for
 `bridge_work_to_seam`, `bridge_seam_to_work` all ⊆ `[propext, Classical.choice, Quot.sound]`.
 0 sorry/admit/axiom/native_decide; `git diff --check` clean (only unrelated pre-existing archive
 files flagged).
+
+---
+
+## F5b — `AssemblyBridges.lean`: genuine per-phase discharge of the `DotyAssembly` bridge fields
+
+Append-only follow-up to F5 (`ConcreteAssembly.lean`).  F5 carried the three bridge fields
+(`hTrig`, `hWorkPostToWindow`, `hWindowToWorkPre`) as FREE binders of `DotyAssembly`.  This
+entry surveys the 11 landed work instances, reads off each `Pre`/`Post` predicate, and
+DISCHARGES the extractable part as standalone axiom-clean lemmas, pinning the
+genuinely-probabilistic residual per phase.
+
+### The per-phase survey (provenance, exact lines)
+
+Every landed WORK instance is built by the drain engines (`OneSidedCancel.crude_/levels_
+PhaseConvergenceW`) or per-phase specialisations, and ALL factor as
+`Post = (phase-pin window) ∧ (drain-done)`, `Pre = (phase-pin window) ∧ (drain-budget Φ≤M₀)
+[+ role/sign pins]`:
+
+| phase | window predicate | shape | file:line |
+|---|---|---|---|
+| 1 | `Phase1AllMain n` | `card=n ∧ ∀a, phase=1 ∧ role=main` | Phase1Convergence.lean:266 |
+| 5 | `Phase5AllWin n` | `card=n ∧ ∀a, phase=5` | ReserveSampling.lean:93 |
+| 6 | `Phase6Win n` | `card=n ∧ ∀a, phase=6` | Phase6Convergence.lean:1020 |
+| 7 | `Phase7AllMain n` | `card=n ∧ ∀a, phase=7 ∧ role=main` | Phase7Convergence.lean:540 |
+| 8 | `Phase8AllMain n` | `card=n ∧ ∀a, phase=8 ∧ role=main` | Phase8Convergence.lean:236 |
+| 4 | `Qwin4`/`advFinished` (`≥`-window) | `card=n ∧ ∀a, phase≥4` | Phase4Convergence.lean:1089 |
+| 10 | `S1 ∨ Tie1plus` | `AllPhase10 ∧ card=n ∧ 0<signedSum` / `Tie1 ∧ hasActive` | Phase10ExpectedTime.lean:2126,3435 |
+
+### Per-field verdict
+
+* **`hWorkPostToWindow` — CLOSED (landed lemmas).**  `Post ⟹ allPhaseGe (seamP k) n` is a
+  pointwise structural fact: the work window pins `a.phase.val = p`, so `p ≤ a.phase.val` is
+  `le_refl`.  Generic extraction `allPhaseGe_of_card_phase` + per-phase corollaries
+  `phase{1,5,6,7,8}_window_to_ge`.  Builder `mk_hWorkPostToWindow` produces the exact
+  `DotyAssembly` field shape from the per-phase window reads — the field is no longer a free
+  binder, it is a CONSEQUENCE of the structural lemmas (once a concrete `work k` / `seamP k`
+  is wired).
+
+* **`hWindowToWorkPre` — phase-pin half CLOSED; residual carried.**  `allPhaseEq (p+1) n`
+  delivers `card=n` and the `=p+1` pin (`windowEq_card_phase`, builder
+  `mk_hWindowToWorkPre_pin`) — exactly the entering window's structural conjunct.  The work
+  `Pre` ALSO needs: (i) drain budget `Φ ≤ M₀` (entering potential ≤ M₀); (ii) role pins
+  (`role=main`, Phases 1/7/8); (iii) sign/active pins (Phase 10 `0<phase10ActiveSignedSum` /
+  `hasActiveAgent`).  Items (i)–(iii) are NOT functions of the phase window — genuinely
+  carried per phase (the "phase entry" data).
+
+* **`hTrig` — genuinely carried; obstruction PROVED.**  `advTriggered (p+1) c` needs an agent
+  already at phase `≥ p+1` (SeamEpidemics.lean:87).  `drained_post_no_advTrig` PROVES that a
+  drained exact `p`-window (`allPhaseEq p n`, populated) makes the trigger FALSE.  So `hTrig`
+  cannot be read off the work `Post` — it is a genuine one-step seam-entry event (a clock
+  ticks one agent forward).  Structural alternative checked: `AtRiskClockZero p` (clock at
+  phase `p+1`, counter 0) IMPLIES the trigger (`advTriggered_of_atRiskClockZero`), so the
+  seam's advance seed needs only ONE phase-`(p+1)` agent at entry — the named per-phase carry.
+
+* **`hcompFail` — engineering attack landed.**  Producer `hcompFail_of_composition` derives
+  the `hcompFail` hypothesis from the composition's `.1` at the LITERAL sum horizon by folding
+  `∑ → T` via `rw [hT]` (a single horizon-subterm rewrite in the SAFE direction).  This does
+  NOT trigger the divergent re-unification (which only fires unifying a restated `T`-shaped
+  LHS against the `Fin 21`-sum-shaped composition output).  So `hcompFail` is PRODUCED from
+  the cheap composition output, not assumed — the caller folds, never re-unifies.
+
+### Remaining carried set (after F5b)
+
+Per phase, the genuine carries are: `hTrig` (one advanced agent at seam entry — whp one-step
+event); and `hWindowToWorkPre`'s residual (drain budget `Φ≤M₀` + role pins + Phase-10
+sign/active pins).  Everything window-structural (`hWorkPostToWindow` in full; the phase-pin
+half of `hWindowToWorkPre`) is now landed.  The slot→instance map and concrete `seamP k`
+values are still a campaign design choice (no concrete `DotyAssembly` is constructed yet);
+the F5b lemmas discharge the fields the moment that wiring lands.
+
+### Audit
+
+Single-file `lake env lean AssemblyBridges.lean` EXIT 0 (~3.7s, uisai2 /dev/shm bucket, deps
+cached).  `#print axioms` for all F5b lemmas (`phase{1,5,6,7,8}_window_to_ge`,
+`allPhaseGe_of_card_phase`, `windowEq_card_phase`, `windowEq_to_ge`, `advTriggered_iff_exists`,
+`drained_post_no_advTrig`, `advTriggered_of_atRiskClockZero`, `mk_hWorkPostToWindow`,
+`mk_hWindowToWorkPre_pin`, `hcompFail_of_composition`) all ⊆ `[propext, Classical.choice,
+Quot.sound]`.  0 sorry/admit/axiom/native_decide; `git diff --check` clean.
