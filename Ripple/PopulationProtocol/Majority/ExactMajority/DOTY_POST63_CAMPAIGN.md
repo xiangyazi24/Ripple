@@ -6116,3 +6116,90 @@ EXIT 0 (deps from cached oleans, ~v4.30.0).  `#print axioms` for all 9 audited d
 `allPhaseGe_kernel_one_compl_zero`, `seamWithSeed`, `bridge_work_to_seam'`, `bridge_seam_to_work'`,
 `dotyPhases'_h_chain`, `doty_time_headline_CONCRETE'`) ⊆ `[propext, Classical.choice, Quot.sound]`;
 0 sorry/admit/axiom/native_decide; `git diff --check` clean.
+
+## BranchAndBudget.lean — on-chain `hBranch` + honest survival re-cut (wave C, 2026-06-11)
+
+Append-only new file (no existing file edited).  Two E4-side remainders.
+
+### 1. On-chain `hBranch` — the checkpoint-conditional classification ON the good trajectory.
+
+`ChainEndAssembly.ChainEndBranch` is the per-state residual the capstone
+`ChainEndRecut.doty_expected_time_chain_end'` consumes (EXHIBIT one of four regime constructors per
+reachable not-done `b`).  This file delivers the ON-CHAIN exhibition:
+
+- **`chainBranch_{bigClock,tinyClock,phase10Majority,phase10Tie}`** — the four branch builders:
+  from the checkpoint regime `*Data` (`TimedBigClockData` at `n/5 ≤ mC`, `TimedTinyClockData` at
+  `2 ≤ mC`, or the phase-10 `S1`/`Tie1plus` with the conserved gap-sign) plus the chain-end objects
+  (per-rung seeds `hseed`, the discharged phase-10 entry-drain `hfinal`, the budget `hsum`), produce
+  the `ChainEndBranch` constructor in one step.
+- **`ChainSlotData` + `branch_of_slot`** — the per-slot pinned-data record and the timed dispatch:
+  a state inside a timed slot's window carries a big- OR tiny-clock witness at the slot's phase;
+  `branch_of_slot` dispatches it into the matching branch.
+- **`classification_of_slot`** — end-to-end check: slot data → `branch_of_slot` →
+  `regimeClassification_of_chainEndBranch` PRODUCES the `ReachablePhaseRegimeClassification` with the
+  timed ladder BUILT (not carried), confirming the slot data suffices to close the classification
+  surface for that state.
+- **`branch_of_phase10_{majority,tie}`** — the chain-end phase-10 dispatch by the conserved
+  gap-sign (`phase10ActiveSignedSum = initialGap`, `BackupEntry.arrival_classification`).
+
+**On-chain coverage (what is discharged).**  The 21-instance good run's slot windows partition the
+good trajectory.  For a reachable state INSIDE a slot's window the chain pins it into the checkpoint
+regime `AllClockGEpCard p n` at that slot's phase (`p ∈ {5,6,7,8}`, `3 ≤ p`, timed) or the phase-10
+backup (chain end); the good role-split event supplies the clock floor
+(`clockCount_linear_of_RoleSplitGood` ⇒ `n/5 ≤ |Clock|`, Lemma 5.2).  So `hBranch` is DISCHARGED on
+the good event: given the pinned slot data, the branch is a one-step constructor application.
+
+**The genuinely-open OFF-event remainder (honest, faithful to `HANDOFF_HLADDER`).**  The all-backup
+route ("every not-stable state forces phase 10") is FALSE in the frozen protocol — no universal
+force-to-10 rule; a state can have no clocks, fewer than two clocks, or no enabled counter progress.
+So the UNCONDITIONAL classifier of arbitrary reachable not-done states is NOT a deterministic
+theorem.  In the E4 tail-sum the recovery cap only MULTIPLIES the bad probability (the complement of
+the whp `RoleSplitGood` event, mass `≤ 21/n²`), so a crude off-event bound would suffice — but there
+is NO uniform deterministic crude bound: the `tinyClock` branch needs `2 ≤ mC` clocks (a failed role
+split need not supply them) and the phase-10 branches need the all-phase-10 regime (an arbitrary
+state need not be in it).  The paper's resolution (per `HANDOFF_HLADDER` §6/§7) is the
+REACHABLE-RELATIVE ladder (`ReachableLadder.doty_expected_time_reachable'`, landed): condition the
+classification on the whp role-split checkpoint and charge the off-event mass to the whp bad-event
+probability in the split-geometric recovery, NOT to a (nonexistent) deterministic off-event ladder.
+This file delivers the ON-event half; the off-event half is honestly the whp conditioning.
+
+### 2. Survival budget honest re-cut — slot-8 at the provable `α₈' = 14/75`.
+
+`SurvivalAccounting.survival_floor_honest` proves the survival floor `14n/75 = 4n/15 − 2n/25 < n/5`
+at the carried `0.12·|M|` minority residue.  The Phase-8 drain rate the survival floor `elimAbove ≥ E`
+feeds (`phase8_hdrop_wired`) is `q = 1 − E/(n(n−1))` — the `DrainCalibration` rectangle rate at drain
+fraction `α₈ = E/n`.  At the honest `E = 14n/75` we get `α₈' = 14/75`.
+
+**Route chosen: RE-CUT at the provable constant** (NOT sharpen-to-`n/5`).  `rect_pow_le_budget` is
+fully α-parametric, so the `1/(M₀ n²)` budget still closes — only the window length scales.
+
+- **`phase8Convergence_recut`** — the honest re-calibrated slot-8 instance at `α₈' = 14/75`
+  (`DrainCalibration.phase8Convergence_calibrated` instantiated at the honest α).  Window requirement
+  `t ≥ (3/α₈')·n·log n = (225/14)·n·log n`.
+- **`recut_budget_closes`** — explicit witness that `(ofReal q_r)^t ≤ budgetNN M₀ n` survives the
+  re-cut; **`recut_budget_le_inv_sq`** — the budget reads as `≤ 1/n²` (unchanged).
+- **window arithmetic** (`recut_horizon_scale`, `recut_window_coeff_bounds`): the re-cut horizon is
+  `15/14` × the `α₈ = 1/5` horizon (`3/(14/75) = 225/14 = (15/14)·15`); coefficient `225/14 ≈ 16.07`
+  (`16 < · < 17`), i.e. `≈ 16.07·n·log n` vs `15·n·log n` — about 7.1% longer.
+- **`honest_floor_lt_fifth`** (`14n/75 < n/5`), **`survival_floor_honest_eq`**
+  (`4n/15 − 2n/25 = 14n/75` exactly), **`recut_floor_from_survival`** (re-export of
+  `survival_floor_honest`: provable survivors `14n/75` ARE the re-cut drain numerator).
+
+**Sharp-route survey (Part 6, the honest finding).**  Doty's `n/5` comes from the sharp per-level
+minority decay `β⁻ ≤ 0.004·|M|·2^{−l}` (spend `o(n)` ⇒ survivors `→ 4n/15 ≥ n/5`).  Survey result:
+the landed `MarginLedgers.MainConfinementProfile.hMinoritySmall` carries ONLY the coarse aggregate
+`minorityProfileMass ≤ 0.12·|M|`; the per-level decay is NOT carried anywhere.  So the sharp route
+would require LANDING a new Theorem-6.2-sharpening probability object — strictly more work.  The
+re-cut consumes only the already-landed `0.12`-residue spend and pays the `15/14`-longer window,
+with NO new probability object.  Hence the re-cut is the honest cheaper route.
+
+### Audit
+
+Single-file `lake env lean … Probability/BranchAndBudget.lean` EXIT 0 (deps from cached oleans;
+`ChainEndRecut.olean` built single-file in place — it was missing, predating this wave, not an edit
+to source).  `#print axioms` for all 18 new declarations (`chainBranch_*` ×4, `branch_of_slot`,
+`classification_of_slot`, `branch_of_phase10_*` ×2, `alpha8_recut_{pos,le_one}`,
+`honest_floor_lt_fifth`, `recut_horizon_scale`, `recut_window_coeff_bounds`,
+`phase8Convergence_recut`, `recut_budget_closes`, `recut_budget_le_inv_sq`,
+`survival_floor_honest_eq`, `recut_floor_from_survival`) ⊆ `[propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide; `git diff --check` clean.
