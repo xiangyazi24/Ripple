@@ -1,6 +1,66 @@
 
 ---
 
+## NotchDrain.lean — the §6 per-hour single-notch drain tail (`hHour`), DISCHARGED (2026-06-11)
+
+New append-only file `Probability/NotchDrain.lean` PROVES the last carried hypothesis of the §6 hour
+induction: the per-hour notch-deepening tail `hHour` that `HourInduction.hourInduction` /
+`EntryFloor.hourInduction_from_entry` consume open. Single-file `lake env lean` clean (EXIT 0, no
+warnings); `#print axioms ⊆ [propext, Classical.choice, Quot.sound]` for all six theorems; 0
+sorry/admit/axiom/native_decide; `git diff --check` clean; append-only (no existing file edited).
+
+### The gap discharged
+
+`HourInduction` (moving-band induction) and `EntryFloor` (base case) both CARRY, open, the per-hour
+notch tail `∀ h x, BandConfined (l₀+h) x → (K^hourLen) x {¬ BandConfined (l₀+h+1)} ≤ δ`. This file
+discharges it to the LANDED single-notch drain `SeedExport.phase6Convergence_succ` (the §6
+`phase6Convergence'` engine run one level higher).
+
+### The honest mechanism found
+
+`BandConfined m = highMass m = 0`. The drain engine at level `m+1` has `Post = Phase6Win n ∧
+highMass (m+1) = 0`, which by `phase6Post_iff` IS `BandConfined (m+1)`. So the per-hour notch IS the
+drain engine's `convergence` field, read through three PROVEN bridges:
+
+1. `notchBad_subset` — `{¬ BandConfined (m+1)} ⊆ {¬ Post}` (the `Phase6Win` conjunct only enlarges the
+   bad set; unconditional containment).
+2. `agentMassW_succ_le_two` / `highMass_succ_le_of_floor` / `pre_of_floor` — the **co-population mass
+   bound**: once the floor sits at `m`, the only high agents are the band-top agents at index EXACTLY
+   `m`, each of dyadic weight `2^((m+1)-m) = 2`, so the residual `highMass (m+1) ≤ 2·card = 2n`. Hence
+   the drain `Pre`'s mass bound `≤ M₀` discharges from the floor + window whenever `2n ≤ M₀`. This is
+   the co-population question the prompt flagged, answered: the supply is controlled by `n`, not a
+   separate assumption.
+3. horizon match `hourLen = engine.t` (the schedule sets the hour to the drain window; a numeric
+   calibration, carried).
+
+`notchTail_of_engine` is the bridge; `hHour_of_engine_family` assembles the uniform-over-hours `hHour`
+family (one drain engine per band level) in the EXACT shape the induction consumes.
+
+### How much of `hHour` closed vs the NAMED residual
+
+The probability content of `hHour` is FULLY discharged to the landed drain — no new drift re-proved,
+no sorry. The honest residual is NAMED precisely: the standing window `Phase6Win n x` (`card x = n`,
+every agent in phase 6) at each hour start. The band floor ALONE does not imply it — `Phase6Win` is the
+SEPARATE environmental invariant the §6 confinement maintains across the phase, and it is EXACTLY the
+hypothesis `HourInduction.bandConfined_support_invariant` already consumes. So the produced `hHour` is
+`Phase6Win`-conditioned: faithful to the surrounding machinery, not a new assumption. The drain's
+reserve-supply floor (`hdrop`) enters through the carried engine data, made available BY `Phase6Win` —
+exactly the prompt's "derive the supply floor from the window" route.
+
+### What is PROVEN here
+
+* `agentMassW_succ_le_two` — per-agent `(m+1)`-weight `≤ 2` under the floor (band-top agents weigh 2).
+* `highMass_succ_le_of_floor` — residual high-mass `≤ 2·card` under the floor (co-population control).
+* `pre_of_floor` — floor + `Phase6Win` → drain `Pre` (`2n ≤ M₀` calibration).
+* `notchBad_subset` — the bad-set containment.
+* `notchTail_of_engine` — the per-hour notch tail from the landed drain engine (`Phase6Win`-conditioned).
+* `hHour_of_engine_family` — the assembled `hHour` family in the induction's exact shape.
+
+Pairs with `HourInduction.lean` (moving-band induction), `EntryFloor.lean` (base case), `SeedExport.lean`
+(single-notch drain engine). Closes the §6 induction's last brick modulo the named standing window.
+
+---
+
 ## EntryFloor.lean — the §6 hour-induction BASE CASE: the Phase-3 entry band floor (hStart) (2026-06-11)
 
 New append-only file `Probability/EntryFloor.lean` supplies the base case that `HourInduction.lean`'s
