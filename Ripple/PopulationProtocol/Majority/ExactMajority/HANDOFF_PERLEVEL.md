@@ -702,3 +702,36 @@ saturated top hour `L`.
 reachable Phase6→7 form: `EliminatorMargins.Phase6To7Structure σ E c` + `MinorityAboveFloor l τ c` for
 EVERY sign + the `l+1`-floor `cancelSplit` step-stability, all from the single seed. The carried
 `MinorityFloorGap` `MinorityAboveFloor` residual is now PRODUCED by the bumped drain, no longer assumed.
+
+---
+
+## BandEdges.lean — band UPPER edge + per-partner gap-1 placement (2026-06-10, EXIT_0, axiom-clean)
+
+NEW append-only `Probability/BandEdges.lean` (module build EXIT_0; 10 headlines axiom-clean
+`⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide; whitespace clean).
+
+**Task 1 — band UPPER edge / honest band statement.** Surveyed what the landed Thm-6.2 confinement
+pins: `MainExponentConfinement.MainProfileConfinedToUseful` (the `mainProfile_collapse` readout) is
+`0.92·|M| ≤ #usefulMains`, the **CAP** `index < L`, NOT a 3-level band. The doubly-exponential descent
+(`FrontTail.windowed_floor_crossing`) pins mass above the moving front; the landed certificate is the
+cap with the front descended past it. So `BandRouting.MajoritySupportedOn`'s upper half is honestly
+the **free cap `i ≤ L`** (every `Fin (L+1)`), giving the two-edge band `{l ≤ i ≤ L}`
+(`majoritySupportedOn_twoEdge_of_post`), seed-sharpened to `{l+1 ≤ i ≤ L}`
+(`majoritySupportedOn_twoEdge_of_seed`). The paper's 3-level band is carried as ONE named upper-edge
+readout `MajorityTopEdge σ (l+2) c` (analogue of the cap-side `MainProfileConfinedToUseful`); given
+it, `majoritySupportedOn_band3_of_post_topEdge` + `band3_card_le_three` + `exists_band3_level_floor_4n45`
+recover the paper's `4n/45` pigeonhole.
+
+**Task 2 — `GapAlignedElimFloor` per-partner placement.** Honest reduction (NOT pigeonhole alignment):
+seed ⟹ `MinorityAboveFloor` (minority ≥ l+1); + carried `MinorityTopEdge σ (l+2) c` ⟹ minority ∈
+`{l+1, l+2}` ⟹ predecessor set EXACTLY `{l, l+1}` (2 levels). The honest paper fact is **occupancy of
+BOTH predecessor levels** (`TwoLevelOccupancy`: levels l, l+1 each ≥ E — the doubling chain passes
+through EACH level). `gapAlignedElimFloor_of_twoLevel_occupancy` discharges `GapAlignedElimFloor` from
+occupancy + floor + top. Arithmetic: 2-level set, budget 4n/15 ⟹ pigeonhole some level ≥ 2n/15;
+occupancy of both at E ≤ 2n/15 ≤ 4n/15 (`twoLevel_constant_le_consumer`), tighter than 3-level 4n/45.
+
+**Wired:** `phase6_to_phase7_of_seed_edges` / `phase6To7_surface_of_seed_edges` — from the single
+`l+1` seed + `hA` + `h6` + carried `MinorityTopEdge` + `TwoLevelOccupancy`, the routing field
+`GapAlignedElimFloor` is PRODUCED (not assumed) → `EliminatorMargins.Phase6To7Structure` (+
+`MinorityAboveFloor` both signs + step-stability). Carried residual reduced to exactly the two
+TOP-band readouts + `TwoLevelOccupancy`; every FLOOR half PROVEN from the landed drain.

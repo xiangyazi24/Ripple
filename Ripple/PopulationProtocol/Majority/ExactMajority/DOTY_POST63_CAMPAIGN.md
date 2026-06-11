@@ -4539,6 +4539,61 @@ engine is the cross-phase band occupation (Part 8 cross-term) + the phase-`8→1
 
 ---
 
+## BandEdges.lean — the two-edge band statement + per-partner placement (2026-06-10, EXIT_0, axiom-clean)
+
+NEW append-only `Probability/BandEdges.lean` (full dep-closure module build EXIT_0 on uisai2 shm;
+10 headlines `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/
+native_decide; `git diff --check` clean). Closes the two remaining Theorem-6.2-band facts.
+
+### The honest band statement (survey result, NOT the paper headline "3-level band")
+
+Surveyed `MainExponentConfinement` + `UsefulMainFloor`: the landed §6 collapse
+(`mainProfile_collapse` via `FrontTail.windowed_floor_crossing`, doubly-exponential descent) exports
+the readout `MainProfileConfinedToUseful = 0.92·|M| ≤ #usefulMains` where `usefulMains` is the **CAP**
+`index < L` (`biasedMainLtL`), NOT a 3-level band. The doubly-exponential descent pins mass above the
+moving front; the landed certificate is the *cap*, with the front descended past it. The paper's
+`{−l,−(l+1),−(l+2)}` 3-level band is its *claim* — the landed facts only give the cap.
+
+So the HONEST `MajoritySupportedOn` support is the **two-edge floor/cap band `{l ≤ i ≤ L}`**:
+LOWER edge `l ≤ i` PROVEN from the Post (`GapAlignment.majoritySupportedOn_atFloor_of_post`), UPPER
+edge `i ≤ L` FREE for `Fin (L+1)`. Width `L − l + 1 = O(log n)` generic — NOT constant. With the
+`l+1` seed the lower edge sharpens to `l+1 ≤ i` (`majoritySupportedOn_twoEdge_of_seed`, via
+`elim_index_ge_succ_floor`: the seed pins the σ-OPPOSITE band too). This is the honest band fact.
+
+The genuine 3-level band needs ONE carried upper-edge predicate `MajorityTopEdge σ (l+2) c` (the
+doubling-collapse TOP-band readout, analogous to `MainProfileConfinedToUseful`). Given it,
+`majoritySupportedOn_band3_of_post_topEdge` lands the support on `{l ≤ i ≤ l+2}`, `band3_card_le_three`
+proves card ≤ 3, and `exists_band3_level_floor_4n45` derives the paper's `4n/45` pigeonhole constant
+(= `BandRouting.exists_band_level_floor_4n45` instantiated at the 3-level band).
+
+### The per-partner placement (task #2) — honest occupancy reduction, not pigeonhole alignment
+
+The pigeonhole gives SOME level ≥ 4n/45; the routing needs the SPECIFIC predecessor of EACH minority.
+Honest reduction: seed gives `MinorityAboveFloor σ l c` (minority ≥ l+1); add carried
+`MinorityTopEdge σ (l+2) c` (minority ≤ l+2) ⟹ minority confined to `{l+1, l+2}` ⟹ predecessor set
+EXACTLY `{l, l+1}` (2 levels). The honest paper fact is **occupancy of BOTH band predecessor levels**
+(`TwoLevelOccupancy`: levels `l` and `l+1` each carry ≥ E) — the doubling chain passes through EACH
+level on its descent. `gapAlignedElimFloor_of_twoLevel_occupancy`: occupancy + floor + top ⟹
+`GapAlignedElimFloor`. NOT "the pigeonhole level happens to align" but "every band predecessor
+populated".
+
+Arithmetic against consumer E ≤ 4n/15: 2-level predecessor set `{l,l+1}`, budget 4n/15 ⟹ pigeonhole
+SOME level ≥ 4n/30 = 2n/15; occupancy of BOTH at E ≤ 2n/15 ≤ 4n/15 (consumer-compatible,
+`twoLevel_constant_le_consumer`). The 2-level `2n/15` is strictly tighter than the 3-level `4n/45`.
+
+### How much closed
+
+* `phase6_to_phase7_of_seed_edges` / `phase6To7_surface_of_seed_edges`: from the SINGLE `l+1` seed
+  + A-shape budget `hA` + window `h6` + carried `MinorityTopEdge` + `TwoLevelOccupancy`, the routing
+  field `GapAlignedElimFloor` is PRODUCED (not assumed) ⟹ `EliminatorMargins.Phase6To7Structure`,
+  PLUS `MinorityAboveFloor` (both signs) + the cancelSplit step-stability.
+* Residual reduced to exactly the two named TOP-band readouts (`MajorityTopEdge`/`MinorityTopEdge`)
+  + `TwoLevelOccupancy` — all honest doubling-collapse TOP-band content. Every FLOOR half is PROVEN
+  from the landed drain (Post + `l+1` seed). The carried residual is now precisely the upper-edge
+  collapse readout, matching the `MainProfileConfinedToUseful` carry on the cap side.
+
+---
+
 ## Chain-end DELIVERED — `Probability/BackupEntry.lean` (2026-06-10)
 
 The phase-`8 → 10` backup entry (`TimedChainRungs` Part-9 named remainder) is now supplied

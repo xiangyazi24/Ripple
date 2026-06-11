@@ -192,15 +192,10 @@ theorem supplyIndic_subadditive_of_region (i : ℕ) {σ : Sign}
   -- in ℕ; cast the ℕ inequality to `ℝ≥0∞` via the monotone `Nat.cast`.
   rw [HourCoupling.countP_pair, HourCoupling.countP_pair] at hcount
   have hcast := (Nat.cast_le (α := ℝ≥0∞)).mpr hcount
-  -- `supplyIndic i a = if supplyP i a then 1 else 0` in `ℝ≥0∞`, and
-  -- `((if p then 1 else 0 : ℕ) : ℝ≥0∞) = if p then 1 else 0`.
-  have hcastIf : ∀ a : AgentState L K,
-      ((if supplyP (L := L) (K := K) i a then (1 : ℕ) else 0 : ℕ) : ℝ≥0∞)
-        = supplyIndic (L := L) (K := K) i a := by
-    intro a; unfold supplyIndic; split <;> simp
   push_cast at hcast
-  rw [hcastIf, hcastIf, hcastIf, hcastIf] at hcast
-  exact hcast
+  -- `supplyIndic i a = if supplyP i a then 1 else 0` in `ℝ≥0∞`; `hcast` is now in
+  -- exactly that `if`-form, so unfolding `supplyIndic` in the goal closes it.
+  simpa only [supplyIndic] using hcast
 
 /-! ## Part 4 — region ⟹ the `r = 1` zero-supply drift on the Phase-3 step.
 
@@ -278,9 +273,8 @@ theorem phase3CancelSplit_NoMinoritySignAbove_succ (i : ℕ) (σ : Sign)
   cases hsb : s.bias with
   | zero =>
     cases htb : t.bias with
-    | zero => simp only [hsb, htb]; exact ⟨fun j hj => by simp at hj, fun j hj => by simp at hj⟩
+    | zero => exact ⟨fun j hj => by simp at hj, fun j hj => by simp at hj⟩
     | dyadic tsgn tj =>
-      simp only [hsb, htb]
       by_cases hgt : s.hour.val > tj.val
       · -- split: both outputs `dyadic tsgn ⟨tj+1⟩`.
         simp only [hgt, dif_pos]
@@ -288,34 +282,31 @@ theorem phase3CancelSplit_NoMinoritySignAbove_succ (i : ℕ) (σ : Sign)
         · subst htσ
           have htle : tj.val ≤ i := ht tj htb
           refine ⟨fun j hj => ?_, fun j hj => ?_⟩ <;>
-            (simp only [AgentState.mk.injEq] at hj; obtain ⟨hbias, _⟩ := hj;
-             injection hbias with _ hidx; rw [← hidx]; simpa using Nat.succ_le_succ htle)
+            (simp only at hj; injection hj with _ hidx; rw [← hidx];
+             simpa using Nat.succ_le_succ htle)
         · refine ⟨fun j hj => ?_, fun j hj => ?_⟩ <;>
-            (simp only [AgentState.mk.injEq] at hj; obtain ⟨hbias, _⟩ := hj;
-             injection hbias with hsgn _; exact absurd hsgn.symm htσ)
+            (simp only at hj; injection hj with hsgn _; exact absurd hsgn htσ)
       · simp only [hgt, dif_neg, not_false_iff]
         exact ⟨fun j hj => Nat.le_succ_of_le (hs j (by simpa [hsb] using hj)),
                fun j hj => Nat.le_succ_of_le (ht j (by simpa [htb] using hj))⟩
   | dyadic ssgn sj =>
     cases htb : t.bias with
     | zero =>
-      simp only [hsb, htb]
       by_cases hgt : t.hour.val > sj.val
       · simp only [hgt, dif_pos]
         by_cases hsσ : ssgn = σ
         · subst hsσ
           have hsle : sj.val ≤ i := hs sj hsb
           refine ⟨fun j hj => ?_, fun j hj => ?_⟩ <;>
-            (simp only [AgentState.mk.injEq] at hj; obtain ⟨hbias, _⟩ := hj;
-             injection hbias with _ hidx; rw [← hidx]; simpa using Nat.succ_le_succ hsle)
+            (simp only at hj; injection hj with _ hidx; rw [← hidx];
+             simpa using Nat.succ_le_succ hsle)
         · refine ⟨fun j hj => ?_, fun j hj => ?_⟩ <;>
-            (simp only [AgentState.mk.injEq] at hj; obtain ⟨hbias, _⟩ := hj;
-             injection hbias with hsgn _; exact absurd hsgn.symm hsσ)
+            (simp only at hj; injection hj with hsgn _; exact absurd hsgn hsσ)
       · simp only [hgt, dif_neg, not_false_iff]
         exact ⟨fun j hj => Nat.le_succ_of_le (hs j (by simpa [hsb] using hj)),
                fun j hj => Nat.le_succ_of_le (ht j (by simpa [htb] using hj))⟩
     | dyadic tsgn tj =>
-      cases ssgn <;> cases tsgn <;> simp only [hsb, htb]
+      cases ssgn <;> cases tsgn
       -- pos,pos : same-sign no-op.
       · exact ⟨fun j hj => Nat.le_succ_of_le (hs j (by simpa [hsb] using hj)),
                fun j hj => Nat.le_succ_of_le (ht j (by simpa [htb] using hj))⟩
