@@ -577,3 +577,29 @@ belongs to the instance, not dischargeable); the dead `hM₀` (remove in a futur
   #6 `hPhase6Post7`, #7 `hPhase7Post8`, #10 `hpull1`, #15 `work0/2/3/9`, #4 `hSeedStep`.
 - **Wave 3 (C, easiest paper-math first):** #9 `hConc` residuals → #13 `hPhase10Sign` → #8 Thm-6.2
   floor → #11 Phase-6 drain rate → #14 `hSlotClass` (the off-event regime cover, last).
+
+## SeamQuickWins.lean — WAVE 1 (A-class quick wins) DISCHARGED (2026-06-11)
+
+New append-only file `Probability/SeamQuickWins.lean`.  Delivers the narrowed bundle constructor
+`SeamQuickWins.dotyAtomsWave1 : DotyAtomsWave1Inputs n C0 → FinalAssemblyV3.DotyResidualAtomsV3 n C0`,
+in which the five (A)-class seam fields are PRODUCED from landed machinery (no longer free inputs).
+The input record `DotyAtomsWave1Inputs` carries each producer's calibration data and the
+still-open residuals verbatim.  0-sorry, axiom-clean (`#print axioms ⊆ {propext, Classical.choice,
+Quot.sound}`).
+
+| # | Atom (field) | Status | Producer wired (file:line) |
+|---|---|---|---|
+| 1 | `hDrift` (10 seam epidemic drifts) | ✅ PRODUCED | `wave1_hDrift` ← `SeamEpidemics.seam_drift` (`SeamEpidemics:1093`), per-seam at `p=seamP k`, `t=seamT k`, rate `sDrift k`, tail check `hεDrift k` |
+| 2 | `hWorkPostToWindow` (work.Post → allPhaseGe) | ✅ PRODUCED | `wave1_hWorkPostToWindow` ← `AssemblyBridges.mk_hWorkPostToWindow` (`AssemblyBridges:233`) over `dotyWorkHonest wih`'s 11 slots with per-slot window read `hwin` |
+| 3 | `hWindowToWorkPre` (allPhaseEq → next work.Pre) | ✅ PRODUCED | `wave1_hWindowToWorkPre` ← `AssemblyBridges.mk_hWindowToWorkPre_pin` (`AssemblyBridges:249`) ∘ carried per-phase entry residual `hEntryPin` |
+| 12 | `hWork0PreOfStart` (slot-0 `Pre` interface) | ✅ WIRED | V3 bundle field ← carried slot-0 pin `hWork0Pin : Phase0Initial n c₀ → work0.Pre c₀` (the `slot0_pre_pin` reduction is already landed) |
+| 5(a) | `DetSeamOvershootBridge` → `hNoOvershoot` | ✅ PRODUCED + WIRED | `wave1_hNoOvershoot` PRODUCES `DetSeamOvershootBridge (seamP k)` ← `SeamNoOvershoot.detSeamOvershootBridge_of_wf` (`SeamOvershootBridge:1604`) from `hReset k` + `hWf`, and FEEDS it into the consumed 5(b) tail `hOvershootTail k` |
+
+**Consumed (not in scope — named input only):** 5(b) `AtRiskClockZero` clock-zero tail — the
+ClockZeroTail agent's territory.  In `DotyAtomsWave1Inputs` it is the field `hOvershootTail`,
+stated from the seam `Pre` and TAKING the produced bridge as an explicit argument; the clock-zero
+concentration is NOT reproved here.
+
+**Carried verbatim (still open, other waves):** `wih` (#6–#11, #15 work-slot atoms), `hSeedStep`
+(#4), `hStart` (#12 D), `hPhase10Sign` (#13), and the budget/config/regime scalars
+(`Cphase/δ/c₀/init/hC0/hδ`).
