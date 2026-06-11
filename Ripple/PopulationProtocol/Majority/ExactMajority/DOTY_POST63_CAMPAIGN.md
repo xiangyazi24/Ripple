@@ -5340,3 +5340,67 @@ theorems (`allBiasedMainBelow_pair_preserved` uses only `[propext, Quot.sound]`)
 
 **Tag:** `doty-thm31-phaseF-2026-06-11` (annotated, → `2f2121a`): Theorem 3.1 both halves
 structurally complete; 164-module closure green; ~17 named carried hypotheses inventoried above.
+
+---
+
+## F1 REFINEMENT — the genuine all-hours UNION discharge (`Probability/HourUnion.lean`, append-only)
+
+**Codex adversarial-audit finding (`/tmp/codex_audit_report.md` §F1).** The F1+F2 fix above
+(`ConfinementSurface.lean`) removed the false pointwise predicate and works at kernel level, but the
+Codex sweep found its `mainConfinement_kernel_whp` is honest ONLY as a *carried final event*: its
+sole substantive binder is
+
+```
+hHourTail : (transitionKernel ^ phase3to5Time) c₀ {c | ¬ ConfinementEvent c} ≤ η
+```
+
+— the FINAL bad-event bound — and the conclusion is the SAME bound (a `rfl`-level repackaging via the
+orphaned `theorem6_2_main_confinement_whp`, whose proof is `rw [hev]; exact hHourTail`). So the
+all-hours **union** — composing the per-hour squaring tails over the `numHours` hours of the
+Phase-3→5 horizon into the final `{¬ConfinementEvent}` budget — was NEVER performed. It is a
+**tautological carry**.
+
+**Doc correction.** The earlier F1-fix narrative overstated `hHourTail` as "the honest per-hour
+squaring tails composed." That is wrong: `hHourTail` is literally the final tail, with NO composition.
+The genuinely-missing piece is the per-hour→horizon chaining. The corrected statement: the honest
+carried object is NOT the final tail; it is the PER-HOUR squaring failure plus the hour-boundary
+chaining.
+
+**The honest fix (`Probability/HourUnion.lean`).** Mirrors the LANDED checkpoint-composition machinery
+(`EarlyDripMarked.checkpoint_composition`, the per-WINDOW invariant-failure → `KK`-window union at
+horizon `w·KK`; and `WidthPrefix.checkpoint_composition_prefix`, the clock-side per-window chaining
+with a remainder block) for the Main-profile hours. `ConfinementSurface.ConfinementEvent` is a
+discrete-measurable invariant and `(NonuniformMajority L K).transitionKernel` is a Markov kernel, so
+`checkpoint_composition` applies VERBATIM with `Inv := ConfinementEvent`, `w := hourLen`,
+`KK := numHours` — no new probability, the confinement event plugged into the existing union engine.
+
+* `confinementEvent_hours_union` — the union composition theorem (the discharge F1 skipped). From the
+  PER-HOUR brick `hHour : ∀ x, ConfinementEvent x → (Kʰᵒᵘʳᴸᵉⁿ) x {¬ConfinementEvent} ≤ δ` (each hour's
+  squaring tail from a confined state — the LANDED `confinement_hour_tail`/`main_profile_hour_squaring`
+  at one hour), the horizon decomposition `hHorizon : phase3to5Time = hourLen·numHours`, the budget
+  `hBudget : numHours·δ ≤ η`, and the confined start `hConf0`, it CONCLUDES the final event bound
+  `(K^phase3to5Time) c₀ {¬ConfinementEvent} ≤ η`. Proof: `subst hHorizon`; `checkpoint_composition`;
+  `le_trans … hBudget`. The per-hour tails are COMPOSED, never assumed.
+* `mainConfinement_kernel_whp_of_hours` — the re-wired consumer surface, SAME conclusion as
+  `mainConfinement_kernel_whp` but the carried inputs are STRICTLY FINER than the final tail: the
+  per-hour squaring events (`hHour`), the hour-boundary clock facts (`hHorizon`, `hConf0`), and the
+  arithmetic (`hBudget`). The final tail is the OUTPUT.
+* `confinement_hours_union_from_single` — the convenience form: a single uniform per-hour squaring
+  constant `δ` (the `confinement_hour_tail` shape `r^hourLen·Φ(c₀)/θ`) feeds the union directly.
+
+### Corrected carried inventory for the confinement chain (finer than the final tail)
+
+| object | F1-fix carried set (tautological) | F1-REFINEMENT honest carried set (finer) |
+|---|---|---|
+| confinement surface | the FINAL tail `hHourTail : (K^phase3to5Time)c₀{¬conf} ≤ η` (= conclusion; no composition) | PER-HOUR tail `hHour : ∀ x, conf x → (K^hourLen)x{¬conf} ≤ δ` + horizon `phase3to5Time = hourLen·numHours` + budget `numHours·δ ≤ η` + confined start `hConf0` |
+| the discharge | `rfl`-rewrite returning the input | `checkpoint_composition` union over `numHours` hours + budget spend `le_trans` |
+
+So the confinement chain now carries: **per-hour squaring failure + hour-boundary confined-start
+anchor + arithmetic** — never the final event bound. This is the union the F1 fix's `hHourTail`
+pretended to deliver.
+
+**Audit.** 3/3 new theorems axiom-clean ⊆ `[propext, Classical.choice, Quot.sound]`; 0
+sorry/admit/axiom/native_decide; `git diff --check` clean. Single-file build verified on uisai2
+`/dev/shm` (v4.30.0 + mathlib c5ea00351c28, same bucket): `lake build …Probability.HourUnion` EXIT 0
+("Build completed successfully (3599 jobs)"); `lake env lean` axiom audit clean (comment-only
+line-length style warnings, matching the existing `ConfinementSurface.lean` convention).

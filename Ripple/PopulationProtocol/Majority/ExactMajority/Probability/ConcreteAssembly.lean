@@ -270,7 +270,7 @@ The `h_chain` binder — the 20 bridges — is GONE from the surviving set (clos
 (The elaboration unifies `dotyPhases asm` against the polymorphic `phases` slot of
 `doty_time_headline_W2_inv_sq`, reducing the `dite`-interleave at the endpoints `0` / `20`;
 `maxHeartbeats` is raised for this benign defeq cost — no `native_decide`, no kernel work.) -/
-set_option maxHeartbeats 1600000 in
+set_option maxHeartbeats 0 in
 theorem doty_time_headline_CONCRETE
     {L K n C0 : ℕ}
     (init c₀ : Config (AgentState L K))
@@ -296,7 +296,7 @@ theorem doty_time_headline_CONCRETE
 instances themselves (`δ i = (dotyPhases asm i).ε`), each `≤ 1/n²` by the campaign's
 calibration.  Records that, with the EXACT seams forced, the composite failure is the
 honest `21/n²`. -/
-set_option maxHeartbeats 1600000 in
+set_option maxHeartbeats 0 in
 theorem doty_time_headline_CONCRETE_self
     {L K n C0 : ℕ}
     (init c₀ : Config (AgentState L K))
