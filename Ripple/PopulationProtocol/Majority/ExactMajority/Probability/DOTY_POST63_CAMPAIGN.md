@@ -1,6 +1,60 @@
 
 ---
 
+## HourInduction.lean — the §6 moving-band hour induction: Thm 6.5 → 6.2 skeleton assembled (2026-06-11)
+
+New append-only file `Probability/HourInduction.lean` assembles the genuinely-open GLUE of the §6
+confinement core: the **moving-band induction** that the fixed-invariant all-hours union
+(`HourUnion.confinementEvent_hours_union`) could NOT express.  Single-file `lake env lean` clean
+(EXIT 0, no warnings); `#print axioms ⊆ [propext, Classical.choice, Quot.sound]` for every theorem;
+0 sorry/admit/axiom/native_decide; `git diff --check` clean; append-only (no existing file edited).
+
+### The gap the fixed-invariant union left open
+
+`HourUnion.lean` chains a SINGLE FIXED invariant (`ConfinementSurface.ConfinementEvent`) across the
+hours via `EarlyDripMarked.checkpoint_composition`.  But Doty's Theorem-6.5 induction is NOT over a
+fixed event: at hour `h` the band floor sits at level `l_h`, and each hour the drain pushes it ONE
+NOTCH DEEPER (`l_h → l_h + 1`).  The invariant MOVES; the fixed-invariant union does not apply.
+`SeedExport.lean` lands the SINGLE-notch drain (`l → l+1`); this file CHAINS the notches.
+
+### The inductive invariant and the landed per-hour bricks (all consumed, none re-proved)
+
+* invariant `BandConfined m c := MinorityFloorGap.AllBiasedMainAbove m c` (= `highMass m c = 0`);
+* (a) width budget → `ClocksBelowHour h` (`ClockCeiling.clocksBelowHour_of_goodWidth`) — LANDED;
+* (b) band → supply region `NoMinoritySignAbove` (`SupplyRegion`, same population family) — LANDED;
+* (c) region → killed `Z_i` drift → per-hour squaring tail
+  (`SupplyRegion.supplyRegion_verdict` / `MainExponentConfinement.main_profile_hour_squaring`) — LANDED;
+* (d) squaring + descent → one notch deeper (`SeedExport.phase6Convergence_succ`) — LANDED.
+
+### What is PROVEN here (the genuine assembly)
+
+1. `bandConfined_support_invariant` — **the hour-boundary handoff** (the floor never un-deepens within
+   an hour), PROVEN from the landed `Phase6Convergence.highMass_le_on_support` through `phase6Post_iff`.
+2. `bandConfined_antitone` — **the band-shift bookkeeping** (`m+1 ⟹ m`): the deepest band delivers all
+   shallower confinements (the descent's payload).
+3. `movingBand_union` — **the genuinely-new machinery**: a Chapman–Kolmogorov induction on the hour
+   count where the TARGET invariant ADVANCES one notch per hour.  The moving-band analogue of
+   `EarlyDripMarked.invariant_union_bound`/`checkpoint_composition` (which only handle a FIXED
+   invariant).  From the per-hour notch-deepening tail (`hStep`) + the entry floor, it discharges the
+   DEEPEST-band failure `≤ numHours·δ`.  The handoff grounds `hStep`'s uniformity over confined starts
+   (so it enters through `hStep`'s validity, NOT as a dead carried hypothesis).
+4. `hourInduction` — **the headline**: from the Phase-3 entry floor (base case) + the per-hour drain
+   tails + the horizon decomposition + the budget, the failure to reach the deepest band
+   `BandConfined (l₀ + numHours)` at the Phase-5 entry is `≤ η`.  The Thm-6.5 → 6.2 skeleton.
+5. `phase6To7_surface_of_bandConfined` / `seed_of_bandConfined_succ` — **the Phase-5 entry surface**:
+   the deepest band IS the seed `AllBiasedMainAbove (l+1)` discharging `SeedExport`'s Phase6→7 /
+   `PaperRegime.Theorem62Paper` consumers (the eliminator margin + both-sign `MinorityAboveFloor`).
+6. `hourInduction_capstone` — the bundled chain (discharge + seed readout).
+
+### Honest accounting
+
+The per-hour drain tail is the LANDED single-notch drain, carried as `hHour`; this file does NOT
+re-prove the single-hour drift.  Base case = the carried Phase-3-entry floor `hStart`.  Hour-boundary
+handoff = PROVEN.  Band-shift bookkeeping = PROVEN.  The genuinely-new content is the moving-band
+union; everything else is the landed per-hour bricks chained.
+
+---
+
 ## ClockCeiling.lean — the width-Post → `ClocksBelowHour` derivation: the §6 positional chain collapses onto the width machinery (2026-06-11)
 
 New append-only file `Probability/ClockCeiling.lean` supplies the SINGLE load-bearing bridge the
