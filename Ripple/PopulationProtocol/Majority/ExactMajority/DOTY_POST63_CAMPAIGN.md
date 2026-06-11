@@ -5820,8 +5820,17 @@ use only `[propext, Quot.sound]`); 0 sorry/admit/axiom/native_decide; `git diff 
 - doctrine: DOCTRINE_DISCHARGE.md (this commit)
 - approval: Xiang directive "把剩下的具名字段挨个 discharge 干净…你自主执行" (TG/terminal, 2026-06-11 ~04:00)
 - starting avenue: (b) WAVE B (wave A already complete at approval time)
-- end: <fill on close>
-- final result: <fill on close>
+- end: 2026-06-11 ~05:50 — WAVE D (final assembly) complete.
+- final result: `Probability/FinalAssembly.lean` lands the end-to-end Doty Theorem 3.1 PAIR
+  (`doty_theorem_3_1_whp`, `doty_theorem_3_1_expected`) over ONE inspectable hypothesis bundle
+  `DotyResidualAtoms` (15 top-level fields; the `wi : WorkInputs` field holds the 14 named
+  per-slot probabilistic events). Both theorems instantiate the wave-B/C re-cuts
+  (`SeedTrigWiring.doty_time_headline_CONCRETE'` / `ChainEndRecut.doty_expected_time_chain_end'`)
+  with the wired assembly `toAssembly'` and consume `DotyRegime` (the `L = ⌈log₂ n⌉` tie surfaces
+  the `O(n log n)` clause). Single-file `lake env lean` EXIT 0; `#print axioms` for all 6 new
+  declarations ⊆ `[propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide;
+  `git diff --check` clean. The campaign is at its NARROWEST surface: the residual is exactly the
+  genuinely-probabilistic paper events enumerated in `DotyResidualAtoms`.
 
 ## DrainRates.lean — the per-phase drain RATES, discharged per-level (wave B, 2026-06-11)
 
@@ -6203,3 +6212,109 @@ to source).  `#print axioms` for all 18 new declarations (`chainBranch_*` ×4, `
 `phase8Convergence_recut`, `recut_budget_closes`, `recut_budget_le_inv_sq`,
 `survival_floor_honest_eq`, `recut_floor_from_survival`) ⊆ `[propext, Classical.choice, Quot.sound]`;
 0 sorry/admit/axiom/native_decide; `git diff --check` clean.
+
+---
+
+## RELEASE RECORD — audited public main push (2026-06-11, second/audited round)
+
+**Fresh-checkout bare-build verification (uisai2, per /uisai2 discipline):**
+- Fresh shallow clone (`--depth 1`) of `xiangyazi24/Ripple` @ `opus-wip` head
+  `e92b5ab2de2652798d870d2854c41708589c365c` (F5 ConcreteAssembly: concrete 21-instance assembly
+  with EXACT seams) into `~/fresh-verify/Ripple-audited` (disk); confirmed head == sync-mirror head
+  via `git ls-remote`. Source staged to a fresh isolated bucket `/dev/shm/xhuan5/audited-verify`
+  (existing shen_* buckets carry mathlib `5e932f97`, a DIFFERENT rev — not reused; clean bucket).
+- `lake exe cache get`: EXIT 0 (8459 mathlib oleans, lean v4.30.0 + mathlib `c5ea00351c28`, the
+  manifest-pinned rev).
+- **Bare default build (`lake build`, no explicit targets): EXIT 0 — "Build completed successfully
+  (4123 jobs)".** Zero genuine compile errors: of 222 `error:`-substring log lines, 221 are
+  `linter.style` echoes of comment/doc text and the one remainder is a warning-level docString
+  linter note (DeltaF.lean:171) — none compilation-fatal. Heaviest modules: SSEM `UpperBound/Time.lean`
+  (~18 min, `maxHeartbeats 800000`) and `Time/HeavyProofs.lean` (`maxHeartbeats 8e8`).
+- shm staging removed after verification (8.5G freed; shm back to 21%); build log preserved to disk
+  at `uisai2:~/fresh-verify/audited_build_e92b5ab.log`; shen_* campaign buckets untouched.
+
+**Push:** verified SHA `e92b5ab` pushed to public `xiangyazi24/Ripple` **main**
+(`2f2121a..e92b5ab`). NOTE: during the build the sync mirror advanced to `1e62329` (wave A/B/C +
+SampledClassTail, 9 commits) and an initial fast-forward briefly moved main to `1e62329`; that was
+immediately corrected — main was force-reset to exactly the verified `e92b5ab` per the gate
+(only the verified bare-build sha goes to public main). Those 9 later commits are NOT in this release.
+
+**Tag:** `doty-thm31-audited-2026-06-11` (annotated, → `e92b5ab`): Three-way adversarial audit
+(opus/codex/ChatGPT) processed: 9 findings fixed; h_chain closed via concrete exact-seam assembly
+(dotyPhases); paper-regime predicate DotyRegime; carried set finite and inspectable. 164+ module
+closure green. (Tag object `4da32a0`, dereferences to `e92b5ab`.)
+
+## FinalAssembly.lean — WAVE D: the end-to-end Doty Theorem 3.1 PAIR + the definitive residual atom list (2026-06-11)
+
+The campaign's *final assembly*.  Every wave-A/B/C discharger is plugged into the narrowest landed
+surface; the two end-to-end theorems are produced over ONE inspectable hypothesis bundle
+`DotyResidualAtoms` — the definitive statement of what genuinely remains.  Append-only new file
+`Probability/FinalAssembly.lean` (namespace `ExactMajority.FinalAssembly`); edits NO existing file.
+
+Single-file `lake env lean … Probability/FinalAssembly.lean` EXIT 0 (deps from cached oleans;
+`PaperRegime.olean` built single-file in place — it was missing, predating this wave, not an edit to
+source).  `#print axioms` for all 6 new declarations (`DotyResidualAtoms`, `toAssembly'`,
+`toAssembly'_work`, `phases'`, `doty_theorem_3_1_whp`, `doty_theorem_3_1_expected`)
+⊆ `[propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide; `git diff --check`
+clean.
+
+### What landed
+
+1. **`DotyResidualAtoms n C0`** — THE FINAL ATOM LIST as one Lean structure (15 top-level fields).
+   It bundles the carried surface of the re-cut headline `SeedTrigWiring.doty_time_headline_CONCRETE'`:
+   * `wi : AssemblyWiring.WorkInputs n` — the 11 WORK-slot probabilistic residual record.  Its 14
+     genuinely-probabilistic named events (with their landed partial machinery doc-commented):
+     `work0` (role-split milestone + Lemma-5.1 `εfloor`), `hstep1` (Lemma-5.3/[45] averaging; the
+     `hext`/`hpull` partner floor), `work2`/`work9` (Phase-2 opinion epidemic, proved-inside),
+     `work3` (§6 clock — `hside`/`hεb`/`hEntry`/`ClocksBelowHour`), `hε4` (Phase-4 tail),
+     `hstep5` + `hConc` (reserve rate + Lemma-7.1 sampling concentration — `hrfloor` rise-prob floor
+     + clock-timing escape, per `SampledClassTail`), `hdrop6` (Lemma-7.2 band rate, floor landed),
+     `hstep7` + `hPhase6Post7` (crude rate + Lemma-7.4 `Phase6To7Structure`), `hstep8` + `hPhase7Post8`
+     (crude rate + Lemma-7.6 `Phase7To8Structure`; `α₈' = 14/75` re-cut), `hsB10` (Phase-10 block
+     length).  `hConfine` (Theorem 6.2 / `IntegerProfileSquaring`-whp / `Theorem62Paper`'s three whp
+     fields) is carried inside the slot-5 floor inputs.
+   * `seamP/seamT/εepidemic/εovershoot/hDrift/hNoOvershoot` — the 10 EXACT-seam feeders (wired for
+     destinations `{1,6,7,8}` by `SeamPairAdapter`; genuinely-carried per-seam guards for
+     `{2,3,4,5,9}`).
+   * `hWorkPostToWindow` / `hWindowToWorkPre` (kept structural reads) + `hSeedStep` (the NEW one-step
+     advance seed REPLACING the FALSE `hTrig`).
+   * `Cphase/δ/c₀/init/hC0/hδ` — the assembled-chain budget/start glue.
+
+2. **`toAssembly' ra : SeedTrigWiring.DotyAssembly'`** — builds the `hTrig`-free assembly from the
+   atoms (`work := AssemblyWiring.dotyWorkConcrete ra.wi`).  `phases' ra` is the wired 21-instance
+   SHIFTED-seam family `SeedTrigWiring.dotyPhases' (toAssembly' ra)`.
+
+3. **`doty_theorem_3_1_whp`** — the whp half.  `SeedTrigWiring.doty_time_headline_CONCRETE'`
+   instantiated with `toAssembly' ra` + the budget glue, under `DotyRegime n L K`.  Conclusion:
+   `(K^T) c₀ {¬ majorityStableEndpoint} ≤ 21/n²` ∧ `T ≤ 21·C0·n·(L+1)` ∧
+   `T ≤ 21·C0·n·(⌈log₂ n⌉+1)` (the third clause CONSUMES `hReg.hLlog`, exhibiting the `O(n log n)`
+   interaction = `O(log n)` parallel-time form).
+
+4. **`doty_theorem_3_1_expected`** — the expectation half.  `ChainEndRecut.doty_expected_time_chain_end'`
+   fed the SAME wired family `phases' ra` and the on-chain branch classification (`BranchAndBudget`'s
+   `ChainEndBranch` builders supply the per-state content on the good trajectory; the off-event mass is
+   the reachable-relative conditioning, the carried `hBranch`).  Conclusion:
+   `expectedHitting K c₀ (StableDone) ≤ (21·C0 + 4·Cbad)·n·(L+1)` ∧ the `O(n log n)` clause.
+
+### The FINAL residual table (the narrowest surface)
+
+| residual (`DotyResidualAtoms` field) | provenance | landed machinery |
+|---|---|---|
+| `wi.work0` | Doty role split; `RoleSplitConcentration` | 3-stage milestone composition; Lemma-5.1 `εfloor` carried inside |
+| `wi.hstep1` | Lemma 5.3 / [45] Mocquard et al. | per-step averaging rectangle; `AveragingRate`+`PartnerMargin` deeper |
+| `wi.work2`, `wi.work9` | Doty Phase-2 opinion epidemic | `WindowConcentration.windowDrift` (proved inside) |
+| `wi.work3` (`hside`/`hεb`/`hEntry`/`ClocksBelowHour`) | Doty §6 clock | `HourComposition` + `PositionalCluster` hour-ceiling |
+| `wi.hε4` | Doty Phase-4 epidemic | `Epidemic`/`EpidemicTime` (proved inside) |
+| `wi.hstep5`, `wi.hConc` | Doty Lemma 7.1 reserve sampling | `SampledClassTail` MGF drift landed; `hrfloor` + clock-timing escape carried |
+| `wi.hdrop6` | Doty Lemma 7.2 band | per-level rate; FLOOR landed from Phase-5 Post |
+| `wi.hstep7`, `wi.hPhase6Post7` | Doty Lemma 7.4 | crude rate + eliminator margin; minority witness PROVED; `slot7_levels_hdrop` |
+| `wi.hstep8`, `wi.hPhase7Post8` | Doty Lemma 7.4–7.6 | crude rate + margin; `α₈'=14/75` re-cut (`BranchAndBudget`); `slot8_levels_hdrop` |
+| `wi.hsB10` | Doty Phase-10 block-geometric | proved inside `Phase10Drop` |
+| `hDrift`/`hNoOvershoot` {2,3,4,5,9} | Doty seam epidemics | carried per-seam guards (wired {1,6,7,8} via `SeamPairAdapter`) |
+| `hSeedStep` | seam first-step advance | narrow one-step seed (REPLACES FALSE `hTrig`); free for counter-timed seams |
+| `hWindowToWorkPre` | per-phase entry | drain budget `Φ≤M₀` + role pins + Phase-10 sign pins (phase-pin half closed) |
+| `hBranch` (expected only) | reachable-relative ladder | on-chain `ChainEndBranch` builders; off-event = whp conditioning |
+
+This is the END of the §6 discharge campaign: the carried set is exactly the genuinely-probabilistic
+paper events above, bundled in `DotyResidualAtoms`, and the two end-to-end theorems follow from it
+axiom-clean.
