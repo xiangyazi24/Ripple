@@ -4797,6 +4797,94 @@ Spend/entry plumbing:
 landed §6/clock Posts and discharge those that are already exports), then the
 1/n² budget tightening sweep, then Phase F.
 
+## WINDOW-EVENT RECONCILIATION (2026-06-10) — `Probability/WindowReconciliation.lean`
+
+New append-only file (0-sorry, axioms ⊆ {propext, Classical.choice, Quot.sound}).
+Each of the three carried WINDOW/POSITIONAL events resolved.
+
+### Per-item reconciliation table
+
+| # | Carried event | Verdict | Provenance / bridge |
+|---|---------------|---------|---------------------|
+| 1 | `DoublingEdges.AllBiasedMainBelow (l+2)` (hour ceiling) | **BRIDGE proven; 2 named minimal missing snapshots** | reduced via `allBiasedMainBelow_of_indexLeHour_of_hourCeiling` to (a) `BiasedMainIndexLeHour c` and (b) `MainHourBelow (l+2) c` |
+| 2 | `SupplyDispatch.Phase3MainMainWindow` (all-Main squaring window) | **CORRECTED SCOPING** | all-Main window is FALSE in real chain (clocks in phase 3); the honest replacement is region + `MainClockDragBounded` (clock-front ceiling = item 1) |
+| 3 | `ClockFrontProfile.WindowedFrontProfile θ` + `mainFrac 0 ≤ 1/10` | **DISCHARGED (landed exports)** | already the literal clock-set hypotheses of `SupplyDispatch.hConfine_of_window`; re-exported as `hConfine_of_windowReconciled` |
+
+### Item 1 — the hour ceiling: bridge + minimal missing exports
+
+`AllBiasedMainBelow top` (snapshot: every biased Main's INDEX ≤ top) splits into two
+clock-front snapshots, with a fully-proven transitivity bridge:
+
+* **`BiasedMainIndexLeHour c`** — every biased Main's index ≤ its OWN hour.  This is the
+  SNAPSHOT form of the FROZEN doubling guard (`phase3CancelSplit` raises `i→i+1` only when
+  `hour > i`, so the front never exceeds the hour stamp).  Per-step preservation is LANDED
+  (`DoublingEdges.phase3CancelSplit_preserves_top_edge`, re-exposed here as
+  `allBiasedMainBelow_step_of_topEdge`).  **Minimal missing clock export #1** = its
+  reachability/invariant SNAPSHOT form (induct the per-step guard over the chain).
+* **`MainHourBelow top c`** — every Main's hour ≤ top.  **Minimal missing clock export #2**
+  (provenance: `HourCouplingV2.Window` / clock-front "hour-stamps ≤ window index").
+
+`allBiasedMainBelow_of_indexLeHour_of_hourCeiling : BiasedMainIndexLeHour → MainHourBelow top
+→ AllBiasedMainBelow top` (PROVEN, transitivity).  Composed with the landed
+`majorityTopEdge_of_hourCeiling` ⟹ `majorityTopEdge_of_indexLeHour_of_hourCeiling` (the routing
+consumer's snapshot top edge from the two snapshots).  No clock-front PROBABILITY is re-proved;
+item 1 is reduced to two named deterministic snapshots.
+
+### Item 2 — corrected Phase-3 window scoping (THE VERDICT)
+
+`Phase3MainMainWindow` (every agent Phase-3 Main) is **FALSE in the real chain** — clocks are
+present in Phase 3.  The all-Main window is the convenient special case that kills the
+**Phase-3 Rule-2 Main-Clock hour-drag** (`Transition.lean:755`: an unbiased Main meeting a Clock
+gets `hour := min L (clock.minute / K)`).
+
+Honest answer to "is the drag a real `Z_i` source inside the window?": **YES.**  If
+`min L (clock.minute / K) > i` the drag pushes a `.zero` agent from `hour ≤ i` to `hour > i` —
+a fresh `supplyP i` agent.  So inside a mixed window the region `NoMinoritySignAbove` ALONE does
+NOT control supply; the drag needs the **clock-front hour ceiling**, which is exactly item 1.
+
+Delivered:
+* `phase3Transition_mainClock_eq` — the dispatch readout: on a Main-Clock pair `Phase3Transition`
+  returns `({s with hour := min L (t.minute/K)}, t)` (PROVEN).
+* `phase3_mainClock_drag_supplyP_subadditive` — under `min L (t.minute/K) ≤ i` the drag output
+  Main is NOT `supplyP i` (hour ≤ i) and the Clock output = input ⟹ no fresh supply (PROVEN).
+* `MainClockDragBounded i c` (every Clock's `min L (minute/K) ≤ i`) +
+  `mainClock_drag_neutralised_of_dragBounded` — the corrected mixed-window control: Main-Main by
+  the population region (landed), Main-Clock by the clock-front bound.
+
+**Verdict:** SupplyDispatch's `Phase3MainMainWindow` is honest only as the clock-free special
+case.  The faithful mixed-window scoping carries the extra `MainClockDragBounded` side condition,
+and that drag-control IS item 1's clock-front ceiling.  Items 1 and 2 are COUPLED: the same
+hour ceiling discharges both.
+
+### Item 3 — discharged: two landed §6 exports
+
+`WindowedFrontProfile θ c` (landed `ClockFrontProfile`, the §6 width-chain tail-fraction squaring
+window) and `mainFrac 0 c ≤ 1/10` (landed sub-critical Main fraction `c_{≥0} ≤ 0.1`) are NOT
+residuals — they are the literal clock-set inputs of `SupplyDispatch.hConfine_of_window`.
+`hConfine_of_windowReconciled` re-exports the `hConfine` surface naming them as the carried set.
+
+### Updated strongest end-to-end surfaces (final carried sets)
+
+* **`phase6To7_surface_reconciled`** ⟹ `EliminatorMargins.Phase6To7Structure σ E c`.
+  Carried set: `BiasedMainIndexLeHour c`, `MainHourBelow (l+2) c` (item-1 snapshots), the `l+1`
+  seed, the A-shape budget, the Phase-6 window, the `PredecessorLevelsCoPopulated` timing event.
+* **`hConfine_of_windowReconciled`** ⟹ `UsefulMainFloor.Theorem62EntryHypotheses n c` (carries
+  `hConfine`).  Carried set: `WindowedFrontProfile θ c` + `mainFrac 0 ≤ 1/10` (landed Posts),
+  the whp `IntegerProfileSquaring` coupling (drift discharged BY the window), the landed Phase-5
+  window, the role-split Main floor `n/3 ≤ mainCount`, the confinement readout
+  `MainProfileConfinedToUseful`.  The phase-dispatch supply region over the FULL `Transition` is
+  CLOSED (Main-Main: population window; Main-Clock drag: item-1 clock-front ceiling).
+
+### Net after reconciliation
+The §6-clock part of the carried set is now exactly THREE named deterministic snapshots —
+`BiasedMainIndexLeHour`, `MainHourBelow`, `WindowedFrontProfile` — plus `mainFrac 0 ≤ 1/10`
+(landed) and the whp coupling (drift discharged).  The Main-Clock hour-drag, previously listed as
+a SEPARATE uncontrolled source, is now controlled by the SAME hour ceiling that discharges item 1.
+
+### Next: the reachability-invariant SNAPSHOTs for `BiasedMainIndexLeHour` / `MainHourBelow` /
+`MainClockDragBounded` (induct the landed per-step facts over the chain), then the 1/n² budget
+tightening sweep, then Phase F.
+
 ---
 
 ## 1/n² BUDGET TIGHTENING SWEEP (2026-06-10) — `Probability/BudgetTightening.lean`
@@ -4855,3 +4943,136 @@ contribution to `Cexp` is a consequence of the loose `1/n`, not intrinsic.
 
 **Audit.** 7/7 new theorems `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0
 sorry/admit/axiom/native_decide; single-file `lake env lean` EXIT_0; `git diff --check` clean.
+
+---
+
+## PHASE F — campaign-wide audit + full explicit-module build (2026-06-11)
+
+Independent verification sweep over the ENTIRE ExactMajority campaign closure on uisai2
+`/dev/shm` (toolchain `v4.30.0`, mathlib rev `c5ea00351c28e24afc9f0f84379aa41082b1188f`,
+shared bucket reused — `Built Mathlib` lines = 0). New append-only audit file
+`Probability/PhaseFAudit.lean` (imports the live closure; runs `#print axioms` on the
+end-to-end surfaces). No existing file edited.
+
+### 1. Full explicit-module build (the closure-skip discipline, demonstrated)
+
+The campaign tree holds **168** `*.lean` files. Building any single headline ROOT silently
+skips most of them — measured transitive-import closures:
+* `Analysis.MainTheorem` root → 6 / 168 (skips 162)
+* `Probability.DotyTimeHeadline` root → 23 / 168 (skips 145)
+* `Probability.DotyExpectedTime` root → 43 / 168 (skips 125)
+
+There are **32 LEAF modules** imported by no other campaign file (today's residual-attack
+bricks: `BudgetTightening`, `WindowReconciliation`, `ChainEndAssembly`, `PartnerMargin`,
+`NumericInstances`, `BandStepBookkeeping`, … plus 4 dead scaffolds below). A root build
+would never compile them. The Phase-F build therefore passes **all module targets explicitly**.
+
+**Build verdict (live closure):**
+* Explicit targets: **164** live campaign modules + the `PhaseFAudit` file = 165 targets.
+* explicit-target build → **last job marker `[3681/3681]`** (genuinely larger than any
+  bare-root closure; mathlib reused, `Built Mathlib` = 0), **EXIT 0**.
+* olean landing: **164 / 164** live campaign oleans + the audit olean all present on disk.
+
+### 1a. THE 4 DEAD ORPHANS (honest finding — the discipline caught these)
+
+Four files FAIL to compile and are imported by NOTHING in the campaign (only the audit file's
+full-closure import touched them). They are dead scaffolds/superseded drafts, invisible to any
+root build:
+
+| orphan module | failure | status |
+|---|---|---|
+| `Basic/PhaseState.lean` | parse error `unexpected '/--'; expected 'lemma'` — orphan docstrings before `end`; explicit TODO placeholder, contains NO declarations | dead placeholder (per-phase state-narrowing TODO) |
+| `Probability/DiscreteChernoff.lean` | duplicate decls `geometricProductMGF`/`milestone_tail_bound_via_mgf`/`janson_exponential_tail_from_mgf` already declared | superseded by `JansonHitting.lean` + `RoleSplitConcentration.lean` |
+| `Probability/StepPreservation.lean` | `Unknown identifier ae_of_stepDistOrSelf_support_preserved`, `Unknown constant Multiset.tsub_le_self` | early draft; live machinery in `MarkovChain`/`Invariants`/`SupportInvariants` |
+| `Probability/DescentPotential.lean` | `Unknown identifier ae_of_stepDistOrSelf_support_preserved` | early draft, same superseding |
+
+These are **not** in the verified end-to-end surface and **not** part of today's work; they were
+left edited-out of the import graph. Recommendation: delete (or move to an `attic/`) in a
+follow-up — NOT done here because Phase F is forbidden from editing existing files. The verified
+campaign is the 164-module live closure.
+
+### 2. Audit verdicts
+
+* **(a) Grep-level (comment-stripped, all 168 files):** `0` occurrences of
+  `sorry`/`admit`/`native_decide` and `0` `axiom` declarations in code. (All textual hits are
+  inside the "no sorry/admit" boilerplate of docstrings/comments.)
+* **(b) `#print axioms` (independent refresh, 24 end-to-end / reconciliation / budget
+  theorems):** every one depends only on a subset of `[propext, Classical.choice, Quot.sound]`;
+  `sorryAx` count = **0**. Specifically the end-to-end headlines
+  `doty_time_headline_W`, `doty_time_headline_W2`, `doty_expected_time`,
+  `doty_expected_time_concrete`, `total_time_le_W`, `total_error_le_W`, `state_count_eq`,
+  `state_count_poly_bound`; the 8 `WindowReconciliation` theorems; the 7 `BudgetTightening`
+  theorems — all axiom-clean.
+* **(c) Whitespace (`git diff --check`):** clean across the tree and on the new audit file
+  (EXIT 0).
+* **Non-fatal:** 4 mathlib-linter `warning:`-prefixed "doc-strings should start with a single
+  space" notes (`AeBridge.lean`, `ArithmeticHelpers.lean`) — warnings, NOT errors; those modules
+  build and land oleans. `^error:` count in the audit build = 0.
+
+### 3. THE DEFINITIVE CARRIED-HYPOTHESIS INVENTORY (machine-checked against code)
+
+What stands between the current state and a hypothesis-free Theorem 3.1. Two end-to-end
+surfaces carry hypotheses; verified binder-by-binder against the actual `.lean`.
+
+**A. The TIME / EXPECTED-TIME headline surface** (`doty_time_headline_W` /
+`doty_time_headline_W2` / `doty_expected_time`, `DotyTimeHeadline.lean` /
+`DotyExpectedTime.lean`). The headline is parametrized — its carried inputs are explicit binders:
+
+| # | binder | statement | what discharges it |
+|---|--------|-----------|--------------------|
+| C1 | `phases : Fin 11 → PhaseConvergenceW (NonuniformMajority L K).transitionKernel` | the 11 per-phase whp-convergence instances (each proven in its own file; carried as a function argument, not assembled into one chain) | assemble the 11 landed phase instances into the family literal (each Pre/Post is the file's proven Post) |
+| C2 | `h_chain : ∀ i (hi), ∀ x, (phases i).Post x → (phases ⟨i+1,_⟩).Pre x` | the 10 cross-phase bridges | **W version: FALSE pointwise** (each window pins a distinct `phase.val`, so `Post_i ∧ Pre_{i+1}` is contradictory — satisfiable only on the empty config). The honest fix is `doty_time_headline_W2`, where the bridge is the `advancePhase` epidemic TRANSITION (`ChainBridges`), carried as a named transition input. **This is the single deepest residual.** |
+| C3 | `hx₀ : (phases 0).Pre c₀` | the start (validInitial → role-split-entry) | deterministic-reachable `Analysis/` invariant |
+| C4 | `h_post : ∀ c, (phases 10).Post c → majorityStableEndpoint init c` | the closing map | deterministic-reachable |
+| C5 | per-phase drains folded into each `phases i` | `OneSidedCancel` rectangle floors (Phases 0/1/5/6/7/8 `q`/`hstep`); Phase-3 `hside` (τ-uniform `Sgood(T)ᶜ ≤ sideEps`, 9 named §6 feeders + width slice `εWAt`); Phase-5 `hConc`; the Lemma-5.2 clock floor | the consolidated B/D-residuals (threaded, not re-opened) |
+| C6 | `hC0`, `hδ`, `ht` scaling | `Cphase i ≤ C0`, `∑ δ ≤ 1/n` (now tightenable to `C/n²` per `BudgetTightening`), `t_i ≤ Cphase_i·n·(L+1)` | proven composition arithmetic (CLOSED) |
+
+**B. The §6-CLOCK / SUPPLY surface** (reconciled in `WindowReconciliation.lean`). After Phase-D
+reconciliation the §6-clock carried set is exactly **THREE named deterministic snapshots** plus
+landed Posts:
+
+| # | binder | file:def | statement | what discharges it |
+|---|--------|----------|-----------|--------------------|
+| S1 | `BiasedMainIndexLeHour c` | `WindowReconciliation.lean:89` | `∀ a ∈ c, a.role=main → ∀ s i, a.bias=dyadic s i → i.val ≤ a.hour.val` (every biased Main's index ≤ its own hour) | the reachability-invariant SNAPSHOT of the FROZEN doubling guard (per-step preservation LANDED as `phase3CancelSplit_preserves_top_edge`; induct it over the chain) |
+| S2 | `MainHourBelow top c` | `WindowReconciliation.lean:97` | `∀ a ∈ c, a.role=main → a.hour.val ≤ top` (every Main's hour ≤ top) | the clock-front hour-stamp ceiling SNAPSHOT (provenance `HourCouplingV2.Window`); induct over the chain |
+| S3 | `WindowedFrontProfile θ c` + `mainFrac 0 c ≤ 1/10` | `ClockFrontProfile` / `MainExponentConfinement` | the §6 width-chain tail-fraction squaring window + sub-critical Main fraction `c_{≥0} ≤ 0.1` | **LANDED §6 exports** (NOT residuals — literal clock-set inputs of `hConfine_of_windowReconciled`) |
+| S4 | `IntegerProfileSquaring θ c` (whp coupling) | `ProfileSquaringRate` | the hour-coupling readout | the drift is **discharged BY the window**; remaining = whp realisation |
+
+Note `MainClockDragBounded i c` (`:152`) — the Phase-3 Rule-2 Main-Clock hour-drag, once listed
+as a SEPARATE uncontrolled `Z_i` supply source — is now controlled by the SAME hour ceiling
+(S1/S2): `mainClock_drag_neutralised_of_dragBounded` (PROVEN) shows the drag produces no fresh
+supply under `min L (minute/K) ≤ i`. Items 1 and 2 are coupled.
+
+**C. The classification / floor residuals** (Phases 6–8 eliminator surface):
+* `hBranch`/`hClassify` — reachable regime exhibition (checkpoint-conditional).
+* `hFloors` — Lemma-5.2 clock-floor value propagation.
+* Phase-7 `hmono : PotNonincrOn Inv7Sum K minorityU` (`Phase7Convergence.lean:1188`) — the
+  per-step `minorityU` non-increase certificate, carried as the honest Phase-7 residual (replaced
+  the broken `MinorityHiIdx`-carrying `Inv7Main`; the eliminator floor is the carried Doty
+  Lemma 7.4/7.6 `≥0.8|M|` majority-vs-minority invariant).
+* `hConfine` (`UsefulMainFloor.Theorem62EntryHypotheses`, field) — Theorem 6.2's `0.92·|M|`
+  confinement, carried as ONE named fact with paper provenance (the partition arithmetic around
+  it is PROVEN).
+* Phase-6→7 timing: `PredecessorLevelsCoPopulated` (occupancy timing) + per-rung advance seeds
+  (`AllBiasedMainAbove (l+1)`).
+
+**Inventory count: ~17 named carried hypotheses** across the three surfaces — C1–C6 (6, with
+C2 the deepest), S1–S4 (4, of which S3/S4 are landed/discharged → ~2 genuinely open snapshots),
+plus the ~5 classification/floor/timing residuals (C-block). Every one is a NAMED binder with a
+documented discharge route; none is an axiom, sorry, or vacuous marker. The composition
+arithmetic, the C-K assembly, the headline scaling, the budget tightening, and the supply-region
+dispatch are all CLOSED and axiom-clean.
+
+### 4. Recommendation on the main push
+
+**Workspace origin main + opus-wip mirror: READY.** The new `PhaseFAudit.lean` is 0-sorry,
+axiom-clean (EXIT 0), and the report is append-only. Push both as usual.
+
+**Public `xiangyazi24/Ripple` main: NOT yet — owner's call.** A bare default-target build (the
+whole `Ripple` lib) currently fails because the 4 dead orphan files (§1a) are in the tree and
+broken; until they are removed/attic'd, a clean build on a fresh checkout is not green. The
+verified deliverable is the **164-module live closure** (EXIT 0, axiom-clean), but the public-main
+"build green + 0 sorry + audit" 铁律 needs the orphan cleanup first, and the Theorem-3.1 headline
+still carries the named inventory above (notably C2: the `h_chain` bridges are honest only in the
+`W2` advancePhase-epidemic form). Recommend: (1) attic the 4 orphans, (2) confirm the bare default
+target green, (3) then the owner decides on the public push.

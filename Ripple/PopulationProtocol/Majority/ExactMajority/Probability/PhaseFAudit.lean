@@ -1,0 +1,214 @@
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.ClockDeficitArith
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.DeterministicChain
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Invariants
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.MainTheorem
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase0Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase10Backup
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.Phase3Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.PhaseProgress
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.StableEndpoints
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.TransitionMonotonicity
+import Ripple.PopulationProtocol.Majority.ExactMajority.Analysis.WellFormedConfig
+import Ripple.PopulationProtocol.Majority.ExactMajority.Basic.AgentState
+import Ripple.PopulationProtocol.Majority.ExactMajority.Basic.Bias
+import Ripple.PopulationProtocol.Majority.ExactMajority.Basic.PopulationProtocol
+import Ripple.PopulationProtocol.Majority.ExactMajority.Basic.Role
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.AeBridge
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ArithmeticHelpers
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.AveragingCollapse
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.AveragingRate
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.AzumaKernel
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.BackupEntry
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.BandEdges
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.BandLocalization
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.BandRouting
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.BandStepBookkeeping
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.BudgetTightening
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ChainBridges
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ChainEndAssembly
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClimbTail
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockBudgets
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockBulkFront
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockCapRecur
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockCapRelFront
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockEnvMaint
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFaithful
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFrontIter
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFrontProfile
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFrontShape
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFrontSyncFromWidth
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFrontWidth
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockFullJoint
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockGapBulk
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockHourBounds
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockJointInduction
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockKilledMinute
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockLockstep
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockMonoDischarge
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockOLogN
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealAdvance
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealBulk
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealFaithfulHours
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealHours
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealKernel
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealMixed
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockRealSeed
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockTimeConvergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockUnconditional
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ClockWeakAssembly
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Concentration
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ConditionalPhaseProgress
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ConstantDensityEpidemic
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.CounterTimeout
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.CrossHourSide
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DotyExpectedTime
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DotyParams
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DotyTimeHeadline
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DoublingEdges
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DrainCalibration
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DrainThreading
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.DriftPhaseOfDescent
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EarlyDripBound
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EarlyDripMarked
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EliminatorMargins
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Epidemic
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.EpidemicTime
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ExpectedHitting
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FloorMasses
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FloorPrefix
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FrontAllLevels
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FrontNarrowConc
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FrontShapeInduction
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FrontSyncConc
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FrontTailDecay
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.FrontTailKernel
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Gap2Reachability
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.GapAlignment
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.GatedEscape
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.GatedGeometricDrift
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.GatedKillNow
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HabsDischarge
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HittingTime
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourComposition
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourCoupling
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourCouplingV2
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.HourEscape
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.JansonGeometric
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.JansonHitting
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.KernelWindowDrift
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.KilledAffineTail
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.KilledTailConsumers
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.LateFloor
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MainExponentConfinement
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MarginLedgers
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MarkovChain
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MGFHorizon
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.MinorityFloorGap
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.NonuniformMarkovChain
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.NumericInstances
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.OneSidedCancel
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.PartnerMargin
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase0Window
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase10Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase10ExpectedTime
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase1Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase2Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase2TimeConvergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase4Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase5Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase6Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase7Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Phase8Convergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.PhaseConvergence
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.PhaseConvergenceWeak
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.PhaseFloors
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ProfileSquaringRate
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ReachableLadder
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.RecoveryBridges
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.RectangleResidualProof
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.RegimeClassification
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ReserveSampling
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.RoleSplitConcentration
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ScheduledTrace
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Scheduler
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Scratch
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamEpidemics
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamNoOvershoot
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamOvershootBridge
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamPairAdapter
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeamPairBound
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SeedExport
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SideBudget
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SpendLedgerLift
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.StableBridges
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.Supermartingale
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SupermartingaleHitting
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SupplyDispatch
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SupplyRegion
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SupportInvariants
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SupportTrace
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.SurvivalAccounting
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.TimeComposition
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.TimedChainRungs
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.TopSplit
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.TopSplitDrift
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.TopSplitInward
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.UsefulMainFloor
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.WidthPrefix
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.WidthPrefixConcrete
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.WidthTransport
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.WindowConcentration
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.WindowReconciliation
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ZeroSupplyCoupling
+import Ripple.PopulationProtocol.Majority.ExactMajority.Probability.ZeroSupplyDrift
+import Ripple.PopulationProtocol.Majority.ExactMajority.Protocol.Transition
+
+/-! # Phase-F independent axiom audit (append-only, NEW file)
+
+Imports the ENTIRE ExactMajority campaign closure (all 168 modules) and runs
+`#print axioms` on the campaign's end-to-end / headline surfaces and the
+consolidation+reconciliation theorems. This is the independent refresh of the
+per-file headline audits demanded by Phase F.
+
+If every `#print axioms` reports `[propext, Classical.choice, Quot.sound]`
+(or `'X' does not depend on any axioms`), the closure is axiom-clean.
+A `sorryAx` in any output is a violation.
+-/
+
+namespace ExactMajority.PhaseFAudit
+open ExactMajority
+open ExactMajority.WindowReconciliation ExactMajority.BudgetTightening
+
+-- End-to-end time / expected-time headlines
+#print axioms ExactMajority.doty_time_headline_W
+#print axioms ExactMajority.doty_time_headline_W2
+#print axioms ExactMajority.doty_expected_time
+#print axioms ExactMajority.doty_expected_time_concrete
+#print axioms ExactMajority.doty_time_composition_W
+#print axioms ExactMajority.total_time_le_W
+#print axioms ExactMajority.total_error_le_W
+
+-- State-count / poly bound (Analysis headline)
+#print axioms ExactMajority.state_count_eq
+#print axioms ExactMajority.state_count_poly_bound
+
+-- Window-event reconciliation
+#print axioms ExactMajority.WindowReconciliation.allBiasedMainBelow_of_indexLeHour_of_hourCeiling
+#print axioms ExactMajority.WindowReconciliation.allBiasedMainBelow_step_of_topEdge
+#print axioms ExactMajority.WindowReconciliation.majorityTopEdge_of_indexLeHour_of_hourCeiling
+#print axioms ExactMajority.WindowReconciliation.phase3Transition_mainClock_eq
+#print axioms ExactMajority.WindowReconciliation.phase3_mainClock_drag_supplyP_subadditive
+#print axioms ExactMajority.WindowReconciliation.mainClock_drag_neutralised_of_dragBounded
+#print axioms ExactMajority.WindowReconciliation.hConfine_of_windowReconciled
+#print axioms ExactMajority.WindowReconciliation.phase6To7_surface_reconciled
+
+-- 1/n² budget tightening
+#print axioms ExactMajority.BudgetTightening.sum_inv_sq_le
+#print axioms ExactMajority.BudgetTightening.inv_sq_const_le_inv
+#print axioms ExactMajority.BudgetTightening.inv_sq_const_chain
+#print axioms ExactMajority.BudgetTightening.doty_time_headline_W2_tight
+#print axioms ExactMajority.BudgetTightening.doty_time_headline_W2_inv_sq
+#print axioms ExactMajority.BudgetTightening.doty_expected_time_tight
+#print axioms ExactMajority.BudgetTightening.recovery_term_inv_sq
+
+end ExactMajority.PhaseFAudit
