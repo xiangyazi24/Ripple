@@ -5235,3 +5235,83 @@ Single-file `lake env lean` EXIT 0; `#print axioms` for all seven declarations =
 `git diff --check` clean. The Part-I `phase7Convergence'` remains in `Phase7Convergence.lean` as a
 deliberately-flagged dead surface (its `hmono` honestly named but false); `Phase7HonestDrain` is the
 surface consumers should cite.
+
+---
+
+## F5 audit fix — the ceiling route (append-only)
+
+Independent adversarial audit (`/tmp/opus_audit_report.md`) flagged the S1 invariant
+`WindowReconciliation.BiasedMainIndexLeHour` (per-agent: every biased Main's index ≤ its OWN hour)
+as having a BROKEN step-preservation / discharge route. Fixed in the new append-only file
+`Probability/CeilingRoute.lean` (no existing file edited).
+
+### Verdict: the audit is RIGHT.
+
+We read the FROZEN split branch (`Protocol/Transition.lean:590-598`) exactly:
+
+```
+  | .zero, .dyadic sgn i =>
+      if _h_gt : s2.hour.val > i.val then
+        ({ s2 with bias := .dyadic sgn ⟨i.val + 1, _⟩ },     -- OUTPUT .1  (was the .zero agent)
+         { t2 with bias := .dyadic sgn ⟨i.val + 1, _⟩ })      -- OUTPUT .2  (was the biased agent)
+      else (s2, t2)
+```
+
+The gate is `s2.hour.val > i.val` — the **UNBIASED** agent's hour. Both outputs are
+`{ _ with bias := … }`: only `bias` is rewritten; **neither output's `hour` is touched** on the
+split/raise branch (the cancel branches DO write `hour := i`, lowering it, but the raise branch does
+not re-stamp hour). So the biased partner `t2` becomes `dyadic sgn (i+1)` with its OWN hour left
+unchanged. With `t2.hour.val = i`, `s2.hour.val = i+1` (the audit's `i = 0` config), the input
+satisfies the per-agent predicate (`t2`: index `0 ≤ hour 0`; `s2`: unbiased, vacuous) but the output
+`t2'` has index `i+1 = 1 > t2.hour = 0`. **The per-agent `BiasedMainIndexLeHour` is broken by one
+frozen split step.** The prose lemma `biasedMainIndexLeHour_of_split_guard_step` named in
+`WindowReconciliation.lean:31` never existed. The audit is correct on all counts.
+
+This counterexample is now MACHINE-CHECKED:
+`CeilingRoute.biasedMainIndexLeHour_not_step_preserved` — for any `1 ≤ L` and any base Main state,
+there is a `phase3CancelSplit`-firing pair whose biased member satisfies `index ≤ own hour` on the
+input yet violates it on the split output `.2`.
+
+### The corrected route: carry the GLOBAL ceiling directly.
+
+The downstream consumer `DoublingEdges.phase6_to_phase7_of_doubling_edges` only ever needs
+`DoublingEdges.AllBiasedMainBelow (l+2) c` — the GLOBAL ceiling `index ≤ top`. That global form IS
+genuinely step-preserved: `DoublingEdges.phase3CancelSplit_preserves_top_edge` proves, exhaustively
+over the frozen branches, that `(index ≤ top ∧ hour ≤ top)` on the inputs gives `index ≤ top` on the
+outputs (the raise `i → i+1` fires only under `hour > i`, so `i+1 ≤ hour ≤ top`). The "induct over the
+chain" provenance is SOUND for the global ceiling; it is broken ONLY for the per-agent form.
+
+`CeilingRoute.lean` therefore:
+
+* `biasedMainIndexLeHour_not_step_preserved` — the F5 counterexample, machine-checked against the
+  frozen rule (the audit verdict).
+* `allBiasedMainBelow_pair_preserved` — the SOUND per-pair preservation of the global ceiling
+  (re-export of `phase3CancelSplit_preserves_top_edge`); the genuinely inductive quantity, contrasted
+  with the broken per-agent form.
+* `phase6To7_surface_ceilingRoute` — the CORRECTED Phase6→7 surface. Carries
+  `DoublingEdges.AllBiasedMainBelow (l+2) c` DIRECTLY (the step-preserved global ceiling), DROPPING
+  the broken per-agent `BiasedMainIndexLeHour` + `MainHourBelow` pair of
+  `WindowReconciliation.phase6To7_surface_reconciled`. The consumer is fed the genuinely-preserved
+  predicate.
+* `phase6To7_surface_ceilingRoute_ofSnapshots` — retains the proven bridge for any consumer that
+  genuinely has both snapshots `BiasedMainIndexLeHour` + `MainHourBelow (l+2)` on the SAME config (as
+  a snapshot, not via the broken step-induction): the bridge
+  `allBiasedMainBelow_of_indexLeHour_of_hourCeiling` still produces the global ceiling, soundly fed
+  into the corrected surface. No expressive power is lost; only the unsound "induct the per-agent form
+  over the chain" provenance is removed.
+
+### Corrected carried inventory for item-1 / S1
+
+| object | OLD (flagged) carried set | NEW honest carried set |
+|---|---|---|
+| item-1 hour ceiling | per-agent `BiasedMainIndexLeHour c` (NOT step-preserved, F5) + `MainHourBelow (l+2) c`, with claimed "induct the per-step guard over the chain" discharge (INVALID) | GLOBAL `DoublingEdges.AllBiasedMainBelow (l+2) c` carried directly — the genuinely step-preserved ceiling (`phase3CancelSplit_preserves_top_edge`, SOUND induction) |
+| S1 (`BiasedMainIndexLeHour`) | reachability-invariant SNAPSHOT via per-step guard (broken) | DROPPED from the carried set; retained only as an OPTIONAL snapshot input (`_ofSnapshots`), never as a chain-induction residual |
+
+### Status of the old surface
+
+`WindowReconciliation.phase6To7_surface_reconciled` remains in the tree (not edited per discipline).
+It is still TRUE — its bridge `index ≤ hour ≤ top ⟹ index ≤ top` is correctly proven — but its `hIdx`
+input has no sound reachability discharge, so the route a consumer should use is
+`CeilingRoute.phase6To7_surface_ceilingRoute` (global ceiling carried directly). Single-file
+`lake env lean` EXIT 0; `#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]` for all four new
+theorems (`allBiasedMainBelow_pair_preserved` uses only `[propext, Quot.sound]`).
