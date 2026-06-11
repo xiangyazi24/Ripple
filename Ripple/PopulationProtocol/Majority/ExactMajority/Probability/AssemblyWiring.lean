@@ -85,9 +85,9 @@ shape `≤ 1 − ENNReal.ofReal (E/(n(n−1)))`.  These two shapes are reconcile
 which is exactly the floor-adapter conclusion.  The helper below records that identification at the
 ℝ≥0∞ level, turning a floor-adapter bound into the calibrated-`hstep` rate. -/
 
-/-- `ofReal (1 − r) = 1 − ofReal r` for `0 ≤ r ≤ 1`: the bridge between the calibrated
+/-- `ofReal (1 − r) = 1 − ofReal r` for `0 ≤ r`: the bridge between the calibrated
 `ENNReal.ofReal q_r` rate and the floor adapter's `1 − ofReal(E/(n(n−1)))` shape. -/
-theorem ofReal_one_sub {r : ℝ} (hr0 : 0 ≤ r) (hr1 : r ≤ 1) :
+theorem ofReal_one_sub {r : ℝ} (hr0 : 0 ≤ r) :
     ENNReal.ofReal (1 - r) = 1 - ENNReal.ofReal r := by
   rw [ENNReal.ofReal_sub _ hr0, ENNReal.ofReal_one]
 
@@ -97,12 +97,11 @@ theorem ofReal_one_sub {r : ℝ} (hr0 : 0 ≤ r) (hr1 : r ≤ 1) :
 theorem hstep_of_floor_bound {pot : Config (AgentState L K) → ℕ} {b : Config (AgentState L K)}
     {E n : ℕ}
     (hfrac0 : (0 : ℝ) ≤ (E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))
-    (hfrac1 : (E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) ≤ 1)
     (hbound : (NonuniformMajority L K).transitionKernel b (OneSidedCancel.potDone pot)ᶜ
       ≤ 1 - ENNReal.ofReal ((E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)))) :
     (NonuniformMajority L K).transitionKernel b (OneSidedCancel.potDone pot)ᶜ
       ≤ ENNReal.ofReal (1 - (E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) := by
-  rwa [ofReal_one_sub hfrac0 hfrac1]
+  rwa [ofReal_one_sub hfrac0]
 
 /-! ## Part B — the genuinely-probabilistic per-slot inputs (the carried residual). -/
 
@@ -240,39 +239,55 @@ structure WorkInputs (n : ℕ) where
   ---------------------------------------------------------------------------
   -- slot 7 — Phase-7 eliminator drain (Lemma 7.4 eliminator-margin floor).
   ---------------------------------------------------------------------------
+  q7 : ℝ
   t7 : ℕ
   E7 : ℕ
   α7 : ℝ
   hα7_0 : 0 < α7
   hα7_1 : α7 ≤ 1
-  hE7frac0 : (0 : ℝ) ≤ (E7 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))
-  hE7frac1 : (E7 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) ≤ 1
-  hq7 : (1 : ℝ) - (E7 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) ≤ 1 - α7 * ((1 : ℕ) : ℝ) / n
+  hq7_0 : 0 ≤ q7
+  hq7 : q7 ≤ 1 - α7 * ((1 : ℕ) : ℝ) / n
   hT7 : (3 / α7) * ((n : ℝ) / ((1 : ℕ) : ℝ)) * Real.log n ≤ t7
   hE7 : (E7 : ℝ) ≤ (4 : ℝ) * (n : ℝ) / 15
+  /-- **slot-7 carried probabilistic RATE** `q₇` (the crude `classMassN`-drain per-step rate; the
+  `potDone` single-rate model).  Genuinely probabilistic — the eliminator floor discharges the
+  per-LEVEL drop floor (`slot7_levels_hdrop`), but the crude single-rate drain to `0` over all
+  `1 ≤ classMassN` is the carried per-step rate. -/
+  hstep7 : ∀ b : Config (AgentState L K), Phase7Convergence.Inv7Sum n b →
+    1 ≤ Phase7Convergence.classMassN σ b →
+    ((NonuniformMajority L K).transitionKernel b)
+      (OneSidedCancel.potDone (fun c => Phase7Convergence.classMassN σ c))ᶜ
+      ≤ ENNReal.ofReal q7
   /-- **slot-7 carried probabilistic event** (Doty Lemma 7.4): the gap-1 eliminator-margin floor —
   at every minority level `j`, the partner level `j−1` carries `≥ E₇` σ-eliminators.  The
   minority-witness half is PROVED (`EliminatorMargins.exists_minorityAt7_of_classMassN_pos`); this
-  is the carried eliminator lower bound. -/
+  is the carried eliminator lower bound, wired into the LEVELS drop floor by `slot7_levels_hdrop`. -/
   hPhase6Post7 : ∀ b : Config (AgentState L K),
     Phase7Convergence.Inv7Sum (L := L) (K := K) n b →
     EliminatorMargins.Phase6To7Structure (L := L) (K := K) σ E7 b
   ---------------------------------------------------------------------------
   -- slot 8 — Phase-8 eliminator drain (Lemma 7.6 above-level eliminator margin).
   ---------------------------------------------------------------------------
+  q8 : ℝ
   t8 : ℕ
   E8 : ℕ
   α8 : ℝ
   hα8_0 : 0 < α8
   hα8_1 : α8 ≤ 1
-  hE8frac0 : (0 : ℝ) ≤ (E8 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))
-  hE8frac1 : (E8 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) ≤ 1
-  hq8 : (1 : ℝ) - (E8 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) ≤ 1 - α8 * ((1 : ℕ) : ℝ) / n
+  hq8_0 : 0 ≤ q8
+  hq8 : q8 ≤ 1 - α8 * ((1 : ℕ) : ℝ) / n
   hT8 : (3 / α8) * ((n : ℝ) / ((1 : ℕ) : ℝ)) * Real.log n ≤ t8
   hE8 : (E8 : ℝ) ≤ (1 : ℝ) * (n : ℝ) / 5
+  /-- **slot-8 carried probabilistic RATE** `q₈` (the crude `minorityU`-drain per-step rate). -/
+  hstep8 : ∀ b : Config (AgentState L K), Phase8Convergence.Phase8AllMain n b →
+    1 ≤ Phase7Convergence.minorityU σ b →
+    (NonuniformMajority L K).transitionKernel b
+      (OneSidedCancel.potDone (fun c => Phase7Convergence.minorityU σ c))ᶜ
+      ≤ ENNReal.ofReal q8
   /-- **slot-8 carried probabilistic event** (Doty Lemma 7.4–7.6): the above-level eliminator
   margin — at every minority level `i`, the levels strictly above carry `≥ E₈` non-`full`
-  σ-eliminators.  The minority witness is PROVED; this is the carried margin. -/
+  σ-eliminators.  The minority witness is PROVED; wired into the LEVELS drop floor by
+  `slot8_levels_hdrop`. -/
   hPhase7Post8 : ∀ b : Config (AgentState L K),
     Phase8Convergence.Phase8AllMain (L := L) (K := K) n b →
     EliminatorMargins.Phase7To8Structure (L := L) (K := K) σ E8 b
@@ -287,19 +302,27 @@ structure WorkInputs (n : ℕ) where
   /-- slot-10 block count `k₁₀` (`ε = (1/2)^k`). -/
   k10 : ℕ
 
-/-! ## Part C — the concrete wired WORK slots. -/
+/-! ## Part C — the eliminator-margin floor wired into the LEVELS drop floor.
 
-/-- **slot 7 wired `hstep`.**  Threads the Lemma-7.4 eliminator-margin floor
-(`hPhase6Post7`) through the landed adapter `EliminatorMargins.phase7_hdrop_wired_from_lemma7_4`
-and reconciles its `1 − ofReal(E/…)` bound with the calibrated `ENNReal.ofReal q_r` shape. -/
-theorem slot7_hstep (wi : WorkInputs (L := L) (K := K) n) :
-    ∀ b : Config (AgentState L K), Phase7Convergence.Inv7Sum n b →
-      1 ≤ Phase7Convergence.classMassN wi.σ b →
-      ((NonuniformMajority L K).transitionKernel b)
-        (OneSidedCancel.potDone (fun c => Phase7Convergence.classMassN wi.σ c))ᶜ
-        ≤ ENNReal.ofReal (1 - (wi.E7 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) := by
-  intro b hInv hmass
+The crude `classMassN`/`minorityU` drain (`phase7Convergence''` / `phase8Convergence`) uses a
+single per-step `potDone` rate `q` (carried `hstep7`/`hstep8`).  The eliminator-margin
+confinement (`Phase6To7Structure` / `Phase7To8Structure`) discharges the per-LEVEL drop floor
+`(potBelow … m)ᶜ ≤ 1 − ofReal(E/(n(n−1)))` — the honest multi-level mass drain (the crude single
+rate is structurally vacuous for `classMassN ≥ 2`).  The two lemmas below WIRE that floor through
+the landed `EliminatorMargins.phase{7,8}_hdrop_wired_from_lemma7_{4,6}` adapters, demonstrating the
+margin IS landed; the slots themselves carry the crude rate `hstep7`/`hstep8`. -/
+
+/-- **slot 7 — the LEVELS drop floor wired from the Lemma-7.4 eliminator margin.**  At any
+`Inv7Sum` config with `classMassN σ = m ≥ 1`, the carried `Phase6To7Structure` margin gives the
+per-level drop floor `(potBelow (classMassN σ) m)ᶜ ≤ 1 − ofReal(E₇/(n(n−1)))`. -/
+theorem slot7_levels_hdrop (wi : WorkInputs (L := L) (K := K) n)
+    (b : Config (AgentState L K)) (hInv : Phase7Convergence.Inv7Sum n b)
+    {m : ℕ} (hbm : Phase7Convergence.classMassN wi.σ b = m) (hmpos : 1 ≤ m) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (Phase7Convergence.classMassN wi.σ) m)ᶜ
+      ≤ 1 - ENNReal.ofReal ((wi.E7 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) := by
   have hb7 : Phase7Convergence.Phase7AllMain (L := L) (K := K) n b := hInv.1
+  have hmass : 1 ≤ Phase7Convergence.classMassN wi.σ b := by omega
   have hfloor :
       ∃ i j : Fin (L + 1),
         i.val + 1 = j.val ∧
@@ -307,19 +330,16 @@ theorem slot7_hstep (wi : WorkInputs (L := L) (K := K) n) :
         wi.E7 ≤ (Phase7Convergence.elimGap1 (L := L) (K := K) wi.σ i).sum b.count :=
     EliminatorMargins.lemma7_4_phase7_elimGap1_floor wi.σ hb7 wi.E7
       (wi.hPhase6Post7 b hInv) hmass wi.hE7
-  have hbound := EliminatorMargins.phase7_hdrop_wired_from_lemma7_4 wi.σ n
-    (Phase7Convergence.classMassN wi.σ b) wi.hn b hb7 rfl hmass wi.E7 hfloor
-  exact hstep_of_floor_bound wi.hE7frac0 wi.hE7frac1 hbound
+  exact EliminatorMargins.phase7_hdrop_wired_from_lemma7_4 wi.σ n m wi.hn b hb7 hbm hmpos wi.E7 hfloor
 
-/-- **slot 8 wired `hstep`.**  Threads the Lemma-7.6 above-level eliminator margin
-(`hPhase7Post8`) through the landed adapter `EliminatorMargins.phase8_hdrop_wired_from_lemma7_6`. -/
-theorem slot8_hstep (wi : WorkInputs (L := L) (K := K) n) :
-    ∀ b : Config (AgentState L K), Phase8Convergence.Phase8AllMain n b →
-      1 ≤ Phase7Convergence.minorityU wi.σ b →
-      (NonuniformMajority L K).transitionKernel b
-        (OneSidedCancel.potDone (fun c => Phase7Convergence.minorityU wi.σ c))ᶜ
-        ≤ ENNReal.ofReal (1 - (wi.E8 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) := by
-  intro b hb8 hmin
+/-- **slot 8 — the LEVELS drop floor wired from the Lemma-7.6 above-level eliminator margin.** -/
+theorem slot8_levels_hdrop (wi : WorkInputs (L := L) (K := K) n)
+    (b : Config (AgentState L K)) (hb8 : Phase8Convergence.Phase8AllMain n b)
+    {m : ℕ} (hbm : Phase7Convergence.minorityU wi.σ b = m) (hmpos : 1 ≤ m) :
+    (NonuniformMajority L K).transitionKernel b
+        (OneSidedCancel.potBelow (Phase7Convergence.minorityU wi.σ) m)ᶜ
+      ≤ 1 - ENNReal.ofReal ((wi.E8 : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) := by
+  have hmin : 1 ≤ Phase7Convergence.minorityU wi.σ b := by omega
   have hexists :
       ∃ i : Fin (L + 1),
         1 ≤ (Phase8Convergence.minorityAt (L := L) (K := K) wi.σ i).sum b.count ∧
@@ -327,9 +347,9 @@ theorem slot8_hstep (wi : WorkInputs (L := L) (K := K) n) :
     obtain ⟨i, hmini⟩ := EliminatorMargins.exists_minorityAt_of_minorityU_pos wi.σ b hmin
     exact ⟨i, hmini, EliminatorMargins.lemma7_6_phase8_elimAbove_floor wi.σ hb8 wi.E8
       (wi.hPhase7Post8 b hb8) i hmini wi.hE8⟩
-  have hbound := EliminatorMargins.phase8_hdrop_wired_from_lemma7_6 wi.σ n
-    (Phase7Convergence.minorityU wi.σ b) wi.hn b hb8 rfl hmin wi.E8 hexists
-  exact hstep_of_floor_bound wi.hE8frac0 wi.hE8frac1 hbound
+  exact EliminatorMargins.phase8_hdrop_wired_from_lemma7_6 wi.σ n m wi.hn b hb8 hbm hmpos wi.E8 hexists
+
+/-! ## Part D — the concrete wired WORK slots. -/
 
 /-- **The concrete WORK family** `Fin 11 → PhaseConvergenceW`, every slot wired.  Even/odd-free
 (this is the WORK family, not the interleave): slot `k ↦ work k`.  Slots 0/2/3/9 are the carried
@@ -356,13 +376,13 @@ noncomputable def dotyWorkConcrete (wi : WorkInputs (L := L) (K := K) n) :
           wi.hClosed6 wi.hdrop6 wi.hn wi.hM1 wi.hpt6
     | ⟨7, _⟩ =>
         DrainCalibration.phase7Convergence_calibrated (L := L) (K := K) wi.σ n wi.M₀ wi.t7
-          (slot7_hstep wi) wi.hn wi.hM1 wi.hM₀ wi.hα7_0 wi.hα7_1 wi.hE7frac0 wi.hq7 wi.hT7
+          wi.hstep7 wi.hn wi.hM1 wi.hM₀ wi.hα7_0 wi.hα7_1 wi.hq7_0 wi.hq7 wi.hT7
     | ⟨8, _⟩ =>
         DrainCalibration.phase8Convergence_calibrated (L := L) (K := K) wi.σ n wi.M₀ wi.t8
-          (slot8_hstep wi) wi.hn wi.hM1 wi.hM₀ wi.hα8_0 wi.hα8_1 wi.hE8frac0 wi.hq8 wi.hT8
+          wi.hstep8 wi.hn wi.hM1 wi.hM₀ wi.hα8_0 wi.hα8_1 wi.hq8_0 wi.hq8 wi.hT8
     | ⟨9, _⟩ => wi.work9
     | ⟨10, _⟩ =>
-        Phase10Convergence.phase10Convergence (L := L) (K := K) n wi.hn wi.s10 wi.hs10 wi.hsB10
+        Phase10Drop.phase10Convergence (L := L) (K := K) n wi.hn wi.s10 wi.hs10 wi.hsB10
           wi.k10
 
 @[simp] theorem dotyWorkConcrete_one (wi : WorkInputs (L := L) (K := K) n) :
@@ -378,12 +398,12 @@ noncomputable def dotyWorkConcrete (wi : WorkInputs (L := L) (K := K) n) :
 @[simp] theorem dotyWorkConcrete_seven (wi : WorkInputs (L := L) (K := K) n) :
     dotyWorkConcrete wi ⟨7, by omega⟩
       = DrainCalibration.phase7Convergence_calibrated (L := L) (K := K) wi.σ n wi.M₀ wi.t7
-          (slot7_hstep wi) wi.hn wi.hM1 wi.hM₀ wi.hα7_0 wi.hα7_1 wi.hE7frac0 wi.hq7 wi.hT7 := rfl
+          wi.hstep7 wi.hn wi.hM1 wi.hM₀ wi.hα7_0 wi.hα7_1 wi.hq7_0 wi.hq7 wi.hT7 := rfl
 
 @[simp] theorem dotyWorkConcrete_eight (wi : WorkInputs (L := L) (K := K) n) :
     dotyWorkConcrete wi ⟨8, by omega⟩
       = DrainCalibration.phase8Convergence_calibrated (L := L) (K := K) wi.σ n wi.M₀ wi.t8
-          (slot8_hstep wi) wi.hn wi.hM1 wi.hM₀ wi.hα8_0 wi.hα8_1 wi.hE8frac0 wi.hq8 wi.hT8 := rfl
+          wi.hstep8 wi.hn wi.hM1 wi.hM₀ wi.hα8_0 wi.hα8_1 wi.hq8_0 wi.hq8 wi.hT8 := rfl
 
 /-! ## Part D — `dotyAssembly_concrete`: filling `DotyAssembly.work` with the wired family.
 

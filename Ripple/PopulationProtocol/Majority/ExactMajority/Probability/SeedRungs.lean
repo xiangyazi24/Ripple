@@ -270,8 +270,8 @@ theorem seed_advance_prob (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ
       intro x
       rw [Multiset.count_cons, Multiset.count_cons, Multiset.count_zero]
       by_cases hxa : x = a
-      · subst hxa; simp only [if_pos rfl]
-        have : c.count a = Multiset.count a c := rfl
+      · rw [hxa, if_pos rfl]
+        have hcc : c.count a = Multiset.count a c := rfl
         omega
       · simp only [if_neg hxa]; omega
     · exact pair_le_of_mem_ne hamem hbmem hab
@@ -279,6 +279,224 @@ theorem seed_advance_prob (p : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ
   rw [hunseed]
   exact geCount_stepOrSelf_seed_advance (L := L) (K := K) p hp c a b happ hunseed
     ha_phase hb_phase ha_clock hb_clock ha_ctr hb_ctr
+
+/-! ## Part 3 — the seed expected-time bound (`E ≤ 1`: one clock-pair meeting)
+
+The seed advance rate from a drained un-seeded state is the FULL rectangle
+`n(n−1)/(n(n−1)) = 1`: EVERY applicable ordered pair is a counter-0 clock-clock pair and
+advances.  So the kernel mass on the seed target `{1 ≤ geCount (p+1)}` is `≥ 1`, hence `= 1`:
+the seed fires on the NEXT counter-running interaction with probability `1`.  The expected
+time is therefore `≤ 1` — the single-milestone coupon at its trivial extreme.
+
+This is the honest cost of the per-rung seed: ONE expected interaction (`O(1)`, absorbed into
+the per-rung `n²` cap with overwhelming slack), NOT a carried mystery. -/
+
+/-- The seed target set: at least one agent has crossed to phase `≥ p+1`. -/
+def seedTarget (p : ℕ) : Set (Config (AgentState L K)) :=
+  {c | 1 ≤ geCount (L := L) (K := K) (p + 1) c}
+
+theorem seedTarget_measurable (p : ℕ) :
+    MeasurableSet (seedTarget (L := L) (K := K) p) :=
+  DiscreteMeasurableSpace.forall_measurableSet _
+
+/-- **The seed target is absorbing.**  `geCount (p+1)` only rises along the kernel
+(`SeamEpidemics.geCount_ge_monotone`), so once `≥ 1` it stays `≥ 1`. -/
+theorem seedTarget_absorbing (p : ℕ) (c : Config (AgentState L K))
+    (hc : c ∈ seedTarget (L := L) (K := K) p) :
+    (NonuniformMajority L K).transitionKernel c (seedTarget (L := L) (K := K) p)ᶜ = 0 := by
+  classical
+  change ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+    (seedTarget (L := L) (K := K) p)ᶜ = 0
+  rw [PMF.toMeasure_apply_eq_zero_iff _
+    (seedTarget_measurable (L := L) (K := K) p).compl]
+  rw [Set.disjoint_left]
+  intro c' hsupp hbad
+  apply hbad
+  -- c ∈ seedTarget ⟹ c' ∈ seedTarget (geCount monotone on support).
+  have : 1 ≤ geCount (L := L) (K := K) (p + 1) c := hc
+  exact geCount_ge_monotone (p + 1) 1 c c' this hsupp
+
+/-- **The seed fires in one step a.s. from a drained un-seeded state.**  The kernel mass on
+the complement of the seed target is `0`: the advance rate is the full rectangle `= 1`, so
+every step lands in `{1 ≤ geCount (p+1)}`. -/
+theorem drained_kernel_seedTarget_compl_zero (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : AllClockGEpCard (L := L) (K := K) p n c)
+    (hdrain : clockCounterSumAt (L := L) (K := K) p c = 0)
+    (hunseed : geCount (L := L) (K := K) (p + 1) c = 0) :
+    (NonuniformMajority L K).transitionKernel c (seedTarget (L := L) (K := K) p)ᶜ = 0 := by
+  classical
+  -- The advance event {geCount c + 1 ≤ geCount c'} = {1 ≤ geCount c'} = seedTarget (geCount c = 0).
+  have hrate := seed_advance_prob (L := L) (K := K) p hp n hn c hInv hdrain hunseed
+  -- the rate ofReal(n(n-1)/(n(n-1))) = 1.
+  have hn2 : (2 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  have hnpos : (0 : ℝ) < (n : ℝ) := by linarith
+  have hn1pos : (0 : ℝ) < (n : ℝ) - 1 := by linarith
+  have hden_pos : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := mul_pos hnpos hn1pos
+  have hnumeq : (((n * (n - 1) : ℕ) : ℝ)) = (n : ℝ) * ((n : ℝ) - 1) := by
+    rw [Nat.cast_mul, Nat.cast_sub (by omega)]; push_cast; ring
+  have hrate1 : ENNReal.ofReal (((n * (n - 1) : ℕ) : ℝ) / ((n : ℝ) * ((n : ℝ) - 1))) = 1 := by
+    rw [hnumeq, div_self (ne_of_gt hden_pos), ENNReal.ofReal_one]
+  rw [hrate1] at hrate
+  -- advance event ⊆ seedTarget (geCount c = 0 ⟹ geCount c + 1 = 1).
+  have hsub : {c' : Config (AgentState L K) | geCount (L := L) (K := K) (p + 1) c + 1
+                ≤ geCount (L := L) (K := K) (p + 1) c'}
+      ⊆ seedTarget (L := L) (K := K) p := by
+    intro c' hc'
+    simp only [Set.mem_setOf_eq, hunseed] at hc'
+    exact hc'
+  have hmono : ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+        {c' | geCount (L := L) (K := K) (p + 1) c + 1 ≤ geCount (L := L) (K := K) (p + 1) c'}
+      ≤ ((NonuniformMajority L K).stepDistOrSelf c).toMeasure (seedTarget (L := L) (K := K) p) :=
+    measure_mono hsub
+  -- kernel = stepDistOrSelf; mass on seedTarget ≥ 1, so = 1, so complement = 0.
+  have hge1 : (1 : ℝ≥0∞) ≤ (NonuniformMajority L K).transitionKernel c
+      (seedTarget (L := L) (K := K) p) := by
+    change (1 : ℝ≥0∞) ≤ ((NonuniformMajority L K).stepDistOrSelf c).toMeasure
+      (seedTarget (L := L) (K := K) p)
+    exact le_trans hrate hmono
+  have hle1 : (NonuniformMajority L K).transitionKernel c (seedTarget (L := L) (K := K) p) ≤ 1 :=
+    MeasureTheory.prob_le_one
+  have heq1 : (NonuniformMajority L K).transitionKernel c (seedTarget (L := L) (K := K) p) = 1 :=
+    le_antisymm hle1 hge1
+  -- complement mass = 1 - 1 = 0.
+  rw [MeasureTheory.prob_compl_eq_one_sub (seedTarget_measurable (L := L) (K := K) p), heq1,
+    tsub_self]
+
+/-- **The seed expected-time bound (`E[T to seed] ≤ 1`).**  From a drained
+(`clockCounterSumAt p c = 0`), un-seeded (`geCount (p+1) c = 0`) all-clock state
+`AllClockGEpCard p n` (`n ≥ 2`), the expected number of interactions to materialise the
+advance seed `{1 ≤ geCount (p+1)}` is at most `1`: the next counter-running interaction
+advances a clock to phase `≥ p+1` with probability `1`.  Proven directly from the
+one-step-a.s. fact (`drained_kernel_seedTarget_compl_zero`): the `t = 0` tail term is `≤ 1`
+and all `t ≥ 1` terms vanish. -/
+theorem seed_expectedHitting_le_one (p : ℕ)
+    (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ)) (n : ℕ) (hn : 2 ≤ n)
+    (c : Config (AgentState L K)) (hInv : AllClockGEpCard (L := L) (K := K) p n c)
+    (hdrain : clockCounterSumAt (L := L) (K := K) p c = 0)
+    (hunseed : geCount (L := L) (K := K) (p + 1) c = 0) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (seedTarget (L := L) (K := K) p)
+      ≤ 1 := by
+  classical
+  set ker := (NonuniformMajority L K).transitionKernel with hker
+  set Done := seedTarget (L := L) (K := K) p with hDoneset
+  have hDmeas : MeasurableSet Done := seedTarget_measurable (L := L) (K := K) p
+  have hDabs : ∀ x ∈ Done, ker x Doneᶜ = 0 := fun x hx =>
+    seedTarget_absorbing (L := L) (K := K) p x hx
+  -- the one-step a.s. fact at the drained start.
+  have hstep0 : ker c Doneᶜ = 0 :=
+    drained_kernel_seedTarget_compl_zero (L := L) (K := K) p hp n hn c hInv hdrain hunseed
+  -- expectedHitting = ∑' t, (ker^t) c Doneᶜ; t=0 term ≤ 1, t≥1 terms ≤ (ker^1) c Doneᶜ = 0.
+  rw [expectedHitting_eq_tsum]
+  rw [← ENNReal.summable.sum_add_tsum_nat_add' (f := fun t => (ker ^ t) c Doneᶜ) (k := 1)]
+  have htail0 : ∀ t : ℕ, (ker ^ (t + 1)) c Doneᶜ = 0 := by
+    intro t
+    have hle : (ker ^ (t + 1)) c Doneᶜ ≤ (ker ^ 1) c Doneᶜ :=
+      bad_antitone_le ker hDmeas hDabs c (by omega : 1 ≤ t + 1)
+    rw [pow_one] at hle
+    rw [hstep0] at hle
+    exact le_antisymm hle (zero_le')
+  have hsum1 : (∑ i ∈ Finset.range 1, (ker ^ i) c Doneᶜ) ≤ 1 := by
+    simp only [Finset.range_one, Finset.sum_singleton, pow_zero]
+    exact kernel_pow_le_one ker 0 c Doneᶜ
+  have htailsum : (∑' t : ℕ, (ker ^ (t + 1)) c Doneᶜ) = 0 := by
+    simp only [htail0]; exact tsum_zero
+  calc (∑ i ∈ Finset.range 1, (ker ^ i) c Doneᶜ) + ∑' t : ℕ, (ker ^ (t + 1)) c Doneᶜ
+      = (∑ i ∈ Finset.range 1, (ker ^ i) c Doneᶜ) + 0 := by rw [htailsum]
+    _ ≤ 1 := by rw [add_zero]; exact hsum1
+
+/-! ## Part 4 — the wired seed rung: drained → seeded → spread (`E ≤ 1 + n²`)
+
+Composing the seed bound (Part 3, `E[T drained → seeded] ≤ 1`) with the seam spread
+(`TimedChainRungs.seam_rung_to_chain_target_le_nsq`, `E[T seeded → chain-target] ≤ n²`) via the
+invariant-relative seqcomp `RecoveryBridges.expectedHitting_seqcomp_on_of_uniform`
+(`J = AllClockGEpCard p n`, one-step-closed; `Mid = seedTarget`, `Done = chain-target`).  The
+`Mid`-state cap is exactly `seam_rung_to_chain_target_le_nsq`, whose two inputs — the regime
+membership `AllClockGEpCard p n` (`= J`) and the seed `1 ≤ geCount (p+1)` (`= Mid`) — are now
+SUPPLIED by the seqcomp's `J ∩ Mid` hypothesis, NOT carried.  This is the per-rung
+`drained ⟹ chain-target` bound with the seed DISCHARGED. -/
+
+open scoped Classical in
+/-- **The wired per-rung seed-and-spread bound (`E ≤ 1 + n²`).**
+
+From a DRAINED, un-seeded, all-clock state `AllClockGEpCard p n` (`3 ≤ p`, `n ≥ 2`,
+`clockCounterSumAt p c = 0`, `geCount (p+1) c = 0`) — the EXACT output of the counter-drain
+rung `ConditionalPhaseProgress.timed_phase_progress_real_tinyClock` — the expected number of
+interactions to reach the next-phase chain target `{AllClockGEpCard (p+1) n}` is at most
+`1 + n²`: ONE interaction to materialise the advance seed (Part 3), then `≤ n²` for the seam
+epidemic to spread the phase to the whole population.
+
+This CLOSES the `htrig`/`hseed` residual `TimedChainRungs`/`ChainEndAssembly` carried: the seed
+is no longer a hypothesis but a theorem, costing `O(1)` expected interactions absorbed into the
+per-rung budget. -/
+theorem seed_then_spread_le (p n : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ))
+    (hp3 : 3 ≤ p) (hn : 2 ≤ n) (c : Config (AgentState L K))
+    (hInv : AllClockGEpCard (L := L) (K := K) p n c)
+    (hdrain : clockCounterSumAt (L := L) (K := K) p c = 0)
+    (hunseed : geCount (L := L) (K := K) (p + 1) c = 0) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p))
+      ≤ 1 + ((n * n : ℕ) : ℝ≥0∞) := by
+  classical
+  set ker := (NonuniformMajority L K).transitionKernel with hker
+  set J : Config (AgentState L K) → Prop := AllClockGEpCard (L := L) (K := K) p n with hJ
+  set Mid : Set (Config (AgentState L K)) := seedTarget (L := L) (K := K) p with hMidset
+  set Done : Set (Config (AgentState L K)) :=
+    StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p) with hDoneset
+  -- J is one-step closed (3 ≤ p).
+  have hClosed : ∀ b : Config (AgentState L K), J b → ker b {x | ¬ J x} = 0 :=
+    AllClockGEpCard_InvClosed (L := L) (K := K) p n hp3
+  have hMidMeas : MeasurableSet Mid := seedTarget_measurable (L := L) (K := K) p
+  have hDoneMeas : MeasurableSet Done :=
+    DiscreteMeasurableSpace.forall_measurableSet _
+  -- A = 1: the seed bound.
+  have hA : expectedHitting ker c Mid ≤ 1 :=
+    seed_expectedHitting_le_one (L := L) (K := K) p hp n hn c hInv hdrain hunseed
+  -- B = n²: from every (J ∩ Mid)-state the seam spread caps at n².
+  have hB : ∀ y : Config (AgentState L K), J y → y ∈ Mid →
+      expectedHitting ker y Done ≤ ((n * n : ℕ) : ℝ≥0∞) := by
+    intro y hJy hyMid
+    have htrig : 1 ≤ geCount (L := L) (K := K) (p + 1) y := hyMid
+    exact seam_rung_to_chain_target_le_nsq (L := L) (K := K) p n hp3 hn y hJy htrig
+  exact expectedHitting_seqcomp_on_of_uniform ker J hClosed hMidMeas hDoneMeas
+    (1 : ℝ≥0∞) ((n * n : ℕ) : ℝ≥0∞) c hInv hA hB
+
+/-! ## Part 5 — the re-cut per-rung budget and spine arithmetic
+
+The honest per-rung cap is now `1 + n²` (seed + spread), NOT `n²`.  The timed spine telescopes
+the phase chain `p → p+1 → ⋯ → 10` over the `3 ≤ p` rungs `p ∈ {5,6,7,8}` (plus the chain-end
+`9 → 10`, see Part 6), i.e. `q = 10 − p` rungs from a phase-`p` start.  Each rung now costs
+`1 + n²`, so the telescoped budget is `q·(1 + n²) = q + q·n²`.
+
+`ChainEndAssembly.timedSpine_ladderData` already budgets `q·n² + βfinal ≤ Brecover`; the re-cut
+adds the per-rung seed term, giving `q·(1 + n²) + βfinal = q + q·n² + βfinal`.  For the longest
+timed branch (`p = 5`, `q = 5`) the seed overhead is `5·1 = 5` interactions on top of `5·n² + …`
+— utterly dominated by the `n²` spread terms (`n ≥ 2`).  We record the per-rung re-cut and the
+telescoped seed overhead `q·1 = q` as honest closed-form additions. -/
+
+/-- **The re-cut per-rung budget: each rung is `1 + n²`.**  Trivial restatement of
+`seed_then_spread_le` packaging the per-rung cap as `seedOverhead + spread = 1 + n²`; the seed
+overhead `1` is the `O(1)`-expected-interaction cost of materialising the advance seed, absorbed
+into the spine budget (`q·(1 + n²)` over `q` rungs). -/
+theorem per_rung_recut (p n : ℕ) (hp : p ∈ ({0, 1, 5, 6, 7, 8} : Finset ℕ))
+    (hp3 : 3 ≤ p) (hn : 2 ≤ n) (c : Config (AgentState L K))
+    (hInv : AllClockGEpCard (L := L) (K := K) p n c)
+    (hdrain : clockCounterSumAt (L := L) (K := K) p c = 0)
+    (hunseed : geCount (L := L) (K := K) (p + 1) c = 0) :
+    expectedHitting (NonuniformMajority L K).transitionKernel c
+        (StableBridges_timed_phase_chain_target (L := L) (K := K) (n := n) (p := p))
+      ≤ 1 + ((n * n : ℕ) : ℝ≥0∞) :=
+  seed_then_spread_le (L := L) (K := K) p n hp hp3 hn c hInv hdrain hunseed
+
+/-- **The telescoped seed overhead is `q` interactions** for a `q`-rung timed branch:
+`q·(1 + n²) = q + q·n²`.  The extra `q·1 = q` over the previous `q·n²` budget is the total seed
+cost across the branch's rungs — a pure additive `O(q) = O(1)` term (q ≤ 5), dominated by the
+`q·n²` spread.  Pure `ℝ≥0∞` arithmetic, no kernel content. -/
+theorem telescoped_seed_overhead (q n : ℕ) :
+    (q : ℝ≥0∞) * (1 + ((n * n : ℕ) : ℝ≥0∞))
+      = (q : ℝ≥0∞) + (q : ℝ≥0∞) * ((n * n : ℕ) : ℝ≥0∞) := by
+  rw [mul_add, mul_one]
 
 end SeedRungs
 end ExactMajority

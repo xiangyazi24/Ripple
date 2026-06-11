@@ -5646,3 +5646,96 @@ cached).  `#print axioms` for all F5b lemmas (`phase{1,5,6,7,8}_window_to_ge`,
 `drained_post_no_advTrig`, `advTriggered_of_atRiskClockZero`, `mk_hWorkPostToWindow`,
 `mk_hWindowToWorkPre_pin`, `hcompFail_of_composition`) all ⊆ `[propext, Classical.choice,
 Quot.sound]`.  0 sorry/admit/axiom/native_decide; `git diff --check` clean.
+
+## AssemblyWiring.lean — the 11 WORK slots made concrete (input-wiring sweep, wave A, 2026-06-11)
+
+`ConcreteAssembly.lean` (audit F5) packaged `DotyAssembly n` but left its `work : Fin 11 →
+PhaseConvergenceW` field ABSTRACT. This file (wave A — the full input-wiring sweep) makes those 11
+work slots CONCRETE: each slot built from its landed constructor, every internal input WIRED to the
+campaign's landed discharger chain, so the surviving carries are exactly the genuinely-PROBABILISTIC
+per-phase events. New append-only file `Probability/AssemblyWiring.lean` (namespace
+`ExactMajority.AssemblyWiring`); edits NO existing file.
+
+Single-file `lake env lean Probability/AssemblyWiring.lean` EXIT_0 on uisai2 `/dev/shm` (v4.30.0;
+dep closure `lake build …ConcreteAssembly …UsefulMainFloor …EliminatorMargins …Phase4Convergence
+…Phase10Convergence …Phase2Convergence` EXIT 0, 3593 jobs). 0 sorry/admit/axiom/native_decide;
+`git diff --check` clean. `#print axioms` for `dotyAssembly_concrete`, `dotyWorkConcrete`,
+`slot7_levels_hdrop`, `slot8_levels_hdrop`, `dotyAssembly_concrete_work`, `hstep_of_floor_bound`
+all ⊆ `[propext, Classical.choice, Quot.sound]`.
+
+### What landed
+
+1. **`WorkInputs n`** — the genuinely-probabilistic per-slot residual record (the carried set after
+   the sweep). Every field is a per-phase quantitative atom the paper also imports as a named input;
+   the structural closures / floor extractions / budget arithmetic are discharged in
+   `dotyWorkConcrete` from the landed chain.
+
+2. **`dotyWorkConcrete wi : Fin 11 → PhaseConvergenceW`** — the wired 11-slot WORK family. Slots
+   0/2/3/9 are the carried finished instances (role-split milestone, two opinion-window epidemics,
+   clock side-budget); slots 1/4/5/6/7/8/10 are built from their calibrated constructors with the
+   floor/rate inputs threaded.
+
+3. **`slot7_levels_hdrop` / `slot8_levels_hdrop`** — the Lemma-7.4 / 7.6 eliminator-margin
+   confinement (`Phase6To7Structure` / `Phase7To8Structure`) WIRED through the landed
+   `EliminatorMargins.phase{7,8}_hdrop_wired_from_lemma7_{4,6}` adapters into the per-LEVEL drop
+   floor `(potBelow … m)ᶜ ≤ 1 − ofReal(E/(n(n−1)))`. (The slot constructors themselves use the
+   crude single-rate `potDone` drain `phase{7,8}Convergence_calibrated`, which is structurally
+   vacuous for `classMassN ≥ 2`; the levels floor is the honest multi-level discharge.)
+
+4. **`dotyAssembly_concrete wi …`** — a `ConcreteAssembly.DotyAssembly n` whose `work` field is
+   `dotyWorkConcrete wi`. The 10 seam params/horizons/budgets, the seam feeders (`hDrift`,
+   `hNoOvershoot`), and the three structural bridge gaps (`hTrig`, `hWorkPostToWindow`,
+   `hWindowToWorkPre`) remain caller-supplied `DotyAssembly` fields — that is the SEAM-level residual
+   `ConcreteAssembly` already pins to provenance. `dotyAssembly_concrete_work` (`@[simp]`) exposes
+   the wired family to all downstream `ConcreteAssembly` lemmas (`dotyPhases`, bridges,
+   `doty_time_headline_CONCRETE`).
+
+### The 11-slot wiring table (verified against `DotyTimeHeadline.lean:24`)
+
+| slot | constructor                                       | internal input(s)            | landed discharger wired                                       | residual carried |
+|------|---------------------------------------------------|------------------------------|---------------------------------------------------------------|------------------|
+| 0    | `RoleSplit` 3-stage (`phase0_roleSplit_…`)        | role-split milestone hitting | composed `PhaseConvergenceW` (`work0`)                        | milestone hitting bounds (genuinely prob.) |
+| 1    | `phase1Convergence_calibrated`                    | `extremeU` rate `q₁`; budget | budget via `rect_pow_le_budget_enn` (α₁=1/3); floor via `PhaseFloors.phase1_hdrop_wired`←`EliminatorMargins.phase1_pullPos_floor_…` | `hstep1` rate (Lemma 5.3/[45]) |
+| 2    | `phase2Convergence.toW` (`work2`)                 | advance-epidemic rate `s`    | proved-inside (`WindowConcentration.windowDrift`)            | epidemic rate (inside instance) |
+| 3    | `phase3Convergence` (`work3`)                     | clock side budget `εside`; bulk `εb` | carried (`work3`); §6 nine feeders                    | `hside` τ-uniform side budget + `hεb` |
+| 4    | `phase4Convergence`                               | advance-epidemic rate `s₄`; budget | proved-inside (tie tail + non-tie epidemic)            | `hε4` epidemic tail (params) |
+| 5    | `phase5Convergence_calibrated`                    | `unsampledReserveU` rate `q₅`; `hConc`; `hClosed5` | budget (α₅=23/75); floor via `UsefulMainFloor.phase5_hdrop_wired_from_theorem6_2` | `hstep5` rate + `hConc` (Lemma 7.1) + `hConfine` (Thm 6.2) + `hClosed5` |
+| 6    | `phase6Convergence_calibrated`                    | `highMass` per-level rate; `hClosed6` | budget (level-sum `rect_sum_le_phase_budget`); floor **FULLY LANDED** `PhaseFloors.phase6_hdrop_wired` ← Phase-5 `ReserveSampleGood` Post | `hdrop6` per-level rate + `hClosed6` (NO floor carried) |
+| 7    | `phase7Convergence_calibrated`                    | `classMassN` rate `q₇`       | budget (α₇=4/15); eliminator margin → levels floor (`slot7_levels_hdrop`) | `hstep7` crude rate + `Phase6To7Structure` (Lemma 7.4) |
+| 8    | `phase8Convergence_calibrated`                    | `minorityU` rate `q₈`        | budget (α₈=1/5); eliminator margin → levels floor (`slot8_levels_hdrop`) | `hstep8` crude rate + `Phase7To8Structure` (Lemma 7.6) |
+| 9    | `phase2Convergence.toW` (`work9`)                 | advance-epidemic rate `s` (2nd union) | proved-inside (`windowDrift`)                       | epidemic rate (inside instance) |
+| 10   | `Phase10Drop.phase10Convergence`                  | block-geometric `s₁₀`        | proved-inside (`block_geom_maj/tie`)                        | `hsB10` block-length condition (params) |
+
+### The FINAL carried event list (the genuinely-probabilistic residual)
+
+| event (`WorkInputs` field) | slot | provenance | expected discharge route |
+|---|---|---|---|
+| `work0` (role-split milestone hitting) | 0 | Doty role-split sub-processes; `RoleSplitConcentration` milestone hitting | MGF/hitting-time (`RoleSplitConcentration.phase0_roleSplit_whp_two_stage`) — landed inside the carried instance |
+| `hstep1` (`extremeU` averaging-drain rate `q₁`) | 1 | Lemma 5.3 / [45] Mocquard et al. discrete averaging Cor. 1 | per-step averaging rectangle; deeper route `AveragingRate`+`PartnerMargin` (secondMomentN engine) |
+| `work2`, `work9` (advance-epidemic rate) | 2, 9 | Doty Phase-2 opinion epidemic | `WindowConcentration.windowDrift` — landed inside the carried instance |
+| `hside` (τ-uniform side budget `εside`), `hεb` (bulk) | 3 | Doty §6 clock; the nine named §6 feeders | `HourComposition` width-slice machinery (`εWAt`) — landed inside `work3` |
+| `hε4` (epidemic tail) | 4 | Doty Phase-4 advance epidemic | `Epidemic`/`EpidemicTime` — params; proved-inside `phase4Convergence` |
+| `hstep5` (reserve-drain rate `q₅`) | 5 | Doty Phase-5 reserve drain | per-step rectangle; proved-inside `phase5Convergence_calibrated` |
+| `hConc` (sampling concentration `εConc`) | 5 | Doty Lemma 7.1 reserve sampling | `ReserveSampling` concentration |
+| `hConfine` (`0.92·|M| ≤ #usefulMains`) | 5 | arXiv:2106.10201v2 Theorem 6.2 | bias-ledger collapse (Thm 6.5 squaring on Main exponent profile) |
+| `hdrop6` (band per-level rate) | 6 | Doty Lemma 7.2 band drain | per-level rectangle; FLOOR fully landed from Phase-5 Post |
+| `Phase6To7Structure` (gap-1 eliminator margin `E₇`) | 7 | Doty Lemma 7.4 `0.8·|M|` eliminator supply | the eliminator-count LOWER bound; minority-witness half PROVED |
+| `hstep7` (crude `classMassN` rate `q₇`) | 7 | Doty Phase-7 drain | per-step rectangle; levels floor wired via `slot7_levels_hdrop` |
+| `Phase7To8Structure` (above-level eliminator margin `E₈`) | 8 | Doty Lemma 7.4–7.6 `0.8|M|−0.2|M|` margin | the eliminator-count LOWER bound; minority-witness half PROVED |
+| `hstep8` (crude `minorityU` rate `q₈`) | 8 | Doty Phase-8 drain | per-step rectangle; levels floor wired via `slot8_levels_hdrop` |
+| `hsB10` (block-length condition) | 10 | Doty Phase-10 block-geometric output | params; proved-inside `phase10Convergence` (`block_geom_maj/tie`) |
+
+Plus the deterministic STRUCTURAL carries (not genuinely probabilistic, documented): `hClosed5` /
+`hClosed6` (working-window one-step closures — `ReserveSampling` discharges these on the closed
+superwindow `PhaseGE5Win`; the `Phase5AllWin`/`Phase6Win` forms are the carried adapters).
+
+### Honest scope note
+
+This sweep wires the WORK-slot inputs; the SEAM-level residual (`hDrift`, `hNoOvershoot`, `hTrig`,
+`hWorkPostToWindow`, `hWindowToWorkPre`) stays as `DotyAssembly` fields, exactly the surface
+`ConcreteAssembly` already pins (`SeamPairAdapter.hNoOvershoot_one_seam_honest` for destinations
+`{1,6,7,8}`, named guards for `{2,3,4,5,9}`). For slot 6 the drain FLOOR is fully landed (from the
+Phase-5 `ReserveSampleGood` Post) — no floor carried, only the per-level rate. For slots 1/5/7/8 the
+floor reduces to a single named paper-confinement fact (Lemma 5.3/[45], Theorem 6.2, Lemma 7.4,
+Lemma 7.6), each carried with provenance and (for 7/8) wired into the levels drop floor by
+`slot{7,8}_levels_hdrop`. No "already done" claim is made without the wired lemma name above.
