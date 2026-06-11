@@ -1,6 +1,80 @@
 
 ---
 
+## ClockZeroTail.lean — roster #5(b): the AtRiskClockZero seam tail GATE, closed (2026-06-11, WAVE 2)
+
+New append-only file `Probability/ClockZeroTail.lean` discharges WAVE-2 roster item **#5(b)** — the
+per-seam clock-zero tail that GATES every no-overshoot seam (10 seams).  The landed
+`SeamPairAdapter` affine engine (`seam_atRiskClockZero_tail_honest`, honest `2·eˢ·freshVal`
+immigration, budget `e^{−40(L+1)}`) consumed ONE remaining probabilistic input it could not
+manufacture from the kernel alone: the **initial-potential bound**
+`Φ_1(c₀) = seamClockPotential p 1 c₀ ≤ n·e^{−50(L+1)}` (the `hinitΦ` hypothesis).  This file PROVES
+it and wires the full no-overshoot chain into the `DotyAssembly'.hNoOvershoot` feeder fields.
+
+### The initial-potential derivation (the crux)
+
+`seamClockSummand p 1 a` is NONZERO only for a CLOCK at the NEW phase `p+1`
+(`if role=clock ∧ phase=p+1 then exp(−counter) else 0`).  At the seam START the phase-`(p+1)`
+clocks are exactly the ones JUST advanced into `p+1` — counter-advanced from phase `p` via
+`stdCounterSubroutine → advancePhaseWithInit → phaseInit (p+1)`, OR epidemic-dragged from a lower
+phase via `runInitsBetween → phaseInit (p+1)` (the `SeamPairAdapter` advance-immigration lemmas).
+For the counter-reset destination set `{1,6,7,8}`, BOTH paths run `phaseInit (p+1)` on the clock,
+which RESETS `counter := 50(L+1)` (`Protocol/Transition.lean:138/166-173`, FROZEN; this is the
+`freshVal` exponent).  So every at-risk clock at the seam start has the FULL counter, its summand
+is EXACTLY `e^{−50(L+1)} = M`, and the sum over the `≤ n` agents is `≤ n·M`.  This is the seam
+analogue of `Phase0Window.clockCounterPotential_init_le` (every phase-0 clock full), with the
+"full counter" condition restricted to the at-risk phase-`(p+1)` clocks the seam summand reads.
+
+The FROZEN seam-entry fact is named `SeamEntryFullCounter p c` (= every phase-`(p+1)` clock has
+counter `50(L+1)` — the just-advanced/reset clocks), and `seamClockPotential_init_le` derives
+`hinitΦ` from it (the same `Multiset.sum_le_card_nsmul` argument as Phase 0, the nonzero summands
+pinned to `M` by the full-counter hypothesis).
+
+### What was built (all axiom-clean ⊆ [propext, Classical.choice, Quot.sound]; 0 sorry/admit/axiom/native_decide)
+
+| Theorem | Content |
+|---|---|
+| `SeamEntryFullCounter` | the seam-start full-counter predicate on phase-`(p+1)` clocks |
+| `seamClockPotential_init_le` | **the crux**: `Φ_1(c₀) ≤ n·e^{−50(L+1)}` from the full-counter entry fact (mirror of `clockCounterPotential_init_le`) |
+| `seam_atRiskTail_of_entry` | the honest at-risk tail with `hinitΦ` DISCHARGED from the entry fact (specialises `seam_atRiskClockZero_tail_honest`) |
+| `seam_noOvershoot_tail_of_entry` | the assembled `(K^tseam) c₀ {¬NoOvershoot} ≤ tseam·e^{−40(L+1)}` — per-`τ` at-risk tails (each FROM the FIXED `c₀` at horizon `τ`, SAME entry fact) composed through `seam_noOvershoot_tail` + the deterministic bridge |
+| `hNoOvershoot_field_of_entry` | the per-seam `hNoOvershoot` value AT the `DotyAssembly'.hNoOvershoot` field shape, PRODUCED for `CounterResetDest (p+1) ∈ {1,6,7,8}`: `Wf`-region (discharges `DetSeamOvershootBridge` via `detSeamOvershootBridge_of_wf`) + `SeamRegimeDispatch` + per-config seam-entry facts (`hStartNoOver`/`hEntry`/`hcard`) + budget fit `tseam·e^{−40(L+1)} ≤ εovershoot` |
+| `counterResetDest_of_seamP_mem` / `not_counterResetDest_of_guarded` | the produced-vs-guarded destination accounting |
+
+### hNoOvershoot: PRODUCED vs GUARDED (the field deliverable)
+
+In `dotyPhases'` the 10 seams advance `seamP k → seamP k + 1` along the phase chain (`seamP k = k`),
+so destination `= k+1`.  `hNoOvershoot_field_of_entry` PRODUCES the `DotyAssembly'.hNoOvershoot`
+feeder value exactly for the honest counter-reset destination set:
+
+* **PRODUCED** (counter-timed, full-counter reset on entry; the `SeamPairAdapter` honest set):
+  destinations `{1,6,7,8}` — seams with `seamP k ∈ {0,5,6,7}` (`counterResetDest_of_seamP_mem`).
+* **GUARDED** (named, not faked; `not_counterResetDest_of_guarded` certifies they FAIL
+  `CounterResetDest`):
+  - destinations `{2,4,9}` UNTIMED (opinion-union / big-bias) — no-overshoot from the work-phase /
+    big-bias guards in `SeamEpidemics`;
+  - destinations `{3,5}` counter-timed but NO counter reset on entry (`phase 3` `phaseInit` sets
+    `minute`; `phase 5` predecessor advances via `advancePhase`, no `phaseInit`) — no-overshoot from
+    the dedicated minute/hour width machinery (`ClockOLogN`/`ClockReal*`);
+  - destination `10` = error/backup entry, outside the seam chain.
+
+The seam-entry facts `hStartNoOver` (start `NoOvershoot p`) / `hEntry` (`SeamEntryFullCounter p`) are
+the honest per-config readings of the seam-start configuration the work `Post`/seed step delivers
+(carried as feeder hypotheses, not faked); the only opaque side condition remaining on the produced
+seams is the global `Wf`-region (the `Analysis`-layer reachability invariant
+`reachable_preserves_well_formed_agent_quota`) feeding the deterministic bridge — already the
+`SeamOvershootBridge` carry, not a new residual.
+
+### Build/audit
+
+Single-file `lake env lean` clean (local v4.30.0 olean closure, mathlib c5ea0035, EXIT 0, no
+warnings); olean emitted via `-o`.  All six exported decls `#print axioms ⊆ [propext,
+Classical.choice, Quot.sound]` (`counterResetDest_of_seamP_mem` only `propext`;
+`not_counterResetDest_of_guarded` no axioms).  0 sorry/admit/axiom/native_decide; `git diff --check`
+clean; max line width 97.  Append-only; no existing file edited.
+
+---
+
 ## FinalAssemblyV2.lean — F1+F2+F3 final-audit fix (whp half) (2026-06-11)
 
 The final adversarial audit (`/tmp/codex_final_audit.md`) flagged three defects in
