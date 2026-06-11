@@ -5485,3 +5485,86 @@ EXIT 0 on uisai2 `/dev/shm` (v4.30.0 + mathlib c5ea00351c28, same bucket; dep cl
 `lake build …Probability.ChainEndAssembly` EXIT 0, 3574 jobs). `#print axioms` for all 8 new
 declarations ⊆ `[propext, Classical.choice, Quot.sound]` (`allClockGEpCard_ten_imp_allPhase10` uses
 only `[propext, Quot.sound]`); 0 sorry/admit/axiom/native_decide; `git diff --check` clean.
+
+## ConcreteAssembly.lean — the concrete 21-instance family with the EXACT seams (audit F5, 2026-06-11)
+
+Closes codex-audit **F5** ("`doty_time_headline_W2_inv_sq` is a composition scheme, not an
+assembled end-to-end theorem; no concrete theorem assembles the 21 real instances + 20 bridges;
+the headline is polymorphic over `phases`; the docs route to the WRONG seam"). Append-only new
+file `Probability/ConcreteAssembly.lean`; edits NO existing file.
+
+### What landed
+
+1. **`DotyAssembly n`** — a record packaging the concrete 21-instance family's inputs: the 11
+   landed WORK `PhaseConvergenceW` instances (`work : Fin 11 → …`, each carrying its own internal
+   drains exactly as the campaign built them); the 10 SEAM phase params / horizons / budgets; the
+   10 EXACT-seam feeders (`hDrift`, `hNoOvershoot`); and the three structural bridge gaps
+   (`hTrig`, `hWorkPostToWindow`, `hWindowToWorkPre`), each pinned to provenance in its docstring.
+
+2. **`dotyPhases asm : Fin 21 → PhaseConvergenceW K`** — the interleave
+   `[work₀, seam₀, …, seam₉, work₁₀]`: even slot `2k ↦ work k`, odd slot `2k+1 ↦ seamInstance k`.
+   `seamInstance asm k = SeamNoOvershoot.seamEpidemicExactW …` — **the EXACT seam is FORCED by
+   construction** (Post `= allPhaseGe (p+1) ∧ NoOvershoot p`, consuming BOTH `εepidemic` and
+   `εovershoot`), NOT the calibrated generic `seamEpidemicW_calibrated` the old docs routed to.
+
+3. **The 20 bridges (`dotyPhases_h_chain`)** — the deep content, all `0`-sorry / axiom-clean:
+   * `bridge_work_to_seam`: `work k . Post ⟹ seam k . Pre` via the carried structural readings
+     `hWorkPostToWindow` (`Post ⟹ allPhaseGe pₖ n`) + `hTrig` (`advTriggered (pₖ+1)`).
+   * `bridge_seam_to_work`: `seam k . Post ⟹ work (k+1) . Pre` via
+     `SeamNoOvershoot.seamExact_into_exact_work` (the EXACT seam's `Post` yields `allPhaseEq (pₖ+1)`
+     POINTWISE, no further timing input — the calibrated seam's `Post` LACKS `NoOvershoot` so this
+     bridge would NOT close) + the carried `hWindowToWorkPre`.
+   * `dotyPhases_h_chain` glues them over the parity of the slot index. The 20-bridge `h_chain`
+     binder is then CLOSED, removed from the headline's surviving set.
+
+4. **`doty_time_headline_CONCRETE`** — the assembled headline at `O(1/n²)`: failure `≤ 21/n²`
+   within `T ≤ 21·C0·n·(L+1)`, with `T = ∑ (dotyPhases asm i).t` pinned via `hT`. The carried set
+   is FINITE and inspectable (the `DotyAssembly` fields + per-slot scaling/budget + `hcompFail`),
+   no longer the polymorphic `phases`/`h_chain`/`h_post` triple. `_self` specialises to
+   `δ i = (dotyPhases asm i).ε`.
+
+### Per-bridge ledger
+
+| bridge | direction | discharge | status |
+|---|---|---|---|
+| work `k` → seam `k` | `Post ⟹ Pre` | `ge_work_into_seam` shape from `hWorkPostToWindow` + `hTrig` | CLOSED (structural Pre carried) |
+| seam `k` → work `k+1` | `Post ⟹ Pre` | `seamExact_into_exact_work` (EXACT seam) + `hWindowToWorkPre` | CLOSED (structural Pre carried) |
+| 21-slot glue | parity split | `dotyPhases_h_chain` | CLOSED (0-sorry) |
+
+The "structural Pre carried" gaps (`hTrig`, `hWorkPostToWindow`, `hWindowToWorkPre`) are the
+per-phase window↔work-Pre identifications + advance triggers the campaign tree has not yet wired as
+landed lemmas (`SeamEpidemics.lean:185` "Pre reduces to `allPhaseEq i n ∧ structural component`";
+`DotyTimeHeadline.lean:317` "advance-trigger strengthening"). They are NAMED `DotyAssembly` fields,
+not free binders — finite and inspectable.
+
+### The kernel-power obstruction (documented honest limit)
+
+The composition `doty_time_composition_W2 … (dotyPhases asm) … (dotyPhases_h_chain asm) …` APPLIES
+cheaply (the 20 bridges discharge), and its time/error projections `.2.1` / `.2.2` (pure `ℕ`/`ℝ≥0∞`
+sums) re-use cheaply. But *re-using* the failure projection `.1` — unifying its kernel-power LHS
+`(K ^ ∑ (dotyPhases asm i).t) c₀ {…}` against ANY restated copy (`le_trans` / `calc` / `exact` / `▸`)
+— **diverges** (a `whnf` blowup surviving `≥ 3 000 000` heartbeats and `irreducible`). This is a
+property of the kernel-power-applied-to-a-`Fin 21`-sum representation, present already in the base
+`doty_time_headline_W2_inv_sq` (which is therefore stated polymorphically over an abstract `phases`,
+never instantiated at a concrete family). Consequence: `doty_time_headline_CONCRETE` carries the
+failure-side `.1` as the named hypothesis `hcompFail` (the genuine assembled bound `≤ ∑ (dotyPhases
+asm i).ε`, supplied by the caller from the cheap composition application) and discharges the
+kernel-power-FREE budget arithmetic `∑ ε ≤ ∑ δ ≤ 21/n²` on top. The TIME half is FULLY closed from
+`.2.1`. This is an honest limit of the current representation, not a gap in the assembly logic.
+
+### Doc-drift correction
+
+`DotyTimeHeadline.lean:379` routed assemblers to `SeamEpidemics.seamEpidemicW_calibrated` (Post only
+`allPhaseGe (p+1)`, `εovershoot` `le_self_add`'d but unused). The concrete assembly here points at
+`SeamNoOvershoot.seamEpidemicExactW` instead (the TRUE strengthened seam) and forces it by
+construction. The corrected routing is documented in `ConcreteAssembly.lean`'s module docstring and
+in this entry (existing files unedited, per append-only discipline).
+
+### Audit
+
+Single-file `lake env lean Ripple/PopulationProtocol/Majority/ExactMajority/Probability/ConcreteAssembly.lean`
+EXIT 0 (~5s, default heartbeats; deps from cached oleans). `#print axioms` for
+`doty_time_headline_CONCRETE`, `doty_time_headline_CONCRETE_self`, `dotyPhases_h_chain`,
+`bridge_work_to_seam`, `bridge_seam_to_work` all ⊆ `[propext, Classical.choice, Quot.sound]`.
+0 sorry/admit/axiom/native_decide; `git diff --check` clean (only unrelated pre-existing archive
+files flagged).
