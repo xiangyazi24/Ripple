@@ -6426,3 +6426,53 @@ they are the same `validInitial`/`Reachable`/`hasActiveAgent` content the landed
 into a slot-instance discharge (so the V3 bundle's `hPhase10Sign` field is constructed, not assumed) is
 the next atom — it needs the slot-20 `Post` to additionally expose `Reachable init c` and the tie-side
 `hasActiveAgent`, which the entry-regime invariants carry but the bare `Phase10Post` predicate drops.
+
+## MarginInstantiation.lean — WAVE 2 roster items #6 / #7 + the ClockZeroTail↔Wave1 splice (2026-06-11)
+
+Append-only deliverable (`Probability/MarginInstantiation.lean`; NO existing file edited).  Single-file
+`lake env lean` clean; `#print axioms ⊆ [propext, Classical.choice, Quot.sound]` on all four theorems;
+0 sorry / 0 admit / 0 axiom / 0 native_decide; `git diff --check` clean.
+
+### ✅ #6 `hPhase6Post7` — narrowed to the Theorem62Paper confinement (everything else WIRED)
+
+`hPhase6Post7_singleLevel` PRODUCES the exact `FinalAssemblyV2.WorkInputsHonest.hPhase6Post7` field
+shape `∀ b, Inv7Sum n b → Phase6To7Structure σ E7 b` from `PositionalCluster.phase6To7_surface_singleLevel`
+(`PositionalCluster:282`, the landed narrowest single-level surface — one predecessor at the `2n/15`
+pigeonhole share, NO boundary appeal).
+
+* **CARRIED (open C atom):** `hConf : ∀ b, Inv7Sum n b → MarginLedgers.MainConfinementProfile σ n b`
+  — the Theorem-6.2 A-shape confinement (`majorityProfileMass ≥ 4n/15` rides via
+  `majorityProfileMass_floor`).  This is the SOLE non-wired input (the `Theorem62Paper`-flavored C atom).
+* **WIRED:** the Phase-6 window (`hWin6`, from `Inv7Sum`), the single-level positional witness
+  (`SingleLevelWitness`: gap `p+1=j₀` + `MinorityConfinedGap1` + single-level collapse + gap-1 occupancy
+  `E ≤ elimGap1 σ p`), and the honest budget scalar `E7 ≤ 4n/15`.
+
+### ✅ #7 `hPhase7Post8` — the MIRROR surface from the landed spend chain
+
+`hPhase7Post8_of_survival` PRODUCES the exact `FinalAssemblyV2.WorkInputsHonest.hPhase7Post8` field
+shape `∀ b, Phase8AllMain n b → Phase7To8Structure σ E8 b` via the landed
+`SpendLedgerLift.phase7_to_phase8_via_canonicalSpend` (canonical spend `Entry ∸ elimAbove`, always true,
++ the per-pair ledgers of `SurvivalAccounting`/`BandStepBookkeeping` + the margin-band step closure).
+
+* **CARRIED final inputs:** the #6-entry margin `hEntry7 : Phase6To7Structure σ E8 (entry7 b)` (#6's
+  output at the Phase-7 entry config); the landed trajectory band `hSurv : SurvivalBandAbove σ E8 b`
+  (the surviving above-level eliminator supply); the trivial entry-domination `hEntryDom`; the Phase-7
+  structural window `h7win` (from the Phase-8 window).
+* **WIRED:** `phase7_to_phase8_via_canonicalSpend` supplies the canonical-spend ledger internally and
+  folds the survival band into `Phase7To8Structure`; honest constant `E8 ≤ n/5` (the `14n/75` survival
+  floor `4n/15 − 2n/25`, `honest_survival_floor`).
+
+### ✅ The splice — VERDICT: shapes match (end-to-end from the bundle)
+
+`SeamQuickWins.DotyAtomsWave1Inputs.hOvershootTail` (`SeamQuickWins:127`) is CONSUMED taking
+`DetSeamOvershootBridge (seamP k)` as an explicit argument + the seam `Pre` → bound.
+`ClockZeroTail.seam_noOvershoot_tail_of_entry` (`ClockZeroTail:178`) is EXACTLY the producer that takes
+the same bridge argument and delivers the no-overshoot tail from the seam-entry facts.  `hOvershootTail_of_entry`
+(per seam) + `hOvershootTail_field_of_entry` (all `k : Fin 10`) splice them: from the per-config
+seam-entry facts `hStartNoOver` (`NoOvershoot p`) / `hEntry` (`SeamEntryFullCounter p`) / `hcard`
+(card = n) — derived from the work-Post / seed-step structure on the seam `Pre` — plus the structural
+guards (`CounterResetDest (p+1)`, `SeamRegimeDispatch p`, size/log/timing) and the budget fit
+`tseam · e^{−40(L+1)} ≤ εovershoot`, the splice PRODUCES the `hOvershootTail` shape, threading the
+wave-1 produced bridge (#5a) through.  The ONLY adaptation is the per-seam budget step; the bridge and
+the clock-zero tail are consumed verbatim (never reproved).  So the wave-1 produced-seam `hNoOvershoot`
+chain (`SeamQuickWins.wave1_hNoOvershoot`) is now end-to-end from {wave-1 bridge + ClockZeroTail entry tail}.
