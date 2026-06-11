@@ -4022,3 +4022,30 @@ Discharges `BandLocalization.Phase6BandPositionFacts` from the LANDED Phase-6 Po
 
 Remaining named residual: the Phase-6 `doSplit`-routing-to-partner-level invariant (per-level
 placement, not count) — `GapAlignedElimFloor` is the precise carried field.
+
+---
+
+## UPDATE (2026-06-10) — residual #3 `SurvivalBandAbove` attacked (SurvivalAccounting.lean)
+
+NEW append-only `Probability/SurvivalAccounting.lean` (single-file EXIT_0; all 7 headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide).
+
+The C-side residual `BandLocalization.SurvivalBandAbove` (Phase-7 surviving above-level eliminator
+LOWER bound) reduced to ONE precise named field `Phase7SpendLedger`:
+
+* **Per-pair eliminator ledger PROVED** (`cancelSplit_elimAbove_survives_or_charged`): an above-`i`
+  eliminator survives a `cancelSplit` step unless the partner is a colliding σ-minority near `i`
+  (same-level cancel is the only loss) — exhaustive FROZEN-`cancelSplit` case split, the §C.1 core.
+* **Honest survival arithmetic PROVED** (`survival_floor_honest`): `4n/15 − 2n/25 = 14n/75`. Real
+  survival constant `14n/75 ≈ 0.1867n`; the prompt's `≥ n/5` is FALSE at the coarse `0.12·|M|` spend.
+* **Wired** to `EliminatorMargins.Phase7To8Structure` via the landed BandLocalization adapter
+  (`survivalBandAbove_of_spendLedger` → `phase7_to_phase8_of_spendLedger`).
+
+The TRUE remaining brick (one named field): `Phase7SpendLedger` — the config-level aggregate of the
+per-pair ledger along the probabilistic Phase-7 trajectory (Markov support-preservation lift). The
+`14n/75 → n/5` gap is a constant swap (Doty's sharp `β⁻ ≤ 0.004·|M|·2^{−l}` minority bound), not a
+new tail.
+
+**Campaign residual table update:** `SurvivalBandAbove` → per-pair ledger PROVED + honest `14n/75`
+floor PROVED + wired; carried remainder narrowed from "protocol survival lower bound" to the single
+trajectory-aggregate field `Phase7SpendLedger` (+ the documented sharp-bound constant tightening).

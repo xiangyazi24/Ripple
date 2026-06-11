@@ -429,3 +429,46 @@ the landed Phase-6 Post); part (2) `MajorityBandAtGap1` reduced to the single na
 field `GapAlignedElimFloor` with its constant pinned at `4n/45` by the band pigeonhole. The honest
 remaining brick is the Phase-6 `doSplit`-routing-to-partner-level invariant (the per-level placement,
 not the per-level count) — the precise thing the convergence proof must additionally maintain.
+
+---
+
+## UPDATE (2026-06-10) — residual #3 `SurvivalBandAbove` attacked (Probability/SurvivalAccounting.lean)
+
+NEW append-only `Probability/SurvivalAccounting.lean` (single-file EXIT_0; all 7 headlines
+`#print axioms ⊆ [propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide).
+No existing file edited.
+
+The C-side residual `BandLocalization.SurvivalBandAbove` (the Phase-7 surviving above-level
+eliminator LOWER bound) is discharged down to ONE precise named field via the blueprint's §2 spend
+ledger:
+
+* **PROVED (deterministic, FROZEN-`cancelSplit`):** `cancelSplit_elimAbove_survives_or_charged` — the
+  per-pair eliminator ledger. An above-`i` eliminator `s ∈ Phase8Convergence.elimAbove σ i` survives a
+  `cancelSplit s t` step UNLESS the partner `t` is a colliding σ-minority near level `i`
+  (`t.bias = dyadic σ j`, `i ≤ j+1`). Exhaustive case split on the frozen branches: same-level (`s`
+  spent, charged), gap-1/gap-2 smaller (`s` increments UP, stays σ-opposite above `i`), gap-1/gap-2
+  larger (charged), gap ≥ 3 / same-sign / unbiased (no fire). The `+1` slack covers the gap-2-larger
+  re-sign corner (colliding minority one index below `i`; band-floor `MinorityConfinedGap1` closes it
+  in the aggregate). Helpers: `cancelSplit_full_fst/snd` (every branch is `{· with bias}`, so `full`
+  and `role` preserved). This is the genuine §C.1 deterministic core.
+* **PROVED (honest constants):** `survival_floor_honest` — the REAL arithmetic `4n/15 − 2n/25 = 14n/75`.
+  Entry margin `≥ 4n/15` (B's `majorityProfileMass_floor`), per-level same-level spend `≤ 2n/25` (the
+  `0.12·|M|` minority residue from `MainConfinementProfile.hMinoritySmall`). Honest survival constant
+  is **`14n/75 ≈ 0.1867n`** — NOT `n/5`. The prompt's `4n/15 − n/12.5 ≥ n/5` is FALSE
+  (`0.1867 < 0.2`); we assert the true floor and document the gap.
+* **WIRED:** `survivalBandAbove_of_spendLedger` (trajectory ledger + absorbed entry margin ⟹
+  `SurvivalBandAbove`, ℕ `omega`) → `phase7_to_phase8_of_spendLedger` (composes the landed
+  `BandLocalization.phase7_to_phase8_of_survivalBand` ⟹ `EliminatorMargins.Phase7To8Structure σ E c`,
+  the Phase-8 `hdrop` consumer's input — strongest reachable form).
+
+**CARRIED — the single precise named residual** `Phase7SpendLedger σ Entry Spend c`: the
+config-level AGGREGATE of the per-pair ledger along the PROBABILISTIC Phase-7 trajectory
+(`Entry ≤ elimAbove + Spend i` per live minority level; `Spend i ≤` minority drained, by Part 1). This
+is the one genuinely-stochastic lift — pointwise Part 1 summed via the Markov support-preservation
+machinery (`SupportInvariants`/`StepPreservation`). Per the blueprint: "deterministic transition
+bookkeeping plus the landed minority-survival upper bounds", not a new tail.
+
+**HONEST CONSTANT GAP to `n/5`:** carried spend `≤ 2n/25` ⟹ survivors `≥ 14n/75 < n/5`. Doty's sharp
+minority bound `β⁻ ≤ 0.004·|M|·2^{−l}` (spend `= o(n)`) lifts survivors `→ 4n/15 ≥ n/5` with NO new
+probability — plug the sharper `Spend` into `survivalBandAbove_of_spendLedger`. Tightening is a
+constant swap, not a tail.
