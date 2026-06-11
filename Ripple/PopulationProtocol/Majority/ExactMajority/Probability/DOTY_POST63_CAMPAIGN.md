@@ -60,3 +60,52 @@ CONTENT of Theorem 6.2 (`hConfine3`/`hMassAbove`/`hMinoritySmall` remain carried
 collapse is the same genuinely-new probabilistic residual flagged in `UsefulMainFloor.lean`'s header.
 What changed: the carried object is now the paper-faithful majority-sign 3-level one, the broad floor
 is a PROVEN consequence of it, and the regime ties are collected in one named predicate.
+
+---
+
+## SampledClassTail.lean — Lemma 7.1 sampled-class concentration re-based on the KILLED gate (2026-06-11)
+
+New append-only file `Probability/SampledClassTail.lean` attacks the slot-5 `hConc` carry that
+`EndpointWiring.lean` pinned to provenance (the Lemma-7.1 sampled-class floor tail
+`(Kᵗ) c₀ {¬sampledFloor i K₀} ≤ εConc`).  The landed per-step pieces (MGF drift
+`Phase5Convergence.sampledClass_windowDrift_contraction`, threshold link `sampledFloor_link`) did
+not assemble via `WindowConcentration.windowDrift_PhaseConvergence` for two reasons recorded in
+the survey: (a) `Phase5AllWin` not absorbing; (b) the rate floor `hrfloor`.
+
+**Superwindow re-base VERDICT: FALSE for the contraction direction (verified vs FROZEN rules).**
+The prompt's route — re-base on the absorbing superwindow `PhaseGE5Win` and claim the sampled-class
+count is FROZEN on the phase-≥6 part — does NOT hold.  `sampledReserveClass i a := a.role =
+Role.reserve ∧ a.hour.val = i` (`Phase5Convergence:278`).  `Phase6Transition` (`Transition.lean:1209`)
+routes a Reserve+Main pair through `doSplit` (`:1154`), whose FIRST output sets `role := .main`
+(`:1160`).  So a class-`i` Reserve that splits FLIPS role reserve→main and is REMOVED from
+`sampledReserveClassU i` — the count strictly DECREASES on a phase-6 split, so the deficit potential
+`Φ = exp(−s·N)` can RISE, breaking `∫Φ dK ≤ ρ·Φ`.  The superwindow is absorbing but NOT a drift
+carrier (exactly the obstruction `Phase5Convergence.lean:1041-1046` already records).  Frozen-profile
+note: the *static Main bias profile* IS frozen on Phase 5 (`biasedMainClassU_support_eq`,
+`Phase5Convergence:364`), but the *sampled Reserve class count* is NOT frozen across phase 6.
+
+**The HONEST re-base: the KILLED-AFFINE engine** (`GatedDrift.real_window_killed_affine`,
+`KilledAffineTail.lean`).  Gate `G := Phase5AllWin n` carries the drift where it genuinely holds; the
+killed kernel `killK_now K G` absorbs STRUCTURALLY (cemetery `killΦ = 0`), removing the absorption
+obstruction (blocker (a)) with NO false freeze claim.  Landed (all axiom-clean):
+
+| Theorem | Content |
+|---|---|
+| `sampledClassDrift_on_gate` | per-step multiplicative drift `∫Φ dK ≤ ρ·Φ + 0` on the gate (lift of `sampledClass_windowDrift_contraction`; rate floor `hrfloor` threaded) |
+| `sampledClass_killed_tail` | **pure killed tail, NO escape, NO exit bridge**: floor-failure mass ≤ `ρᵗ·Φ(c₀)/θ`, `θ=exp(−s·K₀)`, `ρ=ofReal(1−r(1−e^{−s}))`. Decays when `ρ<1`. Blocker (a) dissolved. |
+| `sampledClass_real_window` | real chain ≤ killed tail + escape prefix `∑_{τ<t}(Kᵀ)c₀{θ≤Φ}`, via `real_window_killed_affine`; the exit bridge (clock-separation) carried as explicit hypothesis |
+| `hConcDemand_of_real_window` | produces the exact `EndpointWiring.hConcDemand` shape from `hrfloor` + exit bridge + uniform per-τ escape bound + arithmetic fit |
+
+**How much of hConc closed.**  The ABSORPTION obstruction (blocker (a)) is RESOLVED — the pure
+killed tail is fully landed (axiom-clean) from the rate floor alone.  Two GENUINELY-probabilistic
+residuals remain, now carried as explicit NAMED hypotheses with file:line provenance (pinned, not
+hidden): (b) the rate floor `hrfloor` (the in-house Chernoff rise-probability content) and the
+clock-timing escape (the Phase-5/Phase-6 separation — paper footnote 11 / Lemma 5.2 — since leaving
+`Phase5AllWin` is the clock-advance event, NOT a `sampledReserveClassU`-threshold, the exit bridge is
+not manufacturable from the count alone).  `hConcDemand_of_real_window` turns the opaque `hConc`
+carry into an explicit assembler consuming exactly those two atoms.
+
+**Build/audit.**  Single-file `lake env lean` clean (local v4.30.0 olean closure, mathlib
+c5ea0035).  All four exported theorems `#print axioms ⊆ [propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide; `git diff --check` clean; max line width 100. Append-only; no
+existing file edited.

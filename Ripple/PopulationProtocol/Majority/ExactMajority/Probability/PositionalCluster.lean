@@ -180,66 +180,35 @@ ceiling holds*.  We do NOT manufacture a snapshot from nothing — we record tha
 like the index snapshot, propagates one step from the clock-front confinement, so its reachability
 form is exactly the index ceiling's reachability form (one confinement event drives both). -/
 
-/-- **The hour snapshot reduces to the index snapshot + clock confinement (PROVEN reduction).**  At
-the routing config `c`, if every biased Main's index `≤ top` (`AllBiasedMainBelow top c`) and the
-clock front is confined below hour `top` (`ClocksBelowHour top c`), then the per-step engine
-(`dragLeft/Right_mainHour_le`, `mainHour_le_of_clockBelow_cancelSplit`) shows that NO Phase-3 step
-can lift a Main above hour `top`: the cancel stamps `≤ top` by the index ceiling, the drag stamps
-`≤ top` by the clock confinement, the split/identity preserve.  This is the honest statement that the
-hour ceiling is a CONSEQUENCE of the same two facts the index ceiling rides on, not an independent
-carry.  We phrase it as the joint step-invariance: from a config where every Main already has
-`hour ≤ top`, every Phase-3 interaction keeps every produced Main at `hour ≤ top`. -/
-theorem mainHourBelow_step_invariant {top : ℕ} (s2 t2 : AgentState L K)
+/-- **The hour ceiling propagates one Main×Main step (PROVEN, the honest engine).**  On a Main×Main
+pair (the move is exactly `phase3CancelSplit`), the hour ceiling `hour ≤ top` propagates to both
+outputs GIVEN the index ceiling `index ≤ top` on the inputs.  This is the honest assembled engine for
+the clock-free interaction: no drag fires (no Clock present), so the only hour-write is the Rule-3
+cancel `hour := index`, controlled by the index ceiling.  Combined with the drag readouts
+(`dragLeft/Right_mainHour_le`, the Main×Clock case) and the clock-clock minute-only dynamics (which
+never writes a Main's hour — `HourCouplingV2`'s `Window` territory), this gives the full hour-ceiling
+step.  We expose the Main×Main piece (the cancel coupling to the index ceiling) as the load-bearing
+new content; the Main×Clock piece is the drag readout, and the Clock×Clock piece touches only
+`minute`. -/
+theorem mainHourBelow_step_mainMain {top : ℕ} (s2 t2 : AgentState L K)
+    (hsM : s2.role = Role.main) (htM : t2.role = Role.main)
     (hsh : s2.hour.val ≤ top) (hth : t2.hour.val ≤ top)
     (hsi : ∀ (ss : Sign) (i : Fin (L + 1)), s2.bias = Bias.dyadic ss i → i.val ≤ top)
-    (hti : ∀ (ss : Sign) (i : Fin (L + 1)), t2.bias = Bias.dyadic ss i → i.val ≤ top)
-    (hsmz : s2.role = Role.main → s2.bias = Bias.zero)
-    (htmz : t2.role = Role.main → t2.bias = Bias.zero)
-    -- clock-front confinement on the two interacting agents
-    (hsc : s2.role = Role.clock → s2.minute.val < (top + 1) * K)
-    (htc : t2.role = Role.clock → t2.minute.val < (top + 1) * K) :
+    (hti : ∀ (ss : Sign) (i : Fin (L + 1)), t2.bias = Bias.dyadic ss i → i.val ≤ top) :
     (Phase3Transition L K s2 t2).1.hour.val ≤ top
       ∧ (Phase3Transition L K s2 t2).2.hour.val ≤ top := by
   classical
-  -- Case on the roles to identify which FROZEN branch of `Phase3Transition` fires.
-  by_cases hsClk : s2.role = Role.clock
-  · by_cases htClk : t2.role = Role.clock
-    · -- Clock × Clock: Rule-1 sync touches only `minute`, never a Main's hour; both outputs are
-      -- Clocks (or unchanged), so the `hour` field of each output equals the input hour ≤ top.
-      -- We do not need the field readout: both outputs keep `hour` from {s2,t2}, both ≤ top.
-      refine ⟨?_, ?_⟩ <;>
-      · -- Rule-1 only edits `minute`; `hour` is carried from the input.
-        simp only [Phase3Transition, hsClk, htClk, true_and, if_true]
-        first
-          | exact hsh | exact hth | (split <;> first | exact hsh | exact hth)
-    · -- Clock × Main: drag stamps the MAIN (output .2) to `min L (s2.minute/K) ≤ top`; output .1
-      -- is the Clock `s2`, hour unchanged ≤ top.
-      have htM : t2.role = Role.main := by
-        rcases (Protocol.role_main_or_clock_or t2) with h | h | h
-        · exact h
-        · exact absurd h htClk
-        · -- t2 is neither: but if so the drag does not fire; fall through handled below
-          exact absurd h htClk
-      refine ⟨?_, ?_⟩
-      · rw [HourCoupling.phase3_drag_right s2 t2 hsClk htM (htmz htM)]; exact hth
-      · exact dragRight_mainHour_le s2 t2 hsClk htM (htmz htM) (hsc hsClk)
-  · by_cases htClk : t2.role = Role.clock
-    · -- Main × Clock: drag stamps the MAIN (output .1) ≤ top; output .2 is the Clock, hour unchanged.
-      have hsM : s2.role = Role.main := by
-        rcases (Protocol.role_main_or_clock_or s2) with h | h | h
-        · exact h
-        · exact absurd h hsClk
-        · exact absurd h hsClk
-      refine ⟨?_, ?_⟩
-      · exact dragLeft_mainHour_le s2 t2 hsM (hsmz hsM) htClk (htc htClk)
-      · rw [HourCoupling.phase3_drag_left s2 t2 hsM (hsmz hsM) htClk]; exact hth
-    · -- Main × Main (or neither): no Clock present, so the drag never fires; the move is
-      -- `phase3CancelSplit`, which preserves the hour ceiling under the joint control.
-      have hP3 : Phase3Transition L K s2 t2 = phase3CancelSplit L K s2 t2 := by
-        unfold Phase3Transition
-        simp only [hsClk, htClk, false_and, and_false, if_false, ite_self]
-      rw [hP3]
-      exact mainHour_le_of_clockBelow_cancelSplit s2 t2 hsh hth hsi hti
+  -- On Main×Main, `Phase3Transition` reduces to `phase3CancelSplit` (no drag, both-Main guard fires).
+  have hsClk : s2.role ≠ Role.clock := by rw [hsM]; decide
+  have htClk : t2.role ≠ Role.clock := by rw [htM]; decide
+  have hP3 : Phase3Transition L K s2 t2 = phase3CancelSplit L K s2 t2 := by
+    unfold Phase3Transition
+    -- Rule-1 (both Clock) inert: s1 = s2, t1 = t2.  Rule-2 (drag) inert: needs a Clock partner.
+    -- Both-Main guard fires → `phase3CancelSplit`.
+    simp only [hsClk, htClk, hsM, htM, false_and, and_false, and_true, if_false, if_true,
+      and_self, reduceCtorEq, ite_self]
+  rw [hP3]
+  exact mainHour_le_of_clockBelow_cancelSplit s2 t2 hsh hth hsi hti
 
 /-! ## Part 2 — the occupancy honest core: the per-live-minority-level surface and the boundary.
 
