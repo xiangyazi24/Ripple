@@ -5315,3 +5315,28 @@ input has no sound reachability discharge, so the route a consumer should use is
 `CeilingRoute.phase6To7_surface_ceilingRoute` (global ceiling carried directly). Single-file
 `lake env lean` EXIT 0; `#print axioms` ⊆ `[propext, Classical.choice, Quot.sound]` for all four new
 theorems (`allBiasedMainBelow_pair_preserved` uses only `[propext, Quot.sound]`).
+
+---
+
+## RELEASE RECORD — public main push (2026-06-11)
+
+**Fresh-checkout bare-build verification (uisai2, per /uisai2 discipline):**
+- Fresh shallow clone of `xiangyazi24/Ripple` @ `opus-wip` head `2f2121aa700763900c8b7c41887fc1e736ac9311`
+  into `~/fresh-verify/Ripple-release` (disk); source staged to `/dev/shm/xhuan5/Ripple-release-verify`.
+- All 4 dead orphan drafts (PhaseState/StepPreservation/DescentPotential/DiscreteChernoff) confirmed
+  absent from lib root and tree (the §1a/§4 precondition).
+- `lake exe cache get`: EXIT 0 (8283 mathlib oleans, v4.30.0 + mathlib c5ea00351c28).
+- **Bare default build (`lake` default targets, no explicit modules): EXIT 0 — "Build completed
+  successfully (4123 jobs)".** Zero compile errors; all `error:`-substring log hits are
+  linter.style echoes of comment text; the one non-style hit is a warning-level docString
+  linter note (DeltaF.lean:171).
+- Second check, explicit 164-module campaign closure (`em_modules_live.txt`): EXIT 0
+  ("Build completed successfully (3680 jobs)").
+
+**Push:** verified SHA `2f2121a` pushed to public `xiangyazi24/Ripple` **main**
+(`c30f744..2f2121a`, clean fast-forward, 269 commits). NOTE: opus-wip had advanced to `e6dacd5`
+(F5 ceiling route) during the build; those commits are NOT in this release — only the verified
+`2f2121a` was pushed to main.
+
+**Tag:** `doty-thm31-phaseF-2026-06-11` (annotated, → `2f2121a`): Theorem 3.1 both halves
+structurally complete; 164-module closure green; ~17 named carried hypotheses inventoried above.
