@@ -6558,3 +6558,77 @@ hypothesis was NEVER feeding the drop lower bound.  It fed (a) closure and (b) `
 Single-file `lake env lean HonestWindows.lean` EXIT 0 (~4.5s, deps cached).  0 sorry/admit/axiom/
 native_decide.  `#print axioms` for all headlines ⊆ `[propext, Classical.choice, Quot.sound]`.
 `git diff --check` clean.
+
+## OffEventEndgame.lean — the off-event endgame: the LEAKY-good-invariant split-geometric (atom campaign final hard item `hSlotClass`, 2026-06-11)
+
+The campaign's hardest assembly — the expected-time side's off-event classification.  The V2/V3
+expected theorem (`AtomsV2.doty_theorem_3_1_expected_v2`, `FinalAssemblyV3`) consumes the per-state
+slot classifier
+
+    hSlotClass : DotySlotClassifier = ∀ b, ReachableFrom init b → b ∈ StableDoneᶜ → SlotRegimeData …
+
+over **ALL** reachable not-done states.  But the campaign already PROVED there is no deterministic
+off-event ladder (`HANDOFF_HLADDER` §3/§7; `BranchAndBudget` Part 4: a reachable not-done state OFF
+the good role-split event can have no clocks / `< 2` clocks / be in a non-backup phase — NO universal
+force-to-phase-10).  So `hSlotClass` over all reachable not-done states is DISHONEST: it silently asks
+the caller to classify states the protocol leaves unclassified.
+
+### The J chosen + the closure form (the heart of the task)
+
+**J = `ReachableFrom L K init` — EXACT-closed** (closure is the theorem `reachableFrom_kernel_closed`,
+no leak).  Surveyed and CONFIRMED: the `_on` split-geometric
+(`ReachableLadder.expected_time_from_whp_and_recovery_on`) needs **exact** one-step closure
+`K b {¬J} = 0` — load-bearing in `ExpectedHitting.pow_compl_inv_eq_zero_eh`'s a.e.-`J` propagation
+through powers.  It does **NOT** admit a leaky `K b {¬J} ≤ η_J` drop-in (the powers no longer stay
+a.e. on `J`, so `bad_antitone_on` / `bad_block_contracts_from_on` break).  **VERDICT: the leak cannot
+go on `J`'s closure.**
+
+**The leak goes on the GOOD predicate `G` INSIDE the exact-closed `J`** (the leaky-invariant form).
+`G` = the good-trajectory predicate (the union of the 21 slot windows' checkpoint configs — the
+states the good run visits, where `BranchAndBudget`'s on-chain builders genuinely produce the regime
+data).  The recovery cap is supplied only on the good slice `J ∩ G ∩ Doneᶜ`; the per-`s`-block
+failure from any `J`-state is bounded by `1/2 + η`: `1/2` from the good slice's recovery cap, `+ η`
+from the per-block mass that ESCAPES `G` (the WindowSurvival-style escape budget, the same charge as
+`WindowSurvival.killed_now_none_mass_le`'s `T·η` cemetery mass).  The geometric tail runs at ratio
+`q = 1/2 + η < 1`, so the leak enlarges the recovery factor from `(1−1/2)⁻¹ = 2` to
+`(1 − (1/2 + η))⁻¹` — the honest off-good accounting, paid from the whp bad mass, NOT from a
+nonexistent deterministic off-event ladder.
+
+### Deliverables (`Probability/OffEventEndgame.lean`, append-only; edits NO existing file)
+
+- **Deliverable 1 — the leaky split-geometric.**  `leaky_block_half_on` (the leaky-closure block
+  bound: not-done `s`-block mass splits over `G`/`Gᶜ`; `G`-part `≤ 1/2`, `Gᶜ`-part `≤ η`),
+  `expectedHitting_split_geometric_leaky` (the `_on` split shell at ratio `1/2 + η`),
+  `expected_time_from_whp_and_leaky_recovery` (the leaky E1 composition:
+  `E[T] ≤ Tgood + δgood·sRec·(1 − (1/2 + η))⁻¹`).
+- **Deliverable 2 — the on-J-good classifier.**  `OnGoodSlotClassifier` (the per-slot regime data
+  supplied ONLY on `ReachableFrom ∩ Doneᶜ ∩ G`, never off `G`), `branchOfOnGoodClassifier` (produces
+  the `ChainEndBranch` on the good slice via `AtomsV2.branchOfSlotRegime` = the landed
+  `BranchAndBudget` on-chain builders).
+- **Deliverable 3 — the re-cut expected theorem.**  `doty_theorem_3_1_expected_v4`: `hSlotClass`
+  (over ALL reachable not-done) REPLACED by `{hOnGood : OnGoodSlotClassifier}` + the leak budgets
+  `{hGoodBlock (good-slice block-half), hLeak (off-good escape budget η)}`, conclusion the same leaky
+  `Tgood + δgood·sRec·(1 − (1/2 + η))⁻¹` form.  Runs the leaky composition with `J := ReachableFrom`,
+  `Done := StableDone`.  `v4_headline_of_budget` bridges the leaky RHS to the campaign headline
+  `(21·C0 + 4·Cbad)·n·(L+1)` when the enlarged factor still fits the `4·Cbad` recovery budget (the
+  leak `η` is `o(1)`).
+
+Single-file `lake env lean OffEventEndgame.lean` EXIT 0 (deps cached); 0 sorry/admit/axiom/
+native_decide; `#print axioms` for all six headlines ⊆ `[propext, Classical.choice, Quot.sound]`;
+`git diff --check` clean.
+
+### V4-surface update — the `hSlotClass` row, re-cut (append-only; supersedes the V3 `hBranch` row)
+
+| residual (V4) | binder classification | provenance | landed machinery |
+|---|---|---|---|
+| `hOnGood : OnGoodSlotClassifier` | GOOD-slice classifier (the ONLY regime-data input; supplied only on `ReachableFrom ∩ StableDoneᶜ ∩ G`) | Doty §6 good-window slot pins | `AtomsV2.branchOfSlotRegime` / `BranchAndBudget` on-chain builders |
+| `hGoodBlock` | good-slice per-block half-failure (PRODUCED from `hOnGood`'s good-slice caps) | the recovery cap's Markov half on the good slice | `ExpectedHitting.bad_le_half_of_expectedHitting_on` (on the good intersection) |
+| `hLeak` | off-good escape budget `η` (the off-event mass is HERE, additively — NOT a classifier) | WindowSurvival escape (the failed-role-split leak) | `WindowSurvival.killed_now_none_mass_le` per-step `T·η` charge pattern |
+| `hfail` | landed whp horizon (unchanged) | `doty_time_headline_W2` | seam-corrected 21-instance composition |
+
+**Net narrowing.**  The V3 `hBranch (expected only)` row demanded a classifier over ALL reachable
+not-done states (the dishonesty: off-event states have no `SlotRegimeData`).  The V4 cut replaces it
+with a classifier ONLY on the good slice `G` + an additive escape budget `η` for the off-good mass.
+The off-event classification is no longer pretended-deterministic: it is the honest whp-conditioning
+charge `η`, folded into the geometric ratio.  J = `ReachableFrom` (exact-closed); the leak is on `G`
+INSIDE J (the only honest place it can go — `J`'s closure is load-bearing and cannot be made leaky).
