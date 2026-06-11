@@ -3893,3 +3893,82 @@ EXIT_0 (uisai2 v4.30.0); all headlines `#print axioms ⊆ [propext, Classical.ch
 hour dynamics: `Z_i ≲ µ_{≥i}` at hour boundaries), exactly as the clock side still owes
 `GoodFrontProfile`. Everything else in Brick A's collapse → `hConfine` chain is already PROVEN /
 carried as named fields.
+
+## DAY-2 CLOSE 2026-06-10 evening — full-map accounting
+
+24 relay agents landed across the day (all 0-sorry, axiom-clean, pushed + mirrored
+to opus-wip). Both halves of Theorem 3.1 now have complete top-level structures:
+- whp half: doty_time_headline_W2 (21-instance), all five phase drains wired to
+  chain-supplied floors, all four floor provenances delivered or precisely named.
+- expectation half: doty_expected_time_reachable (reachable-relative, the honest
+  surface; all-backup route proven dishonest and rejected).
+
+### THE DEFINITIVE NAMED-RESIDUAL LIST (everything else is proven)
+1. IntegerProfileSquaring (ProfileSquaringRate.lean) — the §6 hour recurrence
+   Z_i ≲ µ_{≥i} at hour boundaries (zero-supply coupling). Brick A's only gap.
+2. Phase6BandPositionFacts (BandLocalization.lean) — Phase-6 Post must export
+   the band routing (gap-1 supply at live minority levels). Global 4n/15 PROVEN.
+3. SurvivalBandAbove (BandLocalization.lean) — Phase-7 Post survival LOWER bound
+   (lemma_7_5/7_6 landed are upper bounds).
+4. ReachablePhaseRegimeClassification + ReachableClockFloors (ReachableLadder.lean)
+   — E4's reachable-state classification + Lemma-5.2 floor propagation.
+5. Per-level drain rates q (AveragingCollapse + the per-phase convergence files)
+   — the [45]/Corollary-1-type averaging rate atoms, same shape across phases.
+6. Numeric side conditions: hrecmass (E4), the documented engine-level named
+   hypotheses per file (hPre_low, low-u (r,b) drift, etc.).
+
+### Queue after residuals
+- 1/n² budget tightening sweep (dad-approved cleanup).
+- Phase F: full audit refresh + uisai2 explicit-module full build + 推平 main + tag.
+
+### Today's structural theorems worth remembering
+- Lemma 5.1 ledger: Mf − Sf = 2X; cosh-MGF kills the X=0 boundary.
+- KilledAffineTail: 1≤r was spurious; absorbing-Q eliminated everywhere.
+- Gap-2 closed unconditionally (killed-prefix first-escape telescope).
+- DetSeamOvershootBridge: theorem, under Wf (no-mcr + smallBias∈[2,4]).
+- Phase-1 averaging: variance deterministically non-increasing (49-pair decide).
+- Honest squaring: per-step rate is the PRODUCT c_{=i}·Z_i/n²; the square is
+  hour-level via zero-supply coupling.
+
+## 2026-06-10 — Residual #6: the mechanical numeric side-condition sweep (`NumericInstances.lean`)
+
+New append-only file `Probability/NumericInstances.lean`. Discharges the explicitly-numeric
+named hypotheses left across the day-2 close files as concrete-constant arithmetic instances,
+each proven with statement matching the carried hypothesis VERBATIM (shape-checked against the
+consumer slots). Single-file `lake env lean` EXIT_0; all four headlines `#print axioms ⊆
+[propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide. Light Mathlib-leaf
+imports only (exp / log / ExponentialBounds), so the build is dependency-cheap (no DotyParams
+pull — the instances depend only on the genuine domain conditions the campaign establishes).
+
+### Inventory of named numeric side conditions (built FIRST, then discharged)
+
+| # | hypothesis | file / consumer | shape | disposition |
+|---|------------|-----------------|-------|-------------|
+| 1 | `hrecmass` | `DotyExpectedTime.doty_expected_time_concrete` | `(1/n)·(2·Brecover)·(1−1/2)⁻¹ ≤ 4·Cbad·n·(L+1)` | **DISCHARGED** `hrecmass_of_recover_cap` (from cap `Brecover ≤ Cbad·n·(L+1)` + `1≤n`; uses `(1−1/2)⁻¹=2`) |
+| 1'| `hrecmass` | `ReachableLadder.doty_expected_time_reachable` | *identical statement to #1* | same instance closes both (verified by literal shape) |
+| 2 | `hnum` | `KilledTailConsumers.phase0_killed_window_unconditional_closed` | `ofReal(e^{−50(L+1)})·∑_{i<τ} ofReal(1+2(e−1)/n)^i ≤ B` | **DISCHARGED** `phase0_immigration_geom_sum_closed` at `B := ofReal(e^{−44(L+1)})` (real chain `phase0_immigration_geom_sum_real`: `∑a^i ≤ τ·a^τ`, `a^τ ≤ e^{2(e−1)(L+1)}`, `τ ≤ n(L+1) ≤ e^{2(L+1)}`, `2e≤6`) |
+
+Domain hypotheses kept (NOT free numerics): `1 ≤ n`, `Real.log n ≤ (L+1)`, `τ ≤ n(L+1)`,
+`Brecover ≤ Cbad·n·(L+1)` — the genuine window/scale/recovery-cap conditions the campaign
+already establishes (at `n ≥ N₀ = 10^40` the slack is enormous). #2's real chain is the exact
+twin of `Phase0Window.phase0_numerics_real`, re-cut for the immigration tail (leading `Φ(c₀)`
+term replaced by the `τ`-geometric prefix).
+
+### Verified dangling but genuinely NON-numeric (out of scope — recorded for honesty)
+
+| named residual | file | why NOT numeric |
+|----------------|------|-----------------|
+| `IntegerProfileSquaring` | ProfileSquaringRate | TRUE §6 hour dynamic recurrence `Z_i ≲ µ_{≥i}` (zero-supply coupling) |
+| `Phase6BandPositionFacts`, `SurvivalBandAbove` | BandLocalization | protocol band-routing / survival lower bound |
+| `ReachablePhaseRegimeClassification`, `ReachableClockFloors` | ReachableLadder | reachable-state regime classification + Lemma-5.2 floor propagation |
+| per-level drain rates `q` | AveragingCollapse + per-phase convergence | Corollary-1 averaging rate atoms (dynamic) |
+| `hRecover` / `hBpos` | DotyExpectedTime / ReachableLadder | the §5 recovery cap itself (probabilistic); only its arithmetic consequence `Brecover ≤ Cbad·n·(L+1)` is numeric, and that feeds #1 |
+| `hClassify` / `hFloors` / `hPre_low` | ReachableLadder / LateFloor | protocol classification / generic role-split checkpoint |
+| `Gap2_reachability_target` | Gap2Reachability | already DISCHARGED (`gap2_reachability_target_discharged`); its geometric budget is a CONCLUSION, not an open hypothesis |
+
+SeamPairAdapter / AveragingCollapse window arithmetic: re-checked — no dangling numeral-only
+named hypothesis (the AveragingCollapse residual is the dynamic per-level rate `q`, item above).
+
+**Net:** the two genuinely-numeric named side conditions (`hrecmass` ×2 consumers, `hnum`) are
+now closed at concrete constants. Residual #6 reduces to its non-numeric remainder, all of which
+is already named in the day-2 definitive list (items 1–5).
