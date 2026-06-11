@@ -1,6 +1,56 @@
 
 ---
 
+## TimelineReconciliation.lean — §6 timeline adjudication: phase-5 entry RE-POINTED to phase-3 squaring (2026-06-11)
+
+New append-only file `Probability/TimelineReconciliation.lean` ADJUDICATES the timeline-coherence tension
+the freshly-assembled hour-induction chain (`HourInduction` + `EntryFloor` + `NotchDrain`) raises, and FIXES
+the one mis-pointed wire. Single-file `lake env lean` clean (EXIT 0); `#print axioms ⊆ [propext,
+Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/native_decide; `git diff --check` clean; append-only (no
+existing file edited).
+
+### The tension
+
+The notch-deepening engine of all three new bricks runs inside `Phase6Convergence.Phase6Win n` — **all
+agents at PHASE 6** (`NotchDrain.notchTail_of_engine` and `HourInduction.bandConfined_support_invariant`
+both take it as a standing hypothesis). But `PaperRegime.Theorem62Paper.hConfine3` / its projection
+`UsefulMainFloor.Theorem62EntryHypotheses.hConfine` (the `0.92·|M|` confinement) is the **end-of-phase-3 /
+phase-5-entry** fact (`PaperRegime.lean:17`), consumed by Phase-5 sampling (`ReserveSampling.Phase5AllWin`).
+Phase ordering is `3 → 4 → 5 → 6 → 7`, so a PHASE-6 mechanism cannot serve a PHASE-5-ENTRY consumer — routing
+`hConfine3` through `HourInduction`'s phase-6 band is a VACUOUS timeline.
+
+### The per-consumer verdict (the timeline map)
+
+| consumer                                   | required time   | served by                              | verdict     |
+|--------------------------------------------|-----------------|----------------------------------------|-------------|
+| `Theorem62Paper.hConfine3` / `hConfine`    | phase-5 ENTRY   | phase-3 squaring (MainExponentConfine) | RE-POINTED  |
+| `SamplingAtoms` entry class floor          | phase-5 ENTRY   | phase-3 squaring (frozen through ph 5) | RE-POINTED  |
+| `EliminatorMargins.Phase6To7Structure`     | phase-7 ENTRY   | phase-6 notch (HourInduction/NotchDrain)| served      |
+| both-sign `GapAlignment.MinorityAboveFloor`| phase-7 ENTRY   | phase-6 notch (seed `BandConfined l+1`)| served      |
+| `BandRouting`/`GapAlignment` band facts    | phase-7 ENTRY   | phase-6 notch + `cancelSplit` transport| served      |
+
+No consumer is left MISMATCHED.
+
+### The fix (re-point) + the two-induction doctrine
+
+The phase-5-entry confinement is served by the **within-phase-3 squaring** chain
+(`MainExponentConfinement.theorem6_2_main_confinement_whp`: the `phase3CancelSplit` ledger → per-hour
+squaring → doubly-exponential collapse → `windowDrift_tail`), whose success event
+`MainProfileConfinedToUseful` IS `hConfine`, with NO `Phase6Win`. The `HourInduction.movingBand_union`
+machinery is abstract and admits TWO honest instantiations: a phase-3 one (the squaring, already discharged
+by the existing headline — serves slot-5) and a phase-6 one (`NotchDrain`'s `hHour` — serves slot-7 entry).
+Two inductions, each honest in its own phase window.
+
+Proven: `confine3_served_by_phase3_squaring` (the corrected wire — `Theorem62EntryHypotheses` from the
+phase-3 readout, no `Phase6Win`); `phase5_entry_not_from_phase6_band`; `phase5_floor_whp_from_phase3` (the
+kernel-level whp re-point); `phase7_entry_served_by_phase6_notch` (the matched wire from the phase-6 band);
+`band_floor_transports_across_phase` / `deeper_band_persists_shallower` (the index-monotonicity transport —
+`MinorityFloorGap.cancelStep_preserves_AllBiasedMainAbove`, `cancelSplit` never lowers, so floors persist
+across phases 4–5 and 6–7); `timeline_verdict` (the bundled adjudication). Pairs with `HourInduction.lean`,
+`EntryFloor.lean`, `NotchDrain.lean`, `MainExponentConfinement.lean`, `PaperRegime.lean`.
+
+---
+
 ## NotchDrain.lean — the §6 per-hour single-notch drain tail (`hHour`), DISCHARGED (2026-06-11)
 
 New append-only file `Probability/NotchDrain.lean` PROVES the last carried hypothesis of the §6 hour
