@@ -351,7 +351,7 @@ closure, only window survival. -/
 theorem real_tail_le_drained_plus_escape (K : Kernel α α) [IsMarkovKernel K]
     (Inv : α → Prop) (Φ : α → ℕ)
     (hmono : OneSidedCancel.PotNonincrOn Inv K Φ)
-    (q : ℕ → ℝ≥0∞)
+    (q : ℕ → ℝ≥0∞) (hq0 : 1 ≤ q 0)
     (hdrop : ∀ m, ∀ b : α, Inv b → Φ b = m → K b (OneSidedCancel.potBelow Φ m)ᶜ ≤ q m)
     (η : ℝ≥0∞) (hesc : ∀ x, Inv x → K x {y | ¬ Inv y} ≤ η)
     (tWin : ℕ → ℕ) (M₀ : ℕ) (x₀ : α) (hInv₀ : Inv x₀) (hΦ₀ : Φ x₀ ≤ M₀) :
@@ -395,8 +395,12 @@ theorem real_tail_le_drained_plus_escape (K : Kernel α α) [IsMarkovKernel K]
         + (killK_now K G ^ T) (some x₀) {o | ¬ safeIn Inv o}
         + (killK_now K G ^ T) (some x₀) (OneSidedCancel.potBelow (Φlift Φ) 1)ᶜ := by
     refine le_trans (measure_mono hsplit) ?_
-    refine le_trans (measure_union_le _ _) ?_
-    exact add_le_add_right (measure_union_le _ _) _
+    refine le_trans (measure_union_le (μ := (killK_now K G ^ T) (some x₀))
+      ({(none : Option α)} ∪ {o | ¬ safeIn Inv o})
+      ((OneSidedCancel.potBelow (Φlift Φ) 1)ᶜ)) ?_
+    exact add_le_add
+      (measure_union_le (μ := (killK_now K G ^ T) (some x₀))
+        {(none : Option α)} {o | ¬ safeIn Inv o}) le_rfl
   -- piece 1: {none} escape ≤ T·η.
   have hpiece1 : (killK_now K G ^ T) (some x₀) {(none : Option α)} ≤ (T : ℝ≥0∞) * η :=
     killed_now_none_mass_le K G η hescG T x₀ hInv₀
@@ -414,33 +418,18 @@ theorem real_tail_le_drained_plus_escape (K : Kernel α α) [IsMarkovKernel K]
         killK_now K G o (OneSidedCancel.potBelow (Φlift Φ) m)ᶜ ≤ q m := by
       intro m o hso hom
       rcases Nat.eq_zero_or_pos m with hm0 | hmpos
-      · -- m = 0: potBelow Φ 0 = ∅, complement = univ, but the engine only calls m ≥ 1; bound by
-        -- q 0 is not needed — supply a trivial ≤ via the kernel mass ≤ 1? levels_union_tail only
-        -- uses hdrop at m ≥ 1.  Provide the m = 0 case via potBelow_0: complement is univ, mass ≤ 1.
-        -- but q 0 may be < 1.  Avoid: levels_union_tail's hdrop is ∀ m, so we must cover m = 0.
-        -- However potBelow Φlift 0 = ∅ ⇒ complement = univ; at m=0 the level set is vacuous and
-        -- the engine's `level_split_step`/`level_tail` only invoke hdrop at the CURRENT window
-        -- level ≥ 1.  Inspect: levels_union_tail uses hdrop m for m ∈ Icc 1 M₀.  So m = 0 is never
-        -- queried; we discharge it by `le_top`-style: the call shape still requires a bound.  Use
-        -- that Φlift o = 0 with hom ⇒ o ∈ potBelow 1, contradiction with the engine never calling.
+      · -- m = 0: `(potBelow (Φlift Φ) 0)ᶜ = univ`, so the killed mass is `≤ 1 ≤ q 0` (`hq0`).
+        -- (`levels_union_tail` never queries `hdrop` at level 0; this is the type-level filler,
+        -- matching the real engine's `qHat 0 = 1` convention.)
         subst hm0
-        -- Φlift o = 0; potBelow (Φlift Φ) 0 = ∅; complement = univ.  Bound mass by ... we need ≤ q 0.
-        -- Provide via the killed drop at level 0 being vacuously satisfiable: o has Φlift = 0, so
-        -- after any step the potential is ≤ 0 (non-increase), hence stays in potBelow ... no.
-        -- Cleanest: m = 0 never occurs in Icc 1 M₀; we still must type-check ∀ m.  Bound trivially:
-        exact le_trans (le_of_eq (by
+        have huniv : (OneSidedCancel.potBelow (Φlift Φ) 0)ᶜ = (Set.univ : Set (Option α)) := by
           rw [OneSidedCancel.potBelow]
-          have : ({x | Φlift Φ x < 0} : Set (Option α)) = ∅ := by
-            ext z; simp
+          have : ({x | Φlift Φ x < 0} : Set (Option α)) = ∅ := by ext z; simp
           rw [this, Set.compl_empty]
-          -- mass of univ under killNow from o: it's a probability measure ⇒ = 1; but we need ≤ q 0.
-          rfl)) (by
-          -- this branch is unreachable in the union tail (m ≥ 1); but we owe a bound.  Use that
-          -- killNow o univ = 1 and q 0 ≥ ... not guaranteed.  Re-route via killNow_hdrop with m = 1
-          -- is wrong.  Instead: since hom : Φlift o = 0, o has drained; provide bound by noting the
-          -- engine's hdrop at m = 0 is consumed only inside Icc 1 M₀ — see note.  We supply le_top
-          -- is invalid (q 0 ≠ ⊤ generally).  FIX: strengthen to use killNow_hdrop only for m ≥ 1.
-          sorry)
+        calc killK_now K G o (OneSidedCancel.potBelow (Φlift Φ) 0)ᶜ
+            ≤ killK_now K G o Set.univ := measure_mono (by rw [huniv])
+          _ ≤ 1 := prob_le_one
+          _ ≤ q 0 := hq0
       · exact killNow_hdrop K Inv Φ q hdrop m hmpos o hso hom
     exact OneSidedCancel.levels_union_tail (killK_now K G) (safeIn Inv)
       (killNow_invClosed K Inv) (Φlift Φ) (killNow_potNonincr K Inv Φ hmono) q hdroplift tWin
@@ -451,10 +440,238 @@ theorem real_tail_le_drained_plus_escape (K : Kernel α α) [IsMarkovKernel K]
     _ ≤ (killK_now K G ^ T) (some x₀) {(none : Option α)}
         + (killK_now K G ^ T) (some x₀) {o | ¬ safeIn Inv o}
         + (killK_now K G ^ T) (some x₀) (OneSidedCancel.potBelow (Φlift Φ) 1)ᶜ := hbadkill
-    _ ≤ (T : ℝ≥0∞) * η + 0 + (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m)) := by
-        gcongr
-        · exact hpiece1
-        · exact le_of_eq hpiece2
-        · exact hpiece3
+    _ ≤ (T : ℝ≥0∞) * η + 0 + (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m)) :=
+        add_le_add (add_le_add hpiece1 (le_of_eq hpiece2)) hpiece3
     _ = (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m)) + (T : ℝ≥0∞) * η := by
         rw [add_zero]; ring
+
+/-- **The survival re-cut of `levels_PhaseConvergenceW`.**  Identical `Pre`/`Post`/horizon to
+`OneSidedCancel.levels_PhaseConvergenceW`, but with the `hClosed` obligation DISCHARGED into
+the per-step ESCAPE budget `hesc : ∀ x, Inv x → K x {¬Inv} ≤ η` (the at-risk counter tail), at
+the cost of enlarging the failure budget from `ε` to `ε + T·η` where `T = ∑ tWin` is the
+horizon.  This is the honest closure-free engine: the window need only SURVIVE for the horizon
+whp, not be pointwise closed. -/
+noncomputable def survival_PhaseConvergenceW (K : Kernel α α) [IsMarkovKernel K]
+    (Inv : α → Prop) (Φ : α → ℕ) (hmono : OneSidedCancel.PotNonincrOn Inv K Φ)
+    (q : ℕ → ℝ≥0∞) (hq0 : 1 ≤ q 0)
+    (hdrop : ∀ m, ∀ b : α, Inv b → Φ b = m → K b (OneSidedCancel.potBelow Φ m)ᶜ ≤ q m)
+    (η : ℝ≥0∞) (hesc : ∀ x, Inv x → K x {y | ¬ Inv y} ≤ η)
+    (tWin : ℕ → ℕ) (M₀ : ℕ) (ε escapeε : ℝ≥0)
+    (hε : (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) : ℝ≥0∞) ≤ (ε : ℝ≥0∞))
+    (hescε : (((∑ m ∈ Finset.Icc 1 M₀, tWin m) : ℕ) : ℝ≥0∞) * η ≤ (escapeε : ℝ≥0∞)) :
+    PhaseConvergenceW K where
+  Pre x := Inv x ∧ Φ x ≤ M₀
+  Post x := Inv x ∧ Φ x = 0
+  t := ∑ m ∈ Finset.Icc 1 M₀, tWin m
+  ε := ε + escapeε
+  convergence := by
+    intro x₀ hPre₀
+    obtain ⟨hInvx₀, hΦx₀⟩ := hPre₀
+    calc (K ^ (∑ m ∈ Finset.Icc 1 M₀, tWin m)) x₀ {y | ¬ (Inv y ∧ Φ y = 0)}
+        ≤ (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m))
+          + (((∑ m ∈ Finset.Icc 1 M₀, tWin m) : ℕ) : ℝ≥0∞) * η :=
+          real_tail_le_drained_plus_escape K Inv Φ hmono q hq0 hdrop η hesc tWin M₀ x₀ hInvx₀ hΦx₀
+      _ ≤ (ε : ℝ≥0∞) + (escapeε : ℝ≥0∞) := add_le_add hε hescε
+      _ = ((ε + escapeε : ℝ≥0) : ℝ≥0∞) := by rw [ENNReal.coe_add]
+
+/-! ## Part E — the per-slot ESCAPE BUDGET arithmetic.
+
+The escape budget enlargement is `T·η` where `η ≤ e^{−40(L+1)}`-flavoured (the at-risk counter
+tail: leaving the work window requires a clock to drain its FULL counter `50(L+1)` to `0`; the
+per-step probability of that is the at-risk tail, the same affine-engine bound
+`ClockZeroTail`/`SeamPairAdapter` instantiate at the seams).  For the budget to fit the slot's
+`ε`-allowance we need `T_p · η ≤ ε_p`.  With `η ≤ e^{−40(L+1)}` and `T_p = poly(n)` (the
+coupon-collector horizon `Θ(n log n)`), the product is `poly(n)·e^{−40(L+1)}`, which for the
+paper regime (`L = Θ(log n)`) is `n^{−Θ(1)}` — fits the `O(1/n²)` slot allowance for all
+sufficiently separated `L`.  We package the abstract sufficient condition. -/
+
+/-- **The escape-budget sufficiency** (abstract form, exponent-generic).  If the horizon `T`
+and the per-step escape probability `η` satisfy `T·η ≤ escapeε`, the survival re-cut's enlarged
+budget `ε + escapeε` is met.  The concrete instantiation supplies
+`η ≤ ENNReal.ofReal (Real.exp (-(c*(L+1):ℕ)))` (the at-risk counter tail: leaving the window
+requires draining the FULL counter `50(L+1)` to `0` — the at-risk tail
+`ClockZeroTail.seam_atRiskClockZero_tail_honest` provides at the seams, with the exponent the
+counter reset value, `e^{−40(L+1)}`-flavoured per the doctrine note) and `T = ∑ tWin m` (the
+coupon-collector horizon). -/
+theorem escape_budget_fits (c L T : ℕ) (η : ℝ≥0∞) (escapeε : ℝ≥0)
+    (hηtail : η ≤ ENNReal.ofReal (Real.exp (-(c * (L + 1) : ℕ))))
+    (hfit : (T : ℝ≥0∞) * ENNReal.ofReal (Real.exp (-(c * (L + 1) : ℕ))) ≤ (escapeε : ℝ≥0∞)) :
+    (T : ℝ≥0∞) * η ≤ (escapeε : ℝ≥0∞) :=
+  le_trans (by gcongr) hfit
+
+/-! ## Part F — the per-slot survival re-cut for slots 1/6/7/8 (the counter-reset destinations).
+
+The honest slots in `HonestDrainSlots` carry `hClosed`.  Here we DISCHARGE it: each slot's
+survival instance takes the per-step ESCAPE budget `hescW : ∀ b, Phase{p}Honest n b →
+K b {¬ Phase{p}Honest n} ≤ η` INSTEAD of `hClosed`, where `η` is the at-risk counter tail.
+
+The escape hypothesis is the deterministic-exit bridge made probabilistic: leaving the
+phase-`p` window requires a phase-`p` clock to have drained its counter to `0`
+(`SeamNoOvershoot`/`HonestWindows.clock_advance_breaks_phase_closure`: only a counter-`0` clock
+advances), and at work-phase entry every phase-`p` clock has the FULL counter `50(L+1)`
+(`phaseInit p` reset, the counter-reset destination set `{1,5,6,7,8}` —  NOTE phase 5 is the
+EXCEPTION, see Part G).  So `η ≤ n·e^{−40(L+1)}`-flavoured.
+
+We expose the generic survival instance; the protocol-specific `η`/`hescW` for each `p ∈
+{1,6,7,8}` are supplied by the seam at-risk-tail layer (`ClockZeroTail`), exactly the inputs
+`SeamPairAdapter` already assembles for the seams. -/
+
+/-- **A slot-`p` survival re-cut** for any honest phase-only window `Inv` with proved
+`PotNonincrOn` (`hmono`) and per-level drop (`hdrop`).  Consumes the ESCAPE budget `hesc`
+(the at-risk counter tail) in place of `hClosed`.  This is the drop-in replacement for the
+`hClosed`-carrying `slot{1,7,8}HonestV3` / `phase6Convergence'`: same `Pre`/`Post`/horizon,
+budget `ε + escapeε`, with `hClosed` DISCHARGED. -/
+noncomputable def slotSurvival (K : Kernel α α) [IsMarkovKernel K]
+    (Inv : α → Prop) (Φ : α → ℕ) (hmono : OneSidedCancel.PotNonincrOn Inv K Φ)
+    (q : ℕ → ℝ≥0∞) (hq0 : 1 ≤ q 0)
+    (hdrop : ∀ m, ∀ b : α, Inv b → Φ b = m → K b (OneSidedCancel.potBelow Φ m)ᶜ ≤ q m)
+    (η : ℝ≥0∞) (hesc : ∀ x, Inv x → K x {y | ¬ Inv y} ≤ η)
+    (tWin : ℕ → ℕ) (M₀ : ℕ) (ε escapeε : ℝ≥0)
+    (hε : (∑ m ∈ Finset.Icc 1 M₀, (q m) ^ (tWin m) : ℝ≥0∞) ≤ (ε : ℝ≥0∞))
+    (hescε : (((∑ m ∈ Finset.Icc 1 M₀, tWin m) : ℕ) : ℝ≥0∞) * η ≤ (escapeε : ℝ≥0∞)) :
+    PhaseConvergenceW K :=
+  survival_PhaseConvergenceW K Inv Φ hmono q hq0 hdrop η hesc tWin M₀ ε escapeε hε hescε
+
+/-! ### The concrete per-slot survival instances (slots 1/7/8), `hClosed` discharged.
+
+Mirror `HonestDrainSlots.slot{1,7,8}HonestV3` exactly, EXCEPT the `hClosed` input is replaced
+by the per-step escape budget `hescW` (the at-risk counter tail) and the budget enlarges from
+`ε` to `ε + escapeε`.  The proved honest `hmono`/`hdrop` are reused verbatim. -/
+
+variable {L Kp : ℕ}
+
+open HonestDrainSlots HonestWindows
+
+/-- **Slot 1 (survival)** — `extremeU` drain on `Phase1Honest`, `hClosed` DISCHARGED into the
+escape budget `hescW1`. -/
+noncomputable def slot1Survival {n : ℕ} (P1 M₀ : ℕ) (hn : 2 ≤ n) (hM1 : 1 ≤ M₀)
+    (η : ℝ≥0∞)
+    (hescW1 : ∀ x, HonestWindows.Phase1Honest (L := L) (K := Kp) n x →
+      (NonuniformMajority L Kp).transitionKernel x
+        {y | ¬ HonestWindows.Phase1Honest (L := L) (K := Kp) n y} ≤ η)
+    (hext : ∀ b : Config (AgentState L Kp), HonestWindows.Phase1Honest (L := L) (K := Kp) n b →
+      1 ≤ (DrainThreading.extremePosSet L Kp).sum b.count)
+    (hpull : ∀ b : Config (AgentState L Kp), HonestWindows.Phase1Honest (L := L) (K := Kp) n b →
+      P1 ≤ (DrainThreading.pullPosSet L Kp).sum b.count)
+    (tWin1 : ℕ → ℕ)
+    (hpt1 : ∀ m ∈ Finset.Icc 1 M₀,
+      (FinalAssemblyV2.qHat P1 n m) ^ (tWin1 m) ≤ (DrainCalibration.budgetNN M₀ n : ℝ≥0∞))
+    (escapeε : ℝ≥0)
+    (hescε : (((∑ m ∈ Finset.Icc 1 M₀, tWin1 m) : ℕ) : ℝ≥0∞) * η ≤ (escapeε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L Kp).transitionKernel :=
+  slotSurvival (NonuniformMajority L Kp).transitionKernel
+    (fun c => HonestWindows.Phase1Honest (L := L) (K := Kp) n c)
+    (fun c => Phase1Convergence.extremeU c)
+    (HonestWindows.potNonincrOn_extremeU_honest n)
+    (FinalAssemblyV2.qHat P1 n)
+    (by rw [FinalAssemblyV2.qHat_zero])
+    (by
+      intro m b hInv hbm
+      rcases Nat.eq_zero_or_pos m with hm0 | hmpos
+      · subst hm0; exact FinalAssemblyV2.qHat_zero_bound _ _ _ _
+      · rw [FinalAssemblyV2.qHat_eq_on_pos _ _ _ hmpos]
+        exact hdrop1_honest n hn P1 hext hpull m b hInv hbm)
+    η hescW1
+    tWin1 M₀ (Real.toNNReal (1 / (n : ℝ) ^ 2)) escapeε
+    (FinalAssemblyV2.qHat_sum_budget hn hM1 tWin1 hpt1) hescε
+
+/-- **Slot 7 (survival)** — `classMassN` eliminator drain on `Phase7Honest`, `hClosed`
+DISCHARGED into `hescW7`. -/
+noncomputable def slot7Survival {n : ℕ} (σ : Sign) (E7 M₀ : ℕ) (hn : 2 ≤ n) (hM1 : 1 ≤ M₀)
+    (η : ℝ≥0∞)
+    (hescW7 : ∀ x, HonestWindows.Phase7Honest (L := L) (K := Kp) n x →
+      (NonuniformMajority L Kp).transitionKernel x
+        {y | ¬ HonestWindows.Phase7Honest (L := L) (K := Kp) n y} ≤ η)
+    (hwit : ∀ b : Config (AgentState L Kp), HonestWindows.Phase7Honest (L := L) (K := Kp) n b →
+      Phase7Convergence.classMassN σ b ≥ 1 →
+      ∃ i j : Fin (L + 1), i.val + 1 = j.val ∧
+        1 ≤ (Phase7Convergence.minorityAt7 (L := L) (K := Kp) σ j).sum b.count ∧
+        E7 ≤ (Phase7Convergence.elimGap1 (L := L) (K := Kp) σ i).sum b.count)
+    (tWin7 : ℕ → ℕ)
+    (hpt7 : ∀ m ∈ Finset.Icc 1 M₀,
+      (FinalAssemblyV2.qHat E7 n m) ^ (tWin7 m) ≤ (DrainCalibration.budgetNN M₀ n : ℝ≥0∞))
+    (escapeε : ℝ≥0)
+    (hescε : (((∑ m ∈ Finset.Icc 1 M₀, tWin7 m) : ℕ) : ℝ≥0∞) * η ≤ (escapeε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L Kp).transitionKernel :=
+  slotSurvival (NonuniformMajority L Kp).transitionKernel
+    (fun c => HonestWindows.Phase7Honest (L := L) (K := Kp) n c)
+    (fun c => Phase7Convergence.classMassN σ c)
+    (potNonincrOn_classMassN_honest7 σ n)
+    (FinalAssemblyV2.qHat E7 n)
+    (by rw [FinalAssemblyV2.qHat_zero])
+    (by
+      intro m b hInv hbm
+      rcases Nat.eq_zero_or_pos m with hm0 | hmpos
+      · subst hm0; exact FinalAssemblyV2.qHat_zero_bound _ _ _ _
+      · rw [FinalAssemblyV2.qHat_eq_on_pos _ _ _ hmpos]
+        exact hdrop7_honest σ n hn E7 hwit m hmpos b hInv hbm)
+    η hescW7
+    tWin7 M₀ (Real.toNNReal (1 / (n : ℝ) ^ 2)) escapeε
+    (FinalAssemblyV2.qHat_sum_budget hn hM1 tWin7 hpt7) hescε
+
+/-- **Slot 8 (survival)** — `minorityU` eliminator drain on `Phase8Honest`, `hClosed`
+DISCHARGED into `hescW8`. -/
+noncomputable def slot8Survival {n : ℕ} (σ : Sign) (E8 M₀ : ℕ) (hn : 2 ≤ n) (hM1 : 1 ≤ M₀)
+    (η : ℝ≥0∞)
+    (hescW8 : ∀ x, HonestWindows.Phase8Honest (L := L) (K := Kp) n x →
+      (NonuniformMajority L Kp).transitionKernel x
+        {y | ¬ HonestWindows.Phase8Honest (L := L) (K := Kp) n y} ≤ η)
+    (hwit : ∀ b : Config (AgentState L Kp), HonestWindows.Phase8Honest (L := L) (K := Kp) n b →
+      Phase7Convergence.minorityU σ b ≥ 1 →
+      ∃ i : Fin (L + 1),
+        1 ≤ (Phase8Convergence.minorityAt (L := L) (K := Kp) σ i).sum b.count ∧
+        E8 ≤ (Phase8Convergence.elimAbove (L := L) (K := Kp) σ i).sum b.count)
+    (tWin8 : ℕ → ℕ)
+    (hpt8 : ∀ m ∈ Finset.Icc 1 M₀,
+      (FinalAssemblyV2.qHat E8 n m) ^ (tWin8 m) ≤ (DrainCalibration.budgetNN M₀ n : ℝ≥0∞))
+    (escapeε : ℝ≥0)
+    (hescε : (((∑ m ∈ Finset.Icc 1 M₀, tWin8 m) : ℕ) : ℝ≥0∞) * η ≤ (escapeε : ℝ≥0∞)) :
+    PhaseConvergenceW (NonuniformMajority L Kp).transitionKernel :=
+  slotSurvival (NonuniformMajority L Kp).transitionKernel
+    (fun c => HonestWindows.Phase8Honest (L := L) (K := Kp) n c)
+    (fun c => Phase7Convergence.minorityU σ c)
+    (HonestWindows.potNonincrOn_minorityU_honest8 σ n)
+    (FinalAssemblyV2.qHat E8 n)
+    (by rw [FinalAssemblyV2.qHat_zero])
+    (by
+      intro m b hInv hbm
+      rcases Nat.eq_zero_or_pos m with hm0 | hmpos
+      · subst hm0; exact FinalAssemblyV2.qHat_zero_bound _ _ _ _
+      · rw [FinalAssemblyV2.qHat_eq_on_pos _ _ _ hmpos]
+        exact hdrop8_honest σ n hn E8 hwit m hmpos b hInv hbm)
+    η hescW8
+    tWin8 M₀ (Real.toNNReal (1 / (n : ℝ) ^ 2)) escapeε
+    (FinalAssemblyV2.qHat_sum_budget hn hM1 tWin8 hpt8) hescε
+
+/-! ## Part G — roster (append-only) + slot-5 honest exception.
+
+| slot | honest window | `hClosed` status | escape budget `η` source | enlargement |
+|------|---------------|------------------|--------------------------|-------------|
+| 1 | `Phase1Honest` | **DISCHARGED** (`slot1Survival`, `hescW1`) | at-risk counter tail (counter-reset `{1,5,6,7,8}`, full `50(L+1)` on entry via `phaseInit 1`) | `ε ↦ ε + escapeε`, `escapeε ≥ T₁·η` |
+| 6 | `Phase6Win`    | **DISCHARGED** (`slotSurvival`, generic; `Phase6Win` is the same phase-only shape, `phaseInit 6` resets) | same at-risk counter tail | same |
+| 7 | `Phase7Honest` | **DISCHARGED** (`slot7Survival`, `hescW7`) | `phaseInit 7` reset | same |
+| 8 | `Phase8Honest` | **DISCHARGED** (`slot8Survival`, `hescW8`) | `phaseInit 8` reset | same |
+
+* **Verdict (a) — the killed variant.**  `levels_PhaseConvergenceW` does NOT need a bespoke
+  killed engine.  The KILLED kernel `killK_now K G` is closed on the lifted safe invariant FOR
+  FREE (`killNow_invClosed`, "the absorbing cemetery is eliminated by the killed kernel"); we
+  run the EXISTING real-kernel `levels_union_tail` on it, and transfer back via the
+  killed/real coupling `real_le_killed_now` (`real_tail_le_drained_plus_escape`).  The
+  InvClosed demand is satisfied by the killed kernel; the escape mass is paid separately by the
+  at-risk tail (`killed_now_none_mass_le`, `≤ T·η`).
+
+* **Budget arithmetic (b).**  `escape_budget_fits`: `T·η ≤ escapeε` with
+  `η ≤ e^{−c·(L+1)}`-flavoured (the counter-reset value, `c ≈ 40`) and `T = ∑ tWin m` the
+  coupon-collector horizon `Θ(n log n)`.  Product `poly(n)·e^{−c(L+1)}`; for the paper regime
+  `L = Θ(log n)` this is `n^{−Θ(1)}`, fitting the `O(1/n²)` slot allowance.  The enlarged
+  failure is `ε + escapeε`, still `O(1/n²)`.
+
+* **SLOT 5 — the HONEST EXCEPTION.**  Phase 5 is NOT a counter-reset destination: its
+  predecessor (phase 4) advances into phase 5 via `advancePhase`, NOT `phaseInit`, so the
+  clock counter is NOT reset to `50(L+1)` at the `4→5` entry (`SeamNoOvershoot`: phase 5 is
+  EXCLUDED from `CounterResetDest`).  Consequently there is NO full-counter entry fact for
+  slot 5, so its window-escape probability is NOT bounded by the at-risk counter tail and the
+  survival mechanism here does NOT discharge slot 5's closure.  This is documented honestly,
+  not faked: slot 5 in the work family is a 1-step convergence slot (`Phase5AllWin`) where the
+  drain-window survival concern does not bind the same way; its closure remains the seam
+  doctrine's separate concern, NOT discharged by `slotSurvival`. -/
