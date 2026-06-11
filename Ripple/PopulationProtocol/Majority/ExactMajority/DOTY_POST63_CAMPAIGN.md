@@ -5815,3 +5815,76 @@ Single-file `lake env lean Ripple/PopulationProtocol/Majority/ExactMajority/Prob
 EXIT 0 (deps from cached oleans, ~v4.30.0). `#print axioms` for all 11 new declarations
 ⊆ `[propext, Classical.choice, Quot.sound]` (`drained_imp_counter_zero`, `unseeded_imp_phase_eq`
 use only `[propext, Quot.sound]`); 0 sorry/admit/axiom/native_decide; `git diff --check` clean.
+
+## RUN_LOG — overnight discharge run 2026-06-11
+- doctrine: DOCTRINE_DISCHARGE.md (this commit)
+- approval: Xiang directive "把剩下的具名字段挨个 discharge 干净…你自主执行" (TG/terminal, 2026-06-11 ~04:00)
+- starting avenue: (b) WAVE B (wave A already complete at approval time)
+- end: <fill on close>
+- final result: <fill on close>
+
+## DrainRates.lean — the per-phase drain RATES, discharged per-level (wave B, 2026-06-11)
+
+Closes the per-phase drain RATE residual that the `AssemblyWiring` slot table carried for the five
+drain slots (1/5/6/7/8): the `hstep`/`hdrop` per-step drain rate. Append-only new file
+`Probability/DrainRates.lean`; edits NO existing file. Imports only `AssemblyWiring`.
+
+### The genuinely-landed rate shape: per-LEVEL, not crude single-rate
+
+The four calibrated drain instances (slots 1/5/7/8) feed `OneSidedCancel.crude_PhaseConvergenceW`
+with the SINGLE-rate `potDone` shape `K b (potDone Φ)ᶜ ≤ ofReal q` ("drop to `0` in one step").
+That crude rate is structurally vacuous for `Φ ≥ 2` (you cannot drain mass `≥ 2` to `0` in a single
+interaction at the rectangle rate) and coincides with the landed floor ONLY at level `m = 1`
+(`potDone Φ = potBelow Φ 1`, since `Φ < 1 ↔ Φ = 0` — recorded as `potDone_eq_potBelow_one`, with
+the rate-coincidence `hstep_of_potBelow_one_floor`). The HONEST multi-level drain is the per-LEVEL
+floor `K b (potBelow Φ m)ᶜ ≤ 1 − ofReal(E/(n(n−1)))` consumed by `levels_PhaseConvergenceW`. This
+file delivers that per-level rate for all five drain slots, wired from the landed structural floors,
+at `q m := levelRate E n m = 1 − ofReal(E/(n(n−1)))` (constant in `m`).
+
+### The per-slot rate table (WIRED vs PERSISTENCE-carried floor)
+
+| slot | binder `Φ`          | discharger          | floor adapter                       | floor status |
+|------|---------------------|---------------------|-------------------------------------|--------------|
+| 1    | `extremeU`          | `hdrop1_of_chain`   | `PhaseFloors.phase1_hdrop_wired`    | `hext` (+3 witness) + `hpull` (Lemma 5.3/[45]) — **PERSISTENCE-carried `∀ b`** |
+| 5    | `unsampledReserveU` | `hdrop5_of_chain`   | `PhaseFloors.phase5_hdrop_wired`    | `hres` **WIRED** from binder alive (`unsampledReserveU = unsampledReserves.sum`); `hmain` (Thm 6.2) PERSISTENCE-carried |
+| 6    | `highMass l`        | `hdrop6_of_chain`   | `PhaseFloors.phase6_hdrop_wired`    | reserve floor `K₀` **WIRED** from Phase-5 `ReserveSampleGood` Post (per config); band witness `hmain` |
+| 7    | `classMassN σ`      | `hdrop7_of_chain`   | `AssemblyWiring.slot7_levels_hdrop` | `Phase6To7Structure` (Lemma 7.4) PERSISTENCE-carried via `wi.hPhase6Post7`; minority witness **PROVED** |
+| 8    | `minorityU σ`       | `hdrop8_of_chain`   | `AssemblyWiring.slot8_levels_hdrop` | `Phase7To8Structure` (Lemma 7.6) PERSISTENCE-carried via `wi.hPhase7Post8`; minority witness **PROVED** |
+
+"PERSISTENCE-carried `∀ b`": the structural floor enters quantified over EVERY in-phase window
+config `b` (not merely entry) — exactly the form the `WorkInputs` fields (`hPhase6Post7`,
+`hPhase7Post8`) and the floor-source theorems carry. The per-level `hdrop` binder is itself
+`∀ m, ∀ b`, so the floor must persist through the window; the carried form IS the persistent one.
+For slots 7/8 the minority-WITNESS half (`exists_minorityAt7_of_classMassN_pos` /
+`exists_minorityAt_of_minorityU_pos`) is PROVED inside the floor lemmas; only the eliminator-COUNT
+lower bound (`0.8|M|` Lemma 7.4 / the `0.8|M| − 0.2|M|` margin Lemma 7.6) is the carried named
+remainder. For slot 5 the alive-witness `hres` is WIRED from the binder's own `Φ b = m ≥ 1` (via
+`countP_eq_sum_count6`: `unsampledReserveU = unsampledReserves.sum count`). For slot 6 the reserve
+floor is the prior phase's `ReserveSampleGood` Post — WIRED, no carried floor.
+
+### What landed (Parts A–D, all 0-sorry, axiom-clean)
+
+- **Part A** — the level-`1` ⇄ `potDone` bridge: `potDone_eq_potBelow_one` (set equality),
+  `hstep_of_potBelow_one_floor` (the crude-rate coincidence at `m = 1`, via
+  `AssemblyWiring.ofReal_one_sub`). Records the honest scope of the crude single rate (level 1 only).
+- **Part B** — the five per-level rate dischargers `hdrop{1,5,6,7,8}_of_chain`: each takes the
+  named structural floor (persistence-carried where the campaign carries it) and produces the EXACT
+  `∀ m, ∀ b, PhaseInv b → Φ b = m → K b (potBelow Φ m)ᶜ ≤ levelRate E n m` binder.
+- **Part C** — `levelRate_le_one` (the per-level rate is a probability, the ceiling the budget
+  calibration `DrainCalibration.rect_*` consumes).
+- **Part D** — `slot6_rate_discharged`: `phase6Convergence_calibrated` instantiated with the wired
+  per-level rate `hdrop6_of_chain` (floor fully landed from the Phase-5 Post). The narrowest slot-6
+  build: the drain rate is no longer a free `WorkInputs` field but the wired `levelRate K₀ n`; the
+  remaining inputs are the structural Phase-5 Post / band witness / window closure and the per-level
+  budget — no free drain rate. (Slots 1/5/7/8 calibrated instances feed the CRUDE engine, so the
+  full slot instantiation there carries the crude single rate; the per-level rate `hdrop{1,5,7,8}_of_chain`
+  is the levels-engine input, ready when those slots migrate to the levels form.)
+
+### Audit
+
+Single-file `lake env lean Ripple/PopulationProtocol/Majority/ExactMajority/Probability/DrainRates.lean`
+EXIT 0 (deps from cached oleans + locally rebuilt `Phase4Convergence`/`AssemblyWiring` oleans,
+v4.30.0). `#print axioms` for all 9 new declarations
+(`potDone_eq_potBelow_one`, `hstep_of_potBelow_one_floor`, `hdrop{1,5,6,7,8}_of_chain`,
+`levelRate_le_one`, `slot6_rate_discharged`) ⊆ `[propext, Classical.choice, Quot.sound]`;
+0 sorry/admit/axiom/native_decide; `git diff --check` clean.
