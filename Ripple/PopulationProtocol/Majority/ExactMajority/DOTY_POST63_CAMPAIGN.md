@@ -6632,3 +6632,13 @@ with a classifier ONLY on the good slice `G` + an additive escape budget `η` fo
 The off-event classification is no longer pretended-deterministic: it is the honest whp-conditioning
 charge `η`, folded into the geometric ratio.  J = `ReachableFrom` (exact-closed); the leak is on `G`
 INSIDE J (the only honest place it can go — `J`'s closure is load-bearing and cannot be made leaky).
+
+## RELEASE RECORD — V5.1 (2026-06-11 evening)
+- Public main: 28890ad → 1347f49 (fast-forward), tag doty-thm31-v51-2026-06-11.
+- Fresh-checkout verification (uisai2 /dev/shm, clone @ 1347f49): bare default build
+  4123 jobs EXIT 0 + explicit FinalAssemblyV51 target 3651 jobs EXIT 0.
+- Six audit rounds total; round 6 confirmed F1/F2 fixed, no regressions, no new
+  dead binders. whp pair CONDITIONAL-honest; expected = the honest leaky capstone.
+- Atom-campaign RUN_LOG close: every roster item attacked; survivors = the named
+  paper-probability atoms in the V5.1 consumption table (61-field fresh bundle).
+- Cosmetic queue: the six-vs-seven prose count in FinalAssemblyV51 closing comment.
