@@ -6642,3 +6642,39 @@ INSIDE J (the only honest place it can go — `J`'s closure is load-bearing and 
 - Atom-campaign RUN_LOG close: every roster item attacked; survivors = the named
   paper-probability atoms in the V5.1 consumption table (61-field fresh bundle).
 - Cosmetic queue: the six-vs-seven prose count in FinalAssemblyV51 closing comment.
+
+## V6 ASSEMBLY RECORD (2026-06-11 night) — the six packages CONSUMED
+
+`Probability/FinalAssemblyV6.lean` (append-only, edits no existing file) consumes the six POST63
+atom packages (A–F) into the final Doty Thm 3.1 pair on a SHRUNK residual `DotyResidualAtomsV6`.
+
+**Mechanism.**  `toWorkInputsV51 : DotyResidualAtomsV6 → WorkInputsV51` builds the V5.1 work record
+by CALLING each package producer for the field it produces; `toResidualV51` builds the V5.1 residual,
+calling Pkg F for `hSeedStep` / `hWork0PreOfStart` / `hPhase10Sign`.  The four V6 theorems
+(`doty_theorem_3_1_whp_v6`, `doty_theorem_3_1_whp_numeral_v6`, `doty_theorem_3_1_expected_v6`,
+`doty_theorem_3_1_expected_v6_numeral`) route through the landed V5.1 theorems on `toResidualV51 ra …`
+and reach the SAME conclusions (`≤ 21/n²`, `T ≤ 21·C0·n·(L+1)`, headline `369·n·(L+1)`).
+
+**Consumption sweep (24 producers, all on the proof path of `toWorkInputsV51`/`toResidualV51`):**
+A: `hext1H_of_extremePos_witness_honest`, `hpull1H_of_entry_on_honest`, `hpt1_of_rect_calibration`
+(also reused at `P5` for `hpt5`).  B: `hwit7_of_phase6To7Structure_honest`, `hpt7_budget_alpha`,
+`hwit8_of_phase7To8Structure_honest`, `hpt8_budget_recut`.  C: `hmain5_of_pointwise_confinement`
+(pointwise confinement at `b` is C's honest residual — the whp kernel event does NOT yield it).
+D: `hescε{1,6,7,8}_of_tail_fit`, `q6D`/`hdrop6_padded_from_positive`/`hpt6_padded_from_positive`/
+`hq6zero_padded`.  E: `hConc_field_of_atoms_and_widthSurvival`.  F: `work0_of_two_stage`,
+`work2_calibratedUnion`, `work3_phase3_bounded`, `work9_calibratedUnion`, `hSeedStep_v51_of_event`,
+`hWork0PreOfStart_of_work0_eq` (`hwork0 := rfl`), `hPhase10Sign_of_rooted`.
+
+**Shrinkage.**  The 24 produced V51 fields LEAVE the residual surface, replaced by the producers'
+genuinely-open input remainders: the +3 witness (`hwit1`), the entry/gap predicate (`g`/`hentry1`,
+`P1 := (n-g+3)/4`), the slot-7/8 role bridges (`hAll7/hStruct7`, `hAll8/hStruct8`), the POINTWISE
+phase-3 confinement (`hConf5`), the escape tails/fits (`hηtail*`/`hfit*`), the positive-level phase-6
+rate (`qpos6`/`hdrop6pos`/`hpt6pos`), the slot-5 width export + sampled-class atoms (`e5*`), the
+work-slot constructor inputs (`w0*`/`w2*`/`w3*`/`w9*`), the rooted phase-10 entry, the seed-event
+family + seam glue (theorem args).  Carried genuine remainders: `hClosed5` (Phase 5 = documented
+non-reset exception), the escape probabilities `η{1,6,7,8}`/`hescW*`, `DotyRegime`, the seam half.
+
+**Verification.**  uisai2 `~/repos/Ripple-atoms` (opus-wip, all six Pkg oleans + FinalAssemblyV51
+olean cached): single-file `lake env lean FinalAssemblyV6.lean` EXIT 0; olean emitted; `#print axioms`
+for all four V6 theorems ⊆ `[propext, Classical.choice, Quot.sound]`; 0 sorry/admit/axiom/
+native_decide; `git diff --check` clean on the V6 file.
