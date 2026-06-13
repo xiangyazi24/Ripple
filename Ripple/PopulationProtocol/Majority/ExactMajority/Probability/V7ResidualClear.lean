@@ -116,7 +116,7 @@ honest "shell": it turns the per-`m` field into the single worst-case margin ine
 /-- The slot-7-shaped rate comparison reduces to the worst-case (largest-`m`) margin lower bound.
 `c·m·(n−1) ≤ E` for the worst `m = M₀` implies the per-`m` rate-shape field for all `m ∈ Icc 1 M₀`.
 (`c = 4/15` for slot 7, `c = 14/75` for slot 8.) -/
-theorem rate_shape_of_margin_lb {E n M₀ : ℕ} {c : ℝ} (hn : 2 ≤ n) (hc : 0 ≤ c) (hM₀ : M₀ ≤ n)
+theorem rate_shape_of_margin_lb {E n M₀ : ℕ} {c : ℝ} (hn : 2 ≤ n) (hc : 0 ≤ c) (_hM₀ : M₀ ≤ n)
     (hmargin : c * (M₀ : ℝ) * ((n : ℝ) - 1) ≤ (E : ℝ)) :
     ∀ m ∈ Finset.Icc 1 M₀,
       1 - (E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) ≤ 1 - c * (m : ℝ) / n := by
@@ -197,6 +197,22 @@ shape `RoleSplitGood` exports, so the instantiator wires `hMainFloor5` directly 
 `RoleSplitGood → mainCount ≥ n/3` lemma lives in `RoleSplitConcentration` and is consumed at
 instantiation; re-stating its body here would duplicate, not clear, it.  Hence Part 7 is intentionally
 a DOC anchor only — the (b) fields are cleared by DIRECT wiring at instantiation, not by a shell. -/
+
+/-! ## Axiom audit (verified by `#print axioms`).
+
+Every produced (a)/(b) discharge below depends on exactly `[propext, Classical.choice, Quot.sound]`;
+no `sorry`/`admit`/`axiom`/`native_decide`. -/
+
+#print axioms qRectReal_nonneg_of_le_pairs
+#print axioms hq05_of_hP5
+#print axioms hq01_of_floor_le_n
+#print axioms hq0_elim_of_le_pairs
+#print axioms rate_shape_of_margin_lb
+#print axioms hP5_locked
+#print axioms honest_E8_le_one_fifth
+#print axioms hα0_one
+#print axioms hα1_one
+#print axioms hsB10_of_ge
 
 end V7ResidualClear
 end ExactMajority
