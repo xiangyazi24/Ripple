@@ -128,10 +128,12 @@ theorem rate_shape_of_margin_lb {E n M₀ : ℕ} {c : ℝ} (hn : 2 ≤ n) (hc : 
   have hden : (0 : ℝ) < (n : ℝ) * ((n : ℝ) - 1) := by nlinarith
   have hmR : (m : ℝ) ≤ (M₀ : ℝ) := by exact_mod_cast hmle
   -- target: c·m/n ≤ E/(n(n−1)), i.e. c·m·(n−1) ≤ E.
-  have hstep : c * (m : ℝ) * ((n : ℝ) - 1) ≤ (E : ℝ) :=
-    le_trans (by nlinarith [hc, hn1]) hmargin
+  have hmono : c * (m : ℝ) * ((n : ℝ) - 1) ≤ c * (M₀ : ℝ) * ((n : ℝ) - 1) := by
+    have h0 : (0 : ℝ) ≤ c * ((n : ℝ) - 1) := by nlinarith [hc, hn1]
+    nlinarith [hmR, h0, hc, hn1]
+  have hstep : c * (m : ℝ) * ((n : ℝ) - 1) ≤ (E : ℝ) := le_trans hmono hmargin
   have hgoal : c * (m : ℝ) / (n : ℝ) ≤ (E : ℝ) / ((n : ℝ) * ((n : ℝ) - 1)) := by
-    rw [div_le_div_iff hnpos hden]
+    rw [div_le_div_iff₀ hnpos hden]
     nlinarith [hstep]
   linarith
 
