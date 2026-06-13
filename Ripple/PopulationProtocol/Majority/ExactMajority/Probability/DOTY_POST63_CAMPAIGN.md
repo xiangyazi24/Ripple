@@ -1201,3 +1201,44 @@ doty_theorem_3_1_expected_v4_headline : [propext, Classical.choice, Quot.sound]
 doty_theorem_3_1_expected_v4_numeral  : [propext, Classical.choice, Quot.sound]
 slot0_pre_pin_v4 / slot20_post_pin_v4 / hx₀_of_start_v4 / h_post_of_sign_v4 : same
 ```
+
+---
+
+## V7 ASSEMBLY — `FinalAssemblyV7.lean` (V6 re-cut with the HONEST A/B producers)
+
+**What landed.** `FinalAssemblyV7.lean` (append-only; edits NO existing file) — a V6 re-cut whose
+ONLY change is the slot-1 / slot-7 / slot-8 wiring.  V6 consumed the AUDITED-DEFECT producers that
+carried the globally-false all-Main bridge; V7 replaces those three wires with the HONEST redos from
+`PkgA2HonestFloor` / `PkgB2HonestMargin`.
+
+**The three honest re-wires (on the proof term of `toWorkInputsV51`, grep-verifiable):**
+- `hext1H := PkgA2HonestFloor.hext1H_of_extremePos_witness n ra.hwit1` (already honest, re-exported).
+- `hpull1H := PkgA2HonestFloor.hpull1H_of_honestEntry n ra.g ra.mc ra.hHonestEntry1` at the HONEST
+  floor `P1 := (mc − g + 3)/4` (from `Phase1Honest` + `|centredBiasSum| ≤ g` + the chain-carried
+  Main-count floor `mc ≤ mainCount`).  `hpt1` rectangle calibration re-keyed to `qRectReal ((mc−g+3)/4) n`.
+- `hwit7 := PkgB2HonestMargin.hwit7_honest ra.hMainMass7 ra.hStruct7` (§6/§7 mass↔Main-minority carry
+  + carried §6 Post; NO all-Main bridge).
+- `hwit8 := PkgB2HonestMargin.hwit8_honest ra.hStruct8` (carried §7 Post ALONE, ZERO extra; NO bridge).
+
+**New honest inputs added to `DotyResidualAtomsV7` (carried, with provenance):** `mc` (chain Main-count
+floor from `RoleSplitGood`), `hHonestEntry1` (`PkgA2HonestFloor.HonestEntry n g mc`), `hMainMass7`
+(§6/§7 surviving-class-mass is Main-carried).  **Dropped from V6** (used by NOTHING but the defect
+producers): `hE7`, `hAll7`, `hE8`, `hAll8`.
+
+**C/D/E/F UNCHANGED** (conditional-honest carries, not defects).  For C: `hConf5` stays a CARRIED
+field, doc-commented as THE GENUINE RESIDUAL — the whp confinement event `⊬` the pointwise `hmain5`
+(`ConfinementSurface:36`); pointwise success at `b` is an OPEN paper-probability gap.  V7 does NOT
+pretend it is produced.
+
+**Theorems (same conclusions as V6/V5.1):** `doty_theorem_3_1_whp_v7` / `_whp_numeral_v7`
+(`≤ 21/n²`, `T ≤ 21·C0·n·(L+1)`, clog form) and `doty_theorem_3_1_expected_v7` / `_expected_v7_numeral`
+(`E[T] ≤ 369·n·(L+1)`), each routing through the landed V5.1 theorems on `toResidualV51 ra …`.
+
+**False-bridge absence (grep-verified).** `PkgAAtoms.hpull1H_of_entry_on_honest`,
+`PkgAAtoms.hpull1H_of_allMain_and_gap_on_honest`, `PkgBAtoms.hwit7_of_phase6To7Structure_honest`,
+`PkgBAtoms.hwit8_of_phase7To8Structure_honest`, `PartnerMargin.EntrySumPinned`, `Phase7AllMain`,
+`Phase8AllMain` appear in NO V7 proof term — only in doc-comments as the named DEFECT.
+
+**Build/audit.** Single-file `lake env lean` clean (uisai2 /dev/shm, v4.30.0 + mathlib c5ea00351c28,
+EXIT 0, no warnings); no `sorry`/`admit`/`axiom`/`native_decide`.  `#print axioms` on all four V7
+theorems = `[propext, Classical.choice, Quot.sound]`.  Built atop canonical HEAD 5d99c156.
