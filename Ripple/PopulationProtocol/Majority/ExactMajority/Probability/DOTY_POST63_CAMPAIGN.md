@@ -1242,3 +1242,136 @@ pretend it is produced.
 **Build/audit.** Single-file `lake env lean` clean (uisai2 /dev/shm, v4.30.0 + mathlib c5ea00351c28,
 EXIT 0, no warnings); no `sorry`/`admit`/`axiom`/`native_decide`.  `#print axioms` on all four V7
 theorems = `[propext, Classical.choice, Quot.sound]`.  Built atop canonical HEAD 5d99c156.
+
+---
+
+## V7 RESIDUAL TRIAGE — FINAL GAP ROSTER
+
+**What landed.** `Probability/V7ResidualClear.lean` (append-only; edits NO existing file; single-file
+`lake env lean` EXIT 0; `#print axioms` on all 10 produced lemmas = `[propext, Classical.choice,
+Quot.sound]`; no `sorry`/`admit`/`axiom`/`native_decide`).  It is the HONEST (a)/(b) discharge layer
+for `FinalAssemblyV7.DotyResidualAtomsV7`: it produces — as standalone axiom-clean terms — the
+deterministic-arithmetic / locked-calibration residual fields, and records (as a compile-checked
+doc anchor) the genuinely-landed chain-wiring whose (b) fields are cleared by DIRECT wiring at
+instantiation.  Class (c) — the irreducible paper-probability gaps — is UNTOUCHED and rostered below.
+
+### The honest accounting principle
+
+`DotyResidualAtomsV7` is a PARAMETERIZED bundle: each slot's calibration scalars (`P1`, `P5`, `E7`,
+`E8`, window lengths, MGF slopes) are FREE fields, locked to their paper values only by the
+side-relation fields.  A field is genuinely class (a) iff — ONCE the locked floor/margin side-relation
+is in scope — it is a pure-arithmetic consequence with NO hidden probability.  A field is class (b)
+iff the landed chain already EXPORTS it (so an instantiator wires it directly, no new math).  A field
+is class (c) iff its truth IS a paper-probability statement (a whp bound, a Chernoff/Azuma tail, a
+margin lower bound, a confinement event) that no landed file discharges.
+
+Honesty guard applied: two fields the prompt hoped were class (a) — `hrate7`/`hrate8` (the slot-7/8
+rate-shape comparisons) — turned out, on algebra, to be EQUIVALENT to the eliminator-margin LOWER
+bounds `(4/15)·M₀·(n−1) ≤ E7` and `(14/75)·M₀·(n−1) ≤ E8`, which are §7 paper-probability content.
+`V7ResidualClear.rate_shape_of_margin_lb` produces ONLY the pure-arithmetic shell (per-`m` field ⟸
+worst-case margin bound); the margin bound itself is MOVED TO class (c) (gaps C5/C6 below).  We do
+NOT manufacture it.
+
+### THE THREE-CLASS TABLE (field → class → disposition)
+
+Class key: **(a)** deterministic arithmetic / locked calibration — CLEARED in `V7ResidualClear`;
+**(b)** chain-wiring the landed chain exports — CLEARED by direct wiring at instantiation;
+**(c)** genuine paper-probability gap — KEPT as named residual (roster below).
+Fields are grouped by slot/role; scalar-only binders (the free `P`/`E`/`tWin`/`s`/`t`/`c`/`L0`
+calibration numbers and the regime `hn`/`hM1`/`hM₀1`, budget `Cphase`/`δ`/`hC0`/`hδ`, config
+`c₀`/`init`/`k10`) are BOIL — neither math nor gap, just the instance data — and are noted once.
+
+| slot / group | fields | class | disposition |
+|---|---|---|---|
+| regime/budget/config (BOIL) | `σ M₀ hn hM1 hM₀1 Cphase δ hC0 hδ c₀ init k10 s10 hs10 k10` | (a)-triv | side conditions; `hδ`/`hC0` are `≤ 1/n²` / `≤ C0` arithmetic fits at the locked budget |
+| **slot 1 — rect nonneg** | `hq01` | **(a)** | `V7ResidualClear.hq01_of_floor_le_n` (from `(mc−g+3)/4 ≤ n`) |
+| slot 1 — rect rate cmp | `hq1` | (a)/(c)-edge | rate-shape `qRectReal((mc−g+3)/4) ≤ 1−α·m/n`; pure at `α≡1` once floor pinned; tied to the slot-1 partner-floor margin (gap **C1**) |
+| slot 1 — α calib | `hα01 hα11` | **(a)** | `V7ResidualClear.hα0_one`/`hα1_one` at `α ≡ 1` |
+| slot 1 — window len | `tWin1 hT1` | (a) | `PkgAAtoms.rectTWin` + `rectTWin_spec` (landed) at the calibrated window |
+| slot 1 — honest entry | `g mc hwit1 hHonestEntry1` | **(c)** | the §5 partner-floor whp inputs — gap **C1** |
+| slot 1 — escape tail | `η1 hescW1 hηtail1 hfit1 escapeε1 c1 L01` | **(c)** | one-step escape mass `hescW1` + its tail — gap **C7** |
+| **slot 5 — rect nonneg** | `hq05` | **(a)** | `V7ResidualClear.hq05_of_hP5` (from carried `hP5`) |
+| slot 5 — rect rate cmp | `hq5` | (a)/(c)-edge | as `hq1`; tied to the biased-Main floor (gap **C2**) |
+| slot 5 — α calib | `hα05 hα15` | **(a)** | `hα0_one`/`hα1_one` at `α ≡ 1` |
+| slot 5 — window len | `tWin5 hT5` | (a) | `rectTWin`/`rectTWin_spec` |
+| slot 5 — floor bound | `hP5` | **(a)** | `V7ResidualClear.hP5_locked` at `P5 = ⌊23n/75⌋` |
+| **slot 5 — confinement** | `hConf5` | **(c)** | THE genuine residual — gap **C2** (whp ⊬ pointwise) |
+| slot 5 — main floor | `hMainFloor5` | **(b)** | `RoleSplitConcentration.RoleSplitGood ⇒ mainCount ≥ n/3` (landed export; wired directly) |
+| slot 5 — closure | `hClosed5` | (c)-doc | documented non-reset closure exception — gap **C8** |
+| slot 5 — concentration | `i5 hiL5 K₀ e5s e5hs e5reserveFloor e5classFloor e5hbudget e5hres e5hcls εConc e5hbridge e5β e5hwidth e5hε P5 tWin5` | **(c)** | Lemma-7.1 sampled-class concentration + width-survival — gap **C3** |
+| **slot 7 — elim nonneg** | `hq07` | **(a)** | `V7ResidualClear.hq0_elim_of_le_pairs` (from `E7 ≤ n(n−1)`) |
+| slot 7 — rate shape | `hrate7` | **(c)** | ⟺ margin LB `(4/15)M₀(n−1) ≤ E7`; shell `rate_shape_of_margin_lb`, margin = gap **C5** |
+| slot 7 — window len | `E7 tWin7 hTw7` | (a) | `hTw7` = window ceiling (landed shape) |
+| slot 7 — mass carry | `hMainMass7` | **(c)** | §6/§7 surviving-class-mass-is-Main-minority — gap **C5** |
+| slot 7 — structure Post | `hStruct7` | **(c)** | `Phase6To7Structure σ E7` carried §6 Post whp — gap **C5** |
+| slot 7 — escape tail | `η7 hescW7 hηtail7 hfit7 escapeε7 c7 L07` | **(c)** | gap **C7** |
+| **slot 8 — elim nonneg** | `hq08` | **(a)** | `V7ResidualClear.hq0_elim_of_le_pairs` (from `E8 ≤ n(n−1)`) |
+| slot 8 — rate shape | `hrate8` | **(c)** | ⟺ margin LB `(14/75)M₀(n−1) ≤ E8`; shell `rate_shape_of_margin_lb`, margin = gap **C6** |
+| slot 8 — survival const | (locked `14n/75`) | **(a)** | `V7ResidualClear.honest_E8_le_one_fifth` |
+| slot 8 — window len | `E8 tWin8 hTw8` | (a) | window ceiling |
+| slot 8 — structure Post | `hStruct8` | **(c)** | `Phase7To8Structure σ E8` carried §7 Post whp — gap **C6** |
+| slot 8 — escape tail | `η8 hescW8 hηtail8 hfit8 escapeε8 c8 L08` | **(c)** | gap **C7** |
+| slot 6 — padded drain | `l qpos6 tWin6 hdrop6pos hpt6pos` | **(c)** | Phase-6 within-band doubling-drain rate — gap **C4** |
+| slot 6 — escape tail | `η6 hescW6 hηtail6 hfit6 escapeε6 c6 L06` | **(c)** | gap **C7** |
+| slots 0/2/3/9 — stage W | `w0stage1 w0stage15 w0stage2 w0chain1 w0chain2 w2s w2hs w2t w2ε w2hε w3* w9*` | **(c)** | opaque `PhaseConvergenceW` stage instances (role-split/doubling-seed/clock-bulk/pre-10) — gap **C9** (union ALGEBRA landed; epidemic SCALARS free) |
+| slot 4 — epidemic | `s4 hs4 t4 ε4 hε4` | **(c)** | Phase-4 constant-density epidemic tail — gap **C9** |
+| slot 10 — block geom | `s10 hs10 hsB10` | **(a)** | `V7ResidualClear.hsB10_of_ge` at locked `s10` (ceiling) |
+| seam — drift/overshoot | `seamP seamT εepidemic εovershoot hDrift hNoOvershoot` | **(c)** | §10 seam epidemic drift + clock no-overshoot tails — gap **C10** |
+| seam — glue (thm args) | `hPost2Win hSeedEvent hWin2Pre` | **(c)** | seed-step + window↔work entry pins (passed as theorem args) — gap **C10** |
+| start/sign — Pkg F | `hStart hStagePre0` | (b)/(c) | `hStart` = primitive `Phase0Initial` hypothesis; `hStagePre0` = slot-0 Pre interface (landed pin) |
+| start/sign — reach/root | `hInitValid hAllRoot hActRoot hReach10` | **(c)** | §11 phase-10 sign conservation / reachability roster — gap **C11** |
+
+**Counts.** Of the ~112 structure binders + the 3 theorem-arg glue families:
+- **class (a) CLEARED in `V7ResidualClear.lean` (10 produced lemmas):** `hq01`, `hq05`, `hq07`,
+  `hq08`, `hα01/hα11/hα05/hα15` (the `α≡1` calibration), `hP5`, the slot-8 survival constant
+  `14n/75 ≤ n/5`, `hsB10`, plus the shared shells `qRectReal_nonneg_of_le_pairs` and
+  `rate_shape_of_margin_lb`.  Together with the BOIL side conditions and the landed window-ceiling
+  `tWin`/`hT` calibration (`rectTWin`/`rectTWin_spec`), this clears the entire DETERMINISTIC-ARITHMETIC
+  surface of the residual.
+- **class (b) CLEARED by direct landed wiring:** `hMainFloor5` (from `RoleSplitGood`), `hStagePre0`
+  (slot-0 Pre interface pin).  These need no new term — the landed export is wired at instantiation.
+- **class (c) KEPT — 11 named gaps (the next-campaign roster):** below.
+
+### THE DEFINITIVE (c) GAP ROSTER — the irreducible paper-probability gaps
+
+| # | gap | V7 fields | paper citation | landed partial machinery | why genuinely open |
+|---|---|---|---|---|---|
+| **C1** | slot-1 partner-floor + sign witness whp | `g mc hwit1 hHonestEntry1` (and `hq1`'s margin) | Doty Lemma 5.3 (entry/partner pool) + Lemma 5.3 +3 sign | `PkgA2HonestFloor.hpull1H_of_honestEntry`/`hext1H_of_extremePos_witness` consume them; `EntryFloor`/`DrainThreading.extremePos` landed | the HONEST entry `\|centredBiasSum\| ≤ g` ∧ `mc ≤ mainCount` is a CONSERVATION + concentration whp fact on the Phase-1 window; not produced from the phase-only window |
+| **C2** | slot-5 biased-Main confinement (pointwise) | `hConf5` (and `hq5`'s floor) | Doty §6 / Thm 6.2 bias-ledger collapse | `PkgCAtoms.hmain5_of_pointwise_confinement` consumes it; `MainExponentConfinement`/`ConfinementSurface:36` landed; `UsefulMainFloor.theorem6_2_usefulMains_floor` landed | the whp confinement EVENT `⊬` the POINTWISE `MainProfileConfinedToUseful` at the witness `b`; needs pointwise success — the campaign's flagged Pkg-C residual |
+| **C3** | slot-5 sampled-class concentration + width-survival | `e5* εConc e5β e5hwidth i5 K₀` | Doty Lemma 7.1 / footnote 11 | `SampledClassTail` killed tail landed; `SamplingAtoms` ATOM 1 `hrfloor` PRODUCED; `PkgEAtoms.phase5WidthSurvivalExport` shape landed | ATOM 2 — the clock-separation escape `clockSeparationEscape` (`CounterResetDest 5` FALSE: width machinery, not seam tail) — and the averaging-rate Chernoff core are the open whp inputs |
+| **C4** | slot-6 Phase-6 within-band drain rate | `l qpos6 hdrop6pos hpt6pos` | Doty §6 Phase-6 doubling-drain | `PkgDAtoms.hdrop6_padded_from_positive`/`hpt6_padded_from_positive` consume them; `Phase6Convergence.highMass` landed | the per-level positive drain rate `qpos6 m` is the §6 width content (the within-band doubling-drain probability); not a landed term |
+| **C5** | slot-7 gap-1 eliminator margin (mass + structure + rate) | `hMainMass7 hStruct7 hrate7` | Doty Lemma 7.4 (gap-1 eliminator) | `PkgB2HonestMargin.hwit7_honest` consumes them; `EliminatorMargins.Phase6To7Structure`/`MarginInstantiation.hPhase6Post7_singleLevel:131` landed | `hMainMass7` (surviving σ-class MASS ⇒ Main minority COUNT) ∧ the §6 Post `≥ E7` ∧ the margin LB `(4/15)M₀(n−1) ≤ E7` are whp eliminator-margin facts |
+| **C6** | slot-8 above-level eliminator margin (structure + rate) | `hStruct8 hrate8` | Doty Lemma 7.6 (above-level eliminator) | `PkgB2HonestMargin.hwit8_honest` consumes `hStruct8` ALONE; `EliminatorMargins.Phase7To8Structure`/`MarginInstantiation.hPhase7Post8_of_survival:180` landed | the §7 Post `≥ E8` ∧ margin LB `(14/75)M₀(n−1) ≤ E8` are whp; one level up from C5, ZERO extra hypothesis but same whp class |
+| **C7** | one-step escape tails (slots 1/6/7/8) | `η{1,6,7,8} hescW{1,6,7,8} hηtail{1,6,7,8} hfit{1,6,7,8}` | Doty §5 window-survival escape | `PkgDAtoms.hescε{1,6,7,8}_of_tail_fit` consume them (tail-fit ALGEBRA landed) | `hescW*` (one-step kernel mass OUT of the honest window `≤ η`) is the affine-engine escape bound; the tail-fit `η ≤ exp(−c(L+1))` is the per-window whp escape — the engine SHAPE is landed but the per-window rate is the open input |
+| **C8** | slot-5 honest-window closure | `hClosed5` | documented non-reset exception (mirrors `phase6Convergence'` doctrine) | `OneSidedCancel.InvClosed`/`ReserveSampling.Phase5AllWin` landed | the within-seam Phase-5 closure (Phase 5 is the documented non-reset window); carried, not a probability bound but a structural closure obligation |
+| **C9** | opaque stage `PhaseConvergenceW` instances + Phase-4 epidemic | `w0*` `w2*` `w3*` `w9*` `s4 t4 ε4` | Doty §-stage role-split/doubling-seed/clock-bulk/pre-10 + §-epidemic | `PkgFAtoms.work{0,2,3,9}_*` consume them; union ALGEBRA `calibratedUnionW` landed (`decide`); `ClockKilledMinute.minuteRate`/`ClockRealBulk.bulkHi`/`ClockBudgets.εclock` landed | the epidemic SCALARS `(s,t,ε)` and the clock-bulk budget are free calibration inputs — `DotyParams` pins the §6 windowed-front engine but NOT the phase-2/4/9 union rates |
+| **C10** | seam epidemic drift + clock no-overshoot + seed/entry glue | `hDrift hNoOvershoot` + `hPost2Win hSeedEvent hWin2Pre` | Doty §10 (seam epidemics) + Lemma 5.2 (clock separation) | `SeamQuickWins.wave1_*`/`SeamEpidemics.seam_drift:1093` landed for `hDrift`; `ClockZeroTail.seam_atRiskTail_of_entry` for {1,6,7,8}; `SmallSweep.seedStepEvent_needs_drained_state` (NEGATIVE) | the non-reset {2,3,4,5,9} clock-zero overshoot tails + the seed-step rung (phase-only window ⊬ drained all-clock state) + the per-phase entry pins stay whp-open |
+| **C11** | §11 phase-10 sign conservation / reachability | `hInitValid hAllRoot hActRoot hReach10` (and `hStart`) | Doty §11 (backup-entry sign conservation) | `PkgFAtoms.hPhase10Sign_of_rooted` consumes them; `SignMatch.phase10SignMatch_of_rooted`/`BackupEntry.arrival_classification:189` landed | full §11 backup-entry sign conservation `∀c, Phase10Post c → phase10MajorityWitness init c` threaded from a single rooted activity+reachability invariant; the reachability roster `hReach10` is the open instance fact |
+
+### What stands between V7 and FAITHFUL
+
+After this triage, the honest open surface is EXACTLY the 11 (c) gaps: the §5 partner-floor + +3
+witness (C1), the Thm-6.2 pointwise confinement (C2), the Lemma-7.1 sampled-class concentration /
+clock-separation escape (C3), the Phase-6 drain rate (C4), the §7 gap-1 / §8 above-level eliminator
+margins (C5/C6), the window-survival escape rates (C7), the Phase-5 closure (C8), the opaque stage /
+epidemic scalars (C9), the §10 seam tails + seed/entry glue (C10), and the §11 sign conservation
+(C11).  EVERYTHING else — the rectangle nonnegativities, the α calibration, the locked floor/survival
+constants, the block-geometric budget, the window-ceiling lengths — is now DISCHARGED axiom-clean in
+`V7ResidualClear.lean` (class a) or wired directly from the landed chain (class b, `hMainFloor5` /
+`hStagePre0`).
+
+### Axiom audit
+
+```
+V7ResidualClear.qRectReal_nonneg_of_le_pairs : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.hq05_of_hP5                  : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.hq01_of_floor_le_n           : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.hq0_elim_of_le_pairs         : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.rate_shape_of_margin_lb      : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.hP5_locked                   : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.honest_E8_le_one_fifth       : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.hα0_one / hα1_one            : [propext, Classical.choice, Quot.sound]
+V7ResidualClear.hsB10_of_ge                  : [propext, Classical.choice, Quot.sound]
+```
+Single-file `lake env lean` EXIT 0 (uisai2 `~/repos/Ripple-atoms`, opus-wip, v4.30.0 + mathlib
+`v4.30.0`); no `sorry`/`admit`/`axiom`/`native_decide`; no warnings.
