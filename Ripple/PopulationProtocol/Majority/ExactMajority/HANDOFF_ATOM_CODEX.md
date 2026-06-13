@@ -57,3 +57,13 @@ opus-wip = a411125: six codex packages landed (PkgA-FAtoms.lean), all single-fil
   (hpull1H/hwit7/hwit8) must be derived without the all-Main collapse.
 - META-LESSON: parallel codex is fast but reintroduces already-fixed bugs it has
   no memory of; the independent audit caught all three immediately. Audit is load-bearing.
+
+## V6 LANDED (59e7243d, mirror 85dc198) — confirms the inheritance
+- FinalAssemblyV6.lean: 4 theorems (whp/expected + numerals), same conclusions as V51,
+  24 producers on the proof path, full consumption table, axiom-clean, single-file EXIT 0.
+- CONFIRMED it consumed PkgA/B/C producers (consumption table L337 hpull1H, L356 hmain5,
+  L381 hwit7, L391 hwit8) → V6 INHERITS the A/B/C false all-Main-bridge DEFECT. V6 compiles
+  but those four field rows are vacuous-as-stated. Redo A/B/C on honest windows → V6 auto-fixes
+  (the consumption wiring stays; only the three packages produce honestly).
+- Net: V6 is the structurally-complete target; the math-honesty gap = A/B/C redo +
+  the genuine paper cores (Lemma 5.3/7.1/7.4/7.6, pointwise-hmain5, hClosed5).
