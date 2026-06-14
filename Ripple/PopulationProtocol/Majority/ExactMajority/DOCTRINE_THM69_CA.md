@@ -294,6 +294,55 @@ R3 CODING ORDER: (1) ReactionKind + classify + classify_{drip,sync,atCap}_sound 
 (2) GhostDomState + updateD_from_pair + Kaug_direct + Kaug_direct_cfg_marginal (axiom-clean marginal FIRST —
 this is the highest-risk new object); (3) optional StepEvent/Kevent refactor.
 
+## ROUND 4 — family2 (Layer-D + SyncClockStart + WIRING @04872bc) — RESOLVED.
+
+LAYER D (resolved): FINITE UNION over (level, window-start) pairs — NOT a level-by-level stopping chain
+(painful in Lean: optionals/minimality/overlap). `WindowBadMass i s Lwin z₀ = ∫ (if Active63 i z then
+(Kaug i)^Lwin z {bad-window} else 0) ∂((Kaug i)^s z₀)`; `WindowBadMass_le ≤ ε_window`; aggregate
+`∑_{i∈leadingLevels} ∑_{s∈range(H+1−Lwin)} WindowBadMass ≤ leadingLevels.card·(H+1−Lwin)·ε_window`; +
+deterministic certificate `ShapeGoodPath → FrontWidthOK`; then `front_shape_exit_prob ≤ ε_window_total +
+ε_ghost_total + ε_sparse_total`. Matches how ClockUnconditional handles side costs (finite prefix sums).
+
+SyncClockStart SATISFIABLE (confirmed): Phase-3 init resets clock minute←0 (`{a with bias:=.zero,
+minute:=zeroFinMin}`) ⟹ X_0=1, X_{i>0}=0 = InitialClockTail. My `clockGE3_entry_of_roleSplitGood`
+(ClockCapReachable) gives C₀=clockCount, C₀≥n/5, allPhaseGE3. NEED extra deterministic entry lemmas
+(`syncClockStart_of_roleSplitGood_phase3Init` from `Phase3InitPost`) for Phase3ClockConfig, InitialClockTail,
+D₀=0, noPhaseAbove3, allClocksCounterPos.
+
+⚑ WIRING — IMPEDANCE MISMATCH RESOLVED (the honest path): the front-shape does NOT plug into the FALSE
+`FrontSyncConc.hwin_all`/`ClockFrontWidth.hcap_all` (∀c, deterministic, contain AllClockP3 = too strong for
+the mixed protocol). THE RIGHT TARGET is `ClockUnconditional.lean`'s SIDE-PREFIX form, which ALREADY conditions
+on `Sgood = QbulkSet ∩ HabsGood`, proves q=0 on Sgood, and leaves prefix sums of `Sgoodᶜ` to discharge.
+`ClockUnconditional.sidePrefix_le` decomposes `Sgoodᶜ = QmixFail ∪ FloorFail ∪ SyncFail ∪ PhaseGateFail` with
+`(realκ^τ) c₀ Sgoodᶜ ≤ εQ + εfloor + εsync + εphase`. My `front_shape_exit_prob` supplies the SyncFail (and
+width-related FloorFail) per-τ bounds → `sidePrefixes_from_front_shape` adapter → sum over (i,τ) →
+`clock_real_faithful_O_log_n_unconditional` → honest real-clock theorem.
+FRONT-SHAPE IS ONE SIDE-PREFIX TERM — the chain ALSO needs QmixFail/FloorFail/PhaseGateFail bounds +
+SyncClockStart (HabsDischarge closes card/clockSize/crossedT/allPhaseGE3 deterministically; clockPhase3/
+positive-counters need the FrontSync gate + phase side gates). THE HONEST ROUTE:
+  SyncClockStart ⇒ front-shape Layer D ⇒ SyncFail/width FloorFail per-τ ⇒ sidePrefix_le ⇒ all side-prefix sums
+  ⇒ clock_real_faithful_O_log_n_unconditional ⇒ honest real-clock theorem.   (NOT ⇒ hwin_all — that's false.)
+
+## ROUND 4 — family (CONSTANT VERDICT @04872bc) — RESOLVED. The checkpoint was REAL; the fix works.
+
+PAPER CONSTANTS FAIL: γ(0.9a²+b) = 1.23·(0.9·0.84²+0.11) = 1.23·0.74504 ≈ 0.9164 > 0.9. Coding (0.84,0.11,1.23)
+would BREAK the Layer-B contraction. (The plan-first approach caught a fatal error before coding.)
+
+THE FIX — window in CLOCK-PAIR time: W = w·C₀ clock-clock interactions (NOT 0.1n!). C₀=κn, a total interaction
+is clock-clock w.p. ≈κ², so total horizon Lwin = W/κ² = wn/κ. (For κ=1/5, w=0.1 ⟹ W=0.02n clock-pair, Lwin=0.5n.)
+With W=w·C₀ the κ CANCELS in ALL THREE ingredients:
+- parent growth: meanTime ≲ n/(ακ(1−ρ))·log(1/a); Janson λ·meanTime ≤ Lwin=wn/κ ⟹ **λ·log(1/a) ≤ α(1−ρ)w** (κ cancels).
+- immigration: per-total-interaction drip ≤ p(κx)², over Lwin=wn/κ ⟹ μ ≤ w·p·C₀·x² ⟹ coefficient **b = w** (κ cancels).
+- amplification: per-step rate is **2κY/n** (one fast clock × any clock = 2YC₀ ordered pairs / n(n−1); NOT 2κ²!),
+  over Lwin ⟹ **γ = e^{2w}** (κ cancels). [W=0.1n would give γ=e^1≈2.7, fatal; unthinned 2Y/n gives e^5.]
+
+WORKING CONSTANTS — code the SAFER set (w=0.09, more slack than the razor-thin w=0.1):
+  **w=9/100, a=213/250=0.852, b=19/200=0.095, γ=6/5=1.2, λ=101/100** ⟹ γ(0.9a²+b)= (6/5)(0.9·0.852²+0.095) =
+  350772/390625 = **0.89798 < 0.9** ✓; parent-growth valid: 1.01·log(250/213) < 2(0.9)(0.09)=0.162 ✓.
+  (Near-Doty alt w=0.1: a=837/1000,b=21/200,γ=1223/1000 ⟹ 0.89953<0.9, THIN margin.)
+CODE RULE: prove a SYMBOLIC `hcontract : γ·((9/10)·a²+b) ≤ 9/10` lemma, instantiate with w=0.09. NEVER hard-code
+the paper triple (0.84,0.11,1.23) — it FAILS. For amplification use rate 2κY/n (not 2κ²Y/n).
+
 ## Anti-patterns (the campaign's traps)
 NO false ∀-universal (the at-cap habs_mix trap, the ∀c Regime Lemma-6.10 trap); the within-envelope maintenance
 must be over the REACHABLE/subcritical domain. Early-drip ghost is ESSENTIAL (bare squaring false at tiny tail).
