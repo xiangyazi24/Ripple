@@ -431,6 +431,86 @@ theorem `layerB_constants_ok : γ·((9/10)a²+b) ≤ 9/10`, NEVER refer to the s
 7. Phrase the front-shape as FIRST-EXIT, not ∀c. [Hole 5]
 THEN code Layer A (mixed geometry) → Kaug/marked-ghost → Layer B (symbolic constants) → side-prefix adapters → assembly.
 
+## ROUND 6 — family2 (EarlyDripMarked + adapters @3c8b59e) — big REUSE, clear scope.
+
+GHOST = `EarlyDripMarked.markedK` (Hole 3 fix CONFIRMED — major reuse, NO new ghost kernel, NO domination proof):
+- `taintedCount mc = countP (·.2 = true) mc` IS Doty's `|D_{≥T+1}|` DIRECTLY (the marked early-drip descendant count
+  for level T: marks agents crossing above T by drip while c_{≥T}<n^{−0.45}, + epidemic-inherited from marked). So
+  D_i := taintedCount in `markedK i θn`. NO separate domination proof (it IS the true descendant count).
+- `markedK_pow_erase : (markedK^t) mc₀ (eraseConfig⁻¹' A) = (realK^t)(eraseConfig mc₀) A` — marked chain projects
+  EXACTLY to real chain at every horizon. Analyze marked events internally, transfer by erasure.
+- `tainted_rise_prob_le : P[taintedCount rises] ≤ (count@T/n)² + 2·taintedCount/n` — the two-term ghost rate
+  ALREADY PROVEN (early-drip seed + epidemic inheritance). `aboveCount = taintedCount + cleanAbove`, `MarkInv`.
+- CAVEAT (Hole 1 again): `tainted_rise_prob_le` assumes `AllClockP3 (eraseConfig mc)`. NEW: clock-filtered
+  `clockTaintedCount T mc = countP (role=clock ∧ T+1≤minute ∧ ·.2) mc` or prove marks-that-matter are clock marks.
+
+phaseGates_of_prefix_frontSync = CLEAN deterministic induction (NOT a prob theorem):
+- `ClockFrontShape.counterPos_closed_of_frontSync` ALREADY proves: on Q_mix∧allPhaseGE3∧noPhaseAbove3, FrontSync ⟹
+  allClocksCounterPos one-step closed (no clock at cap ⟹ stdCounterSubroutine never fires ⟹ counters don't
+  decrement). THE key discharge of the named `ClockPhase3_remaining_synchronization` obligation.
+- REUSE `HabsDischarge.allPhaseGE3_closed`. NEW small lemma: `noPhaseAbove3_closed_of_frontSync` (not in files).
+- Then `phaseGates_of_prefix_frontSync (hstart)(hprefix:∀t≤τ FrontSync) : allPhaseGE3∧noPhaseAbove3∧
+  allClocksCounterPos∧(∀c'∈support, noPhaseAbove3)` by path induction.
+
+THE 4 SIDE-PREFIX ADAPTERS (scope clarified):
+- SyncFail (=¬FrontSync): direct from front-shape first-exit, MODULO the bulk-near-cap exception (εB bulk-arrival
+  term, cf. ClockFrontSyncFromWidth's εB). Endpoint inclusion: {¬FrontSync at τ} ⊆ {first-exit before τ} ∪ {bulk-near-cap}.
+- PhaseGateFail: via phaseGates_of_prefix_frontSync (contrapositive: PhaseGateFail(τ) ⟹ ∃t≤τ ¬FrontSync(t)); first-exit adapter.
+- QmixFail: card/clockSize/clockPhase3 from phase gates, BUT `crossedT` is a SEPARATE seed/bulk-PROGRESS invariant.
+  QmixFail_prefix ≤ phase-gate fail + crossedT fail + start-structure fail.
+- FloorFail (¬ mC/10 ≤ rBeyond(T+1)): NOT front-width — a bulk-arrival/seed-floor LOWER bound. Lives in the
+  real-clock SEED/BULK machinery (seed: crossedT⟹floor; bulk: floor⟹crossedT+1), NOT ClockUnconditional/EarlyDripMarked/
+  front-shape. A SEPARATE adapter/input.
+
+HONEST ROUTE (confirmed): `EarlyDripMarked + mixed front-shape first-exit ⇒ SyncFail/phase-gate prefix bounds ⇒
+sidePrefix_le WITH SEPARATE Qmix(crossedT)/Floor adapters ⇒ clock_real_faithful_O_log_n_unconditional`. Front-shape
+alone does NOT close it (supplies SyncFail + width pieces only). Do NOT resurrect hwin_all.
+
+REUSE/NEW (R6 family2): REUSE = markedK/taintedCount/markedK_pow_erase/tainted_rise_prob_le (ghost),
+counterPos_closed_of_frontSync, allPhaseGE3_closed. NEW = clock-filtered taint (mixed, Hole 1),
+noPhaseAbove3_closed_of_frontSync, phaseGates assembly, QmixFail/crossedT split, FloorFail seed/bulk adapter,
+first-exit→endpoint adapters (bulk-near-cap εB). ## ROUND 6 — family (MIXED GEOMETRY @3c8b59e) — Layer A = mixed WRAPPER around REUSED arithmetic (NOT a re-proof).
+
+REUSE vs RE-STATE (clear):
+- REUSABLE AS-IS (abstract REAL-SEQUENCE arithmetic, denominator-agnostic): `FrontTail.windowed_doubly_exp`,
+  `windowed_floor_crossing`, `frontWidthBound`, `front_emptied_at_width`/`frontWidth_loglog`,
+  `HabsDischarge.rBeyond_antitone_threshold`, `frontSync_iff_rBeyond_cap_zero`. They don't care card vs C₀.
+- RE-STATE (config-facing wrappers, currently card-normalized + AllClockP3 — Hole 1; MECHANICAL card→C₀ swap):
+  `ClockFrontProfile.frac`→`ClockFrac C₀`, `WindowedFrontProfile`→`ClockWindowedFrontProfile C₀`, `ClimbBound`→
+  `ClockClimbBound C₀`, `GoodFrontWidth`→`ClockGoodFrontWidth C₀`, `goodFrontWidth_of_windowed_profile_and_climb`,
+  `WidthPrefix.goodFrontWidth_whp_at`-endpoint bridge, `ClockFrontWidth.rFront_emptied_of_envelope`.
+  ⟹ Layer A is NOT a wholesale re-proof of the doubly-exp math — just a mixed wrapper around the reused sequence lemmas.
+- DEFS: `ClockP3 c = ∀a∈c, role=clock→phase=3` (strictly weaker than AllClockP3); `ClockFrac C₀ T c = rBeyond T c/C₀`;
+  `ClockGoodFrontWidth C₀ W c = ∀i, 0<rBeyond i c → C₀≤10·rBeyond(i−W)c`. Carry `hC₀: clockCount c = C₀`, `0<C₀`.
+  `rBeyond_zero_eq_C₀ (hC₀): rBeyond 0 c = C₀` (no ClockP3 needed — every clock minute ≥ 0).
+
+κ SEPARATION (clean): κ lives in the PROBABILISTIC Layer-B rates, NOT the deterministic Layer-A envelope. Envelope is
+on X_T=rBeyond/C₀ with X_{T+1}≤X_T²; the seed bound (rBeyond/card)²=κ²X_T² has its κ² cancel over Lwin=wn/κ in
+Layer B. DO NOT absorb κ into the envelope f₀.
+
+⚠ CAP-SAFETY CORRECTED (my earlier note was backwards): need the bulk BELOW the top band, NOT near the cap.
+`capMinute ≤ bulkIdx+frontWidthBound` is WRONG (that = hour completing, cap legitimately nonempty). The cap-safety
+condition is `bulkIdx C₀ cap c + W < capMinute` OR directly `10·rBeyond(capMinute−W) c < C₀`. Then:
+`rBeyond_eq_zero_of_clockGoodWidth_of_bulk_below (hgood)(hbulk: 10·rBeyond(i−W)<C₀): rBeyond i c = 0` (same proof as
+existing card-version, card→C₀) → `frontSync_of_clockGoodWidth_of_bulk_below` (via frontSync_iff_rBeyond_cap_zero).
+Matches the existing bridge: cap-nonemptiness = width-fail ∪ side-fail ∪ bulk-arrival-near-cap. Prefer the direct
+`hbulk` form over `bulkIdx` for side-prefix wiring (avoids findGreatest overhead).
+
+## ════ 6-ROUND PLANNING COMPLETE — CODE-READINESS VERDICT ════
+The route is fully planned, red-teamed, constant-verified, reuse/new delineated. CROSS-CUTTING THEME (Hole 1): the
+existing §6 clock machinery is written for the ALL-CLOCK abstract model (card-normalized + AllClockP3); the
+mixed-protocol adaptation (card→C₀, ClockP3) is needed THROUGHOUT but is MECHANICAL restatement reusing the abstract
+arithmetic + the proven per-step facts. The hard NEW probabilistic content is: Layer-B forward window transfer (3
+ingredients, w=0.09 constants) + the GhostSmall on EarlyDripMarked.markedK + the sparse-chain union + the first-exit
+phrasing. The ghost + counter-positivity + the doubly-exp math are REUSED. CODING ORDER (low→high risk):
+1. Mixed Layer-A geometry wrappers (A0-A3, mechanical card→C₀) + `layerB_constants_ok` (w=0.09) + `rBeyond_zero_eq_C₀`.
+2. `noPhaseAbove3_closed_of_frontSync` + `phaseGates_of_prefix_frontSync` (clean det. induction, reuses counterPos_closed).
+3. Clock-filtered taint on EarlyDripMarked.markedK + GhostSmall (predictable-log-MGF, reuses tainted_rise_prob_le).
+4. Layer-B forward window transfer (symbolic constants → w=0.09) + Layer-C concentrations (immigration=Bennett,
+   amplification=crude MGF, parent-growth=JansonHitting unit milestones) + sparse-chain union.
+5. Layer-D first-exit union + the 4 side-prefix adapters (SyncFail/PhaseGateFail front-shape; QmixFail+crossedT;
+   FloorFail=separate seed/bulk) → sidePrefix_le → clock_real_faithful_O_log_n_unconditional → honest clock.
+
 ## Anti-patterns (the campaign's traps)
 NO false ∀-universal (the at-cap habs_mix trap, the ∀c Regime Lemma-6.10 trap); the within-envelope maintenance
 must be over the REACHABLE/subcritical domain. Early-drip ghost is ESSENTIAL (bare squaring false at tiny tail).
