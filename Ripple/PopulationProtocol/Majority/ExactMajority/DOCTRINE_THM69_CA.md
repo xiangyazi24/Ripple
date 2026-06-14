@@ -102,6 +102,94 @@ ROUND PLAN: R1 (fired) — level-split + ghost + stopped-structure + minimal hyp
 ghost-negligibility Chernoff + exact union budget. R3 — entry hypothesis + wiring. THEN code (per user: no
 rushing into proofs). The verified `regime_not_universal` + `Lemma610StoppedAzuma` are the templates.
 
+## ROUTE PLANNING — my own investigation findings (2026-06-13, pre-ChatGPT-round-1)
+
+While ChatGPT reads xiangyazi24/Ripple @0062175 (family: scalar-potential/stopped-fit; family2: avenue-b
+coupling), I audited the codebase myself:
+
+FINDING 1 — the within-envelope MAINTENANCE is proven NOWHERE. Every front-shape lemma (abstract
+`FrontShapeInduction` AND real `ClockFrontWidth`/`FrontNarrowConc`) ASSUMES `FrontWithinEnvelope`/
+`RWithinEnvelope`/`hfeeder_all` as a hypothesis and proves CONSEQUENCES (the count cap, the empty-front,
+the early-drip smallness). NO theorem CONCLUDES the maintenance. Grep confirms: no `→ FrontWithinEnvelope`
+/ `→ RWithinEnvelope` maintenance theorem exists.
+
+FINDING 2 — AVENUE (b) IS DEAD. The abstract `clockProto (Minute L₀)` model has the SAME gap: its
+`frontShape_couples_earlyDrip` (within-envelope → count cap) and `early_drip_small_at` (the ghost bound)
+are BOTH conditional on `FrontWithinEnvelope`/`hwin`. So coupling the abstract model to the real kernel
+transfers a CONDITIONAL result — no free lunch. The genuine concentration (the probabilistic maintenance)
+must be proven directly (avenue a), on the reachable/stopped domain.
+
+FINDING 3 — NO scalar front potential exists in the codebase. So the KEY architecture decision (the family
+question): can a SINGLE scalar potential Ψ_front = Σ_i w_i·rFrontFrac(i) (doubly-exp weights) be made a
+supermartingale on the within-envelope regime — reducing C-A to ONE stopped Azuma (my verified
+Lemma610StoppedAzuma template)? If YES → C-A closes by the exact Lemma 6.10 pattern. If NO → multi-level
+union + early-drip-ghost Chernoff (harder). This is THE pivot; await ChatGPT family round 1.
+
+REVISED ROUTE (converging): avenue (a) only [b dead]. The maintenance is the genuine open core, proven
+nowhere. The stopped-kernel wrapper (Lemma 6.10 template) eliminates the false ∀c. The OPEN architecture
+question = scalar-potential-supermartingale (one stopped Azuma) vs multi-level-union+ghost. Decide via
+ChatGPT round 1, THEN code.
+
+## ROUTE PLAN v1 (ChatGPT family round-1 @0062175, 2026-06-13) — the AGREED architecture
+
+PIVOT RESOLVED: NO single scalar potential exists for the front-shape (unlike Lemma 6.10's Φ). So C-A
+is NOT one stopped Azuma — it is a LEVEL-INDEXED family + an AUGMENTED GHOST KERNEL + a pathwise first-exit
+union bound. The honest target is a PATHWISE stopped/first-exit statement, NOT ∀c.
+
+THE ARCHITECTURE (one line):
+  SyncStart ⟹ WindowGood + GhostSmall + SparseNoChain ⟹ CleanTail ⟹ FrontWidthOK.
+
+THREE REGIMES (tail counts X_i := rBeyond(i)/C₀, NOT pointwise; ρ=0.1, ε=n^{−0.45}, ε_clean=n^{−0.4}, η=n^{−0.85}):
+  bulk        X_i ≥ 0.1            — DELIBERATELY IGNORED (used only in deterministic front-width, via bulkIdx).
+  mesoscopic  n^{−0.4} ≤ X_i ≤ 0.1 — the squaring recurrence X_{i+1} ≤ 0.9p·X_i² + D_{i+1}/C₀ (Lemma 6.3 + ghost).
+  sparse      X_i < n^{−0.4}       — the seed-only union bound (where my PROVEN rBeyond_seed_le_rBeyondSq fits).
+
+THE GHOST (essential, NOT "no early drips" — too strong): an AUGMENTED kernel. Either labeled descendant
+sets `GhostState = {cfg, ghost : level → Finset AgentId}` or (for the multiset kernel) a DOMINATING
+ghost-count `GhostDomState = {cfg, D : level → ℕ}` with one-step domination:
+  P[D_i gets early immigrant | F_t] ≤ 1_{X_i<ε}·p·X_i²;  P[D_i grows by epidemic] ≤ 2D_i/n.
+The ghost-count need not equal the true set — only dominate under a coupling. GhostSmall: D_i/C₀ ≤ η whp.
+Negligible vs X_i² when X_i ≥ n^{−0.4} (X_i² ≥ n^{−0.8} ≫ n^{−0.85}) — THIS is why the clean recurrence uses n^{−0.4}.
+
+STOPPED KERNEL: applied LOCALLY per level (`K63star i z = if Active63 i z then Kaug z else pure z`), NOT as
+one global envelope drift. Active63 i = Phase3Window ∧ ε ≤ X_i ≤ ρ ∧ GhostSmall ∧ ParentWindowGood.
+
+FOUR LAYERS:
+  A (deterministic tail geometry): bulkIdx, MesoscopicCleanAt → squareEnvelope → FrontWidthOK. Consumes my
+    EXISTING frontWidth_loglog / rFront_emptied_of_envelope.
+  B (Lemma 6.3 window transfer + ghost): `lemma63_window_transfer` from 3 window ingredients
+    (parent_tail_growth: X_i(t−L) ≤ a·X_i(t); drip_immigration ≤ b·p·X_i²·C₀; epidemic_amplification:
+    nonGhost(t) ≤ γ(nonGhost(t−L)+imm)), constants γ(0.9a²+b)<0.9 [a≈0.84, b≈0.11, γ≈1.23, window L=0.1n].
+    → `lemma65_clean_step_from_ghost` (0.9pX² + n^{−0.85} ≤ pX² for X ≥ n^{−0.4}). THE honest ∀c replacement.
+  C (whp concentration): windowGood_all_levels_whp, ghostSmall_all_levels_whp, sparsePioneer_whp (Chernoff/
+    Janson, union over levels×steps). My proven seed lemmas → sparsePioneer only.
+  D (first-exit transfer): ShapeGoodPath (WindowGood ∧ GhostSmall ∧ NoSparsePioneer all t≤H) → FrontWidthOK
+    deterministically; then `front_shape_exit_prob ≤ n^{−A1}+n^{−A2}+n^{−A3}` (pure union bound).
+
+SyncStart HYPOTHESIS (SATISFIABLE — excludes the bunched-at-cap witness, which is NOT a synchronized entry):
+  card=n ∧ Phase3ClockConfig ∧ C₀=clockCount ∧ C₀ ≥ κn ∧ InitialClockTail (X_0=1 ∧ ∀i>0 X_i=0, if minutes start at 0)
+  ∧ no_ghost (D_0 = 0).
+
+SCOPE: this is a LARGE multi-session build (the augmented ghost kernel is a new state space; the Layer-B
+window argument + Layer-C concentrations are substantial). But the architecture is now CONCRETE and agreed.
+ROUND 2 (next): refine the GhostDomState domination coupling (Layer B/C) + the augmented-kernel Lean
+construction (is Kaug a clean Mathlib kernel?). family2 (avenue-b coupling) pending — my audit already killed it.
+
+## family2 round-1 (avenue-b coupling) — CONFIRMS avenue (b) DEAD (2026-06-13 @0062175)
+
+ChatGPT read the real code and confirms: the clock-minute projection `π(c) = (c.filter role=clock).map minute`
+is a LAZY clockProto — `map π (K_real c) = p_clockPair·K_abs(π c) + (1−p_clockPair)·pure(π c)` (non-clock
+interactions leave the clock subconfig unchanged), where `p_clockPair = clockCount(clockCount−1)/(card(card−1))`.
+The laziness kills EXACT kernel functoriality (intertwining fails: condition "every sampled pair is clock-clock"
+fails in the mixed protocol; clockProto sees mC clocks, real samples from n). AND: "the abstract file does NOT
+prove a full reachable-trajectory maintenance theorem; it proves per-level squaring, envelope collapse, and a
+CONDITIONAL early-drip handoff" — exactly my Finding 1. ⟹ avenue (b) dead (both my audit + ChatGPT-on-real-code).
+USEFUL DETAIL retained: the lazy coupling `p_clockPair·K_abs + (1−p)·pure` may help Layer A/B relate the real
+per-level squaring to the abstract envelope arithmetic (a lazy embedding), even though it doesn't transfer the theorem.
+
+⟹ ROUTE PLAN v1 (avenue a, augmented ghost kernel, 4 layers) is the CONFIRMED route. Round 2: refine the
+augmented-ghost-kernel Lean construction + the domination coupling (the hardest NEW object).
+
 ## Anti-patterns (the campaign's traps)
 NO false ∀-universal (the at-cap habs_mix trap, the ∀c Regime Lemma-6.10 trap); the within-envelope maintenance
 must be over the REACHABLE/subcritical domain. Early-drip ghost is ESSENTIAL (bare squaring false at tiny tail).
