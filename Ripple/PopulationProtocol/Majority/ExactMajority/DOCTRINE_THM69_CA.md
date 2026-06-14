@@ -190,6 +190,69 @@ per-level squaring to the abstract envelope arithmetic (a lazy embedding), even 
 ⟹ ROUTE PLAN v1 (avenue a, augmented ghost kernel, 4 layers) is the CONFIRMED route. Round 2: refine the
 augmented-ghost-kernel Lean construction + the domination coupling (the hardest NEW object).
 
+## ROUTE PLAN v2 — round-2 refinements (2026-06-13 @67fedb9)
+
+### family2 R2 (Layer B): Layer B CANNOT be avoided for mesoscopic; write it FORWARD.
+- KEY SIMPLIFICATION Q ANSWERED **NO**: the per-step squared seed (`rBeyond_seed_le_rBeyondSq`) only controls
+  the FIRST seed into an EMPTY child level — NOT the child tail count once nonempty. Mesoscopic needs three
+  things the seed lemma can't see: (1) parent normalization over the window; (2) cumulative drip-immigration
+  concentration over L=0.1n steps; (3) epidemic AMPLIFICATION of immigrants. GhostSmall removes only the
+  SPARSE early-drip ghost, NOT legitimate mesoscopic immigration/amplification. So: sparse `X_i<n^{−0.4}` →
+  my seed lemmas ✓; mesoscopic `n^{−0.4}≤X_i≤0.1` → STILL need Layer B. Only the FORM simplifies.
+- FORWARD FORM (do NOT formalize the past): rewrite `X_i(t−L) ≤ a·X_i(t)` as window-start `X_i(s) ≤ a·X_i(s+L)`,
+  a `K^L` theorem from the window-start config; aggregate by integrating over the window-start distribution
+  `∫ ((Kaug i)^L) z {bad} ∂((Kaug i)^τ c₀)`. No conditional-expectation, no past. Layer D unions over
+  window-starts + first-exits. `lemma63_window_transfer_forward (i z) (hActive : Active63 i z) : (Kaug i ^ Lwin) z
+  {z' | X(i+1) z' > 0.9 p X(i)²  + D(i+1)/C₀} ≤ ε_window`.
+- EPIDEMIC MACHINERY @67fedb9: `ConstantDensityEpidemic.constantDensity_epidemic_O1_parallel` (forward growth
+  lower bound, but CONSTANT-density 0.1n→0.9n only, not mesoscopic); `EpidemicTime` (analytic/conditional, not
+  ready); `JansonHitting.milestone_hitting_time_bound` (generic milestone wrapper — the CLOSEST reusable, must
+  specialize for multiplicative growth x→x/a in the mesoscopic range). The specific mesoscopic parent-growth
+  lemma is NOT packaged — must build it (from JansonHitting).
+
+### family R2 (augmented ghost kernel @67fedb9) — RESOLVED. ROUTE PLAN v2-FINAL below.
+
+GHOST KERNEL CONSTRUCTION (resolved):
+- INSTRUMENTED kernel `Kevent : Kernel cfg StepEvent` — samples the real interaction but RETAINS a certificate
+  `StepEvent = {cfg', i, j, kind : ReactionKind, dripCoin, ...}`, with `map StepEvent.cfg' (Kevent c) = K c`.
+- `Kaug z = map (updateAug z) (Kevent z.cfg)`, `updateAug z e = {cfg := e.cfg', D := updateD_from_event z e}`.
+- EXACT cfg marginal: `map GhostDomState.cfg (Kaug z) = K z.cfg` (map_map + Kevent_cfg_marginal) ⟹ the augmented
+  chain's cfg-projection IS the real protocol chain. `Kernel.map` for deterministic D-update; `Kernel.bind` if D
+  needs extra dominating randomness. (A bare `Kernel.comp` is NOT enough — the D-update needs the realized transition.)
+- DETERMINISTIC ghost from BARE cfg path = UNSOUND (multiset forgets provenance; worst-case overcharge destroys
+  GhostSmall). Sound options: (B) deterministic from the INSTRUMENTED path (StepEvent certificate), or (C) a
+  STOCHASTIC dominating count `KD_step` with `P[ΔD_i^imm]≤1_{X_i<ε}pX_i²`, `P[ΔD_i^epi]≤2D_i/n`. C is the v1 line.
+
+GHOSTSMALL CONCENTRATION (resolved — REUSES MY VERIFIED TEMPLATE):
+- D_i is NOT a supermartingale (positive drift `E[ΔD_i] ≲ 1_{X_i<ε}pX_i² + 2D_i/n`). So Lemma 6.10's Φ pattern
+  does NOT apply to D_i directly. BUT the stopped-kernel WRAPPER applies per level:
+  `KghostStar i = Kernel.piecewise {GhostActive i} Kaug Kernel.id` (exactly my Lemma610StoppedAzuma piecewise).
+- The POTENTIAL is an EXPONENTIAL supermartingale `Ψ = exp(λ D_i − B_t(λ))` (predictable log-mgf compensator) —
+  `∫ Ψ d(KghostStar i z) ≤ Ψ z` unconditionally by the SAME stopped-kernel case split, Chernoff read-off. THIS
+  REUSES `AzumaKernel.expSupermartingale_drift` (the exp-MGF kernel drift I already used for Lemma 6.10) + my
+  Lemma610StoppedAzuma piecewise wrapper. Or (Option 3, cleanest math) a direct dominating immigration+Yule
+  branching Chernoff: D_{t+1} ≤ D_t + Bern(λ_t≤p n^{−0.9}) + Bern(2D_t/n); μ_imm ≤ O(n^{0.1} polylog) ≪ ηC₀=n^{0.15}.
+- LOCALIZE: GhostSmall for level i holds ONLY in the LOCAL Doty Lemma-6.3 window (before/around X_i entering the
+  mesoscopic band) — NOT the global O(log n) run (a tiny seed could eventually amplify too much over all time).
+
+## ROUTE PLAN v2-FINAL — the Lean lemma chain (both round-2 answers synthesized, ready to code)
+```
+Kevent                    -- instrument real step; `map cfg' (Kevent c) = K c`  [NEW kernel object]
+Kaug                      -- = map(updateAug) Kevent; `map cfg (Kaug z) = K z.cfg` (exact marginal)
+K63star i / KghostStar i  -- = piecewise {Active63 i / GhostActive i} Kaug id    [my Lemma610StoppedAzuma piecewise]
+ghostSmall_level_whp i    -- exp-supermartingale (AzumaKernel.expSupermartingale_drift) OR branching Chernoff; LOCAL window
+ghostSmall_all_levels_whp -- finite union over leading levels
+lemma63_window_transfer_forward i  -- FORWARD K^Lwin window-start; consumes GhostSmall; mesoscopic recurrence
+                                      X(i+1) ≤ 0.9p X(i)² + D(i+1)/C₀  (parent-growth[JansonHitting] + imm + ampl)
+lemma65_clean_step_from_ghost      -- 0.9p X² + n^{−0.85} ≤ p X² for X ≥ n^{−0.4}  [deterministic algebra]
+sparsePioneer_whp         -- my proven rBeyond_seed_le_rBeyondSq + sparse-chain union (sparse regime only)
+bulkIdx / MesoscopicCleanAt / FrontWidthOK  -- Layer A deterministic geometry; consumes frontWidth_loglog
+front_shape_exit_prob     -- Layer D: ShapeGoodPath ⟹ FrontWidthOK (deterministic) + union ≤ n^{−A1}+n^{−A2}+n^{−A3}
+```
+START hypothesis: `SyncClockStart` (card=n ∧ Phase3 ∧ C₀=clockCount ∧ C₀≥κn ∧ InitialClockTail ∧ D₀=0) — SATISFIABLE,
+excludes the bunched-at-cap witness. CODING ORDER: Layer A (low-risk, existing lemmas) → Kevent/Kaug scaffold +
+the marginal theorem → K63star + ghostSmall_level (reuse Lemma610StoppedAzuma exp-drift) → Layer B forward → Layer D union.
+
 ## Anti-patterns (the campaign's traps)
 NO false ∀-universal (the at-cap habs_mix trap, the ∀c Regime Lemma-6.10 trap); the within-envelope maintenance
 must be over the REACHABLE/subcritical domain. Early-drip ghost is ESSENTIAL (bare squaring false at tiny tail).
