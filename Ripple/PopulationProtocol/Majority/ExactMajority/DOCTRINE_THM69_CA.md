@@ -343,6 +343,94 @@ WORKING CONSTANTS — code the SAFER set (w=0.09, more slack than the razor-thin
 CODE RULE: prove a SYMBOLIC `hcontract : γ·((9/10)·a²+b) ≤ 9/10` lemma, instantiate with w=0.09. NEVER hard-code
 the paper triple (0.84,0.11,1.23) — it FAILS. For amplification use rate 2κY/n (not 2κ²Y/n).
 
+## ROUND 5 — family2 (ghost exp-MGF + composition consistency @185fb6d) — RESOLVED.
+
+GHOST EPIDEMIC RATE: clock-thinned `qepi(z) ≤ 2D(C₀−D)/(n(n−1)) ≈ 2κD/n` (NOT 2D/n). Keep exact finite-n form
+in Lean. Immigration `qimm(z) ≤ 1_{X_i<ε}·p·(C₀/n)²·X_i²` (the (C₀/n)²=κ² clock-pair factor; absorb into p if route did).
+
+GHOST CONCENTRATION (resolved — NEW lemma, partial reuse): D_i has POSITIVE drift ⟹ `AzumaKernel.expSupermartingale_drift`
+does NOT fit directly (it needs ∫Φ≤Φ, gives a weak Hoeffding `t·c²` exponent; GhostSmall needs a Poisson/Chernoff
+MEAN-sensitive exponent). REUSE the stopped-kernel piecewise pattern from `Lemma610StoppedAzuma` + the
+`AzumaKernel.azuma_exp_tail` geometric-drift-tail STYLE, but prove a NEW predictable-log-MGF drift:
+  Ψ(z)=exp(λ·D_i(z) − B(z)); compensator step `bλ(z)=log(1+qimm(e^λ−1))+log(1+qepi(e^λ−1))`, B accumulates as a
+  state field; `ghost_exp_drift : ∫ Ψ d(KghostStar i z) ≤ Ψ z` (multiplicative rate 1). λ=(1/100)log n,
+  R=ηC₀=κn^{0.15}, μ=O(n^{0.1}polylog) ⟹ tail `exp(−Ω(n^{0.15}log n)) ≤ n^{−A}`. Keep λ symbolic; numeric lemma
+  `hcomp : B_H λ ≤ (λ/2)·ηC₀`, discharge with λ=log n/100 later.
+
+GHOST NEGLIGIBILITY (clean): `lemma65_clean_step_from_ghost`: 0.9p·X²+D/C₀ ≤ p·X² ⟺ D/C₀ ≤ 0.1p·X². With η=n^{−0.85},
+X≥n^{−0.4}: n^{−0.85} ≤ 0.1p·n^{−0.8} ⟺ n^{−0.05} ≤ p/10 ⟺ **n ≥ (10/p)²⁰** (=10²⁰ for p=1; huge but harmless).
+
+SPARSE-PIONEER (my seed lemma = the one-step; NEW chain wrapper): `sparse_seed_step_bound` (rBeyond_seed_le_rBeyondSq
++ X_i<n^{−0.4} ⟹ K c {seed} ≤ n^{−0.8}) is REUSED. But the BAD EVENT is a CHAIN of sparse pioneer drips of length
+r=frontWidthBound n=Θ(log log n): `sparse_chain_whp` — P[one fixed chain] ≤ (n^{−0.8})^r, #choices ≤ H·cap^r·H^r ⟹
+total n^{−Ω(log log n)} = n^{−ω(1)}. This chain-length union is NEW Layer-C (not present). [Note clock-pair: rBeyond/n=κX_i,
+so the seed bound is κ²n^{−0.8} — cruder n^{−0.8} is safe.]
+
+REGIME THRESHOLDS (complete, no gap; use ≤): bulk ρ≤X, mesoscopic ε_clean≤X≤ρ, sparse X<ε_clean. ρ=0.1,
+ε_clean=n^{−0.4}, ε=n^{−0.45} (ghost trigger), η=n^{−0.85}. The band n^{−0.45}≤X<n^{−0.4} = sparse-but-NON-ghost-
+triggering (1_{X<ε} off there) — must be EXPLICITLY classified as sparse/SparseNoChain, NOT a gap.
+
+⚠ FrontWidthOK ⇒ FrontSync needs the SHIFTED/CAP-LEVEL form (IMPORTANT): don't state width abstractly. Use
+`rBeyond (bulkIdx c + frontWidthBound n) c = 0` AND prove `capMinute ≤ bulkIdx c + frontWidthBound n` (consumes
+`rFront_emptied_of_envelope`). Bare frontWidthBound is just a WIDTH, not automatically FrontSync (=rBeyond capMinute=0).
+
+## ROUND 5 — family (ADVERSARIAL RED-TEAM @185fb6d) — VERDICT: directionally right, NOT code-ready.
+The audit found 6 REAL holes (the plan-first approach caught them BEFORE coding):
+
+HOLE 1 (BIGGEST) — MIXED vs ALL-CLOCK normalization mismatch. The route uses X_i=rBeyond(i)/C₀ (clock-normalized),
+but existing `ClockFrontProfile`/`WidthPrefix`/`ClockFrontSyncFromWidth` use rBeyond/CARD (full-population) AND
+assume `AllClockP3 c` (EVERY agent is a phase-3 clock). AllClockP3 is FALSE in the real mixed protocol (Main/Reserve
+coexist). `goodFrontWidth_of_windowed_profile_and_climb` even uses AllClockP3 to prove rBeyond 0 = card. ⟹ reusing
+those bridges unchanged makes the proof INAPPLICABLE or silently an all-clock theorem (not the real protocol).
+FIX (do FIRST, before any Layer-B): mixed `ClockFrac T c = rBeyond T c/C₀`, `ClockP3 c = ∀ a∈c, role=clock→phase=3`
+(NOT all agents), `ClockGoodFrontWidth W C₀ c = ∀i, 0<rBeyond i→ C₀≤10·rBeyond(i−W)`; redo the deterministic geometry
+clock-normalized. WidthPrefix.goodFrontWidth_whp_at's bad event contains `card=n ∧ AllClockP3` → impossible/inapplicable.
+
+HOLE 2 — Active63 contains a FUTURE event (vacuity). v1 Active63 includes `ParentWindowGood` (= X_i(s)≤a·X_i(s+L), a
+window/future-good event). If the stopped kernel's active gate contains a future event, it only runs where the desired
+behavior is ALREADY assumed ⟹ vacuous. FIX: Active63 = ONLY state-local gates (Phase3Window ∧ ε≤X_i≤ρ ∧ GhostSmall);
+ParentWindowGood is a CONCLUSION of the window theorem, NOT a gate.
+
+HOLE 3 — the ghost: `EarlyDripMarked.markedK` ALREADY EXISTS (faithful labeled marked-agent kernel for Doty's
+early-drip set, path-dependent, projects EXACTLY to the real chain). A NEW count-only GhostDomState would need a
+nontrivial domination theorem (D_i dominates the true marked descendant set) that can easily fail. LOWER-RISK FIX:
+use `EarlyDripMarked.markedK` directly (D_i := marked/tainted count at level i), prove GhostSmall on the marked chain,
+transfer via `markedK_pow_erase`. DON'T duplicate the ghost machinery.
+
+HOLE 4 — front-shape is NOT the last open piece. `ClockUnconditional` leaves ALL side-prefixes (QmixFail, FloorFail,
+SyncFail, PhaseGateFail) UNBOUNDED in the RHS; `sidePrefix_le` is just the union-bound SHELL (conditional on 4 inputs).
+- SyncFail: front-shape supplies (modulo Hole 1).
+- FloorFail: MISCLASSIFIED as "width-related" — it's a LOWER-bound/bulk-PROGRESS failure (¬ mC/10 ≤ rBeyond(T+1)),
+  belongs to the SEED/BULK side, NOT front-width. Separate adapter.
+- QmixFail: needs clockPhase3 synchronization (the hard residual).
+- PhaseGateFail (MOST important): includes allClocksCounterPos. HabsDischarge has `ClockPhase3_remaining_synchronization`
+  = a NAMED UNPROVED obligation (one-step closure of allClocksCounterPos on Q_mix∧allPhaseGE3∧noPhaseAbove3) =
+  "exactly the front-shape synchronization fact." Needs `phaseGates_of_prefix_frontSync`.
+⟹ Finishing the front-shape will NOT close the clock theorem unless the 4 side-prefix ADAPTERS are added.
+
+HOLE 5 — CIRCULARITY (FrontSync). FrontSync is BOTH the condition keeping the phase-3 window safe AND the event the
+front-shape proves. The front-shape proof CANNOT assume FrontSync as a precondition — must be a FIRST-EXIT result:
+`Pr[∃ t≤H, ¬FrontSync(t) ∧ bulk_not_near_cap(t)] ≤ ε` (run real kernel WHILE FrontSync∧gates hold; failure = SyncFail/
+PhaseGateFail). DON'T prove `∀ reachable c, FrontSync c → ...` then use it for FrontSync (= the old false-∀c). ALSO:
+allClocksCounterPos needs PREFIX FrontSync (not endpoint) ⟹ explicit `phaseGates_of_prefix_frontSync (hstart) (hprefix:
+∀t≤τ, FrontSync(path t)) : allPhaseGE3 ∧ noPhaseAbove3 ∧ allClocksCounterPos ∧ (∀c'∈support, noPhaseAbove3)`.
+
+HOLE 6 — STALE constant line. The doctrine still has the OLD incorrect `epidemic_amplification: (1+2/n)Y → e^0.2`
+alongside the corrected `2κY/n, γ=e^{2w}`. Dangerous inconsistency. FIX: put final constants in a dedicated Lean
+theorem `layerB_constants_ok : γ·((9/10)a²+b) ≤ 9/10`, NEVER refer to the stale (1+2/n)^Lwin line.
+
+## PRE-CODING CHECKLIST (R5 verdict — build these NON-probabilistic adapters/decisions FIRST, before Layer-B):
+1. MIXED front geometry (replace AllClockP3/card-normalized): `ClockFrac C₀ T c`, `ClockGoodFrontWidth C₀ W c`,
+   `clockGoodFrontWidth_of_windowed_profile_and_climb_mixed`. [Hole 1 — biggest]
+2. `phaseGates_of_prefix_frontSync` (prefix FrontSync ⟹ the 4 phase gates). [Holes 4,5]
+3. The 4 SIDE-PREFIX ADAPTERS: `SyncFail_prefix_from_front_shape`, `PhaseGateFail_prefix_from_prefix_frontSync`,
+   `QmixFail_prefix_from_phase_gates`, `FloorFail_prefix_from_seed_or_bulk_progress`. [Hole 4]
+4. DECIDE: use `EarlyDripMarked.markedK` (D_i := marked count) instead of a new count-only ghost. [Hole 3]
+5. `layerB_constants_ok` dedicated theorem (w=0.09 set); purge the stale (1+2/n) line. [Hole 6]
+6. Active63 = state-local gates ONLY (remove ParentWindowGood). [Hole 2]
+7. Phrase the front-shape as FIRST-EXIT, not ∀c. [Hole 5]
+THEN code Layer A (mixed geometry) → Kaug/marked-ghost → Layer B (symbolic constants) → side-prefix adapters → assembly.
+
 ## Anti-patterns (the campaign's traps)
 NO false ∀-universal (the at-cap habs_mix trap, the ∀c Regime Lemma-6.10 trap); the within-envelope maintenance
 must be over the REACHABLE/subcritical domain. Early-drip ghost is ESSENTIAL (bare squaring false at tiny tail).
